@@ -24,14 +24,8 @@ _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 	dataProviderDisplayName:      "pdp1"
 	dataProviderResourceName:     _pdpName
 	dataProviderCertResourceName: _pdpCertName
-	populationKeyAndInfoList: [
-		{
-			populationResourceName: _populationResourceName
-			populationSpecFile:     _populationSpec
-			eventMessageTypeUrl:    "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
-		},
-	]
 	eventMessageDescriptor: "/etc/\(#AppName)/config-files/test_event_message_descriptor_set.pb"
+	eventMessageTypeUrl:    "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 }
 
 objectSets: [

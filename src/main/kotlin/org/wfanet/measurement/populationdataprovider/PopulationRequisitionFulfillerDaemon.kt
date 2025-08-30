@@ -15,6 +15,7 @@
 package org.wfanet.measurement.populationdataprovider
 
 import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import java.io.File
@@ -27,8 +28,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
@@ -39,11 +39,10 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -131,32 +130,30 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       [
         "Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"
       ],
-    required = false,
+    required = true,
   )
   private lateinit var eventMessageDescriptorSetFiles: List<File>
 
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
-  private lateinit var populationKeyAndInfo: List<PopulationKeyAndInfo>
+  @Option(
+    names = ["--event-message-type-url"],
+    description = ["Protobuf type URL of the event message for the CMMS instance"],
+    required = true,
+  )
+  private lateinit var eventMessageTypeUrl: String
 
-  private class PopulationKeyAndInfo {
-    @Option(names = ["--population-resource-name"], required = true)
-    lateinit var populationResourceName: String
-      private set
+  @Option(
+    names = ["--population-specs-path"],
+    description = ["Filesystem path containing serialized PopulationSpec messages"],
+    required = true,
+  )
+  private lateinit var populationSpecsDir: File
 
-    @CommandLine.ArgGroup(exclusive = false, multiplicity = "1")
-    lateinit var populationInfo: PopulationInfo
-      private set
-  }
-
-  private class PopulationInfo {
-    @Option(names = ["--population-spec"], required = true)
-    lateinit var populationSpecFile: File
-      private set
-
-    @Option(names = ["--event-message-type-url"], required = true)
-    lateinit var eventMessageTypeUrl: String
-      private set
-  }
+  @Option(
+    names = ["--population-specs-bucket"],
+    description = ["Storage bucket for PopulationSpec messages. This is part of the blob URI."],
+    defaultValue = "population-specs",
+  )
+  private lateinit var populationSpecsBucket: String
 
   override fun run() {
     val certificate: X509Certificate =
@@ -192,12 +189,18 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
     val requisitionsStub = RequisitionsCoroutineStub(publicApiChannel)
     val modelRolloutsStub = ModelRolloutsCoroutineStub(publicApiChannel)
     val modelReleasesStub = ModelReleasesCoroutineStub(publicApiChannel)
+    val populationsStub = PopulationsGrpcKt.PopulationsCoroutineStub(publicApiChannel)
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
 
-    val typeRegistry = buildTypeRegistry()
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
+    val eventMessageDescriptor: Descriptors.Descriptor =
+      checkNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+        "Event message type not found in descriptor sets"
+      }
 
-    val populationInfoMap = buildPopulationInfoMap(typeRegistry)
+    val populationStore =
+      FileSystemPopulationStore(FileSystemStorageClient(populationSpecsDir), populationSpecsBucket)
 
     val populationRequisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -208,22 +211,18 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         clientCerts.trustedCertificates,
         modelRolloutsStub,
         modelReleasesStub,
-        populationInfoMap,
-        typeRegistry,
+        populationsStub,
+        eventMessageDescriptor,
       )
 
     runBlocking { populationRequisitionFulfiller.run() }
   }
 
   private fun buildTypeRegistry(): TypeRegistry {
+    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      loadFileDescriptorSets(eventMessageDescriptorSetFiles)
     return TypeRegistry.newBuilder()
-      .apply {
-        if (::eventMessageDescriptorSetFiles.isInitialized) {
-          add(
-            ProtoReflection.buildDescriptors(loadFileDescriptorSets(eventMessageDescriptorSetFiles))
-          )
-        }
-      }
+      .apply { add(ProtoReflection.buildDescriptors(fileDescriptorSets)) }
       .build()
   }
 
@@ -234,18 +233,6 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
       file.inputStream().use { input ->
         DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
       }
-    }
-  }
-
-  private fun buildPopulationInfoMap(
-    typeRegistry: TypeRegistry
-  ): Map<PopulationKey, org.wfanet.measurement.populationdataprovider.PopulationInfo> {
-    return populationKeyAndInfo.associate {
-      grpcRequireNotNull(PopulationKey.fromName(it.populationResourceName)) to
-        PopulationInfo(
-          parseTextProto(it.populationInfo.populationSpecFile, PopulationSpec.getDefaultInstance()),
-          typeRegistry.getDescriptorForTypeUrl(it.populationInfo.eventMessageTypeUrl),
-        )
     }
   }
 

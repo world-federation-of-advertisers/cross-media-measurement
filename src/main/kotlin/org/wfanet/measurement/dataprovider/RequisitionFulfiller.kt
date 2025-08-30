@@ -83,9 +83,6 @@ abstract class RequisitionFulfiller(
   protected class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
 
-  protected class InvalidSpecException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
-
   /** A sequence of operations done in the simulator. */
   abstract suspend fun run()
 

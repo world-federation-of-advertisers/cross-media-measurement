@@ -117,6 +117,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.InvalidRequisitionException
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.MeasurementResults.computeImpression
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
@@ -354,7 +355,7 @@ abstract class AbstractEdpSimulator(
               trustedIssuer,
             )
           }
-        else -> throw InvalidSpecException("Unsupported protocol $protocol")
+        else -> throw InvalidRequisitionException("Unsupported protocol $protocol")
       }
     } catch (e: CertPathValidatorException) {
       throw InvalidConsentSignalException(
@@ -507,15 +508,7 @@ abstract class AbstractEdpSimulator(
           }
         }
 
-        val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
-          try {
-            buildEventGroupSpecs(requisitionSpec)
-          } catch (e: InvalidSpecException) {
-            throw RequisitionRefusalException.Default(
-              Requisition.Refusal.Justification.SPEC_INVALID,
-              e.message.orEmpty(),
-            )
-          }
+        val eventGroupSpecs: List<EventQuery.EventGroupSpec> = buildEventGroupSpecs(requisitionSpec)
 
         val requisitionFingerprint = computeRequisitionFingerprint(requisition)
 
@@ -656,7 +649,7 @@ abstract class AbstractEdpSimulator(
   /**
    * Builds [EventQuery.EventGroupSpec]s from a [requisitionSpec] by fetching [EventGroup]s.
    *
-   * @throws RequisitionFulfiller.InvalidSpecException if [requisitionSpec] is found to be invalid
+   * @throws InvalidRequisitionException if [requisitionSpec] is found to be invalid
    */
   private suspend fun buildEventGroupSpecs(
     requisitionSpec: RequisitionSpec
@@ -668,13 +661,13 @@ abstract class AbstractEdpSimulator(
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
         } catch (e: StatusException) {
           throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> InvalidSpecException("EventGroup $it not found", e)
+            Status.Code.NOT_FOUND -> InvalidRequisitionException("EventGroup $it not found", e)
             else -> Exception("Error retrieving EventGroup $it", e)
           }
         }
 
       if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
-        throw InvalidSpecException("EventGroup ${it.key} not supported by this simulator")
+        throw InvalidRequisitionException("EventGroup ${it.key} not supported by this simulator")
       }
 
       EventQuery.EventGroupSpec(eventGroup, it.value)

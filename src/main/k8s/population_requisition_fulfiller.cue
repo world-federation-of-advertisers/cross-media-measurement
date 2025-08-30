@@ -14,8 +14,6 @@
 
 package k8s
 
-import "list"
-
 // TODO: Update target reference to allow for deployment outside same cluster as Kingdom
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 
@@ -25,13 +23,7 @@ import "list"
 	dataProviderCertResourceName: string
 	throttlerMinimumInterval:     string | *"2s"
 	eventMessageDescriptor:       string
-	populationKeyAndInfoList: [...#PopulationKeyAndInfo]
-}
-
-#PopulationKeyAndInfo: {
-	populationResourceName: string
-	populationSpecFile:     string
-	eventMessageTypeUrl:    string
+	eventMessageTypeUrl:          string
 }
 
 #PopulationRequisitionFulfiller: {
@@ -41,22 +33,13 @@ import "list"
 
 	let DisplayName = _config.dataProviderDisplayName
 
-	_populationFlags: {
-		let flagLists = [ for config in _config.populationKeyAndInfoList {[
-			"--population-resource-name=\(config.populationResourceName)",
-			"--population-spec=\(config.populationSpecFile)",
-			"--event-message-type-url=\(config.eventMessageTypeUrl)",
-		]}]
-		list.FlattenN(flagLists, 2)
-	}
-
 	deployment: #Deployment & {
 		_name:       DisplayName + "-requisition-fulfiller"
 		_secretName: _populationRequisitionFulfillerSecretName
 		_system:     "population"
 		_container: {
 			image: _imageConfig.image
-			args:  [
+			args: [
 				"--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--data-provider-resource-name=\(_config.dataProviderResourceName)",
@@ -70,7 +53,8 @@ import "list"
 				"--tls-key-file=/var/run/secrets/files/\(DisplayName)_root.key",
 				"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
 				"--event-message-descriptor-set=\(_config.eventMessageDescriptor)",
-			] + _populationFlags
+				"--event-message-type-url=\(_config.eventMessageTypeUrl)",
+			]
 		}
 		spec: template: spec: {
 			_dependencies: [

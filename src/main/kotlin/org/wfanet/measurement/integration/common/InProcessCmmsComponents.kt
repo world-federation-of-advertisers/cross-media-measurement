@@ -17,7 +17,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
@@ -34,20 +33,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
 import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -55,7 +54,6 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
-import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.PopulationData
@@ -65,7 +63,6 @@ import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
 import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.ResourceKt
 import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 class InProcessCmmsComponents(
@@ -162,11 +159,8 @@ class InProcessCmmsComponents(
           )!!,
         ),
       populationDataProviderResource.name,
-      mapOf(populationKey to populationInfo),
-      typeRegistry,
       kingdom.publicApiChannel,
       TRUSTED_CERTIFICATES,
-      verboseGrpcLogging = false,
     )
   }
 
@@ -191,22 +185,25 @@ class InProcessCmmsComponents(
     ApiKeysGrpcKt.ApiKeysCoroutineStub(kingdom.publicApiChannel)
   }
 
-  val modelProviderResourceName: String
-    get() = _modelProviderResourceName
-
-  val typeRegistry: TypeRegistry
-    get() = _typeRegistry
-
   lateinit var mcResourceName: String
   private lateinit var apiAuthenticationKey: String
   lateinit var edpDisplayNameToResourceMap: Map<String, Resources.Resource>
+    private set
+
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var eventGroups: List<EventGroup>
   private lateinit var populationDataProviderResource: Resources.Resource
-  private lateinit var populationKey: PopulationKey
-  private lateinit var populationInfo: PopulationInfo
-  private lateinit var _typeRegistry: TypeRegistry
-  private lateinit var _modelProviderResourceName: String
+  private lateinit var internalPopulation: InternalPopulation
+  lateinit var modelProviderResourceName: String
+    private set
+
+  val populationResourceName: String
+    get() =
+      PopulationKey(
+          ExternalId(internalPopulation.externalDataProviderId).apiId.value,
+          ExternalId(internalPopulation.externalPopulationId).apiId.value,
+        )
+        .toName()
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -275,20 +272,14 @@ class InProcessCmmsComponents(
     }
 
     val internalModelProvider = resourceSetup.createInternalModelProvider()
-    _modelProviderResourceName =
+    modelProviderResourceName =
       ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
 
-    val populationSpec = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec()
-    val population =
+    internalPopulation =
       resourceSetup.createInternalPopulation(
         internalDataProvider,
-        populationDetails { this.populationSpec = populationSpec.toInternal() },
+        populationDetails { populationSpec = POPULATION_SPEC.toInternal() },
       )
-    populationKey = PopulationKey.fromName(population.toPopulation().name)!!
-    populationInfo = PopulationInfo(populationSpec, TestEvent.getDescriptor())
-
-    _typeRegistry =
-      TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {
@@ -303,8 +294,7 @@ class InProcessCmmsComponents(
   fun getPopulationData(): PopulationData {
     return PopulationData(
       populationDataProviderName = populationDataProviderResource.name,
-      populationInfo = populationInfo,
-      populationKey = populationKey,
+      POPULATION_SPEC,
     )
   }
 
@@ -383,6 +373,8 @@ class InProcessCmmsComponents(
         checkNotNull(it.subjectKeyIdentifier)
       }
     private val EVENT_GROUP_MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
+    private val POPULATION_SPEC: PopulationSpec =
+      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec()
 
     @JvmStatic
     fun initConfig() {
