@@ -20,12 +20,14 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
 import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob
-import org.wfanet.measurement.internal.kingdom.eventTemplate
 import org.wfanet.measurement.internal.kingdom.population
 
 class PopulationReader : SpannerReader<PopulationReader.Result>() {
@@ -45,7 +47,7 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
       Populations.Description,
       Populations.CreateTime,
       Populations.ModelBlobUri,
-      Populations.EventTemplateType,
+      Populations.PopulationDetails,
       DataProviders.ExternalDataProviderId
     FROM Populations
     JOIN DataProviders USING (DataProviderId)
@@ -76,12 +78,32 @@ class PopulationReader : SpannerReader<PopulationReader.Result>() {
       .singleOrNull()
   }
 
+  suspend fun readByCreateRequestId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    createRequestId: String,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          "WHERE DataProviderId = @dataProviderId AND CreateRequestId = @createRequestId"
+        )
+        bind("dataProviderId").to(dataProviderId)
+        bind("createRequestId").to(createRequestId)
+      }
+      .execute(readContext)
+      .singleOrNullIfEmpty()
+  }
+
   private fun buildPopulation(struct: Struct): Population = population {
     externalDataProviderId = struct.getLong("ExternalDataProviderId")
     externalPopulationId = struct.getLong("ExternalPopulationId")
     description = struct.getString("Description")
     createTime = struct.getTimestamp("CreateTime").toProto()
-    populationBlob = populationBlob { modelBlobUri = struct.getString("ModelBlobUri") }
-    eventTemplate = eventTemplate { fullyQualifiedType = struct.getString("EventTemplateType") }
+    if (!struct.isNull("PopulationDetails")) {
+      details = struct.getProtoMessage("PopulationDetails", PopulationDetails.getDefaultInstance())
+    }
+    if (!struct.isNull("ModelBlobUri")) {
+      populationBlob = populationBlob { blobUri = struct.getString("ModelBlobUri") }
+    }
   }
 }

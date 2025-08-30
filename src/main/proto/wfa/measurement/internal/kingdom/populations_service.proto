@@ -24,13 +24,18 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Population entities.
 service Populations {
-  rpc CreatePopulation(Population) returns (Population);
+  rpc CreatePopulation(CreatePopulationRequest) returns (Population);
 
   rpc GetPopulation(GetPopulationRequest) returns (Population);
 
   // Streams `Population`s ordered by (`create_time` descending,
   // `external_data_provider_id` ascending, `external_population_id` ascending).
   rpc StreamPopulations(StreamPopulationsRequest) returns (stream Population);
+}
+
+message CreatePopulationRequest {
+  Population population = 1;
+  string request_id = 2;
 }
 
 message GetPopulationRequest {

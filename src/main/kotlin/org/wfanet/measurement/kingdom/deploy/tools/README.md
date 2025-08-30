@@ -159,7 +159,7 @@ ModelRepository \
 *   Get a ModelProvider
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -170,7 +170,7 @@ ModelRepository \
 *   List ModelProviders
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -183,7 +183,7 @@ ModelRepository \
 *   Get a ModelSuite
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -194,7 +194,7 @@ ModelRepository \
 *   List ModelSuites
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -206,7 +206,7 @@ ModelRepository \
 *   Create ModelSuite
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -220,7 +220,7 @@ ModelRepository \
 *   Create ModelLine
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -236,7 +236,7 @@ ModelRepository \
 *   Set ModelLine's active end time
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -251,7 +251,7 @@ ModelRepository \
 *   Get Population
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -262,7 +262,7 @@ ModelRepository \
 *   List Populations
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
@@ -274,11 +274,11 @@ ModelRepository \
 *   Create Population
 
     ```shell
-    Modelrepository \
+    ModelRepository \
       --tls-cert-file=src/main/k8s/testing/secretfiles/mp1_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
       --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
       populations create --parent=modelProviders/AAAAAAAAAHs --description=testing \
-      --model-blob-uri=uri --event-template-type=template
+      --population-spec=/path/to/population-spec.binpb
     ```

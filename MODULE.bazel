@@ -47,7 +47,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.81.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -396,4 +395,14 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#250): Use version.
+archive_override(
+    module_name = "cross-media-measurement-api",
+    integrity = "sha256-66gF9UrlPrs/MV91rF5ZjbvFwcaAc5Ur1wxi86/y5ok=",
+    strip_prefix = "cross-media-measurement-api-69df75779ff2fb3ba31ec4bbbf3740aea568f5fa",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/69df75779ff2fb3ba31ec4bbbf3740aea568f5fa.tar.gz",
+    ],
 )
