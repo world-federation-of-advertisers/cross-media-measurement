@@ -961,6 +961,9 @@ abstract class MeasurementConsumerSimulator(
         this.measurementReferenceId = runId
       }
     }
+    logger.info("----------------------> requisitions: $requisitions")
+    logger.info("-----------------------------> request:")
+    logger.info("$request")
     val measurement: Measurement =
       try {
         measurementsClient
