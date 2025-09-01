@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_display_names = ["edp7"]
+  edp_display_names = ["edp7", "edpa-meta"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
