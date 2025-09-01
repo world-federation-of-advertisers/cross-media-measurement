@@ -318,7 +318,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}")
+    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
     val pubSubClient = DefaultGooglePubSubClient()
     return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
   }
