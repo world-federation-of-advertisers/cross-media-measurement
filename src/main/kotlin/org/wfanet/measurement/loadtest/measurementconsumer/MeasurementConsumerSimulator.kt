@@ -472,6 +472,7 @@ abstract class MeasurementConsumerSimulator(
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    logger.info("EVENT GROUP FILTER: $eventGroupFilter")
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -885,7 +886,9 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .onEach { logger.info("---- event group: ${it.eventGroupReferenceId}") }
         .filter { eventGroupFilter?.invoke(it) ?: true }
+        .onEach { logger.info("---- event group 2222: ${it.eventGroupReferenceId}") }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
@@ -896,6 +899,7 @@ abstract class MeasurementConsumerSimulator(
             true
           }
         }
+        .onEach { logger.info("---- event group 3333: ${it.key}, ${it.value}") }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
           val nonce = Random.Default.nextLong()
