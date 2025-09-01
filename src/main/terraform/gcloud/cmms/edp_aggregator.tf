@@ -152,7 +152,7 @@ locals {
       function_name       = var.event_group_sync_function_name
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
       extra_env_vars      = var.event_group_env_var
-      secret_mappings     = var.requisition_fetcher_secret_mapping
+      secret_mappings     = var.event_group_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
     }
   }
