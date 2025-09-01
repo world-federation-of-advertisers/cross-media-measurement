@@ -20,6 +20,13 @@ option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Proto representation of the internal ReportResult entity type.
+// Open questions:
+// What do we want the internal API to look like? Arguably we
+// Use cases:
+// 1) set noisy results
+// 2) get noisy results
+// 3) set denoised results
+// 4) no need for get denoised results since BasicReport.Get will expose them
 message ReportResult {
   // `MeasurementConsumer` ID from the CMMS public API.
   int64 cmms_measurement_consumer_id = 1;
@@ -40,21 +47,5 @@ message ReportResult {
     // primitive Venn diagram region entailed by sub-ReportingSets
     PRIMITIVE = 2;
   }
-
 }
 
-// A base metric is one that is computed by the upstream parts of the CMMS
-// directly. These are differentiated from "derived metrics" which are
-// combinations of base metrics.
-message BaseMetricSet {
-  int32 population_size = 1;
-
-  message BasicBaseMetricSet {
-    // The reach
-    int32 reach = 1;
-    // The k+ reach where the index is frequency - 1.
-    repeated int32 k_plus_reach = 2;
-    // The impression count
-    int32 impressions = 3;
-  }
-}
