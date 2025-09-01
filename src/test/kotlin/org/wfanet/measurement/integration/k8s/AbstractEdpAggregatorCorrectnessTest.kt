@@ -20,6 +20,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -35,12 +37,27 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   private val mcSimulator: MeasurementConsumerSimulator
     get() = measurementSystem.mcSimulator
 
+  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: ((EventGroup) -> Boolean)?
+  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
+
+
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1234", 1)
+      mcSimulator.testDirectReachAndFrequency("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+    }
+
+  @Test
+  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      mcSimulator.testReachOnly(
+        "1234",
+        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS
+      )
     }
 
   interface MeasurementSystem {

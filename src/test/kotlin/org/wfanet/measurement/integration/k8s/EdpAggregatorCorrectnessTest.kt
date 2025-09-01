@@ -42,7 +42,6 @@ import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -54,6 +53,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -67,6 +67,17 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
+
+  override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (PublicApiEventGroup) -> Boolean = {
+    it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
+  }
+
+  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (PublicApiEventGroup) -> Boolean = {
+    it.eventGroupReferenceId in setOf(
+      GROUP_REFERENCE_ID_EDPA_EDP1,
+      GROUP_REFERENCE_ID_EDPA_EDP2
+    )
+  }
 
   private class UploadEventGroup : TestRule {
 
@@ -239,7 +250,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA,
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -274,11 +284,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-//    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
-    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-2"
-    private val EVENT_GROUP_FILTERING_LAMBDA: (PublicApiEventGroup) -> Boolean = {
-      it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
-    }
+    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
+    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
 
     private val TEST_DATA_RUNTIME_PATH =
       org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
@@ -294,7 +301,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
-    val syntheticEventGroupMap = mapOf(REQUIRED_EVENT_GROUP_REFERENCE_ID to syntheticEventGroupSpec)
+    val syntheticEventGroupMap = mapOf(
+      GROUP_REFERENCE_ID_EDPA_EDP1 to syntheticEventGroupSpec,
+      GROUP_REFERENCE_ID_EDPA_EDP2 to syntheticEventGroupSpec,
+      )
 
     private val ZONE_ID = ZoneId.of("UTC")
 

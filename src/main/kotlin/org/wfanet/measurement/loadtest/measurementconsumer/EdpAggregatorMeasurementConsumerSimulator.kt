@@ -66,7 +66,6 @@ class EdpAggregatorMeasurementConsumerSimulator(
   private val filterExpression: String = DEFAULT_FILTER_EXPRESSION,
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
-  eventGroupFilter: ((EventGroup) -> Boolean)?,
   onMeasurementsCreated: (() -> Unit)? = null,
 ) :
   MeasurementConsumerSimulator(
@@ -81,19 +80,11 @@ class EdpAggregatorMeasurementConsumerSimulator(
     expectedDirectNoiseMechanism,
     initialResultPollingDelay,
     maximumResultPollingDelay,
-    eventGroupFilter = eventGroupFilter,
     onMeasurementsCreated = onMeasurementsCreated,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
-    println("syntheticEventGroupMap keys: ${syntheticEventGroupMap.keys}")
-
-    return onEach { eventGroup ->
-      println("eventGroupReferenceId: ${eventGroup.eventGroupReferenceId}")
-    }.filter { eventGroup ->
-      eventGroup.eventGroupReferenceId in syntheticEventGroupMap.keys
-    }
-//    return filter { it.eventGroupReferenceId in syntheticEventGroupMap.keys }
+    return filter { it.eventGroupReferenceId in syntheticEventGroupMap.keys }
   }
 
   /**
