@@ -82,6 +82,8 @@ CREATE TABLE ReportingSetResults(
  -- the results. It does not include any filters implied by the IQF.
  -- This field is NULL if no filters were applied.
  FilterFingerprint INT64,
+ -- The population size associated with the results
+ PopulationSize INT64 NOT NULL,
  -- The creation time of this row.
  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId, ReportingSetResultId),
