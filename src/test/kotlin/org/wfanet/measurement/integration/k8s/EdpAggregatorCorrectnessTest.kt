@@ -71,8 +71,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class UploadEventGroup : TestRule {
 
     private val bucket = "secure-computation-storage-dev-bucket"
-    private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
-    private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
+//    private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
+    private val eventGroupObjectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.pb"
+//    private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
+    private val eventGroupObjectKey = "edpa_meta/event-groups/edpa_meta-event-group.pb"
     private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
@@ -272,7 +274,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
+//    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
+    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-2"
     private val EVENT_GROUP_FILTERING_LAMBDA: (PublicApiEventGroup) -> Boolean = {
       it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
     }
@@ -291,7 +294,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
-    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
+    val syntheticEventGroupMap = mapOf(REQUIRED_EVENT_GROUP_REFERENCE_ID to syntheticEventGroupSpec)
 
     private val ZONE_ID = ZoneId.of("UTC")
 
