@@ -82,22 +82,50 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class UploadEventGroup : TestRule {
 
     private val bucket = "secure-computation-storage-dev-bucket"
-//    private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
-    private val eventGroupObjectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.pb"
-//    private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
-    private val eventGroupObjectKey = "edpa_meta/event-groups/edpa_meta-event-group.pb"
-    private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
+
+    /**
+    * Per-eventGroupReferenceId storage config so each provider writes to its own directory.
+    */
+    private data class EventGroupStorage(
+      val objectMapKey: String,
+      val objectKey: String,
+      val blobUri: String
+    )
+
+    private val eventGroupStorageMap: Map<String, EventGroupStorage> = mapOf(
+      GROUP_REFERENCE_ID_EDPA_EDP1 to EventGroupStorage(
+        objectMapKey = "edp7/event-groups-map/edp7-event-group.pb",
+        objectKey    = "edp7/event-groups/edp7-event-group.pb",
+        blobUri      = "gs://$bucket/edp7/event-groups/edp7-event-group.pb",
+        ),
+      GROUP_REFERENCE_ID_EDPA_EDP2 to EventGroupStorage(
+        objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.pb",
+        objectKey    = "edpa_meta/event-groups/edpa_meta-event-group.pb",
+        blobUri      = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.pb",
+        ),
+      )
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
-            deleteExistingEventGroupsMap()
-            uploadEventGroups(createEventGroups())
-            waitForEventGroupSyncToComplete()
+            deleteExistingEventGroupsMaps()
+            val allEventGroups = createEventGroups()
+            val eventGroupsByReferenceId: Map<String, List<EventGroup>> =
+              allEventGroups.groupBy { it.eventGroupReferenceId }
+
+            for ((refId, groups) in eventGroupsByReferenceId) {
+              val storage = eventGroupStorageMap[refId]
+                ?: error("Missing storage mapping for eventGroupReferenceId=$refId")
+
+              uploadEventGroups(storage, groups)
+              waitForEventGroupSyncToComplete(storage)
+              logger.info("Event Group Sync completed for $refId.")
+            }
+
             logger.info("Event Group Sync completed.")
           }
           base.evaluate()
@@ -105,25 +133,27 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private suspend fun waitForEventGroupSyncToComplete() {
+    private suspend fun waitForEventGroupSyncToComplete(storage: EventGroupStorage) {
       withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
-        while (!isEventGroupSyncDone()) {
+        while (!isEventGroupSyncDone(storage)) {
           logger.info("Waiting on Event Group Sync to complete...")
           delay(EVENT_GROUP_SYNC_POLLING_INTERVAL)
         }
       }
     }
 
-    private fun isEventGroupSyncDone(): Boolean {
-      return storageClient.get(bucket, eventGroupObjectMapKey) != null
+    private fun isEventGroupSyncDone(storage: EventGroupStorage): Boolean {
+      return storageClient.get(bucket, storage.objectMapKey) != null
     }
 
-    private fun deleteExistingEventGroupsMap() {
-      storageClient.delete(bucket, eventGroupObjectMapKey)
+    private fun deleteExistingEventGroupsMaps() {
+      eventGroupStorageMap.values.forEach { storage ->
+        storageClient.delete(bucket, storage.objectMapKey)
+      }
     }
 
-    private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
-      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
+    private suspend fun uploadEventGroups(storage: EventGroupStorage, eventGroups: List<EventGroup>) {
+      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(storage.blobUri)
       MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
@@ -131,7 +161,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             projectId = googleProjectId,
           )
         )
-        .writeBlob(eventGroupObjectKey, eventGroup.asFlow().map { it.toByteString() })
+        .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
     }
 
     private fun createEventGroups(): List<EventGroup> {
