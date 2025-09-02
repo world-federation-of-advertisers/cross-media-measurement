@@ -1043,7 +1043,7 @@ abstract class MeasurementConsumerSimulator(
         throw Exception("Error fetching measurement $measurementName", e)
       }
 
-    logger.info("Current Measurement state is: " + measurement.state)
+    logger.info("Current Measurement ${measurement.name} state is: " + measurement.state)
 
     return measurement
   }
