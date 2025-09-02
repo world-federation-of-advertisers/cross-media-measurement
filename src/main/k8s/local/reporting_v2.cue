@@ -26,9 +26,10 @@ reporting: #Reporting & {
 	_secretName:          _reportingSecretName
 	_mcConfigSecretName:  _reportingMcConfigSecretName
 	_postgresConfig: {
-		serviceName: "postgres"
-		password:    "$(POSTGRES_PASSWORD)"
-		user:        "$(POSTGRES_USER)"
+		serviceName:      "postgres"
+		password:         "$(POSTGRES_PASSWORD)"
+		user:             "$(POSTGRES_USER)"
+		statementTimeout: "60s"
 	}
 	_kingdomApiTarget: {
 		serviceName:     "v2alpha-public-api-server"

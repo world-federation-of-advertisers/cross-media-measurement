@@ -108,7 +108,10 @@ locals {
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri
+                                          "--model-line", "some-model-line",
+                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+                                          "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
+                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name
                                         ]
     }
   }
@@ -131,6 +134,11 @@ locals {
   results_fulfiller_event_descriptor = {
     local_path  = var.results_fulfiller_event_proto_descriptor_path
     destination = "results_fulfiller_event_proto_descriptor.pb"
+  }
+
+  results_fulfiller_population_spec = {
+    local_path  = var.results_fulfiller_population_spec_file_path
+    destination = "results-fulfiller-population-spec.textproto"
   }
 
   cloud_function_configs = {
@@ -175,6 +183,7 @@ module "edp_aggregator" {
   requisition_fetcher_config                = local.requisition_fetcher_config
   edps_config                               = local.edps_config
   results_fulfiller_event_descriptor        = local.results_fulfiller_event_descriptor
+  results_fulfiller_population_spec         = local.results_fulfiller_population_spec
   event_group_sync_service_account_name     = "edpa-event-group-sync"
   event_group_sync_function_name            = "event-group-sync"
   edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key

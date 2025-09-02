@@ -81,7 +81,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
   private class UploadEventGroup : TestRule {
 
-    private val bucket = "secure-computation-storage-dev-bucket"
+    private val bucket = TEST_CONFIG.storageBucket
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service

@@ -165,6 +165,12 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descript
   source = var.results_fulfiller_event_descriptor.local_path
 }
 
+resource "google_storage_bucket_object" "upload_results_fulfiller_population_spec" {
+  name   = var.results_fulfiller_population_spec.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.results_fulfiller_population_spec.local_path
+}
+
 resource "google_project_iam_member" "eventarc_service_agent" {
   project = data.google_project.project.project_id
   role    = "roles/eventarc.serviceAgent"
@@ -309,6 +315,7 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  depends_on = [module.event_group_sync_cloud_function]
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"

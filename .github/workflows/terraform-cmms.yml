@@ -61,6 +61,7 @@ jobs:
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
+      RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
 
     steps:
     - uses: actions/checkout@v4
@@ -87,6 +88,7 @@ jobs:
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
+        echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
 
     - name: Set up Maven GitHub Packages auth
       run: |
@@ -187,6 +189,8 @@ jobs:
         EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
         EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
+        RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME: ${{ vars.RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME }}
+        RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -220,6 +224,9 @@ jobs:
         -var="image_tag=$IMAGE_TAG"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_event_proto_descriptor_blob_uri=$RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI"
+        -var="results_fulfiller_event_template_type_name=$RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME"
+        -var="results_fulfiller_population_spec_blob_uri=$RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI"
+        -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -out=tfplan
 
     - name: terraform apply
