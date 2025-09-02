@@ -174,7 +174,9 @@ class EdpSimulatorFlags {
   var healthFile: File? = null
     private set
 
-  @CommandLine.ArgGroup(exclusive = false) lateinit var trusTeeParams: TrusTeeParams
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "0..1")
+  var trusTeeParams: TrusTeeParams? = null
+    private set
 
   class TrusTeeParams {
     @CommandLine.Option(
