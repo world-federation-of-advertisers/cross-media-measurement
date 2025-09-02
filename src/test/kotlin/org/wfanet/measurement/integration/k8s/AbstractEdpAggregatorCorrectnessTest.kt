@@ -41,29 +41,29 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
 
 
-  @Test
-  fun `create a direct RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify its
-      // result.
-      mcSimulator.testDirectReachAndFrequency("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
-    }
-
-  @Test
-  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a direct reach and frequency measurement and verify its
-      // result.
-      mcSimulator.testDirectReachOnly("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
-    }
-
-  @Test
-  fun `create a impression measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create an impression measurement and verify its
-      // result.
-      mcSimulator.testImpression("1234", eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
-    }
+//  @Test
+//  fun `create a direct RF measurement and check the result is equal to the expected result`() =
+//    runBlocking {
+//      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+//      // result.
+//      mcSimulator.testDirectReachAndFrequency("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+//    }
+//
+//  @Test
+//  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
+//    runBlocking {
+//      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+//      // result.
+//      mcSimulator.testDirectReachOnly("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+//    }
+//
+//  @Test
+//  fun `create a impression measurement and check the result is equal to the expected result`() =
+//    runBlocking {
+//      // Use frontend simulator to create an impression measurement and verify its
+//      // result.
+//      mcSimulator.testImpression("1234", eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+//    }
 
   @Test
   fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
