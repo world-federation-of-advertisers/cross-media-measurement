@@ -234,7 +234,7 @@ jobs:
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
-        -var="duchy_worker1_target=$DUCHY_WORKER2_TARGET"
+        -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -out=tfplan
 
     - name: terraform apply
