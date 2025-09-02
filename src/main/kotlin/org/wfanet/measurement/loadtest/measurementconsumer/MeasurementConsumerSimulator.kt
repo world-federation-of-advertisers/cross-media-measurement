@@ -494,7 +494,7 @@ abstract class MeasurementConsumerSimulator(
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
     var attemptCount = 0
-    while (reachOnlyResult == null && (attemptCount < 4)) {
+    while (reachOnlyResult == null && (attemptCount < 6)) {
       attemptCount++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
