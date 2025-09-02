@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.kingdom;
+package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
