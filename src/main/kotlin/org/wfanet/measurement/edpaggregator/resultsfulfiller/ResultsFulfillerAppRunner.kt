@@ -77,11 +77,11 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
-    names = ["--kingdom-cert-collection-secret-id"],
-    description = ["Secret ID of Kingdom root collections file."],
+    names = ["--trusted-cert-collection-secret-id"],
+    description = ["Secret ID of trusted root collections file."],
     required = true,
   )
-  private lateinit var kingdomCertCollectionSecretId: String
+  private lateinit var trustedCertCollectionSecretId: String
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
   lateinit var duchyInfos: List<DuchyFlags>
@@ -232,7 +232,7 @@ class ResultsFulfillerAppRunner : Runnable {
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-    val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
+    val trustedCertCollectionFile = File(TRUSTED_ROOT_CA_FILE_PATH)
 
     val duchiesMap = buildDuchyMap()
 
@@ -240,7 +240,7 @@ class ResultsFulfillerAppRunner : Runnable {
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
-        trustedCertCollection = kingdomCertCollectionFile,
+        trustedCertCollection = trustedCertCollectionFile,
         duchies = duchiesMap,
       )
 
@@ -324,9 +324,9 @@ class ResultsFulfillerAppRunner : Runnable {
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
     saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
-    val kingdomRootCa =
-      accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
-    saveByteArrayToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+    val trustedRootCa =
+      accessSecretBytes(googleProjectId, trustedCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(trustedRootCa, TRUSTED_ROOT_CA_FILE_PATH)
   }
 
   fun saveEdpsCerts() {
@@ -392,7 +392,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
-    private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
+    private const val TRUSTED_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"

@@ -81,8 +81,8 @@ variable "secure_computation_root_ca" {
   })
 }
 
-variable "kingdom_root_ca" {
-  description = "Kingdom root CA"
+variable "trusted_root_ca" {
+  description = "Trusted root CA"
   type = object({
     secret_id         = string
     secret_local_path = string

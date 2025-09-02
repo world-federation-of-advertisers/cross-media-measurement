@@ -250,3 +250,8 @@ variable "duchy_worker2_target" {
   type = string
 }
 
+variable "results_fulfiller_trusted_root_ca_file_path" {
+  description = "Trusted root CA used by the Results Fulfiller."
+  type = string
+}
+

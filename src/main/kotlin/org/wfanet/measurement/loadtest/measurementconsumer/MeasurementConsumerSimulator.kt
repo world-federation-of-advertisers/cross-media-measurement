@@ -477,7 +477,6 @@ abstract class MeasurementConsumerSimulator(
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    logger.info("EVENT GROUP FILTER: $eventGroupFilter")
     val measurementInfo =
       createMeasurement(
         measurementConsumer,

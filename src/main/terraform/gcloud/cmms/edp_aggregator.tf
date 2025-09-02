@@ -46,9 +46,9 @@ locals {
     is_binary_format  = false
   }
 
-  kingdom_root_ca = {
-    secret_id         = "kingdom-root-ca"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/kingdom_root.pem"),
+  trusted_root_ca = {
+    secret_id         = "trusted-root-ca"
+    secret_local_path = var.results_fulfiller_trusted_root_ca_file_path
     is_binary_format  = false
   }
 
@@ -103,7 +103,7 @@ locals {
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
-                                          "--kingdom-cert-collection-secret-id", "kingdom-root-ca",
+                                          "--trusted-cert-collection-secret-id", "trusted-root-ca",
                                           "--kingdom-public-api-target", var.kingdom_public_api_target,
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
@@ -197,7 +197,7 @@ module "edp_aggregator" {
   data_watcher_tls_key                      = local.data_watcher_tls_key
   data_watcher_tls_pem                      = local.data_watcher_tls_pem
   secure_computation_root_ca                = local.secure_computation_root_ca
-  kingdom_root_ca                           = local.kingdom_root_ca
+  trusted_root_ca                           = local.trusted_root_ca
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
   results_fulfiller_disk_image_family       = "confidential-space-debug"

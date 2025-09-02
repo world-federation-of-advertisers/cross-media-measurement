@@ -62,6 +62,7 @@ jobs:
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
+      RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
 
     steps:
     - uses: actions/checkout@v4
@@ -89,6 +90,7 @@ jobs:
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
+        echo "$RESULTS_FULFILLER_TRUSTED_CA_CONTENT" > "$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
 
     - name: Set up Maven GitHub Packages auth
       run: |
@@ -235,6 +237,7 @@ jobs:
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
+        -var="results_fulfiller_trusted_root_ca_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
         -out=tfplan
 
     - name: terraform apply
