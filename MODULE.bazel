@@ -37,8 +37,14 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.117.0",
+    version = "0.118.0",
     repo_name = "wfa_common_jvm",
+)
+# DO_NOT_SUBMIT: use release version
+git_override(
+    module_name = "common-jvm",
+    commit = "09477c3f7a4f9360cccd8be435dbee18263ed8f7",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
@@ -236,7 +242,11 @@ maven.artifact(
 )
 maven.install(
     artifacts = [
-        "com.google.crypto.tink:tink-awskms:1.9.1",
+        # TODO(world-federation-of-advertisers/cross-media-measurement#1578): Remove when we are able to update the beam runner version and it's dependencies.
+        "com.fasterxml.jackson.core:jackson-core:2.20.0",
+        # TODO(world-federation-of-advertisers/cross-media-measurement#2866): Remove after updating the artifacts that depend on it.
+        "io.netty:netty-codec-http2:4.1.124.Final",
+        "com.google.crypto.tink:tink-awskms:1.11.0",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
