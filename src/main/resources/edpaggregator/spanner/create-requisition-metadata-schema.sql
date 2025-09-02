@@ -40,6 +40,7 @@ CREATE TABLE RequisitionMetadata (
   CmmsCreateTime TIMESTAMP NOT NULL,
   -- The resource name of the Report this requisition is for.
   Report STRING(MAX) NOT NULL,
+  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
   -- The current state of the requisition.
   State INT64 NOT NULL,
   -- The resource name of the WorkItem associated with this requisition.
@@ -95,8 +96,10 @@ CREATE TABLE RequisitionMetadataActions (
   ActionId INT64 NOT NULL,
   -- The time the action record was created.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
   -- The state of the RequisitionMetadata before this action.
   PreviousState INT64 NOT NULL,
+  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
   -- The state of the RequisitionMetadata after this action.
   CurrentState INT64 NOT NULL,
 ) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId, ActionId),
