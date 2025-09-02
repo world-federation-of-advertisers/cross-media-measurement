@@ -889,29 +889,19 @@ abstract class MeasurementConsumerSimulator(
         .entries
         .associate { it.key to getDataProvider(it.key.toName()) }
 
-    keyToDataProviderMap.forEach {
-      logger.info("====== keyToDataProviderMap: ${it.key}, ${it.value}")
-    }
-
     val requisitions: List<RequisitionInfo> =
       eventGroups
-        .onEach { logger.info("---- event group: ${it.eventGroupReferenceId}") }
         .filter { eventGroupFilter?.invoke(it) ?: true }
-        .onEach { logger.info("---- event group 2222: ${it.eventGroupReferenceId}") }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
           val dataProvider = keyToDataProviderMap.getValue(it.key)
-          logger.info("======> DATA PROVIDER: $dataProvider")
           if (requiredCapabilities.honestMajorityShareShuffleSupported) {
-            logger.info("DENTRO IF: ${dataProvider.capabilities.honestMajorityShareShuffleSupported}")
             dataProvider.capabilities.honestMajorityShareShuffleSupported
           } else {
-            logger.info("DENTRO ELSE")
             true
           }
         }
-        .onEach { logger.info("---- event group 3333: ${it.key}, ${it.value}") }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
           val nonce = Random.Default.nextLong()
@@ -975,9 +965,6 @@ abstract class MeasurementConsumerSimulator(
         this.measurementReferenceId = runId
       }
     }
-    logger.info("----------------------> requisitions: $requisitions")
-    logger.info("-----------------------------> request:")
-    logger.info("$request")
     val measurement: Measurement =
       try {
         measurementsClient
