@@ -19,7 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 
-option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 
 // Proto representation of the internal ImpressionMetadata entity type.
