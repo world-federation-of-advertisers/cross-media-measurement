@@ -233,10 +233,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      runBlocking {
-        delay(5000)
-      }
-
       val jwt = TEST_CONFIG.authIdToken
       val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
 
