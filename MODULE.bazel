@@ -269,6 +269,10 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
+
+        # These dependencies should come from rules_kotlin_jvm: https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/blob/main/MODULE.bazel#L60
+        # However, rules_jvm_external 6.8 seems to prioritize BOMs over explicitly declared versions only for the root module: https://github.com/bazel-contrib/rules_jvm_external/pull/1373
+        # Without these declarations, the versions are resolved to the ones explicitly declared in bazel_worker_java: https://github.com/bazelbuild/bazel-worker-api/blob/v0.0.5/java/MODULE.bazel#L17
         "com.google.protobuf:protobuf-java",
         "com.google.protobuf:protobuf-java-util",
     ],
