@@ -73,8 +73,8 @@ message RequisitionMetadataAction {
   // The resource ID of this RequisitionMetadata, unique per DataProvider.
   string requisition_metadata_resource_id = 2;
 
-  // The ID for this action.
-  int64 action_id = 3;
+  // The external ID for this action.
+  fixed64 external_action_id = 3;
 
   // The state of the requisition before this action.
   RequisitionMetadataState previous_state = 4;

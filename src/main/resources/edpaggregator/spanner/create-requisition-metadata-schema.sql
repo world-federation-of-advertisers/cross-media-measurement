@@ -18,11 +18,19 @@
 
 -- Cloud Spanner database schema for the EDP Aggregator.
 
+-- Set protobuf FileDescriptorSet as a base64 string.
+SET PROTO_DESCRIPTORS =
+'Ct8DCkd3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9yZXF1aXNpdGlvbl9tZXRhZGF0YV9zdGF0ZS5wcm90bxImd2ZhLm1lYXN1cmVtZW50LmludGVybmFsLmVkcGFnZ3JlZ2F0b3IqkQIKGFJlcXVpc2l0aW9uTWV0YWRhdGFTdGF0ZRIqCiZSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1NUT1JFRBABEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1FVRVVFRBACEikKJVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1BST0NFU1NJTkcQAxIoCiRSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9GVUxGSUxMRUQQBBImCiJSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9SRUZVU0VEEAVCUAotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQh1SZXF1aXNpdGlvbk1ldGFkYXRhU3RhdGVQcm90b1ABYgZwcm90bzM='
+
 START BATCH DDL;
+
+ALTER PROTO BUNDLE INSERT (
+  `wfa.measurement.internal.edpaggregator.RequisitionMetadataState`,
+);
 
 CREATE TABLE RequisitionMetadata (
   -- The globally unique resource ID of the DataProvider that owns this requisition.
-  DataProviderResourceId STRING(MAX) NOT NULL,
+  DataProviderResourceId STRING(63) NOT NULL,
   -- Internal, system-generated ID of the RequisitionMetadata, unique per provider.
   RequisitionMetadataId INT64 NOT NULL,
   -- The resource ID of this RequisitionMetadata, unique per DataProvider.
@@ -40,9 +48,8 @@ CREATE TABLE RequisitionMetadata (
   CmmsCreateTime TIMESTAMP NOT NULL,
   -- The resource name of the Report this requisition is for.
   Report STRING(MAX) NOT NULL,
-  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
   -- The current state of the requisition.
-  State INT64 NOT NULL,
+  State `wfa.measurement.internal.edpaggregator.RequisitionMetadataState` NOT NULL,
   -- The resource name of the WorkItem associated with this requisition.
   -- This is only set when the requisition is in the QUEUED state.
   WorkItem STRING(MAX),
@@ -70,11 +77,11 @@ CREATE UNIQUE INDEX RequisitionMetadataByCmmsRequisition
 CREATE UNIQUE INDEX RequisitionMetadataByBlobUri
   ON RequisitionMetadata(DataProviderResourceId, BlobUri);
 
--- Index for streaming by state for a single DataProvider.
+-- Index for listing by state for a single DataProvider.
 CREATE INDEX RequisitionMetadataByState
   ON RequisitionMetadata(DataProviderResourceId, State, UpdateTime, RequisitionMetadataId);
 
--- Index for streaming by group ID for a single DataProvider.
+-- Index for list by group ID for a single DataProvider.
 CREATE INDEX RequisitionMetadataByGroupId
   ON RequisitionMetadata(DataProviderResourceId, GroupId, UpdateTime, RequisitionMetadataId);
 
@@ -82,7 +89,7 @@ CREATE INDEX RequisitionMetadataByGroupId
 CREATE INDEX RequisitionMetadataByCmmsCreateTime
   ON RequisitionMetadata(DataProviderResourceId, CmmsCreateTime DESC);
 
--- Index for streaming for a single DataProvider with pagination.
+-- Index for listing for a single DataProvider with pagination.
 CREATE INDEX RequisitionMetadataByUpdateTime
   ON RequisitionMetadata(DataProviderResourceId, UpdateTime, RequisitionMetadataId);
 
@@ -96,24 +103,22 @@ CREATE TABLE RequisitionMetadataActions (
   ActionId INT64 NOT NULL,
   -- The time the action record was created.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
   -- The state of the RequisitionMetadata before this action.
-  PreviousState INT64 NOT NULL,
-  -- org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState proto enum
+  PreviousState `wfa.measurement.internal.edpaggregator.RequisitionMetadataState` NOT NULL,
   -- The state of the RequisitionMetadata after this action.
-  CurrentState INT64 NOT NULL,
+  CurrentState `wfa.measurement.internal.edpaggregator.RequisitionMetadataState` NOT NULL,
 ) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId, ActionId),
   INTERLEAVE IN PARENT RequisitionMetadata ON DELETE CASCADE;
 
--- Index for streaming actions for a given requisition, ordered by time.
+-- Index for listing actions for a given requisition, ordered by time.
 CREATE INDEX RequisitionMetadataActionsByCreateTime
   ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, CreateTime, ActionId);
 
--- Index for streaming actions filtered by PreviousState.
+-- Index for listing actions filtered by PreviousState.
 CREATE INDEX RequisitionMetadataActionsByPreviousState
   ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, PreviousState, CreateTime, ActionId);
 
--- Index for streaming actions filtered by CurrentState.
+-- Index for listing actions filtered by CurrentState.
 CREATE INDEX RequisitionMetadataActionsByCurrentState
   ON RequisitionMetadataActions(DataProviderResourceId, RequisitionMetadataId, CurrentState, CreateTime, ActionId);
 
