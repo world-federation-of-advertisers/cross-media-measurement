@@ -111,7 +111,13 @@ locals {
                                           "--model-line", "some-model-line",
                                           "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
                                           "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
-                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name
+                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name,
+                                          "--duchy-id", var.duchy_worker1_id,
+                                          "--duchy-target", var.duchy_worker1_target,
+                                          "--duchy-cert-host", "localhost",
+                                          "--duchy-id", var.duchy_worker2_id,
+                                          "--duchy-target", var.duchy_worker2_target,
+                                          "--duchy-cert-host", "localhost",
                                         ]
     }
   }

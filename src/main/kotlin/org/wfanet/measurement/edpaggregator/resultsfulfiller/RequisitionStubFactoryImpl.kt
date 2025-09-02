@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
-class DuchyInfo(val target: String, val certHost: String)
+class DuchyInfo(val target: String, val certHost: String?)
 
 class RequisitionStubFactoryImpl(
   private val cmmsCertHost: String?,

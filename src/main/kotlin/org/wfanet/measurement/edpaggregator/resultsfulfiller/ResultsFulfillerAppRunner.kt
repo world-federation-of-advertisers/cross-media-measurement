@@ -83,6 +83,32 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
+  lateinit var duchyInfos: List<DuchyFlags>
+    private set
+  class DuchyFlags {
+    @CommandLine.Option(
+      names = ["--duchy-id"],
+      required = true,
+      description = ["Id of the duchy"],
+    )
+    lateinit var duchyId: String
+
+    @CommandLine.Option(
+      names = ["--duchy-target"],
+      required = true,
+      description = ["Target of the duchy"],
+    )
+    lateinit var duchyTarget: String
+
+    @CommandLine.Option(
+      names = ["--duchy-cert-host"],
+      required = true,
+      description = ["Duchy cert host"],
+    )
+    var duchyCertHost: String? = null
+  }
+
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Model line info\n")
   lateinit var modelLines: List<ModelLineFlags>
     private set
@@ -208,13 +234,14 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
 
-    // TODO: Add support for duchy channels
+    val duchiesMap = buildDuchyMap()
+
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
-        duchies = emptyMap(),
+        duchies = duchiesMap,
       )
 
     val modelLinesMap = runBlocking { buildModelLineMap() }
@@ -255,6 +282,12 @@ class ResultsFulfillerAppRunner : Runnable {
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
       kmsClientsMap[edpConfig.dataProvider] = kmsClient
+    }
+  }
+
+  fun buildDuchyMap(): Map<String, DuchyInfo> {
+    return duchyInfos.associate { it: DuchyFlags ->
+      it.duchyId to DuchyInfo(it.duchyTarget, it.duchyCertHost)
     }
   }
 
