@@ -35,7 +35,7 @@ proto_library(
 )
 
 kt_jvm_proto_library(
-    name = "impression_metadata_kt_jvm_grpc_proto",
+    name = "impression_metadata_kt_jvm_proto",
     deps = [":impression_metadata_proto"],
 )
 
