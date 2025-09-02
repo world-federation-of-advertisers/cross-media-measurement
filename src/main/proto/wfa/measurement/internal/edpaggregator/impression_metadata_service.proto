@@ -21,7 +21,7 @@ import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/impression_metadata.proto";
 
-option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 
 service ImpressionMetadataService {
