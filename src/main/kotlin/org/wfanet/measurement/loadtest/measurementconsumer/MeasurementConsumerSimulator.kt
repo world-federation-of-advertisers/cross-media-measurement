@@ -333,6 +333,7 @@ abstract class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
+    val dataProviderResourceNames = mutableListOf<String>()
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
@@ -346,6 +347,7 @@ abstract class MeasurementConsumerSimulator(
             1,
             eventGroupFilter = eventGroupFilter
           )
+        dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
         val measurementName = measurementInfo.measurement.name
         logger.info("Created direct reach and frequency measurement $measurementName.")
         measurementInfo
@@ -1353,8 +1355,15 @@ abstract class MeasurementConsumerSimulator(
 
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
     val eventGroupKey = EventGroupKey.fromName(eventGroupName) ?: error("Invalid eventGroup name.")
-    println("============================= PARENT KEY: ${eventGroupKey.parentKey}")
     return eventGroupKey.parentKey
+  }
+
+  private fun extractDataProviderResourceName(
+    requisitions: List<RequisitionInfo>
+  ): List<String> {
+    println("========================== key: ${requisitions[0].dataProviderEntry.key}")
+    println("========================== value: ${requisitions[0].dataProviderEntry.value}")
+    return requisitions.map { it.dataProviderEntry.key }
   }
 
   private suspend fun getDataProvider(name: String): DataProvider {
