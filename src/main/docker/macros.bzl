@@ -37,13 +37,11 @@ def java_image(
     """
     tags = tags or []
 
-    base_labels = {
+    labels = labels or {}
+    labels.update({
         "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
         "tee.launch_policy.allow_cmd_override": "true",
-    }
-
-    if labels:
-        base_labels.update(labels)
+    })
 
     _java_image(
         name = name,
