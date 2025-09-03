@@ -248,7 +248,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         println("Deleted: ${blob.name}")
       }
 
-      // Wait untill requisitions for edp7 have status == UNFULFILLED before triggering `RequisitionFetcher`.
+      // Wait until requisitions for EDP have status == UNFULFILLED before triggering `RequisitionFetcher`.
       runBlocking {
         withTimeout(REQUISITIONS_SYNC_TIMEOUT) {
           var areRequisitionsReady: Boolean
