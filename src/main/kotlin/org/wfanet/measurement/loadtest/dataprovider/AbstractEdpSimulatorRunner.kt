@@ -21,11 +21,6 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import io.grpc.ManagedChannel
-import java.io.File
-import java.security.cert.X509Certificate
-import java.time.Clock
-import java.time.ZoneId
-import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -45,8 +40,13 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import picocli.CommandLine
+import java.io.File
+import java.security.cert.X509Certificate
+import java.time.Clock
+import java.time.ZoneId
+import kotlin.random.Random
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 
 /** The base class of the EdpSimulator runner. */
 @CommandLine.Command(mixinStandardHelpOptions = true)
@@ -163,8 +163,9 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         eventGroupsOptions,
       )
 
+    val params = flags.trusTeeParams
     val trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? =
-      if (flags.trusTeeParams != null) {
+      if (params != null) {
         // TODO(@roaminggypsy): Swap the KMS client for local cluster runs.
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
           GcpKmsClient(),
