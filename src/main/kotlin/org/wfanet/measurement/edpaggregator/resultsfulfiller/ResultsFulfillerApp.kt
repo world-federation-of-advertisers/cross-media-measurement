@@ -19,9 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.nio.file.Paths
-import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -31,6 +29,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
@@ -57,12 +56,11 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
- * @param typeRegistry The protobuf [TypeRegistry] for message unpacking. Should have all necessary
- *   descriptors registered to unpack a [LabeledImpression.event].
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
  *   metadata.
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
+ * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -73,10 +71,10 @@ class ResultsFulfillerApp(
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
-  private val typeRegistry: TypeRegistry,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -97,6 +95,9 @@ class ResultsFulfillerApp(
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
+
+    val requisitionFulfillmentStubsMap =
+      requisitionStubFactory.buildRequisitionFulfillmentStubs(fulfillerParams)
     val dataProviderCertificateKey =
       checkNotNull(
         DataProviderCertificateKey.fromName(fulfillerParams.consentParams.edpCertificateName)
@@ -140,18 +141,38 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
+    val kAnonymityParams: KAnonymityParams? =
+      if (fulfillerParams.hasKAnonymityParams()) {
+        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
+          "K-Anonymity min impressions must be > 0"
+        }
+        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
+          "K-Anonymity min users must be > 0"
+        }
+        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
+          "K-Anonymity reach maximum frequency per user must be > 0"
+        }
+        KAnonymityParams(
+          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
+          minUsers = fulfillerParams.kAnonymityParams.minUsers,
+          reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
+        )
+      } else {
+        null
+      }
     ResultsFulfiller(
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
+        requisitionFulfillmentStubsMap,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
-        typeRegistry,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        random = SecureRandom(),
         zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
         eventReader = eventReader,
+        modelLineInfoMap = modelLineInfoMap,
+        kAnonymityParams = kAnonymityParams,
       )
       .fulfillRequisitions()
   }

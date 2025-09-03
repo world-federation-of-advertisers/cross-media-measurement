@@ -17,3 +17,8 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+filegroup(
+    name = "specs",
+    srcs = glob(["*.textproto"]),
+)

@@ -1,0 +1,198 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
+import "wfa/measurement/internal/reporting/v2/reporting_unit.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Defines the dimensions over which metrics are grouped and filtered.
+message DimensionSpec {
+  // Specifies the dimensions on which to Group metrics
+  //
+  // Only those event template fields that are tagged as groupable
+  // and in the common template are supported.
+  message Grouping {
+    // Field paths that indicate the dimensions to group by.
+    //
+    // Each field path is with respect to the Event message with `.` as the
+    // traversal operator. Any field path may appear in the list at most once.
+    //
+    // For example, if the Event message had an Event Template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    repeated string event_template_fields = 1;
+  }
+  // Metric grouping
+  Grouping grouping = 3;
+
+  // A conjunction of Event Filters
+  //
+  // Event Template fields that are used by any filter Terms must be
+  // tagged as filterable.
+  repeated EventFilter filters = 4;
+}
+
+// Specifies a set of metrics to be computed
+message ResultGroupMetricSpec {
+  // If specified the total population for the specified groupings and
+  // filters that are associated with calculation spec is reported.
+  bool population_size = 1;
+
+  // Specifies the set of basic metrics that can be computed for any aspect of
+  // the reporting_unit (e.g. the whole thing, a single component,
+  // intersections, etc.). Each element specifies that a particular metric
+  // should be included in the report output.
+  message BasicMetricSetSpec {
+    // The reach
+    bool reach = 1;
+
+    // The reach divided by the population
+    bool percent_reach = 2;
+
+    // The k plus reach up to the frequency specified. Value must be
+    // positive.
+    int32 k_plus_reach = 3;
+
+    // This option requires that a positive value be given for
+    // k_plus_reach, in which case if specified the percent k+
+    // reach values are also computed.
+    bool percent_k_plus_reach = 4;
+
+    // The average frequency
+    bool average_frequency = 5;
+
+    // The impression count
+    bool impressions = 6;
+
+    // Gross ratings points
+    bool grps = 7;
+  }
+
+  // Metrics to be computed over the ResultGroupSpec's entire reporting_unit
+  message ReportingUnitMetricSetSpec {
+    // Non-cumulative metrics for the union of the reporting_unit.components
+    //
+    // When the `metric_frequency_spec` is `total` it is an error to
+    // specify this option as it is redundant with `cumulative`
+    BasicMetricSetSpec non_cumulative = 1;
+
+    // Cumulative metrics for the union of the reporting_unit.components
+    BasicMetricSetSpec cumulative = 2;
+
+    // Compute a stacked incremental reach result for the reporting_unit
+    //
+    // For example if the order of the items in the reporting_unit.units
+    // field is "rs1, rs2, rs3" then the following are reported:
+    // 1. The reach of rs1
+    // 2. The incremental reach of (rs1+rs2) over rs1
+    //    (i.e. the unique contribution of rs2 with respect to rs1)
+    // 3. The incremental reach of (rs1+rs2+rs3) over (rs1+rs2)
+    //    (i.e. the unique contribution of rs3 with respect to rs1 and rs2.
+    //
+    // In the case an output for a category of components is desired, this
+    // can be achieved by first grouping the components by category. Then
+    // once the output is provided the reach values for the components in the
+    // category can be summed.
+    //
+    // For example, assume we have components EDP1, EDP2, EDP3 and EDP1
+    // is linear TV and EDP2 and EDP3 are digital, and suppose we want an
+    // incremental reach report of linear TV over digital. Then we can specify
+    // the reporting_unit components as [EDP2, EDP3, EDP1] and when the
+    // output is recieved sum the values for EDP2 and EDP3. This results
+    // in a vector where the first element is the combined reach of EDP2
+    // and EDP3 and the second element is the incremental reach of EDP1
+    // with respect to them. Note that it would also be okay to specify
+    // the components as [EDP3, EDP2, EDP1].
+    bool stacked_incremental_reach = 3;
+  }
+  // The set of metrics to compute for the ResultGroupSpec's entire
+  // reporting_unit
+  ReportingUnitMetricSetSpec reporting_unit = 2;
+
+  // Specifies the set of disjoint metrics to compute for a single component
+  // of the reporting_unit
+  message UniqueMetricSetSpec {
+    // The unique reach of with respect to all other components in the
+    // reporting_unit
+    bool reach = 1;
+  }
+
+  // Metrics for each component of the ResultGroupSpec's reporting_unit
+  message ComponentMetricSetSpec {
+    // Non-cumulative metrics for each item in reporting_unit.components
+    //
+    // When the `metric_frequency_spec` is `total` it is an error to
+    // specify this option as it is redundant with `cumulative`
+    BasicMetricSetSpec non_cumulative = 1;
+
+    // Cumulative metrics for each item in reporting_unit.components
+    BasicMetricSetSpec cumulative = 2;
+
+    UniqueMetricSetSpec non_cumulative_unique = 3;
+    UniqueMetricSetSpec cumulative_unique = 4;
+  }
+  // If the ResultGroupSpec's reporting_unit.components is of size 1 the metrics
+  // computed for the component are identical to those computed for the entire
+  // reporting_unit. Specifying this value is not recommended in that case.
+  ComponentMetricSetSpec component = 3;
+
+  // Metrics for the intersections (aka overlaps) of the n-way combinations
+  // of ResultGroupSpec's reporting_unit.components
+  message ComponentIntersectionMetricSetSpec {
+    // The number of components that contribute to the intersection.
+    //
+    // For example, a value of 2 will provide all 2-way intersections of
+    // the reporting_unit.components A value of 2 and 3 will provide both the
+    // 2 and 3 way intersections.
+    //
+    // The minimum value is one and the the max value is the number of
+    // distinct reporting units in reporting_unit.components
+    repeated int32 contributor_count = 1;
+
+    // Non-cumulative metrics for the various intersections
+    //
+    // When the `metric_frequency_spec` is `total` it is an error to
+    // specify this option as it is redundant with `cumulative`
+    BasicMetricSetSpec non_cumulative = 2;
+
+    // Cumulative metrics for the various intersections
+    BasicMetricSetSpec cumulative = 3;
+  }
+  // Metrics for n-way intersections. Currently not supported.
+  ComponentIntersectionMetricSetSpec component_intersection = 4;
+}
+
+// Specification for a ResultGroup
+message ResultGroupSpec {
+  // The title of the result group
+  string title = 1;
+
+  // The unit to compute metrics for
+  ReportingUnit reporting_unit = 2;
+
+  // The reporting frequency for a result group
+  MetricFrequencySpec metric_frequency = 3;
+
+  // Specifies the dimensions over which the report is filtered and grouped.
+  DimensionSpec dimension_spec = 4;
+
+  // Specifies the Metrics to compute.
+  ResultGroupMetricSpec result_group_metric_spec = 5;
+}
