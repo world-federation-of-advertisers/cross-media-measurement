@@ -233,9 +233,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      runBlocking {
-        delay(20000)
-      }
+//      runBlocking {
+//        delay(20000)
+//      }
 
       val jwt = TEST_CONFIG.authIdToken
       val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
@@ -249,7 +249,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           .GET()
           .build()
       val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-
+      logger.info("----------------------- RESPONSE: $response")
       check(response.statusCode() == 200)
     }
 
