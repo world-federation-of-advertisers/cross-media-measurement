@@ -47,7 +47,7 @@ def java_image(
         name = name,
         binary = binary,
         base = base,
-        labels = base_labels,
+        labels = labels,
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
