@@ -167,7 +167,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunnerTest",
     deps = [
         "//imports/java/com/google/cloud/secretmanager",
-        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:tee_app_config",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app_runner",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
