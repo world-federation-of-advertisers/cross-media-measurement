@@ -298,15 +298,32 @@ class ResultsFulfillerAppRunner : Runnable {
 
   fun saveEdpsCerts() {
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
-      val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.certDerSecretId, SECRET_VERSION)
+      val edpCertDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.certDerSecretId,
+          SECRET_VERSION,
+        )
       saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateDerSecretId, SECRET_VERSION)
+      val edpPrivateDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateDerSecretId,
+          SECRET_VERSION,
+        )
       saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateDerLocalPath)
-      val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
+      val edpEncPrivate =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateSecretId,
+          SECRET_VERSION,
+        )
       saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
-      val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
+      val edpTlsKey =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
       saveByteArrayToFile(edpTlsKey, edpConfig.tlsConfig.tlsKeyLocalPath)
-      val edpTlsPem = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
+      val edpTlsPem =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
       saveByteArrayToFile(edpTlsPem, edpConfig.tlsConfig.tlsPemLocalPath)
     }
   }
@@ -370,7 +387,12 @@ class ResultsFulfillerAppRunner : Runnable {
 
     private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
     private val edpsConfig by lazy {
-      runBlocking { getConfigAsProtoMessage(EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY, EventDataProviderConfigs.getDefaultInstance()) }
+      runBlocking {
+        getConfigAsProtoMessage(
+          EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY,
+          EventDataProviderConfigs.getDefaultInstance(),
+        )
+      }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
