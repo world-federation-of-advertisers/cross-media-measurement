@@ -61,7 +61,7 @@ CREATE TABLE RequisitionMetadata (
   RefusalMessage STRING(MAX),
   -- A sharding key for indexes to prevent hotspotting.
   RequisitionMetadataIndexShardId INT64 NOT NULL AS
-    (ABS(MOD(FARM_FINGERPRINT(CAST(RequisitionMetadataId AS STRING)), 64))) STORED,
+    (ABS(MOD(RequisitionMetadataId, 64))) STORED,
 ) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId);
 
 -- Index for looking up by resource ID, unique per DataProvider.
