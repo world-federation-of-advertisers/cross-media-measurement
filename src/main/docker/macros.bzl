@@ -29,28 +29,27 @@ def java_image(
         base = None,
         tags = None,
         visibility = None,
-        env_overrides = None,
+        labels = None,
         **kwargs):
     """Java container image.
 
     This is a replacement for the java_image rule which sets common attrs.
     """
     tags = tags or []
-    env_overrides = env_overrides or []
 
-    labels = {
+    base_labels = {
         "org.opencontainers.image.source": MEASUREMENT_SYSTEM_REPO,
         "tee.launch_policy.allow_cmd_override": "true",
     }
 
-    if env_overrides:
-        labels["tee.launch_policy.allow_env_override"] = ",".join(env_overrides)
+    if labels:
+        base_labels.update(labels)
 
     _java_image(
         name = name,
         binary = binary,
         base = base,
-        labels = labels,
+        labels = base_labels,
         cmd_args = args,
         tags = tags + ["no-remote-cache"],
         visibility = visibility,
