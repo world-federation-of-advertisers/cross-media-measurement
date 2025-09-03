@@ -23,15 +23,15 @@ option java_outer_classname = "RequisitionMetadataStateProto";
 // The lifecycle state of a requisition.
 enum RequisitionMetadataState {
   // Default, unspecified state.
-  REQUISITION_METADATA_STATE_UNSPECIFIED = 0;
+  UNSPECIFIED = 0;
   // The requisition has been fetched and stored.
-  REQUISITION_METADATA_STATE_STORED = 1;
+  STORED = 1;
   // The requisition is queued for processing.
-  REQUISITION_METADATA_STATE_QUEUED = 2;
+  QUEUED = 2;
   // The requisition is actively being processed.
-  REQUISITION_METADATA_STATE_PROCESSING = 3;
+  PROCESSING = 3;
   // The requisition has been successfully fulfilled.
-  REQUISITION_METADATA_STATE_FULFILLED = 4;
+  FULFILLED = 4;
   // The requisition was refused.
-  REQUISITION_METADATA_STATE_REFUSED = 5;
+  REFUSED = 5;
 }
