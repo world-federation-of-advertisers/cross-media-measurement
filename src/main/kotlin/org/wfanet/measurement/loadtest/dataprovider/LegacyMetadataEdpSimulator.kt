@@ -85,7 +85,7 @@ class LegacyMetadataEdpSimulator(
    * [protobuf well-known types][ProtoReflection.WELL_KNOWN_TYPES].
    */
   private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
-  hmssVidIndexMap: VidIndexMap? = null,
+  vidIndexMap: VidIndexMap? = null,
   sketchEncrypter: SketchEncrypter = SketchEncrypter.Default,
   logSketchDetails: Boolean = false,
   health: SettableHealth = SettableHealth(),
@@ -106,12 +106,13 @@ class LegacyMetadataEdpSimulator(
     throttler,
     privacyBudgetManager,
     trustedCertificates,
-    hmssVidIndexMap,
+    vidIndexMap,
     sketchEncrypter,
     random,
     logSketchDetails,
     health,
     blockingCoroutineContext,
+    null,
   ) {
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
     val legacyMetadata: Message
