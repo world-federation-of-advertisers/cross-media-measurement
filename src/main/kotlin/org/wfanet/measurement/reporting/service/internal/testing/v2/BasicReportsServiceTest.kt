@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import com.google.type.DayOfWeek
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -34,26 +35,38 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
+import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
+import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.eventFilter
+import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
+import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 
@@ -100,8 +113,44 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
-      details = basicReportDetails { title = "title" }
+      details = basicReportDetails {
+        title = "title"
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
       createReportRequestId = "1235"
     }
 
@@ -110,11 +159,61 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val response = service.createBasicReport(request)
 
     assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
-
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
+  }
+
+  @Test
+  fun `createBasicReport with same request id succeeds twice`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails { title = "title" }
+      createReportRequestId = "1235"
+    }
+
+    val request = createBasicReportRequest {
+      this.basicReport = basicReport
+      requestId = "1234"
+    }
+
+    val response = service.createBasicReport(request)
+
+    assertThat(response)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
+      .isEqualTo(basicReport)
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
+    assertThat(response.hasCreateTime())
+
+    val response2 = service.createBasicReport(request)
+
+    assertThat(response2)
+      .ignoringFields(BasicReport.RESULT_DETAILS_FIELD_NUMBER)
+      .isEqualTo(response)
   }
 
   @Test
@@ -128,7 +227,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalBasicReportId = "1237"
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        campaignGroupDisplayName = REPORTING_SET.displayName
         details = basicReportDetails { title = "title" }
         createReportRequestId = "1235"
       }
@@ -157,7 +255,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       createReportRequestId = "1235"
     }
@@ -200,7 +297,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup }
       externalReportId = "2237"
@@ -210,9 +306,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       service.insertBasicReport(insertBasicReportRequest { this.basicReport = basicReport })
 
     assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER, BasicReport.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.STATE_FIELD_NUMBER,
+      )
       .isEqualTo(basicReport)
-
+    assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
     assertThat(response.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertThat(response.hasCreateTime())
   }
@@ -230,7 +330,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalBasicReportId = "1237"
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        campaignGroupDisplayName = REPORTING_SET.displayName
         details = basicReportDetails { title = "title" }
         resultDetails = basicReportResultDetails { resultGroups += resultGroup }
       }
@@ -262,7 +361,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup }
     }
@@ -307,7 +405,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails {
         title = "title"
         impressionQualificationFilters += reportingImpressionQualificationFilter {
@@ -375,12 +472,54 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       }
     )
 
-    val createdBasicReport =
-      service.createBasicReport(
-        createBasicReportRequest {
-          basicReport = BASIC_REPORT.copy { createReportRequestId = "1235" }
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      details = basicReportDetails {
+        title = "title"
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
         }
-      )
+      }
+      resultDetails = basicReportResultDetails {}
+      createReportRequestId = "1235"
+    }
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
 
     val retrievedBasicReport =
       service.getBasicReport(
@@ -1030,7 +1169,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      campaignGroupDisplayName = REPORTING_SET.displayName
       details = basicReportDetails { title = "title" }
       resultDetails = basicReportResultDetails { resultGroups += resultGroup { title = "title" } }
     }

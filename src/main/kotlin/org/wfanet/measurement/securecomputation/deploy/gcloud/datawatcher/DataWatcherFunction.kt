@@ -27,7 +27,7 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
@@ -130,7 +130,7 @@ class DataWatcherFunction : CloudEventsFunction {
     private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
       runBlocking {
-        getConfig(
+        getConfigAsProtoMessage(
           CONFIG_BLOB_KEY,
           DataWatcherConfig.getDefaultInstance(),
           TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),

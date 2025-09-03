@@ -121,9 +121,10 @@ locals {
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--event-template-metadata-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                           "--model-line", "some-model-line",
-                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri
+                                          "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+                                          "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
+                                          "--event-template-type-name", var.results_fulfiller_event_template_type_name
                                         ]
     }
   }

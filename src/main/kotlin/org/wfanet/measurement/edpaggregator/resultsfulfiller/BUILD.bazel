@@ -16,6 +16,7 @@ kt_jvm_library(
     deps = [
         ":continuous_gaussian_noiser_selector",
         ":event_reader",
+        ":model_line_info",
         ":noiser_selector",
         ":requisition_specs",
         ":vid_filter",
@@ -26,7 +27,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:hmshuffle_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
@@ -100,6 +101,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "model_line_info",
+    srcs = ["ModelLineInfo.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "results_fulfiller_app",
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
@@ -164,8 +174,9 @@ kt_jvm_library(
         ":results_fulfiller_app",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
-        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:tee_app_config",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcp_kms_client_factory",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",

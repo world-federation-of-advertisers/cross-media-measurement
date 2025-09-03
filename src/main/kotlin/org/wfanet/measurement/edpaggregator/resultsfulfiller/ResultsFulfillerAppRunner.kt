@@ -24,9 +24,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
@@ -35,12 +33,14 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -83,119 +83,6 @@ class ResultsFulfillerAppRunner : Runnable {
   )
   private lateinit var kingdomCertCollectionSecretId: String
 
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Single EDP certs\n")
-  lateinit var edpCerts: List<EdpFlags>
-    private set
-
-  // The file paths supplied via each EdpFlags instance must exactly match the paths defined in the
-  // ResultsFulfillerParam proto configuration.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#2738): Replace flags with config
-  // files.
-  class EdpFlags {
-    @CommandLine.Option(
-      names = ["--edp-kms-audience"],
-      required = true,
-      description = ["Kms credential audience as workload identity pool provider"],
-    )
-    lateinit var edpKmsAudience: String
-
-    @CommandLine.Option(
-      names = ["--edp-target-service-account"],
-      required = true,
-      description = ["Edp service account with KMS access"],
-    )
-    lateinit var edpTargetServiceAccount: String
-
-    @CommandLine.Option(
-      names = ["--edp-resource-name"],
-      required = true,
-      description =
-        [
-          "Edp resource name. It must match the resource name in the DataWatcher ResultsFulfillerParams."
-        ],
-    )
-    lateinit var edpResourceName: String
-
-    @CommandLine.Option(
-      names = ["--edp-cert-der-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP cert"],
-    )
-    lateinit var certDerSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-cert-der-file-path"],
-      required = true,
-      description =
-        [
-          "Path to the EDP certificate in DER format. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var certDerFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-private-der-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP private key"],
-    )
-    lateinit var privateDerSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-private-der-file-path"],
-      required = true,
-      description =
-        [
-          "EDP private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var privateDerFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-enc-private-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP encryption private key"],
-    )
-    lateinit var encPrivateSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-enc-private-file-path"],
-      required = true,
-      description =
-        [
-          "EDP encryption private key file path. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher."
-        ],
-    )
-    lateinit var encPrivateFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-key-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP TLS key"],
-    )
-    lateinit var tlsKeySecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-key-file-path"],
-      required = true,
-      description = ["EDP TLS key file path"],
-    )
-    lateinit var tlsKeyFilePath: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-pem-secret-id"],
-      required = true,
-      description = ["Secret ID for the EDP TLS cert"],
-    )
-    lateinit var tlsPemSecretId: String
-
-    @CommandLine.Option(
-      names = ["--edp-tls-pem-file-path"],
-      required = true,
-      description = ["EDP TLS cert file path"],
-    )
-    lateinit var tlsPemFilePath: String
-  }
-
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Model line info\n")
   lateinit var modelLines: List<ModelLineFlags>
     private set
@@ -214,6 +101,21 @@ class ResultsFulfillerAppRunner : Runnable {
       description = ["Blob uri to the proto."],
     )
     lateinit var populationSpecFileBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-descriptor-blob-uri"],
+      description =
+        ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
+      required = true,
+    )
+    lateinit var eventTemplateDescriptorBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-type-name"],
+      description = ["Fully qualified type name url of the event proto message."],
+      required = true,
+    )
+    lateinit var eventTemplateTypeName: String
   }
 
   @CommandLine.Option(
@@ -267,17 +169,6 @@ class ResultsFulfillerAppRunner : Runnable {
   lateinit var googleProjectId: String
     private set
 
-  @CommandLine.Option(
-    names = ["--event-template-metadata-blob-uri"],
-    description =
-      [
-        "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
-        "This can be specified multiple times.",
-      ],
-    required = true,
-  )
-  private lateinit var eventTemplateDescriptorBlobUris: List<String>
-
   private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
@@ -289,7 +180,6 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
-    saveResultsFulfillerConfig()
     // Create KMS clients for EDPs
     createKmsClients()
 
@@ -327,8 +217,6 @@ class ResultsFulfillerAppRunner : Runnable {
         duchies = emptyMap(),
       )
 
-    val typeRegistry: TypeRegistry = buildTypeRegistry()
-
     val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
@@ -340,11 +228,10 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
-        typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
-        populationSpecMap = modelLinesMap,
+        modelLineInfoMap = modelLinesMap,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -354,60 +241,48 @@ class ResultsFulfillerAppRunner : Runnable {
 
     kmsClientsMap = mutableMapOf()
 
-    edpCerts.forEachIndexed { index, edp ->
+    edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
       val kmsConfig =
         GCloudWifCredentials(
-          audience = edp.edpKmsAudience,
+          audience = edpConfig.kmsConfig.kmsAudience,
           subjectTokenType = SUBJECT_TOKEN_TYPE,
           tokenUrl = TOKEN_URL,
           credentialSourceFilePath = CREDENTIAL_SOURCE_FILE_PATH,
           serviceAccountImpersonationUrl =
-            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edp.edpTargetServiceAccount),
+            EDP_TARGET_SERVICE_ACCOUNT_FORMAT.format(edpConfig.kmsConfig.serviceAccount),
         )
 
       val kmsClient = GCloudKmsClientFactory().getKmsClient(kmsConfig)
 
-      kmsClientsMap[edp.edpResourceName] = kmsClient
+      kmsClientsMap[edpConfig.dataProvider] = kmsClient
     }
   }
 
-  suspend fun buildModelLineMap(): Map<String, PopulationSpec> {
+  suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
-      val configContent: ByteArray = getConfig(googleProjectId, it.populationSpecFileBlobUri)
+      val configContent: ByteArray =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      it.modelLine to populationSpec
+      val eventDescriptorBytes =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
+      val fileDescriptorSet =
+        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+      val descriptors: List<Descriptors.Descriptor> =
+        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+      val typeName = it.eventTemplateTypeName
+      val eventDescriptor =
+        descriptors.firstOrNull { it.fullName == typeName }
+          ?: error("Descriptor not found for type: $typeName")
+      it.modelLine to
+        ModelLineInfo(
+          populationSpec = populationSpec,
+          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          eventDescriptor = eventDescriptor,
+        )
     }
-  }
-
-  // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
-  private fun loadFileDescriptorSets(
-    files: Iterable<File>
-  ): List<DescriptorProtos.FileDescriptorSet> {
-    return files.map { file ->
-      file.inputStream().use { input ->
-        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
-      }
-    }
-  }
-
-  private fun buildTypeRegistry(): TypeRegistry {
-    return TypeRegistry.newBuilder()
-      .apply {
-        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
-        if (localDescriptorFiles.isNotEmpty()) {
-          add(
-            ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(localDescriptorFiles),
-              COMPILED_PROTOBUF_TYPES,
-            )
-          )
-        }
-      }
-      .build()
   }
 
   fun saveEdpaCerts() {
@@ -424,28 +299,34 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   fun saveEdpsCerts() {
-    edpCerts.forEachIndexed { index, edp ->
-      val edpCertDer = accessSecretBytes(googleProjectId, edp.certDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpCertDer, edp.certDerFilePath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edp.privateDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpPrivateDer, edp.privateDerFilePath)
-      val edpEncPrivate = accessSecretBytes(googleProjectId, edp.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpEncPrivate, edp.encPrivateFilePath)
-      val edpTlsKey = accessSecretBytes(googleProjectId, edp.tlsKeySecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsKey, edp.tlsKeyFilePath)
-      val edpTlsPem = accessSecretBytes(googleProjectId, edp.tlsPemSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsPem, edp.tlsPemFilePath)
-    }
-  }
-
-  fun saveResultsFulfillerConfig() {
-    runBlocking {
-      eventTemplateDescriptorBlobUris.forEach {
-        saveByteArrayToFile(
-          getConfig(googleProjectId, it),
-          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
+    edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
+      val edpCertDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.certDerSecretId,
+          SECRET_VERSION,
         )
-      }
+      saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
+      val edpPrivateDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateDerSecretId,
+          SECRET_VERSION,
+        )
+      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateDerLocalPath)
+      val edpEncPrivate =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateSecretId,
+          SECRET_VERSION,
+        )
+      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
+      val edpTlsKey =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsKey, edpConfig.tlsConfig.tlsKeyLocalPath)
+      val edpTlsPem =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsPem, edpConfig.tlsConfig.tlsPemLocalPath)
     }
   }
 
@@ -483,8 +364,7 @@ class ResultsFulfillerAppRunner : Runnable {
      * a [DescriptorProtos.FileDescriptorSet].
      */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
-      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + ResultsFulfillerParams.getDescriptor().file)
-        .asIterable()
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence()).asIterable()
 
     private val EXTENSION_REGISTRY =
       ExtensionRegistry.newInstance()
@@ -500,14 +380,22 @@ class ResultsFulfillerAppRunner : Runnable {
       "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
 
-    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
-
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
     private const val CREDENTIAL_SOURCE_FILE_PATH =
       "/run/container_launcher/attestation_verifier_claims_token"
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+
+    private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
+    private val edpsConfig by lazy {
+      runBlocking {
+        getConfigAsProtoMessage(
+          EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY,
+          EventDataProviderConfigs.getDefaultInstance(),
+        )
+      }
+    }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }

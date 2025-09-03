@@ -102,6 +102,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -120,6 +121,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.sto
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -204,7 +206,11 @@ class ResultsFulfillerAppTest {
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
-    val workItemParams = createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        kAnonymityParams = null,
+      )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
@@ -235,34 +241,12 @@ class ResultsFulfillerAppTest {
       Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
-    // Create impressions storage client
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
 
-    // Set up KMS
-    val kmsClients = mutableMapOf<String, KmsClient>()
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-    kmsClients[EDP_NAME] = kmsClient
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
-      )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
 
     val impressions =
       List(100) {
@@ -279,22 +263,7 @@ class ResultsFulfillerAppTest {
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
-    // Create the impressions metadata store
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
-
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails = blobDetails {
-      this.blobUri = IMPRESSIONS_FILE_URI
-      this.encryptedDek = encryptedDek
-    }
-    logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toByteString(),
-    )
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
@@ -309,11 +278,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -346,7 +314,11 @@ class ResultsFulfillerAppTest {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
     val workItemParams =
-      createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN)
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+        kAnonymityParams = null,
+      )
+
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
@@ -393,35 +365,12 @@ class ResultsFulfillerAppTest {
       Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
-    // Create impressions storage client
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
 
-    // Set up KMS
-    val kmsClients = mutableMapOf<String, KmsClient>()
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-    kmsClients[EDP_NAME] = kmsClient
-
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
-      )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
 
     val impressions =
       List(100) {
@@ -438,22 +387,7 @@ class ResultsFulfillerAppTest {
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
-    // Create the impressions metadata store
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
-
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails = blobDetails {
-      this.blobUri = IMPRESSIONS_FILE_URI
-      this.encryptedDek = encryptedDek
-    }
-    logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toByteString(),
-    )
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
@@ -468,11 +402,10 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -498,7 +431,10 @@ class ResultsFulfillerAppTest {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
     }
     val workItemParams =
-      createWorkItemParams(ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED)
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED,
+        kAnonymityParams = null,
+      )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
@@ -545,35 +481,12 @@ class ResultsFulfillerAppTest {
       Any.pack(groupedRequisitions.single()).toByteString(),
     )
 
-    // Create impressions storage client
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
-    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
 
-    // Set up KMS
-    val kmsClients = mutableMapOf<String, KmsClient>()
-    val kmsClient = FakeKmsClient()
-    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-    kmsClients[EDP_NAME] = kmsClient
-
-    // Set up streaming encryption
-    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
-    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
-    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
-    val serializedEncryptionKey =
-      ByteString.copyFrom(
-        TinkProtoKeysetFormat.serializeEncryptedKeyset(
-          keyEncryptionHandle,
-          kmsClient.getAead(kekUri),
-          byteArrayOf(),
-        )
-      )
-    val aeadStorageClient =
-      impressionsStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-    // Wrap aead client in mesos client
-    val mesosRecordIoStorageClient = MesosRecordIoStorageClient(aeadStorageClient)
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
 
     val impressions =
       List(100) {
@@ -590,22 +503,7 @@ class ResultsFulfillerAppTest {
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
-    // Create the impressions metadata store
-    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    val impressionsMetadataStorageClient =
-      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
-
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-    val blobDetails = blobDetails {
-      this.blobUri = IMPRESSIONS_FILE_URI
-      this.encryptedDek = encryptedDek
-    }
-    logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
-    impressionsMetadataStorageClient.writeBlob(
-      IMPRESSION_METADATA_BLOB_KEY,
-      blobDetails.toByteString(),
-    )
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
@@ -620,15 +518,378 @@ class ResultsFulfillerAppTest {
           mapOf("some-duchy" to grpcTestServerRule.channel),
         ),
         kmsClients,
-        typeRegistry,
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to POPULATION_SPEC),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
     verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `runWork zeros out results if k-anonymity threshold is not met`() = runBlocking {
+    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        kAnonymityParams =
+          KAnonymityParams(minUsers = 100, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
+      )
+    app.runWork(Any.pack(workItemParams))
+
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(result.reach.value).isEqualTo(0)
+  }
+
+  @Test
+  fun `runWork returns non-zero results for sufficient k-anonymity`() = runBlocking {
+    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        kAnonymityParams =
+          KAnonymityParams(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
+      )
+    app.runWork(Any.pack(workItemParams))
+
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+    assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.frequency.hasDeterministicDistribution())
+
+    assertThat(result.reach.value).isEqualTo(80)
+
+    assertThat(result.frequency.relativeFrequencyDistribution)
+      .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
+  }
+
+  @Test
+  fun `runWork throws errors if k-anonymity params not set up correctly`() = runBlocking {
+    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
+
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val workItemParams =
+      createWorkItemParams(
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        kAnonymityParams =
+          KAnonymityParams(minUsers = 0, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+      )
+    val workItem = createWorkItem(workItemParams)
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn workItem }
+
+    val tmpPath = Files.createTempDirectory(null).toFile()
+
+    // Create requisitions storage client
+    Files.createDirectories(tmpPath.resolve(REQUISITIONS_BUCKET).toPath())
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
+
+    val requisitionValidator =
+      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    val groupedRequisitions =
+      SingleRequisitionGrouper(
+          requisitionsClient = requisitionsStub,
+          eventGroupsClient = eventGroupsStub,
+          requisitionValidator = requisitionValidator,
+          throttler = throttler,
+        )
+        .groupRequisitions(listOf(REQUISITION))
+    // Add requisitions to storage
+    requisitionsStorageClient.writeBlob(
+      REQUISITIONS_BLOB_KEY,
+      Any.pack(groupedRequisitions.single()).toByteString(),
+    )
+
+    val kmsClients = getKmsClientMap()
+    val kmsClient = kmsClients.getValue(EDP_NAME)
+
+    val serializedEncryptionKey = getSerializedEncryptionKey(kmsClient)
+    val mesosRecordIoStorageClient =
+      getImpressionStorageClient(tmpPath, kmsClient, serializedEncryptionKey)
+
+    val impressions =
+      List(100) {
+        LABELED_IMPRESSION.copy {
+          vid = (it % 80 + 1).toLong()
+          eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+      }
+
+    val impressionsFlow = flow {
+      impressions.forEach { impression -> emit(impression.toByteString()) }
+    }
+
+    // Write impressions to storage
+    mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
+
+    writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val app =
+      ResultsFulfillerApp(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = pubSubClient,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        TestRequisitionStubFactory(
+          grpcTestServerRule.channel,
+          mapOf("some-duchy" to grpcTestServerRule.channel),
+        ),
+        kmsClients,
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        getStorageConfig(tmpPath),
+        mapOf("some-model-line" to MODEL_LINE_INFO),
+      )
+
+    assertFails { app.runWork(Any.pack(workItemParams)) }
+
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+  }
+
+  private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {
+    // Create the impressions metadata store
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    val impressionsMetadataStorageClient =
+      SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
+
+    val encryptedDek =
+      EncryptedDek.newBuilder().setKekUri(KEK_URI).setEncryptedDek(serializedEncryptionKey).build()
+    val blobDetails = blobDetails {
+      this.blobUri = IMPRESSIONS_FILE_URI
+      this.encryptedDek = encryptedDek
+    }
+    logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
+    impressionsMetadataStorageClient.writeBlob(
+      IMPRESSION_METADATA_BLOB_KEY,
+      blobDetails.toByteString(),
+    )
+  }
+
+  private fun getKmsClientMap(): MutableMap<String, KmsClient> {
+    // Set up KMS
+    val kmsClients = mutableMapOf<String, KmsClient>()
+    val kmsClient = FakeKmsClient()
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
+    kmsClients[EDP_NAME] = kmsClient
+    return kmsClients
+  }
+
+  private fun getSerializedEncryptionKey(kmsClient: KmsClient): ByteString {
+    // Set up streaming encryption
+    val tinkKeyTemplateType = "AES128_GCM_HKDF_1MB"
+    val aeadKeyTemplate = KeyTemplates.get(tinkKeyTemplateType)
+    val keyEncryptionHandle = KeysetHandle.generateNew(aeadKeyTemplate)
+    val serializedEncryptionKey =
+      ByteString.copyFrom(
+        TinkProtoKeysetFormat.serializeEncryptedKeyset(
+          keyEncryptionHandle,
+          kmsClient.getAead(KEK_URI),
+          byteArrayOf(),
+        )
+      )
+    return serializedEncryptionKey
+  }
+
+  private fun getImpressionStorageClient(
+    tmpPath: File,
+    kmsClient: KmsClient,
+    serializedEncryptionKey: ByteString,
+  ): MesosRecordIoStorageClient {
+    // Create impressions storage client
+    Files.createDirectories(tmpPath.resolve(IMPRESSIONS_BUCKET).toPath())
+    val impressionsStorageClient = SelectedStorageClient(IMPRESSIONS_FILE_URI, tmpPath)
+
+    val aeadStorageClient =
+      impressionsStorageClient.withEnvelopeEncryption(kmsClient, KEK_URI, serializedEncryptionKey)
+
+    // Wrap aead client in mesos client
+    return MesosRecordIoStorageClient(aeadStorageClient)
   }
 
   private fun getStorageConfig(
@@ -638,7 +899,8 @@ class ResultsFulfillerAppTest {
   }
 
   private fun createWorkItemParams(
-    noiseType: ResultsFulfillerParams.NoiseParams.NoiseType
+    noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
+    kAnonymityParams: KAnonymityParams?,
   ): WorkItemParams {
     return workItemParams {
       appParams =
@@ -664,6 +926,14 @@ class ResultsFulfillerAppTest {
                 edpCertificateName = DATA_PROVIDER_CERTIFICATE_KEY.toName()
               }
             this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+            if (kAnonymityParams != null) {
+              this.kAnonymityParams =
+                ResultsFulfillerParamsKt.kAnonymityParams {
+                  this.minImpressions = kAnonymityParams.minImpressions
+                  this.minUsers = kAnonymityParams.minUsers
+                  this.reachMaxFrequencyPerUser = kAnonymityParams.reachMaxFrequencyPerUser
+                }
+            }
           }
           .pack()
 
@@ -860,5 +1130,12 @@ class ResultsFulfillerAppTest {
             }
         }
     }
+    private val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        eventDescriptor = TestEvent.getDescriptor(),
+        populationSpec = POPULATION_SPEC,
+        vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
+      )
   }
 }

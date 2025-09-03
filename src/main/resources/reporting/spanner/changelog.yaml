@@ -24,3 +24,9 @@ databaseChangeLog:
 - include:
     file: add-external-report-id-and-create-report-request-id-to-basic-report.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-basic-report-details.sql
+    relativeToChangeLogFile: true    
+- include:
+    file: add-create-request-id-to-basic-report.sql
+    relativeToChangeLogFile: true
