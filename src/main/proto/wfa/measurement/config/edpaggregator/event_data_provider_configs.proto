@@ -24,7 +24,6 @@ option java_outer_classname = "EventDataProviderConfigsProto";
 
 // Individual EDP config.
 message EventDataProviderConfig {
-
   // Kms config
   message KmsConfig {
     // Kms credential audience as workload identity pool provider.
@@ -52,21 +51,27 @@ message EventDataProviderConfig {
   message ConsentSignalingConfig {
     // Google secret ID for the EDP cert
     string cert_der_secret_id = 1;
-    // Local file path for the EDP certificate DER file. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+    // Local file path for the EDP certificate DER file. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
     string cert_der_local_path = 2;
     // Secret ID for the EDP encryption private der
     string enc_private_der_secret_id = 3;
-    // Local file path for the EDP encryption private der. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+    // Local file path for the EDP encryption private der. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
     string enc_private_der_local_path = 4;
     // Secret ID for the EDP encryption private key
     string enc_private_secret_id = 5;
-    // Local file path for the EDP encryption private key. Must match the `consent_params` field of the `results_fulfiller_param` proto in DataWatcher.
+    // Local file path for the EDP encryption private key. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
     string enc_private_local_path = 6;
   }
 
   // Resource name referencing the `DataProvider` in an external system.
   string data_provider = 1
-  [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // Kms config
   KmsConfig kms_config = 2;
@@ -74,11 +79,9 @@ message EventDataProviderConfig {
   TlsConfig tls_config = 3;
   // Consent Signaling Config
   ConsentSignalingConfig consent_signaling_config = 4;
-
 }
 
 message EventDataProviderConfigs {
-
   // List of EDP configurations.
   repeated EventDataProviderConfig event_data_provider_config = 1;
 }
