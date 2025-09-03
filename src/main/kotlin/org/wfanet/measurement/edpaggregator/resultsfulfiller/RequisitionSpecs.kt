@@ -25,7 +25,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flatMapConcat
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.common.toInstant
 
@@ -45,22 +44,10 @@ object RequisitionSpecs {
   suspend fun getSampledVids(
     requisitionSpec: RequisitionSpec,
     eventGroupMap: Map<String, String>,
-    vidSamplingInterval: MeasurementSpec.VidSamplingInterval,
     typeRegistry: TypeRegistry,
     eventReader: EventReader,
     zoneId: ZoneId,
   ): Flow<Long> {
-    val vidSamplingIntervalStart = vidSamplingInterval.start
-    val vidSamplingIntervalWidth = vidSamplingInterval.width
-    require(
-      vidSamplingIntervalStart >= 0 &&
-        vidSamplingIntervalStart < 1 &&
-        vidSamplingIntervalWidth > 0 &&
-        vidSamplingIntervalWidth <= 1
-    ) {
-      "Invalid vidSamplingInterval: start = $vidSamplingIntervalStart, width = " +
-        "$vidSamplingIntervalWidth"
-    }
 
     // Return a Flow that processes event groups and extracts valid VIDs
     return requisitionSpec.events.eventGroupsList.asFlow().flatMapConcat { eventGroup ->
@@ -85,8 +72,6 @@ object RequisitionSpecs {
 
       VidFilter.filterAndExtractVids(
         impressions,
-        vidSamplingIntervalStart,
-        vidSamplingIntervalWidth,
         eventGroup.value.filter,
         collectionInterval,
         typeRegistry,

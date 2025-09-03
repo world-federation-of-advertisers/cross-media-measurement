@@ -126,6 +126,12 @@ variable "event_data_provider_configs_file_path" {
   nullable    = false
 }
 
+variable "results_fulfiller_population_spec_file_path" {
+  description = "Path to the requisition fetcher population spec file."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
@@ -211,5 +217,15 @@ variable "results_fulfiller_event_proto_descriptor_path" {
 
 variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
+  type = string
+}
+
+variable "results_fulfiller_event_template_type_name" {
+  description = "Fully qualified name of the event template proto message"
+  type = string
+}
+
+variable "results_fulfiller_population_spec_blob_uri" {
+  description = "GCS blob uri of the Results Fulfiller population spec."
   type = string
 }

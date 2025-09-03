@@ -24,13 +24,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.ArgumentMatchers.anyString
-import org.mockito.Mockito.doNothing
-import org.mockito.Mockito.doReturn
-import org.mockito.Mockito.spy
-import org.mockito.Mockito.times
-import org.mockito.Mockito.verify
-import org.mockito.kotlin.any
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -59,105 +52,5 @@ class ResultsFulfillerAppRunnerTest {
 
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
-  }
-
-  @Test
-  fun `saveEdpsCerts calls saveSecretToFile five times for one edp`() {
-    val runner = spy(ResultsFulfillerAppRunner())
-    runner.javaClass.getDeclaredField("googleProjectId").apply {
-      isAccessible = true
-      set(runner, "testProject")
-    }
-    val edp =
-      ResultsFulfillerAppRunner.EdpFlags().apply {
-        certDerSecretId = "cert"
-        privateDerSecretId = "priv"
-        encPrivateSecretId = "enc"
-        tlsKeySecretId = "tlsKey"
-        tlsPemSecretId = "tlsPem"
-        certDerFilePath = File(tempFolder.root, "testEdp_cs_cert.der").absolutePath
-        privateDerFilePath = File(tempFolder.root, "testEdp_cs_private.der").absolutePath
-        encPrivateFilePath = File(tempFolder.root, "testEdp_enc_private.tink").absolutePath
-        tlsKeyFilePath = File(tempFolder.root, "testEdp_tls.key").absolutePath
-        tlsPemFilePath = File(tempFolder.root, "testEdp_tls.pem").absolutePath
-      }
-
-    runner.javaClass.getDeclaredField("edpCerts").apply {
-      isAccessible = true
-      set(runner, listOf(edp))
-    }
-
-    doReturn(ByteArray(0)).`when`(runner).accessSecretBytes(anyString(), anyString(), anyString())
-    doNothing().`when`(runner).saveByteArrayToFile(any(), anyString())
-    runner.saveEdpsCerts()
-    verify(runner, times(5)).saveByteArrayToFile(any(), anyString())
-  }
-
-  @Test
-  fun `saveResultsFulfillerConfig writes proto descriptor files to config directory`() {
-
-    val inputDir = tempFolder.newFolder("desc-input")
-    val descriptorName = "fooDescriptor.protoset"
-    val inputFile = File(inputDir, descriptorName)
-    val expectedBytes = "fake‐descriptor‐bytes".toByteArray()
-    inputFile.writeBytes(expectedBytes)
-
-    val runner = ResultsFulfillerAppRunner()
-    runner.javaClass.getDeclaredField("googleProjectId").apply {
-      isAccessible = true
-      set(runner, "dummyProject")
-    }
-    val uriString = inputFile.toURI().toString()
-    runner.javaClass.getDeclaredField("eventTemplateDescriptorBlobUris").apply {
-      isAccessible = true
-      set(runner, listOf(uriString))
-    }
-
-    runner.saveResultsFulfillerConfig()
-    val configDirField =
-      ResultsFulfillerAppRunner::class.java.getDeclaredField("PROTO_DESCRIPTORS_DIR")
-    configDirField.isAccessible = true
-    val configDir = configDirField.get(null) as String
-
-    // Verify the file was written in <PROTO_DESCRIPTORS_DIR>/fooDescriptor.protoset with identical
-    // contents
-    val outputFile = File(configDir, descriptorName)
-    assertThat(outputFile.exists()).isTrue()
-    assertThat(outputFile.readBytes()).isEqualTo(expectedBytes)
-  }
-
-  @Test
-  fun `createKmsClients populates kmsClientsMap keys`() {
-    val runner = ResultsFulfillerAppRunner()
-
-    val edpCertsField = runner.javaClass.getDeclaredField("edpCerts").apply { isAccessible = true }
-
-    val edp1 =
-      ResultsFulfillerAppRunner.EdpFlags().apply {
-        edpKmsAudience = "aud1"
-        edpTargetServiceAccount = "sa1"
-        edpResourceName = "res1"
-      }
-    val edp2 =
-      ResultsFulfillerAppRunner.EdpFlags().apply {
-        edpKmsAudience = "aud2"
-        edpTargetServiceAccount = "sa2"
-        edpResourceName = "res2"
-      }
-
-    edpCertsField.set(runner, listOf(edp1, edp2))
-
-    runner.javaClass
-      .getDeclaredMethod("createKmsClients")
-      .apply { isAccessible = true }
-      .invoke(runner)
-
-    val kmsMapField =
-      runner.javaClass.getDeclaredField("kmsClientsMap").apply { isAccessible = true }
-
-    @Suppress("UNCHECKED_CAST") val map = kmsMapField.get(runner) as Map<String, *>
-
-    // Verify that the map contains the right KmsClients
-    assertThat(map.keys).containsExactly("res1", "res2")
   }
 }

@@ -24,12 +24,11 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
-import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.net.URI
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -38,9 +37,10 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResult
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -82,6 +82,41 @@ class ResultsFulfillerAppRunner : Runnable {
     required = true,
   )
   private lateinit var kingdomCertCollectionSecretId: String
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Model line info\n")
+  lateinit var modelLines: List<ModelLineFlags>
+    private set
+
+  class ModelLineFlags {
+    @CommandLine.Option(
+      names = ["--model-line"],
+      required = true,
+      description = ["model line resource name"],
+    )
+    lateinit var modelLine: String
+
+    @CommandLine.Option(
+      names = ["--population-spec-file-blob-uri"],
+      required = true,
+      description = ["Blob uri to the proto."],
+    )
+    lateinit var populationSpecFileBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-descriptor-blob-uri"],
+      description =
+        ["Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types."],
+      required = true,
+    )
+    lateinit var eventTemplateDescriptorBlobUri: String
+
+    @CommandLine.Option(
+      names = ["--event-template-type-name"],
+      description = ["Fully qualified type name url of the event proto message."],
+      required = true,
+    )
+    lateinit var eventTemplateTypeName: String
+  }
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
@@ -134,17 +169,6 @@ class ResultsFulfillerAppRunner : Runnable {
   lateinit var googleProjectId: String
     private set
 
-  @CommandLine.Option(
-    names = ["--event-template-metadata-blob-uri"],
-    description =
-      [
-        "Config storage blob URI to the FileDescriptorSet for EventTemplate metadata types.",
-        "This can be specified multiple times.",
-      ],
-    required = true,
-  )
-  private lateinit var eventTemplateDescriptorBlobUris: List<String>
-
   private lateinit var kmsClientsMap: MutableMap<String, KmsClient>
 
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
@@ -156,7 +180,6 @@ class ResultsFulfillerAppRunner : Runnable {
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
-    saveResultsFulfillerConfig()
     // Create KMS clients for EDPs
     createKmsClients()
 
@@ -185,14 +208,16 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
 
+    // TODO: Add support for duchy channels
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = kingdomCertCollectionFile,
+        duchies = emptyMap(),
       )
 
-    val typeRegistry: TypeRegistry = buildTypeRegistry()
+    val modelLinesMap = runBlocking { buildModelLineMap() }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -203,10 +228,10 @@ class ResultsFulfillerAppRunner : Runnable {
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
-        typeRegistry = typeRegistry,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
+        modelLineInfoMap = modelLinesMap,
       )
 
     runBlocking { resultsFulfillerApp.run() }
@@ -233,32 +258,31 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
-  private fun loadFileDescriptorSets(
-    files: Iterable<File>
-  ): List<DescriptorProtos.FileDescriptorSet> {
-    return files.map { file ->
-      file.inputStream().use { input ->
-        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
-      }
-    }
-  }
-
-  private fun buildTypeRegistry(): TypeRegistry {
-    return TypeRegistry.newBuilder()
-      .apply {
-        add(COMPILED_PROTOBUF_TYPES.flatMap { it.messageTypes })
-        val localDescriptorFiles = File(PROTO_DESCRIPTORS_DIR).listFiles()?.toList().orEmpty()
-        if (localDescriptorFiles.isNotEmpty()) {
-          add(
-            ProtoReflection.buildDescriptors(
-              loadFileDescriptorSets(localDescriptorFiles),
-              COMPILED_PROTOBUF_TYPES,
-            )
-          )
+  suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
+    return modelLines.associate { it: ModelLineFlags ->
+      val configContent: ByteArray =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
+      val populationSpec =
+        configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
+          parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      }
-      .build()
+      val eventDescriptorBytes =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
+      val fileDescriptorSet =
+        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
+      val descriptors: List<Descriptors.Descriptor> =
+        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
+      val typeName = it.eventTemplateTypeName
+      val eventDescriptor =
+        descriptors.firstOrNull { it.fullName == typeName }
+          ?: error("Descriptor not found for type: $typeName")
+      it.modelLine to
+        ModelLineInfo(
+          populationSpec = populationSpec,
+          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          eventDescriptor = eventDescriptor,
+        )
+    }
   }
 
   fun saveEdpaCerts() {
@@ -276,27 +300,33 @@ class ResultsFulfillerAppRunner : Runnable {
 
   fun saveEdpsCerts() {
     edpsConfig.eventDataProviderConfigList.forEach { edpConfig ->
-      val edpCertDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.certDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
-      val edpPrivateDer = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateDerSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateDerLocalPath)
-      val edpEncPrivate = accessSecretBytes(googleProjectId, edpConfig.consentSignalingConfig.encPrivateSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
-      val edpTlsKey = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsKey, edpConfig.tlsConfig.tlsKeyLocalPath)
-      val edpTlsPem = accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
-      saveByteArrayToFile(edpTlsPem, edpConfig.tlsConfig.tlsPemLocalPath)
-    }
-  }
-
-  fun saveResultsFulfillerConfig() {
-    runBlocking {
-      eventTemplateDescriptorBlobUris.forEach {
-        saveByteArrayToFile(
-          getResultsFulfillerConfigAsByteArray(googleProjectId, it),
-          "$PROTO_DESCRIPTORS_DIR/${URI(it).path.substringAfterLast("/")}",
+      val edpCertDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.certDerSecretId,
+          SECRET_VERSION,
         )
-      }
+      saveByteArrayToFile(edpCertDer, edpConfig.consentSignalingConfig.certDerLocalPath)
+      val edpPrivateDer =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateDerSecretId,
+          SECRET_VERSION,
+        )
+      saveByteArrayToFile(edpPrivateDer, edpConfig.consentSignalingConfig.encPrivateDerLocalPath)
+      val edpEncPrivate =
+        accessSecretBytes(
+          googleProjectId,
+          edpConfig.consentSignalingConfig.encPrivateSecretId,
+          SECRET_VERSION,
+        )
+      saveByteArrayToFile(edpEncPrivate, edpConfig.consentSignalingConfig.encPrivateLocalPath)
+      val edpTlsKey =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsKeySecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsKey, edpConfig.tlsConfig.tlsKeyLocalPath)
+      val edpTlsPem =
+        accessSecretBytes(googleProjectId, edpConfig.tlsConfig.tlsPemSecretId, SECRET_VERSION)
+      saveByteArrayToFile(edpTlsPem, edpConfig.tlsConfig.tlsPemLocalPath)
     }
   }
 
@@ -336,8 +366,7 @@ class ResultsFulfillerAppRunner : Runnable {
      * a [DescriptorProtos.FileDescriptorSet].
      */
     private val COMPILED_PROTOBUF_TYPES: Iterable<Descriptors.FileDescriptor> =
-      (ProtoReflection.WELL_KNOWN_TYPES.asSequence() + ResultsFulfillerParams.getDescriptor().file)
-        .asIterable()
+      (ProtoReflection.WELL_KNOWN_TYPES.asSequence()).asIterable()
 
     private val EXTENSION_REGISTRY =
       ExtensionRegistry.newInstance()
@@ -350,7 +379,6 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
     private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
-    private const val PROTO_DESCRIPTORS_DIR = "/tmp/proto_descriptors"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
@@ -361,7 +389,12 @@ class ResultsFulfillerAppRunner : Runnable {
 
     private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
     private val edpsConfig by lazy {
-      runBlocking { getConfigAsProtoMessage(EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY, EventDataProviderConfigs.getDefaultInstance()) }
+      runBlocking {
+        getConfigAsProtoMessage(
+          EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY,
+          EventDataProviderConfigs.getDefaultInstance(),
+        )
+      }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
