@@ -278,6 +278,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             if (!areRequisitionsReady) {
               logger.info("Waiting for requisitions to appear...")
               delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
+            } else {
+              logger.info("Requisitions written to the Storage Client")
             }
           } while (!areRequisitionsReady)
         }
