@@ -17,9 +17,12 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Struct
+import com.google.cloud.spanner.Value
 import kotlin.text.trimIndent
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
@@ -41,10 +44,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByResourceId(
   requisitionMetadataResourceId: String,
 ): RequisitionMetadataResult? {
   val sql = buildString {
-    appendLine(RequisitionMetadata.BASE_SQL)
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
     appendLine(
       """
-      $READER_BASE_SQL
       WHERE DataProviderResourceId = @dataProviderResourceId
       AND RequisitionMetadataResourceId = @requisitionMetadataResourceId
       """
@@ -61,11 +63,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByResourceId(
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return RequisitionMetadataResult(
-    row.getString("DataProviderResourceId"),
-    row.getString("RequisitionMetadataResourceId"),
-    buildRequisitionMetadata(row),
-  )
+  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisition(
@@ -73,7 +71,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisit
   cmmsRequisition: String,
 ): RequisitionMetadataResult? {
   val sql = buildString {
-    appendLine(READER_BASE_SQL)
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
     appendLine(
       """
       WHERE DataProviderResourceId = @dataProviderResourceId
@@ -92,11 +90,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisit
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return RequisitionMetadataResult(
-    row.getString("DataProviderResourceId"),
-    row.getString("RequisitionMetadataResourceId"),
-    buildRequisitionMetadata(row),
-  )
+  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
@@ -104,7 +98,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
   blobUri: String,
 ): RequisitionMetadataResult? {
   val sql = buildString {
-    appendLine(READER_BASE_SQL)
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
     appendLine(
       """
       WHERE DataProviderResourceId = @dataProviderResourceId
@@ -123,11 +117,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return RequisitionMetadataResult(
-    row.getString("DataProviderResourceId"),
-    row.getString("RequisitionMetadataResourceId"),
-    buildRequisitionMetadata(row),
-  )
+  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateRequestId(
@@ -135,7 +125,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateReques
   createRequestId: String,
 ): RequisitionMetadataResult? {
   val sql = buildString {
-    appendLine(READER_BASE_SQL)
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
     appendLine(
       """
       WHERE DataProviderResourceId = @dataProviderResourceId
@@ -154,15 +144,67 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateReques
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return RequisitionMetadataResult(
-    row.getString("DataProviderResourceId"),
-    row.getString("RequisitionMetadataResourceId"),
-    buildRequisitionMetadata(row),
-  )
+  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
-private object RequisitionMetadata {
-  private val BASE_SQL =
+/** Buffers an insert mutation for a [RequisitionMetadata] row. */
+fun AsyncDatabaseClient.TransactionContext.insertRequisitionMetadata(
+  requisitionMetadataId: Long,
+  requisitionMetadataResourceId: String,
+  requisitionMetadata: RequisitionMetadata,
+) {
+  bufferInsertMutation("RequisitionMetadata") {
+    set("DataProviderResourceId").to(requisitionMetadata.dataProviderResourceId)
+    set("RequisitionMetadataId").to(requisitionMetadataId)
+    set("RequisitionMetadataResourceId").to(requisitionMetadataResourceId)
+    set("CreateRequestId").to(requisitionMetadata.createRequestId)
+    set("CmmsRequisition").to(requisitionMetadata.cmmsRequisition)
+    set("BlobUri").to(requisitionMetadata.blobUri)
+    set("GroupId").to(requisitionMetadata.groupId)
+    set("CmmsCreateTime").to(requisitionMetadata.cmmsCreateTime)
+    set("Report").to(requisitionMetadata.report)
+    set("State").to(requisitionMetadata.stateValue.toLong())
+    set("WorkItem").to(requisitionMetadata.workItem.ifEmpty { null })
+    set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    set("RefusalMessage").to(requisitionMetadata.refusalMessage.ifEmpty { null })
+  }
+}
+
+/** Buffers an insert for a [RequisitionMetadataActions] row. */
+fun AsyncDatabaseClient.TransactionContext.insertRequisitionMetadataAction(
+  dataProviderResourceId: String,
+  requisitionMetadataId: Long,
+  actionId: Long,
+  previousState: RequisitionMetadataState,
+  currentState: RequisitionMetadataState,
+) {
+  bufferInsertMutation("RequisitionMetadataActions") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RequisitionMetadataId").to(requisitionMetadataId)
+    set("ActionId").to(actionId)
+    set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+    set("PreviousState").to(previousState.number.toLong())
+    set("CurrentState").to(currentState.number.toLong())
+  }
+}
+
+/** Buffers an update to a [RequisitionMetadata] row's state and related fields. */
+fun AsyncDatabaseClient.TransactionContext.updateRequisitionMetadataState(
+  dataProviderResourceId: String,
+  requisitionMetadataId: Long,
+  state: RequisitionMetadataState,
+) {
+  bufferUpdateMutation("RequisitionMetadata") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RequisitionMetadataId").to(requisitionMetadataId)
+    set("State").to(state.number.toLong())
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+private object RequisitionMetadataEntity {
+  val BASE_SQL =
     """
   SELECT
     DataProviderResourceId,
@@ -181,7 +223,7 @@ private object RequisitionMetadata {
   """
       .trimIndent()
 
-  private fun buildRequisitionMetadata(struct: Struct): RequisitionMetadataResult {
+  fun buildRequisitionMetadataResult(struct: Struct): RequisitionMetadataResult {
     return RequisitionMetadataResult(
       struct.getString("DataProviderResourceId"),
       struct.getString("RequisitionMetadataResourceId"),
