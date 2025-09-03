@@ -157,7 +157,7 @@ abstract class MeasurementConsumerSimulator(
   private val maximumResultPollingDelay: Duration,
   private val reportName: String = "some-report-id",
   private val modelLineName: String = "some-model-line",
-  private val onMeasurementsCreated: ((Set<String>) -> Unit)? = null,
+  private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -213,7 +213,6 @@ abstract class MeasurementConsumerSimulator(
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfo: MeasurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -223,11 +222,10 @@ abstract class MeasurementConsumerSimulator(
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter
       )
-    dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
@@ -333,7 +331,6 @@ abstract class MeasurementConsumerSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
@@ -347,13 +344,12 @@ abstract class MeasurementConsumerSimulator(
             1,
             eventGroupFilter = eventGroupFilter
           )
-        dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
         val measurementName = measurementInfo.measurement.name
         logger.info("Created direct reach and frequency measurement $measurementName.")
         measurementInfo
       }
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
@@ -418,7 +414,6 @@ abstract class MeasurementConsumerSimulator(
     // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfos =
       (1..numMeasurements).map { measurementNumber ->
         val measurementInfo =
@@ -432,12 +427,11 @@ abstract class MeasurementConsumerSimulator(
             1,
             eventGroupFilter = eventGroupFilter
           )
-        dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
         val measurementName = measurementInfo.measurement.name
         logger.info("Created direct reach measurement $measurementName.")
         measurementInfo
       }
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
     measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
       // Get the CMMS computed result and compare it with the expected result.
@@ -481,7 +475,6 @@ abstract class MeasurementConsumerSimulator(
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -491,11 +484,10 @@ abstract class MeasurementConsumerSimulator(
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter
       )
-    dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
@@ -521,7 +513,6 @@ abstract class MeasurementConsumerSimulator(
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -531,11 +522,10 @@ abstract class MeasurementConsumerSimulator(
         vidSamplingInterval = vidSamplingInterval,
         eventGroupFilter = eventGroupFilter
       )
-    dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-and-frequency measurement $measurementName.")
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
@@ -604,7 +594,6 @@ abstract class MeasurementConsumerSimulator(
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -614,11 +603,10 @@ abstract class MeasurementConsumerSimulator(
         DEFAULT_VID_SAMPLING_INTERVAL,
         eventGroupFilter = eventGroupFilter
       )
-    dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     val impressionResults: List<Measurement.ResultOutput> = pollForResults {
       getImpressionResults(measurementName)
@@ -651,7 +639,6 @@ abstract class MeasurementConsumerSimulator(
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val dataProviderResourceNames = mutableSetOf<String>()
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -661,11 +648,10 @@ abstract class MeasurementConsumerSimulator(
         DEFAULT_VID_SAMPLING_INTERVAL,
         eventGroupFilter = eventGroupFilter
       )
-    dataProviderResourceNames.addAll(extractDataProviderResourceName(measurementInfo.requisitions))
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
 
-    onMeasurementsCreated?.invoke(dataProviderResourceNames)
+    onMeasurementsCreated?.invoke()
 
     val durationResults = pollForResults { getDurationResults(measurementName) }
 

@@ -60,10 +60,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
+import com.google.cloud.storage.Storage
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -216,6 +213,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
+    private val storageClient = StorageOptions.getDefaultInstance().service
+    private val bucket = TEST_CONFIG.storageBucket
+    private val edp_requisitions_prefix = "edp7/reauisitions/"
+
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
     override val mcSimulator: MeasurementConsumerSimulator
@@ -234,60 +235,54 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private fun triggerRequisitionFetcher(dataProviderResourceNames: Set<String>) {
+    private fun triggerRequisitionFetcher() {
 
-      val requisitionsStub = RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel)
+      // Delete existing requisitions from storage bucket
+      val blobs = storageClient.list(
+        bucket,
+        Storage.BlobListOption.prefix(edp_requisitions_prefix)
+      )
 
+      blobs.iterateAll().forEach { blob ->
+        storageClient.delete(bucket, blob.name)
+        println("Deleted: ${blob.name}")
+      }
+
+      // Wait untill requisitions for edp7 have status == UNFULFILLED before triggering `RequisitionFetcher`.
       runBlocking {
-        for (dataProviderName in dataProviderResourceNames) {
-          withTimeout(REQUISITIONS_SYNC_TIMEOUT) {
-            var unfulfilledRequisitions = 0
-            while (unfulfilledRequisitions == 0) {
-              var pageToken = ""
+        withTimeout(REQUISITIONS_SYNC_TIMEOUT) {
+          var areRequisitionsReady: Boolean
 
-              do {
-                val request = listRequisitionsRequest {
-                  parent = dataProviderName
-                  filter = ListRequisitionsRequestKt.filter {
-                    states += Requisition.State.UNFULFILLED
-                  }
-                  pageSize = 100
-                  this.pageToken = pageToken
-                }
+          do {
+            val jwt = TEST_CONFIG.authIdToken
+            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
 
-                val response = try {
-                  requisitionsStub.withAuthenticationKey(measurementConsumerData.apiAuthenticationKey).listRequisitions(request)
-                } catch (e: io.grpc.StatusException) {
-                  throw Exception("Error listing requisitions for $dataProviderName", e)
-                }
+            val client = HttpClient.newHttpClient()
+            val request =
+              HttpRequest.newBuilder()
+                .uri(URI.create(requisitionFetcherEndpoint))
+                .timeout(Duration.ofSeconds(120))
+                .header("Authorization", "Bearer $jwt")
+                .GET()
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            check(response.statusCode() == 200)
 
-                unfulfilledRequisitions += response.requisitionsList.size
-                pageToken = response.nextPageToken
-              } while (pageToken.isNotBlank())
+            val blobCount = storageClient.list(
+              bucket,
+              Storage.BlobListOption.prefix(edp_requisitions_prefix)
+            ).iterateAll().count()
 
-              if (unfulfilledRequisitions == 0) {
-                logger.info("Waiting for requisitions for $dataProviderName...")
-                delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
-              }
+            areRequisitionsReady = blobCount > 0
+
+            if (!areRequisitionsReady) {
+              logger.info("Waiting for requisitions to appear...")
+              delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
             }
-          }
+          } while (!areRequisitionsReady)
         }
       }
 
-      val jwt = TEST_CONFIG.authIdToken
-      val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
-
-      val client = HttpClient.newHttpClient()
-      val request =
-        HttpRequest.newBuilder()
-          .uri(URI.create(requisitionFetcherEndpoint))
-          .timeout(Duration.ofSeconds(120))
-          .header("Authorization", "Bearer $jwt")
-          .GET()
-          .build()
-      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-
-      check(response.statusCode() == 200)
     }
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
