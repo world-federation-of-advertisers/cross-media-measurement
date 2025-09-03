@@ -137,12 +137,13 @@ abstract class BaseTeeApplication(
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
-      runCatching { failWorkItem(workItemName) }
-        .onFailure { error ->
-          logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
-          queueMessage.nack()
-        }
-      queueMessage.ack()
+      try {
+        failWorkItem(workItemName)
+        queueMessage.ack()
+      } catch (error: Throwable) {
+        logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
+        queueMessage.nack()
+      }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
