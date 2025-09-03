@@ -16,30 +16,17 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
-import "google/protobuf/timestamp.proto";
-import "google/type/interval.proto";
-import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
-
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
+option java_outer_classname = "ImpressionMetadataStateProto";
 
-// Proto representation of the internal ImpressionMetadata entity type.
-message ImpressionMetadata {
-  string data_provider_resource_id = 1;
-  string impression_metadata_resource_id = 2;
-
-  string blob_uri = 3;
-  string blob_type_url = 4;
-
-  string event_group_reference_id = 5;
-
-  // The resource name of the ModelLine in the CMMS (Kingdom).
-  string cmms_model_line = 6;
-
-  google.type.Interval interval = 7;
-
-  ImpressionMetadataState state = 8;
-
-  google.protobuf.Timestamp create_time = 9;
-  google.protobuf.Timestamp update_time = 10;
+// The lifecycle state of an impression.
+enum ImpressionMetadataState {
+  // Default, unspecified state.
+  UNSPECIFIED = 0;
+  // The metadata is active and can be used for fulfillment.
+  ACTIVE = 1;
+  // The metadata has been marked as deleted and will not be used for
+  // fulfillment unless explicitly requested.
+  DELETED = 2;
 }
