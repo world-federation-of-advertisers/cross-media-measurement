@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.rpc.ErrorInfo
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
@@ -159,7 +159,6 @@ class BaseTeeApplicationTest {
   fun `acks message when createWorkItemAttempt returns non-retriable error`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
-    val nonRetriableEx = makeCreateAttemptInvalidStateException()
 
     runBlocking {
       whenever(
@@ -168,7 +167,7 @@ class BaseTeeApplicationTest {
             any<io.grpc.Metadata>(),
           )
         )
-        .thenThrow(nonRetriableEx)
+        .thenAnswer { throw makeCreateAttemptInvalidStateException() }
     }
 
     val fakeSubscriber = FakeQueueSubscriber()
@@ -244,7 +243,7 @@ class BaseTeeApplicationTest {
   private fun makeCreateAttemptInvalidStateException(
     workItemName: String = "workItems/workItem",
     workItemState: String = "COMPLETED",
-  ): StatusRuntimeException {
+  ): StatusException {
     val errorInfo =
       ErrorInfo.newBuilder()
         .setReason(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
@@ -261,7 +260,7 @@ class BaseTeeApplicationTest {
         .addDetails(Any.pack(errorInfo))
         .build()
 
-    return StatusProto.toStatusRuntimeException(status)
+    return StatusProto.toStatusException(status)
   }
 
   private fun createTestWork(): TestWork {
