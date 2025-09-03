@@ -23,10 +23,10 @@ option java_outer_classname = "ImpressionMetadataStateProto";
 // The lifecycle state of an impression.
 enum ImpressionMetadataState {
   // Default, unspecified state.
-  UNSPECIFIED = 0;
+  IMPRESSION_METADATA_STATE_UNSPECIFIED = 0;
   // The metadata is active and can be used for fulfillment.
-  ACTIVE = 1;
+  IMPRESSION_METADATA_STATE_ACTIVE = 1;
   // The metadata has been marked as deleted and will not be used for
   // fulfillment unless explicitly requested.
-  DELETED = 2;
+  IMPRESSION_METADATA_STATE_DELETED = 2;
 }
