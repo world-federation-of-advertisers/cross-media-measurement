@@ -19,7 +19,6 @@ locals {
   metadata_map = merge(
       {
         "tee-image-reference"        = var.docker_image
-        "tee-container-log-redirect" = "true"
         "tee-cmd"                    = jsonencode(var.tee_cmd)
       },
       var.config_storage_bucket == null ? {} : {
