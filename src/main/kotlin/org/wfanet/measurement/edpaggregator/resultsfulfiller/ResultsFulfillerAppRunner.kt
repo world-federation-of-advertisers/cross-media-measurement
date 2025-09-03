@@ -371,12 +371,14 @@ class ResultsFulfillerAppRunner : Runnable {
 
   suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
-      val configContent: ByteArray = getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
+      val configContent: ByteArray =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      val eventDescriptorBytes = getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
+      val eventDescriptorBytes =
+        getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
       val fileDescriptorSet =
         DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
       val descriptors: List<Descriptors.Descriptor> =
