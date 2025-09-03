@@ -31,6 +31,7 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -53,14 +54,13 @@ import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
@@ -69,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -127,6 +128,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
+
+  @get:Rule val tempDir = TemporaryFolder()
 
   private lateinit var publicModelProvidersClient: ModelProvidersBlockingStub
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
@@ -410,6 +413,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `populations create prints Population`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(POPULATION_SPEC.toByteArray())
     val args =
       dataProviderArgs +
         arrayOf(
@@ -417,8 +422,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           "create",
           "--parent=$dataProviderName",
           "--description=$DESCRIPTION",
-          "--model-blob-uri=$MODEL_BLOB_URI",
-          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+          "--population-spec=${populationSpecFile.path}",
         )
     val output = callCli(args)
 
@@ -427,8 +431,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(
         population {
           description = DESCRIPTION
-          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
-          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+          populationSpec = POPULATION_SPEC
         }
       )
   }
@@ -596,8 +599,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         parent = dataProviderName
         population = population {
           description = DESCRIPTION
-          populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
-          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+          populationSpec = POPULATION_SPEC
         }
       }
     )
@@ -664,13 +666,22 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
-    private const val MODEL_BLOB_URI = "model_blob_uri"
 
     private const val PAGE_SIZE = 50
 
     private const val START_TIME = "2099-01-15T10:00:00Z"
     private const val END_TIME = "2099-02-15T10:00:00Z"
+
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1
+              endVidInclusive = 100
+            }
+        }
+    }
 
     init {
       DuchyInfo.setForTest(emptySet())
