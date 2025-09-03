@@ -257,7 +257,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           .GET()
           .build()
       val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-      logger.info("----------------------- RESPONSE: $response")
+
       check(response.statusCode() == 200)
     }
 

@@ -1353,6 +1353,7 @@ abstract class MeasurementConsumerSimulator(
 
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
     val eventGroupKey = EventGroupKey.fromName(eventGroupName) ?: error("Invalid eventGroup name.")
+    println("============================= PARENT KEY: ${eventGroupKey.parentKey}")
     return eventGroupKey.parentKey
   }
 
