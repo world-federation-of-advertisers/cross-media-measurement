@@ -552,6 +552,7 @@ abstract class MeasurementConsumerSimulator(
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
+    logger.info { "Creating reach only Measurement..." }
     val result = executeReachOnly(runId, requiredCapabilities, vidSamplingInterval, eventGroupFilter)
 
     val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
@@ -1350,12 +1351,6 @@ abstract class MeasurementConsumerSimulator(
   private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
     val eventGroupKey = EventGroupKey.fromName(eventGroupName) ?: error("Invalid eventGroup name.")
     return eventGroupKey.parentKey
-  }
-
-  private fun extractDataProviderResourceName(
-    requisitions: List<RequisitionInfo>
-  ): Set<String> {
-    return requisitions.map { it.dataProviderEntry.key }.toSet()
   }
 
   private suspend fun getDataProvider(name: String): DataProvider {
