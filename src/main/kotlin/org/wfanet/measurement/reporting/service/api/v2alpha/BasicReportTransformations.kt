@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -27,7 +28,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
-import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
@@ -61,8 +62,8 @@ private data class MetricCalculationSpecInfo(
  * This assumes that all parameters have already been validated.
  *
  * @param campaignGroupName resource name of [ReportingSet] that is a campaign group
- * @param impressionQualificationFilterSpecsFilters List of CEL filters each representing an
- *   [ImpressionQualificationFilter]
+ * @param impressionQualificationFilterSpecsLists List of List of
+ *   [ImpressionQualificationFilterSpec] for each [ReportingImpressionQualificationFilter]
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
@@ -72,11 +73,16 @@ private data class MetricCalculationSpecInfo(
  */
 fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
-  impressionQualificationFilterSpecsFilters: List<String>,
+  impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec>> {
+  val impressionQualificationFilterSpecsFilters: List<String> =
+    impressionQualificationFilterSpecsLists.map {
+      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsMap)
+    }
+
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
   // MetricSpecs can be created for a given ReportingSet. If the MetricSpecs have some overlap, that
@@ -85,8 +91,14 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
       for (resultGroupSpec in resultGroupSpecs) {
-        // TODO(tristanvuong2021): create groupings from dimension_spec
-        val groupings = emptyList<MetricCalculationSpec.Grouping>()
+        val groupings: List<MetricCalculationSpec.Grouping> =
+          if (resultGroupSpec.dimensionSpec.hasGrouping()) {
+            resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
+              eventTemplateFieldsMap
+            )
+          } else {
+            emptyList()
+          }
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
         // DimensionSpec
@@ -122,6 +134,80 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     .associate { entry ->
       entry.key to entry.value.entries.map { it.toMetricCalculationSpec(cmmsMeasurementConsumerId) }
     }
+}
+
+/**
+ * Transforms [ImpressionQualificationFilterSpec]s into a single CEL string
+ *
+ * @param impressionQualificationFilterSpecs List of [ImpressionQualificationFilterSpec]
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for parsing [EventTemplateField]
+ */
+private fun createImpressionQualificationFilterSpecsFilter(
+  impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+): String {
+  return impressionQualificationFilterSpecs
+    .flatMap { it.filtersList }
+    // To normalize the filter string
+    .sortedBy { it.termsList.first().path }
+    .joinToString(prefix = "(", postfix = ")", separator = " && ") {
+      val term = it.termsList.first()
+      val termValue =
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (term.value.selectorCase) {
+          EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
+          EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+            eventTemplateFieldsMap
+              .getValue(term.path)
+              .enumType
+              ?.findValueByName(term.value.enumValue)
+              ?.number
+          }
+
+          EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
+          EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
+          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
+            throw IllegalArgumentException("Selector not set")
+        }
+      "${term.path} == $termValue"
+    }
+}
+
+/**
+ * Transforms a [DimensionSpec.Grouping] into a List of [MetricCalculationSpec.Grouping]
+ *
+ * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ *   info for the field. Used for parsing [EventTemplateField]
+ * @return List of [MetricCalculationSpec.Grouping]
+ */
+private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
+  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>
+): List<MetricCalculationSpec.Grouping> {
+  if (eventTemplateFieldsList.isEmpty()) {
+    return emptyList()
+  }
+
+  for (field in eventTemplateFieldsList) {
+    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    if (fieldInfo.enumType == null) {
+      return emptyList()
+    }
+  }
+
+  return eventTemplateFieldsList
+    .fold(emptyList()) { groupings: List<List<String>>, field: String ->
+      val fieldInfo = eventTemplateFieldsMap.getValue(field)
+      val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
+      val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+
+      if (groupings.isEmpty()) {
+        predicatesList.map { listOf(it) }
+      } else {
+        groupings.flatMap { grouping -> predicatesList.map { predicate -> grouping + predicate } }
+      }
+    }
+    .map { MetricCalculationSpecKt.grouping { predicates += it } }
 }
 
 /**
@@ -202,8 +288,26 @@ private fun createMetricCalculationSpecFilters(
       }
 
   return buildList {
-    for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
-      add("$impressionQualificationSpecsFilter && $dimensionSpecFilter")
+    if (impressionQualificationFilterSpecsFilters.isNotEmpty()) {
+      if (dimensionSpecFilters.isNotEmpty()) {
+        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
+          add("$impressionQualificationSpecsFilter && $dimensionSpecFilter")
+        }
+      } else {
+        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
+          add(impressionQualificationSpecsFilter)
+        }
+      }
+    } else {
+      if (dimensionSpecFilters.isNotEmpty()) {
+        add(dimensionSpecFilter)
+      }
+    }
+
+    // This function is expected to return a list of filters so an empty filter is returned in the
+    // case that there are no ImpressionQualificationSpec filters nor DimensionSpec filters.
+    if (this.isEmpty()) {
+      add("")
     }
   }
 }

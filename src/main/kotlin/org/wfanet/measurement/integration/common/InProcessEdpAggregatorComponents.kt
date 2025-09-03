@@ -22,7 +22,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Channel
@@ -49,6 +48,8 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
@@ -57,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -75,6 +77,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -106,6 +109,7 @@ class InProcessEdpAggregatorComponents(
   private val pubSubClient: GooglePubSubEmulatorClient,
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
+  private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) : TestRule {
 
   private val internalServicesRule: ProviderRule<InternalApiServices> =
@@ -120,9 +124,11 @@ class InProcessEdpAggregatorComponents(
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
-  private lateinit var edpResourceName: String
+  private lateinit var edpResourceNameMap: Map<String, String>
 
   private lateinit var publicApiChannel: Channel
+
+  private lateinit var duchyChannelMap: Map<String, Channel>
 
   private val secureComputationPublicApi by lazy {
     InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
@@ -130,20 +136,9 @@ class InProcessEdpAggregatorComponents(
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
-      .withPrincipalName(edpResourceName)
-  }
-
-  private val requisitionsClient: RequisitionsCoroutineStub by lazy {
-    RequisitionsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
-  }
-
-  private val eventGroupsClient: EventGroupsCoroutineStub by lazy {
-    EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
   }
 
   private lateinit var dataWatcher: DataWatcher
-
-  private lateinit var requisitionFetcher: RequisitionFetcher
 
   private lateinit var eventGroupSync: EventGroupSync
 
@@ -156,11 +151,10 @@ class InProcessEdpAggregatorComponents(
     kmsClient
   }
 
-  private val kmsClients by lazy { mutableMapOf(edpResourceName to kmsClient as KmsClient) }
+  private lateinit var kmsClients: Map<String, KmsClient>
 
   private val resultFulfillerApp by lazy {
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
-    val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel)
+    val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel, duchyChannelMap)
     val subscriber = Subscriber(PROJECT_ID, pubSubClient)
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
@@ -172,12 +166,12 @@ class InProcessEdpAggregatorComponents(
       workItemAttemptsClient =
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
-      kmsClients = kmsClients,
+      kmsClients = kmsClients.toMutableMap(),
       requisitionStubFactory = requisitionStubFactory,
-      typeRegistry = typeRegistry,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
+      modelLineInfoMap = modelLineInfoMap,
     )
   }
 
@@ -203,70 +197,98 @@ class InProcessEdpAggregatorComponents(
     kingdomChannel: Channel,
     measurementConsumerData: MeasurementConsumerData,
     edpDisplayNameToResourceMap: Map<String, Resource>,
-    edpAggregatorShortName: String,
+    edpAggregatorShortNames: List<String>,
+    duchyMap: Map<String, Channel>,
   ) = runBlocking {
-    edpResourceName = edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
     publicApiChannel = kingdomChannel
-    val resultsFulfillerParams =
-      getResultsFulfillerParams(
-        edpAggregatorShortName,
-        edpResourceName,
-        DataProviderCertificateKey.fromName(
-          edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).dataProvider.certificate
-        )!!,
-        "file:///$IMPRESSIONS_METADATA_BUCKET",
-        noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+    duchyChannelMap = duchyMap
+    edpResourceNameMap =
+      edpAggregatorShortNames.associateWith { edpAggregatorShortName ->
+        edpDisplayNameToResourceMap.getValue(edpAggregatorShortName).name
+      }
+    edpResourceNameMap.toList().forEach { (edpAggregatorShortName, edpResourceName) ->
+      val dataProvidersStub: DataProvidersCoroutineStub =
+        DataProvidersCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      dataProvidersStub.replaceDataProviderCapabilities(
+        replaceDataProviderCapabilitiesRequest {
+          name = edpResourceName
+          capabilities = DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true }
+        }
       )
-    val watchedPaths =
-      getDataWatcherResultFulfillerParamsConfig(
-        blobPrefix = "file:///$REQUISITION_STORAGE_PREFIX/",
-        edpResultFulfillerConfigs = mapOf(edpResourceName to resultsFulfillerParams),
-      )
-    for (path in watchedPaths) {
-      WatchedPath.parseFrom(path.toByteString())
     }
+    val watchedPaths: List<WatchedPath> = run {
+      val resultsFulfillerParamsMap: Map<String, ResultsFulfillerParams> =
+        edpResourceNameMap.toList().associate { (edpAggregatorShortName, edpResourceName) ->
+          edpAggregatorShortName to
+            getResultsFulfillerParams(
+              edpAggregatorShortName,
+              edpResourceName,
+              DataProviderCertificateKey.fromName(
+                edpDisplayNameToResourceMap
+                  .getValue(edpAggregatorShortName)
+                  .dataProvider
+                  .certificate
+              )!!,
+              "file:///$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
+              noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
+            )
+        }
+      getDataWatcherResultFulfillerParamsConfig(
+        blobPrefix = "file:///$REQUISITION_STORAGE_PREFIX",
+        edpResultFulfillerConfigs = resultsFulfillerParamsMap,
+      )
+    }
+
     dataWatcher =
       DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
-
-    val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
-
-    val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
-
-    val requisitionGrouper =
-      RequisitionGrouperByReportId(
-        requisitionsValidator,
-        eventGroupsClient,
-        requisitionsClient,
-        throttler,
-      )
-
-    requisitionFetcher =
-      RequisitionFetcher(
-        requisitionsClient,
-        subscribingStorageClient,
-        edpResourceName,
-        REQUISITION_STORAGE_PREFIX,
-        requisitionGrouper,
-        ::createDeterministicId,
-      )
-    backgroundScope.launch {
-      while (true) {
-        delay(1000)
-        requisitionFetcher.fetchAndStoreRequisitions()
+    kmsClients =
+      edpResourceNameMap.toList().associate { (edpAggregatorShortName, edpResourceName) ->
+        edpResourceName to kmsClient
       }
+    edpResourceNameMap.toList().forEach { (edpAggregatorShortName, edpResourceName) ->
+      val requisitionsClient: RequisitionsCoroutineStub =
+        RequisitionsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+
+      val eventGroupsClient: EventGroupsCoroutineStub =
+        EventGroupsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
+      val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
+
+      val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
+
+      val requisitionGrouper =
+        RequisitionGrouperByReportId(
+          requisitionsValidator,
+          eventGroupsClient,
+          requisitionsClient,
+          throttler,
+        )
+
+      val requisitionFetcher =
+        RequisitionFetcher(
+          requisitionsClient,
+          subscribingStorageClient,
+          edpResourceName,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          requisitionGrouper,
+          ::createGroupedRequisitionId,
+        )
+      backgroundScope.launch {
+        while (true) {
+          delay(1000)
+          requisitionFetcher.fetchAndStoreRequisitions()
+        }
+      }
+      val eventGroups = buildEventGroups(measurementConsumerData)
+      eventGroupSync =
+        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
+      val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
+      logger.info("Received mappedEventGroups: $mappedEventGroups")
+      runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
     }
-    val eventGroups = buildEventGroups(measurementConsumerData)
-    eventGroupSync =
-      EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
-    val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
-    logger.info("Received mappedEventGroups: $mappedEventGroups")
-    backgroundScope.launch {
-      runBlocking { writeImpressionData(mappedEventGroups) }
-      resultFulfillerApp.run()
-    }
+    backgroundScope.launch { resultFulfillerApp.run() }
   }
 
   private suspend fun refuseRequisition(
@@ -324,10 +346,15 @@ class InProcessEdpAggregatorComponents(
     }
   }
 
-  private suspend fun writeImpressionData(mappedEventGroups: List<MappedEventGroup>) {
+  private suspend fun writeImpressionData(
+    mappedEventGroups: List<MappedEventGroup>,
+    edpAggregatorShortName: String,
+  ) {
     withContext(Dispatchers.IO) {
-      Files.createDirectories(storagePath.resolve(IMPRESSIONS_BUCKET))
-      Files.createDirectories(storagePath.resolve(IMPRESSIONS_METADATA_BUCKET))
+      Files.createDirectories(storagePath.resolve("$IMPRESSIONS_BUCKET-$edpAggregatorShortName"))
+      Files.createDirectories(
+        storagePath.resolve("$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName")
+      )
     }
 
     mappedEventGroups.forEach { mappedEventGroup ->
@@ -342,8 +369,8 @@ class InProcessEdpAggregatorComponents(
           "event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
-          IMPRESSIONS_BUCKET,
-          IMPRESSIONS_METADATA_BUCKET,
+          "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
+          "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName",
           storagePath.toFile(),
           "file:///",
         )
@@ -371,8 +398,12 @@ class InProcessEdpAggregatorComponents(
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"
     private val ZONE_ID = ZoneId.of("UTC")
 
-    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-      return "hash_value"
+    // TODO: Lookup/Create an entry in the metadata store
+    fun createGroupedRequisitionId(groupedRequisition: GroupedRequisitions): String {
+      return groupedRequisition.requisitionsList
+        .map { it.requisition.unpack(Requisition::class.java).name }
+        .sorted()
+        .first()
     }
   }
 }
