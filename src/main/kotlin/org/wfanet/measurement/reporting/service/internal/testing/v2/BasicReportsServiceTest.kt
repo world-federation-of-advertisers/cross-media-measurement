@@ -120,7 +120,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           reportingUnit = reportingUnit {
             dataProviderKeys =
               ReportingUnitKt.dataProviderKeys {
-                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
               }
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
@@ -483,7 +483,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           reportingUnit = reportingUnit {
             dataProviderKeys =
               ReportingUnitKt.dataProviderKeys {
-                dataProviderKeys += dataProviderKey { externalDataProviderId = "1234" }
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
               }
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
