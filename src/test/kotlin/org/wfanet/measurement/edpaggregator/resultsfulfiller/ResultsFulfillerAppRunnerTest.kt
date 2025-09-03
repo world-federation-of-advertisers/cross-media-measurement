@@ -24,10 +24,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.config.edpaggregator.eventDataProviderConfig
-import org.wfanet.measurement.config.edpaggregator.eventDataProviderConfigs
-import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigKt.kmsConfig
-
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerAppRunnerTest {
@@ -57,5 +53,4 @@ class ResultsFulfillerAppRunnerTest {
     assertThat(nestedFile.exists()).isTrue()
     assertThat(data).isEqualTo(nestedFile.readBytes())
   }
-  
 }
