@@ -14,6 +14,7 @@ proto_library(
     srcs = ["impression_metadata.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":impression_metadata_state_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -41,6 +42,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":impression_metadata_proto",
+        ":impression_metadata_state_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
