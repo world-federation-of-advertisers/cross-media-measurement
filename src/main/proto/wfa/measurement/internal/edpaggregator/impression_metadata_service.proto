@@ -20,6 +20,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/impression_metadata.proto";
+import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -87,7 +88,7 @@ message ListImpressionMetadataRequest {
     string cmms_model_line = 1;
     string event_group_reference_id = 2;
     google.type.Interval interval_overlaps = 3;
-    ImpressionMetadata.State state = 4;
+    ImpressionMetadataState state = 4;
     google.protobuf.Timestamp create_time_after = 5;
     bool show_deleted = 6;
   }
