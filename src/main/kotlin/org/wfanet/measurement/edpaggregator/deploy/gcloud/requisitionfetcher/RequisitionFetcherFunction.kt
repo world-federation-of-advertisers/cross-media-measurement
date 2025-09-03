@@ -34,7 +34,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.edpaggregator.CloudFunctionConfig.getConfig
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
@@ -186,7 +186,9 @@ class RequisitionFetcherFunction : HttpFunction {
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {
-      runBlocking { getConfig(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
+      runBlocking {
+        getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
+      }
     }
 
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {

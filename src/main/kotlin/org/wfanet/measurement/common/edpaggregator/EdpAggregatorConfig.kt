@@ -19,8 +19,8 @@ import com.google.protobuf.TypeRegistry
 import java.io.StringReader
 import org.wfanet.measurement.common.parseTextProto
 
-/** Function to get Cloud Functions' configurations from Storage */
-object CloudFunctionConfig {
+/** Functions to get Edp Aggregator configurations from Storage */
+object EdpAggregatorConfig {
 
   private const val CONFIG_STORAGE_BUCKET_ENV = "EDPA_CONFIG_STORAGE_BUCKET"
   private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
@@ -42,7 +42,7 @@ object CloudFunctionConfig {
    * @throws IllegalArgumentException if required environment variables are not set.
    * @throws IllegalStateException if the config blob is not found.
    */
-  suspend fun <T : Message> getConfig(
+  suspend fun <T : Message> getConfigAsProtoMessage(
     configBlobKey: String,
     defaultInstance: T,
     typeRegistry: TypeRegistry? = null,
@@ -61,5 +61,22 @@ object CloudFunctionConfig {
     } else {
       parseTextProto(StringReader(text), defaultInstance)
     }
+  }
+
+  /**
+   * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
+   *
+   * @param projectId GCP project ID (used for GCS access; ignored for `file:` URIs).
+   * @param blobUri Full URI of the config blob to load.
+   * @return Raw bytes of the loaded config.
+   * @throws IllegalArgumentException if [blobUri] is empty or malformed.
+   * @throws IllegalStateException if the blob isn’t found at the given URI.
+   */
+  suspend fun getResultsFulfillerConfigAsByteArray(projectId: String, blobUri: String): ByteArray {
+
+    val prefix = blobUri.substringBeforeLast("/")
+    val key = blobUri.substringAfterLast("/")
+    val loader = BlobLoader()
+    return loader.getBytes(prefix, key, projectId).toByteArray()
   }
 }

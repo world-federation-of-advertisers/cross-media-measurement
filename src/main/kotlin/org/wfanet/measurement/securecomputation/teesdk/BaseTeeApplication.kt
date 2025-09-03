@@ -20,7 +20,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Parser
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -93,6 +93,22 @@ abstract class BaseTeeApplication(
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
         createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
+        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
+        // ack the message and stop processing.
+        val cause = e.cause
+        if (cause is StatusException) {
+          val reason = cause.errorInfo?.reason
+          if (
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
+              reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
+          ) {
+            logger.log(Level.WARNING, e) {
+              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
+            }
+            queueMessage.ack()
+            return
+          }
+        }
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt" }
         return
       }
@@ -101,7 +117,7 @@ abstract class BaseTeeApplication(
       runCatching { completeWorkItemAttempt(workItemAttempt) }
         .onFailure { error ->
           when (error) {
-            is StatusRuntimeException -> {
+            is StatusException -> {
               if (
                 error.status.code == Status.Code.FAILED_PRECONDITION &&
                   error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
@@ -121,12 +137,13 @@ abstract class BaseTeeApplication(
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
-      runCatching { failWorkItem(workItemName) }
-        .onFailure { error ->
-          logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
-          queueMessage.nack()
-        }
-      queueMessage.ack()
+      try {
+        failWorkItem(workItemName)
+        queueMessage.ack()
+      } catch (error: Throwable) {
+        logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
+        queueMessage.nack()
+      }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message" }
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
@@ -148,7 +165,7 @@ abstract class BaseTeeApplication(
           this.workItemAttemptId = workItemAttemptId
         }
       )
-    } catch (e: StatusRuntimeException) {
+    } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to create WorkItemAttempt for parent: $parent", e)
     }
   }
@@ -158,7 +175,7 @@ abstract class BaseTeeApplication(
       workItemAttemptsStub.completeWorkItemAttempt(
         completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
       )
-    } catch (e: StatusRuntimeException) {
+    } catch (e: StatusException) {
       throw ControlPlaneApiException(
         "Failed to set WorkItemAttempt ${workItemAttempt.name} as succeeded",
         e,
@@ -174,7 +191,7 @@ abstract class BaseTeeApplication(
           this.errorMessage = e.message.toString()
         }
       )
-    } catch (e: StatusRuntimeException) {
+    } catch (e: StatusException) {
       throw ControlPlaneApiException(
         "Failed to set WorkItemAttempt ${workItemAttempt.name} as failed",
         e,
@@ -185,7 +202,7 @@ abstract class BaseTeeApplication(
   private suspend fun failWorkItem(workItemName: String) {
     try {
       workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
-    } catch (e: StatusRuntimeException) {
+    } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
     }
   }

@@ -1,0 +1,87 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "EventDataProviderConfigsProto";
+
+// Individual EDP config.
+message EventDataProviderConfig {
+  // Kms config
+  message KmsConfig {
+    // Kms credential audience as workload identity pool provider.
+    string kms_audience = 1;
+    // Edp service account with KMS access.
+    string service_account = 2;
+  }
+
+  // Tls Config
+  message TlsConfig {
+    // Secret ID for the EDP TLS key.
+    string tls_key_secret_id = 1;
+
+    // Local file path for the EDP TLS key.
+    string tls_key_local_path = 2;
+
+    // Secret ID for the EDP TLS cert.
+    string tls_pem_secret_id = 3;
+
+    // Local file path for the EDP TLS certificate (PEM format).
+    string tls_pem_local_path = 4;
+  }
+
+  // Consent Signaling Config
+  message ConsentSignalingConfig {
+    // Google secret ID for the EDP cert
+    string cert_der_secret_id = 1;
+    // Local file path for the EDP certificate DER file. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
+    string cert_der_local_path = 2;
+    // Secret ID for the EDP encryption private der
+    string enc_private_der_secret_id = 3;
+    // Local file path for the EDP encryption private der. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
+    string enc_private_der_local_path = 4;
+    // Secret ID for the EDP encryption private key
+    string enc_private_secret_id = 5;
+    // Local file path for the EDP encryption private key. Must match the
+    // `consent_params` field of the `results_fulfiller_param` proto in
+    // DataWatcher.
+    string enc_private_local_path = 6;
+  }
+
+  // Resource name referencing the `DataProvider` in an external system.
+  string data_provider = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // Kms config
+  KmsConfig kms_config = 2;
+  // Tls Config
+  TlsConfig tls_config = 3;
+  // Consent Signaling Config
+  ConsentSignalingConfig consent_signaling_config = 4;
+}
+
+message EventDataProviderConfigs {
+  // List of EDP configurations.
+  repeated EventDataProviderConfig event_data_provider_config = 1;
+}
