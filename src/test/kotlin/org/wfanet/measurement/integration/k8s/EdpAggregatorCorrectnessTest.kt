@@ -60,6 +60,10 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.Media
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -217,17 +221,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     override val mcSimulator: MeasurementConsumerSimulator
       get() = _mcSimulator
 
-    private val channels = mutableListOf<ManagedChannel>()
-
-    val publicApiChannel =
-      buildMutualTlsChannel(
-        TEST_CONFIG.kingdomPublicApiTarget,
-        MEASUREMENT_CONSUMER_SIGNING_CERTS,
-        TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-      )
-        .also { channels.add(it) }
-        .withDefaultDeadline(RPC_DEADLINE_DURATION)
-
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -241,9 +234,45 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private fun triggerRequisitionFetcher() {
+    private fun triggerRequisitionFetcher(dataProviderResourceNames: Set<String>) {
 
-      val requisitionStub = RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel)
+      val requisitionsStub = RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel)
+
+      runBlocking {
+        for (dataProviderName in dataProviderResourceNames) {
+          withTimeout(REQUISITIONS_SYNC_TIMEOUT) {
+            var unfulfilledRequisitions = 0
+            while (unfulfilledRequisitions == 0) {
+              var pageToken = ""
+
+              do {
+                val request = listRequisitionsRequest {
+                  parent = dataProviderName
+                  filter = ListRequisitionsRequestKt.filter {
+                    states += Requisition.State.UNFULFILLED
+                  }
+                  pageSize = 100
+                  this.pageToken = pageToken
+                }
+
+                val response = try {
+                  requisitionsStub.withAuthenticationKey(measurementConsumerData.apiAuthenticationKey).listRequisitions(request)
+                } catch (e: io.grpc.StatusException) {
+                  throw Exception("Error listing requisitions for $dataProviderName", e)
+                }
+
+                unfulfilledRequisitions += response.requisitionsList.size
+                pageToken = response.nextPageToken
+              } while (pageToken.isNotBlank())
+
+              if (unfulfilledRequisitions == 0) {
+                logger.info("Waiting for requisitions for $dataProviderName...")
+                delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
+              }
+            }
+          }
+        }
+      }
 
       val jwt = TEST_CONFIG.authIdToken
       val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
@@ -262,13 +291,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
-      val measurementConsumerData =
-        MeasurementConsumerData(
-          TEST_CONFIG.measurementConsumer,
-          MC_SIGNING_KEY,
-          MC_ENCRYPTION_PRIVATE_KEY,
-          TEST_CONFIG.apiAuthenticationKey,
-        )
 
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
@@ -292,6 +314,32 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         channel.shutdown()
       }
     }
+
+    companion object {
+      private const val REQUISITIONS_SYNC_TIMEOUT = 45_000L
+      private const val REQUISITIONS_SYNC_POLLING_INTERVAL = 3000L
+
+      private val channels = mutableListOf<ManagedChannel>()
+
+      val publicApiChannel =
+        buildMutualTlsChannel(
+          TEST_CONFIG.kingdomPublicApiTarget,
+          MEASUREMENT_CONSUMER_SIGNING_CERTS,
+          TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+        )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      val measurementConsumerData =
+        MeasurementConsumerData(
+          TEST_CONFIG.measurementConsumer,
+          MC_SIGNING_KEY,
+          MC_ENCRYPTION_PRIVATE_KEY,
+          TEST_CONFIG.apiAuthenticationKey,
+        )
+
+    }
+
   }
 
   companion object {
