@@ -305,6 +305,8 @@ abstract class MeasurementConsumerSimulator(
       "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
     )
 
+    onMeasurementsCreated?.invoke()
+
     var failure = getFailure(invalidMeasurement.name)
     var attempts = 0
     while (failure == null) {
@@ -696,6 +698,8 @@ abstract class MeasurementConsumerSimulator(
         typeRegistry,
         ::newPopulationMeasurementSpec,
       )
+
+    onMeasurementsCreated?.invoke()
 
     val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
