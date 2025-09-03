@@ -19,19 +19,11 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "cloud_function_config",
-    srcs = ["CloudFunctionConfig.kt"],
+    name = "edp_aggregator_config",
+    srcs = ["EdpAggregatorConfig.kt"],
     deps = [
         ":blob_loader",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-    ],
-)
-
-kt_jvm_library(
-    name = "tee_app_config",
-    srcs = ["TeeAppConfig.kt"],
-    deps = [
-        ":blob_loader",
     ],
 )
