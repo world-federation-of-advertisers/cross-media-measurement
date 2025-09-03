@@ -59,6 +59,9 @@ CREATE TABLE RequisitionMetadata (
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   -- A human-readable message explaining the reason for refusal.
   RefusalMessage STRING(MAX),
+  -- A sharding key for indexes to prevent hotspotting.
+  RequisitionMetadataIndexShardId INT64 NOT NULL AS
+    (ABS(MOD(FARM_FINGERPRINT(CAST(RequisitionMetadataId AS STRING)), 64))) STORED,
 ) PRIMARY KEY (DataProviderResourceId, RequisitionMetadataId);
 
 -- Index for looking up by resource ID, unique per DataProvider.
@@ -79,19 +82,19 @@ CREATE UNIQUE INDEX RequisitionMetadataByBlobUri
 
 -- Index for listing by state for a single DataProvider.
 CREATE INDEX RequisitionMetadataByState
-  ON RequisitionMetadata(DataProviderResourceId, State, UpdateTime, RequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, State, RequisitionMetadataIndexShardId, UpdateTime, RequisitionMetadataId);
 
 -- Index for list by group ID for a single DataProvider.
 CREATE INDEX RequisitionMetadataByGroupId
-  ON RequisitionMetadata(DataProviderResourceId, GroupId, UpdateTime, RequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, GroupId, RequisitionMetadataIndexShardId, UpdateTime, RequisitionMetadataId);
 
 -- Index for fetching the latest CmmsCreateTime for a DataProvider.
 CREATE INDEX RequisitionMetadataByCmmsCreateTime
-  ON RequisitionMetadata(DataProviderResourceId, CmmsCreateTime DESC);
+  ON RequisitionMetadata(DataProviderResourceId, RequisitionMetadataIndexShardId, CmmsCreateTime DESC);
 
 -- Index for listing for a single DataProvider with pagination.
 CREATE INDEX RequisitionMetadataByUpdateTime
-  ON RequisitionMetadata(DataProviderResourceId, UpdateTime, RequisitionMetadataId);
+  ON RequisitionMetadata(DataProviderResourceId, RequisitionMetadataIndexShardId, UpdateTime, RequisitionMetadataId);
 
 -- Stores the history of actions taken on a RequisitionMetadata entry.
 CREATE TABLE RequisitionMetadataActions (
