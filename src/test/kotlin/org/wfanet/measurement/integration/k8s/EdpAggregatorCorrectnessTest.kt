@@ -215,7 +215,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val storageClient = StorageOptions.getDefaultInstance().service
     private val bucket = TEST_CONFIG.storageBucket
-    private val edp_requisitions_prefix = "edp7/reauisitions/"
+    private val edp_requisitions_prefix = "edp7/requisitions/"
 
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
