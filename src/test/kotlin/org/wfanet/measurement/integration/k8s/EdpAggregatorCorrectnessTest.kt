@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -218,6 +219,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val channels = mutableListOf<ManagedChannel>()
 
+    val publicApiChannel =
+      buildMutualTlsChannel(
+        TEST_CONFIG.kingdomPublicApiTarget,
+        MEASUREMENT_CONSUMER_SIGNING_CERTS,
+        TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+      )
+        .also { channels.add(it) }
+        .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -233,9 +243,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-//      runBlocking {
-//        delay(20000)
-//      }
+      val requisitionStub = RequisitionsGrpcKt.RequisitionsCoroutineStub(publicApiChannel)
 
       val jwt = TEST_CONFIG.authIdToken
       val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
@@ -261,15 +269,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           MC_ENCRYPTION_PRIVATE_KEY,
           TEST_CONFIG.apiAuthenticationKey,
         )
-
-      val publicApiChannel =
-        buildMutualTlsChannel(
-            TEST_CONFIG.kingdomPublicApiTarget,
-            MEASUREMENT_CONSUMER_SIGNING_CERTS,
-            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-          )
-          .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
