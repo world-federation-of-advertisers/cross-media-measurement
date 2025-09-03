@@ -17,12 +17,14 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/kingdom/event_template.proto";
+import "wfa/measurement/internal/kingdom/population_details.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Population {
+  reserved 6;
+
   fixed64 external_data_provider_id = 1;
   fixed64 external_population_id = 2;
 
@@ -33,13 +35,11 @@ message Population {
 
   // A reference to a population blob.
   message PopulationBlob {
-    //  A uri for the model blob.
-    string model_blob_uri = 1;
+    //  The URI of the blob containing the `PopulationSpec`.
+    string blob_uri = 1;
   }
 
-  // The blob for the population.
-  PopulationBlob population_blob = 5;
+  PopulationBlob population_blob = 5 [deprecated = true];
 
-  // The EventTemplate that this population conforms to.
-  EventTemplate event_template = 6;
+  PopulationDetails details = 7;
 }

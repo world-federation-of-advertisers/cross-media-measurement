@@ -48,11 +48,13 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toPopulation
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -276,13 +278,14 @@ class InProcessCmmsComponents(
     _modelProviderResourceName =
       ModelProviderKey(externalIdToApiId(internalModelProvider.externalModelProviderId)).toName()
 
-    val population = resourceSetup.createInternalPopulation(internalDataProvider)
-    populationKey = PopulationKey.fromName(population.toPopulation().name)!!
-    populationInfo =
-      PopulationInfo(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec(),
-        TestEvent.getDescriptor(),
+    val populationSpec = SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE.toPopulationSpec()
+    val population =
+      resourceSetup.createInternalPopulation(
+        internalDataProvider,
+        populationDetails { this.populationSpec = populationSpec.toInternal() },
       )
+    populationKey = PopulationKey.fromName(population.toPopulation().name)!!
+    populationInfo = PopulationInfo(populationSpec, TestEvent.getDescriptor())
 
     _typeRegistry =
       TypeRegistry.newBuilder().add(listOf(Person.getDescriptor(), Dummy.getDescriptor())).build()
