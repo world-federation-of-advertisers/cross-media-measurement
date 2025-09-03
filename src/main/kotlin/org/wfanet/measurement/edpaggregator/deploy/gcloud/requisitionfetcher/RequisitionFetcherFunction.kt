@@ -186,7 +186,9 @@ class RequisitionFetcherFunction : HttpFunction {
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {
-      runBlocking { getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance()) }
+      runBlocking {
+        getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
+      }
     }
 
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {

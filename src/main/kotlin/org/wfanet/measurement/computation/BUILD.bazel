@@ -2,6 +2,9 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/computation:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
 ])
@@ -36,6 +39,7 @@ kt_jvm_library(
     srcs = ["ReachAndFrequencyComputations.kt"],
     deps = [
         ":differential_privacy_params",
+        ":k_anonymity_params",
         "//imports/java/com/google/privacy:differential_privacy",
     ],
 )
