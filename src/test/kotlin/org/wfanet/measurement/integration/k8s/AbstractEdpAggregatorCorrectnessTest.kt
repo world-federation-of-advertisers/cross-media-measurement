@@ -63,7 +63,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       // Use frontend simulator to create an impression measurement and verify its
       // result.
       mcSimulator.testImpression("1234", eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
-//    }
+    }
 
 //  @Test
 //  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
