@@ -103,7 +103,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     @CommandLine.Option(
       names = ["--duchy-cert-host"],
-      required = true,
+      required = false,
       description = ["Duchy cert host"],
     )
     var duchyCertHost: String? = null
