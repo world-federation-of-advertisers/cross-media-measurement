@@ -38,6 +38,9 @@ message RequisitionMetadata {
   // The blob storage URI of the GroupedRequisitions file this entry belongs to.
   string blob_uri = 4;
 
+  // Type URL of the blob.
+  string blob_type_url = 13;
+
   // An identifier for the group of requisitions this entry belongs to.
   string group_id = 5;
 

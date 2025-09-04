@@ -42,6 +42,8 @@ CREATE TABLE RequisitionMetadata (
   CmmsRequisition STRING(MAX) NOT NULL,
   -- The URI of the encrypted data blob.
   BlobUri STRING(MAX) NOT NULL,
+  -- The URL of the encrypted data bloe type.
+  BlobTypeUrl STRING(MAX) NOT NULL,
   -- An identifier for a group of related requisitions.
   GroupId STRING(MAX) NOT NULL,
   -- The creation time of the requisition in the CMMS.
