@@ -60,3 +60,41 @@ CREATE TABLE ImpressionMetadata (
   ImpressionMetadataIndexShardId INT64 NOT NULL AS
     (ABS(MOD(ImpressionMetadataId, 64))) STORED,
 ) PRIMARY KEY (DataProviderResourceId, ImpressionMetadataId);
+
+-- Index for looking up by resource ID, unique per DataProvider.
+CREATE UNIQUE INDEX ImpressionMetadataByResourceId
+  ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataResourceId);
+
+-- Index for idempotency check on creation.
+CREATE UNIQUE INDEX ImpressionMetadataByCreateRequestId
+  ON ImpressionMetadata(DataProviderResourceId, CreateRequestId);
+
+-- Index for looking up by blob URI.
+CREATE UNIQUE INDEX ImpressionMetadataByBlobUri
+  ON ImpressionMetadata(DataProviderResourceId, BlobUri);
+
+-- Index for looking up by blob type url.
+CREATE INDEX ImpressionMetadataByBlobTypeUrl
+  ON ImpressionMetadata(DataProviderResourceId, BlobTypeUrl);
+
+-- Index for looking up by EventGroup reference ID.
+CREATE INDEX ImpressionMetadataByEventGroupReferenceId
+  ON ImpressionMetadata(DataProviderResourceId, EventGroupReferenceId);
+
+-- Index for looking up by CMMS ModelLine.
+CREATE INDEX ImpressionMetadataByCmmsModelLine
+  ON ImpressionMetadata(DataProviderResourceId, CmmsModelLine);
+
+-- Index for looking up by Interval.
+CREATE INDEX ImpressionMetadataByInterval
+  ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataIndexShardId, IntervalStartTime, IntervalEndTime);
+
+-- Index for listing by state for a single DataProvider.
+CREATE INDEX ImpressionMetadataByState
+  ON ImpressionMetadata(DataProviderResourceId, State, ImpressionMetadataIndexShardId, UpdateTime, ImpressionMetadataId);
+
+-- Index for listing for a single DataProvider with pagination.
+CREATE INDEX ImpressionMetadataByCreateTime
+  ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataIndexShardId, CreateTime, ImpressionMetadataId);
+
+RUN BATCH;
