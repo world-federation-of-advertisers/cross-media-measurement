@@ -47,3 +47,9 @@ resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
   description                       = "EDP workload identity pool."
   disabled                          = false
 }
+
+resource "google_service_account_iam_member" "edp_sa_workload_identity_user" {
+  service_account_id = google_service_account.edp_service_account.name
+  role = "roles/iam.workloadIdentityUser"
+  member = "principalSet://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id}/*"
+}
