@@ -54,7 +54,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -70,11 +70,11 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
-  override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (PublicApiEventGroup) -> Boolean = {
+  override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
   }
 
-  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (PublicApiEventGroup) -> Boolean = {
+  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in setOf(
       GROUP_REFERENCE_ID_EDPA_EDP1,
       GROUP_REFERENCE_ID_EDPA_EDP2

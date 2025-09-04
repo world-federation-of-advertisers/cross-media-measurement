@@ -29,7 +29,7 @@ locals {
       version    = "latest"
     },
     {
-      secret_id  = var.trusted_root_ca.secret_id
+      secret_id  = var.trusted_root_ca_collection.secret_id
       version    = "latest"
     },
   ]
@@ -76,7 +76,7 @@ locals {
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
-    { trusted_root_ca                               = var.trusted_root_ca },
+    { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
     local.edps_secrets
   )
 
@@ -95,12 +95,12 @@ locals {
   ])
 
   requisition_fetcher_secrets_access = concat(
-    ["trusted_root_ca"],
+    ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
 
   event_group_sync_secrets_access = concat(
-    ["trusted_root_ca"],
+    ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
 
