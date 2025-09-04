@@ -17,17 +17,32 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.testing
 
 import io.grpc.Channel
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.RequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 
 /** A Test [RequisitionStubFactory] that ignores params and uses a test stub. */
-class TestRequisitionStubFactory(private val cmmsChannel: Channel) : RequisitionStubFactory {
-
+class TestRequisitionStubFactory(
+  private val cmmsChannel: Channel,
+  private val duchies: Map<String, Channel>,
+) : RequisitionStubFactory {
   override fun buildRequisitionsStub(
     fulfillerParams: ResultsFulfillerParams
   ): RequisitionsCoroutineStub {
     return RequisitionsCoroutineStub(cmmsChannel).withPrincipalName(fulfillerParams.dataProvider)
+  }
+
+  override fun buildRequisitionFulfillmentStubs(
+    fulfillerParams: ResultsFulfillerParams
+  ): Map<String, RequisitionFulfillmentCoroutineStub> {
+    return duchies
+      .map { (duchyId, channel) ->
+        duchyId to
+          RequisitionFulfillmentCoroutineStub(duchies.getValue(duchyId))
+            .withPrincipalName(fulfillerParams.dataProvider)
+      }
+      .toMap()
   }
 }

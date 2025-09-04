@@ -77,6 +77,22 @@ jobs:
           workload_identity_provider: ${{ inputs.workload-identity-provider }}
           service_account: ${{ inputs.service-account }}
 
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - id: get-public-key
+        name: Get public key for cosign annotation
+        env:
+          GCP_KMS_KEY_RESOURCE_NAME: ${{ inputs.kms-key-resource-name }}
+        run: |
+          set -euo pipefail
+          gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pubkey.pem
+
+          # See step 3 in https://codelabs.developers.google.com/signed-container-image-codelab#2
+          encoded_pub_key=$(cat pubkey.pem | openssl base64 | tr -d '[:space:]' | sed 's/[=]*$//')
+
+          echo "encoded_pub_key=${encoded_pub_key}" >> "$GITHUB_OUTPUT"
+
       - name: Build image signing script
         run: >
           bazelisk build 
@@ -85,7 +101,20 @@ jobs:
 
       - name: Sign images
         env:
-          GCP_KMS_KEY_FOR_SIGNING: ${{ inputs.kms-key-resource-name }}
+          GCP_KMS_KEY_FOR_SIGNING: "gcpkms://${{ inputs.kms-key-resource-name }}"
+          PUBLIC_KEY: ${{ steps.get-public-key.outputs.encoded_pub_key }}
         run: |
-          bazelisk run //src/main/docker:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
-          bazelisk run //src/main/docker/panel_exchange_client:sign_all_images -- --tlog-upload=false --key $GCP_KMS_KEY_FOR_SIGNING
+          set -euo pipefail
+          targets=(
+            "//src/main/docker:sign_all_images"
+            "//src/main/docker/panel_exchange_client:sign_all_images"
+          )
+          common_flags=(
+            "--tlog-upload=false"
+            "--key=$GCP_KMS_KEY_FOR_SIGNING"
+            "-a" "dev.cosignproject.cosign/sigalg=ECDSA_P256_SHA256"
+            "-a" "dev.cosignproject.cosign/pub=${PUBLIC_KEY}"
+          )
+          for target in "${targets[@]}"; do
+            bazelisk run "$target" -- "${common_flags[@]}"
+          done

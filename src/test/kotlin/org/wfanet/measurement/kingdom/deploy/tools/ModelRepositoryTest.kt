@@ -22,6 +22,7 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
@@ -30,7 +31,9 @@ import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -69,14 +72,13 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
@@ -99,6 +101,7 @@ import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -200,6 +203,8 @@ class ModelRepositoryTest {
       .sslContext(serverCerts.toServerTlsContext())
       .addServices(services)
       .build()
+
+  @get:Rule val tempDir = TemporaryFolder()
 
   @Before
   fun initServer() {
@@ -359,6 +364,8 @@ class ModelRepositoryTest {
 
   @Test
   fun `populations create calls CreatePopulation with valid request`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(POPULATION.populationSpec.toByteArray())
     val args =
       commonArgs +
         arrayOf(
@@ -366,8 +373,7 @@ class ModelRepositoryTest {
           "create",
           "--parent=$DATA_PROVIDER_NAME",
           "--description=$DESCRIPTION",
-          "--model-blob-uri=$MODEL_BLOB_URI",
-          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+          "--population-spec=${populationSpecFile.path}",
         )
 
     val output = callCli(args)
@@ -380,11 +386,11 @@ class ModelRepositoryTest {
       .isEqualTo(
         createPopulationRequest {
           parent = DATA_PROVIDER_NAME
-          population = population {
-            description = DESCRIPTION
-            eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-            populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
-          }
+          population =
+            POPULATION.copy {
+              clearName()
+              clearCreateTime()
+            }
         }
       )
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
@@ -574,8 +580,6 @@ class ModelRepositoryTest {
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
-    private const val MODEL_BLOB_URI = "model_blob_uri"
     private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
@@ -659,15 +663,31 @@ class ModelRepositoryTest {
       name = POPULATION_NAME
       description = DESCRIPTION
       createTime = CREATE_TIME
-      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
+      populationSpec = populationSpec {
+        subpopulations +=
+          PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = 1
+                endVidInclusive = 100
+              }
+          }
+      }
     }
     private val POPULATION_2: Population = population {
       name = POPULATION_NAME_2
       description = DESCRIPTION
       createTime = CREATE_TIME
-      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { blobUri = MODEL_BLOB_URI }
+      populationSpec = populationSpec {
+        subpopulations +=
+          PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = 101
+                endVidInclusive = 200
+              }
+          }
+      }
     }
 
     private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"

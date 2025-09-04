@@ -410,6 +410,7 @@ kt_jvm_library(
         "InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest.kt",
     ],
     data = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:specs",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [

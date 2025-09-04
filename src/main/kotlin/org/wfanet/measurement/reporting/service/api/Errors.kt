@@ -30,6 +30,7 @@ object Errors {
 
   enum class Reason {
     BASIC_REPORT_NOT_FOUND,
+    BASIC_REPORT_ALREADY_EXISTS,
     REPORTING_SET_NOT_FOUND,
     METRIC_NOT_FOUND,
     CAMPAIGN_GROUP_INVALID,
@@ -98,6 +99,14 @@ class BasicReportNotFoundException(name: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.BASIC_REPORT_NOT_FOUND,
     "BasicReport $name not found",
+    mapOf(Errors.Metadata.BASIC_REPORT to name),
+    cause,
+  )
+
+class BasicReportAlreadyExistsException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+    "BasicReport $name already exists",
     mapOf(Errors.Metadata.BASIC_REPORT to name),
     cause,
   )

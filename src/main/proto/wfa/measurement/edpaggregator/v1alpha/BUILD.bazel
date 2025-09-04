@@ -1,5 +1,5 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_grpc_proto_library", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -84,4 +84,77 @@ kt_jvm_proto_library(
     deps = [
         ":grouped_requisitions_proto",
     ],
+)
+
+proto_library(
+    name = "impression_metadata_proto",
+    srcs = ["impression_metadata.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_metadata_kt_jvm_proto",
+    deps = [":impression_metadata_proto"],
+)
+
+proto_library(
+    name = "impression_metadata_service_proto",
+    srcs = ["impression_metadata_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_metadata_service_kt_jvm_grpc_proto",
+    deps = [":impression_metadata_service_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_proto",
+    srcs = ["requisition_metadata.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_metadata_kt_jvm_proto",
+    deps = [":requisition_metadata_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_service_proto",
+    srcs = ["requisition_metadata_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":requisition_metadata_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "requisition_metadata_service_kt_jvm_grpc_proto",
+    deps = [":requisition_metadata_service_proto"],
 )

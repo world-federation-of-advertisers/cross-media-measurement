@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.DayOfWeek
 import kotlin.test.assertFailsWith
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
@@ -33,6 +34,7 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
@@ -42,7 +44,6 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 class BasicReportTransformationsTest {
   @Test
   fun `weekly resultGroupSpec with reportingUnitMetricSetSpec transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -56,11 +57,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -91,9 +91,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -131,7 +132,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -159,7 +161,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -182,7 +185,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `total resultGroupSpec with reportingUnitMetricSetSpec transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -196,11 +198,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -227,9 +228,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -242,7 +244,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -283,7 +286,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -299,7 +303,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `weekly resultGroupSpec with componentMetricSetSpec transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -313,11 +316,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -350,9 +352,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -365,7 +368,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -393,7 +397,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -422,7 +427,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -450,7 +456,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -503,7 +510,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -526,7 +534,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -544,7 +553,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `total resultGroupSpec with componentMetricSetSpec transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -558,11 +566,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -589,9 +596,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -604,7 +612,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -626,7 +635,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -672,7 +682,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -683,7 +694,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `componentMetricSetSpec without uniqueMetricSetSpec transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -697,11 +707,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -727,9 +736,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(2)
@@ -742,7 +752,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -764,7 +775,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -780,7 +792,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `noncumulative uniqueMetricSetSpec only transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -794,11 +805,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -820,9 +830,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -835,7 +846,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -864,7 +876,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -917,7 +930,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricFrequencySpec =
                     MetricCalculationSpecKt.metricFrequencySpec {
                       weekly =
@@ -940,8 +954,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `uniqueMetricSetSpec with 1 component transforms into empty map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
-
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -952,11 +964,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -978,9 +989,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).isEmpty()
@@ -988,8 +1000,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `noncumulative uniqueMetricSetSpec with 3 components transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
-
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1005,11 +1015,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1031,9 +1040,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
@@ -1082,7 +1092,8 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1135,7 +1146,8 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1188,7 +1200,8 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1252,7 +1265,8 @@ class BasicReportTransformationsTest {
                       count = 1
                       increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                     }
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1263,8 +1277,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `cumulative uniqueMetricSetSpec with 3 components transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
-
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1280,11 +1292,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1306,9 +1317,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(4)
@@ -1345,7 +1357,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1386,7 +1399,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1427,7 +1441,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1479,7 +1494,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1490,7 +1506,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `reportingUnitMetricSpec with just cumulative and 1 reportingUnit component no composite`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1501,11 +1516,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1527,9 +1541,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1542,7 +1557,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -1555,7 +1571,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `stackedIncrementalReach with just 1 reportingUnit component has no composite`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1566,11 +1581,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1590,9 +1604,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1605,7 +1620,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1616,7 +1632,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `stackedIncrementalReach with 3 reportingUnit components transforms into correct map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1632,11 +1647,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1656,9 +1670,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(3)
@@ -1671,7 +1686,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1712,7 +1728,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1764,7 +1781,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1774,8 +1792,7 @@ class BasicReportTransformationsTest {
   }
 
   @Test
-  fun `any value in dimensionSpec filter can be processed`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
+  fun `differnt values in dimensionSpec filter can be processed and sorted`() {
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1786,17 +1803,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
-              }
-            }
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "person.gender"
-                value = EventTemplateFieldKt.fieldValue { stringValue = "MALE" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1822,9 +1832,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -1838,7 +1849,7 @@ class BasicReportTransformationsTest {
               details =
                 MetricCalculationSpecKt.details {
                   filter =
-                    "filter && (banner_ad.viewable == true && person.age_group == 18_TO_35 && person.gender == MALE && video_ad.viewed_fraction == 0.5)"
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (banner_ad.viewable == true && person.age_group == 1 && video_ad.viewed_fraction == 0.5)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -1849,7 +1860,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `dimensionSpec filter missing value throws IllegalArgumentException`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1860,7 +1870,6 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter { terms += eventTemplateField { path = "person.age_group" } }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
@@ -1873,16 +1882,16 @@ class BasicReportTransformationsTest {
     assertFailsWith<IllegalArgumentException> {
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
     }
   }
 
   @Test
   fun `duplicate resultGroupSpecs does not duplicate the entries in the map`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1896,11 +1905,10 @@ class BasicReportTransformationsTest {
           }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1931,18 +1939,20 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     val resultGroupSpecsWithDuplicates = resultGroupSpecs + resultGroupSpecs
     val secondReportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecsWithDuplicates,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1951,7 +1961,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `reach with pooulation_size transforms into reach MetricSpec and population MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -1962,11 +1971,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -1989,9 +1997,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2004,7 +2013,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   metricSpecs += metricSpec {
                     populationCount = MetricSpecKt.populationCountParams {}
@@ -2018,7 +2028,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `reach transforms into reach MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2029,11 +2038,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2055,9 +2063,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2070,7 +2079,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
@@ -2081,7 +2091,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `percent_reach transforms into reach MetricSpec and population MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2092,11 +2101,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2118,9 +2126,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2133,7 +2142,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   metricSpecs += metricSpec {
                     populationCount = MetricSpecKt.populationCountParams {}
@@ -2147,7 +2157,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `k_plus_reach transforms into reachAndFrequency MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2158,11 +2167,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2184,9 +2192,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2199,7 +2208,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2212,7 +2222,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `percent_k_plus_reach transforms into rf MetricSpec and population MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2223,11 +2232,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2249,9 +2257,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2264,7 +2273,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2280,7 +2290,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `averageFrequency transforms into reachAndFrequency MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2291,11 +2300,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2317,9 +2325,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2332,7 +2341,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
@@ -2345,7 +2355,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `impressions transforms into impression MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2356,11 +2365,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2382,9 +2390,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2397,7 +2406,8 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     impressionCount = MetricSpecKt.impressionCountParams {}
                   }
@@ -2410,7 +2420,6 @@ class BasicReportTransformationsTest {
 
   @Test
   fun `grps transforms into reachAndFrequency MetricSpec and population MetricSpec`() {
-    val impressionQualificationSpecsFilters = listOf("filter")
     val dataProviderPrimitiveReportingSetMap = buildMap {
       put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
       put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
@@ -2421,11 +2430,10 @@ class BasicReportTransformationsTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "18_TO_35" }
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
             filters += eventFilter {
@@ -2447,9 +2455,10 @@ class BasicReportTransformationsTest {
     val reportingSetMetricCalculationSpecDetailsMap =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = CAMPAIGN_GROUP_NAME,
-        impressionQualificationFilterSpecsFilters = impressionQualificationSpecsFilters,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
         dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
         resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
@@ -2462,13 +2471,462 @@ class BasicReportTransformationsTest {
               cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
               details =
                 MetricCalculationSpecKt.details {
-                  filter = "filter && (person.age_group == 18_TO_35 && person.gender == MALE)"
+                  filter =
+                    "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
                   metricSpecs += metricSpec {
                     reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                   }
                   metricSpecs += metricSpec {
                     populationCount = MetricSpecKt.populationCountParams {}
                   }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `dimensionSpec Grouping with single field results in groupings with single element lists`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { grps = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = emptyList(),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 0" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 1" }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping { predicates += "person.gender == 2" }
+                  filter = "(person.age_group == 1)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `dimensionSpec Grouping with 2 fields results in cross product lists`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+      put(DATA_PROVIDER_NAME_2, PRIMITIVE_REPORTING_SET_2)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping =
+              DimensionSpecKt.grouping {
+                eventTemplateFields += "person.gender"
+                eventTemplateFields += "person.age_group"
+              }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { grps = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = emptyList(),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 0"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 1"
+                      predicates += "person.age_group == 3"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 0"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 1"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 2"
+                    }
+                  groupings +=
+                    MetricCalculationSpecKt.grouping {
+                      predicates += "person.gender == 2"
+                      predicates += "person.age_group == 3"
+                    }
+                  filter = "(person.age_group == 1)"
+                  metricSpecs += metricSpec {
+                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                  }
+                  metricSpecs += metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with no IQFs transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = emptyList(),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "(person.age_group == 1 && person.gender == 1)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with 2 IQFs transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.gender"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val impressionQualificationFilterSpecList = buildList {
+      add(
+        listOf(
+          impressionQualificationFilterSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "video_ad.viewed_fraction"
+                value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
+              }
+            }
+          }
+        )
+      )
+      add(
+        listOf(
+          impressionQualificationFilterSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "banner_ad.viewable"
+                value = EventTemplateFieldKt.fieldValue { boolValue = true }
+              }
+            }
+          }
+        )
+      )
+    }
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecList,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter =
+                    "(video_ad.viewed_fraction == 1.0) && (person.age_group == 1 && person.gender == 1)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter =
+                    "(banner_ad.viewable == true) && (person.age_group == 1 && person.gender == 1)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with IQF and no dimensionSpec transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS,
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  filter = "(banner_ad.viewable == true && video_ad.viewed_fraction == 1.0)"
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                }
+            }
+          )
+        },
+      )
+  }
+
+  @Test
+  fun `resultGroupSpec with no IQF and no dimensionSpec transforms into correct map`() {
+    val dataProviderPrimitiveReportingSetMap = buildMap {
+      put(DATA_PROVIDER_NAME_1, PRIMITIVE_REPORTING_SET_1)
+    }
+    val resultGroupSpecs =
+      listOf(
+        resultGroupSpec {
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_NAME_1 }
+          metricFrequency = metricFrequencySpec { total = true }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      )
+
+    val reportingSetMetricCalculationSpecDetailsMap =
+      buildReportingSetMetricCalculationSpecDetailsMap(
+        campaignGroupName = CAMPAIGN_GROUP_NAME,
+        impressionQualificationFilterSpecsLists = emptyList(),
+        dataProviderPrimitiveReportingSetMap = dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = resultGroupSpecs,
+        eventTemplateFieldsMap = TEST_EVENT_DESCRIPTOR.eventTemplateFieldsMap,
+      )
+
+    assertThat(reportingSetMetricCalculationSpecDetailsMap).hasSize(1)
+    assertThat(reportingSetMetricCalculationSpecDetailsMap)
+      .containsEntry(
+        PRIMITIVE_REPORTING_SET_1,
+        buildList {
+          add(
+            metricCalculationSpec {
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+              details =
+                MetricCalculationSpecKt.details {
+                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                 }
             }
           )
@@ -2494,5 +2952,30 @@ class BasicReportTransformationsTest {
     private val PRIMITIVE_REPORTING_SET_1 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_1 }
     private val PRIMITIVE_REPORTING_SET_2 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_2 }
     private val PRIMITIVE_REPORTING_SET_3 = reportingSet { name = PRIMITIVE_REPORTING_SET_NAME_3 }
+
+    private val IMPRESSION_QUALIFICATION_FILTER_SPECS_LISTS = buildList {
+      add(
+        listOf(
+          impressionQualificationFilterSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "video_ad.viewed_fraction"
+                value = EventTemplateFieldKt.fieldValue { floatValue = 1.0f }
+              }
+            }
+          },
+          impressionQualificationFilterSpec {
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "banner_ad.viewable"
+                value = EventTemplateFieldKt.fieldValue { boolValue = true }
+              }
+            }
+          },
+        )
+      )
+    }
+
+    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
   }
 }

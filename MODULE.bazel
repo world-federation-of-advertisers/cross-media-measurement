@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.6.0",
+    version = "0.8.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.114.0",
+    version = "0.117.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.80.0",
+    version = "0.82.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -97,6 +97,11 @@ bazel_dep(
 
 # --- Bazel Central Registry modules. ---
 
+# TODO(bazelbuild/bazel-worker-api#10): Remove this once rules_kotlin stops using version 0.0.4
+bazel_dep(
+    name = "bazel_worker_java",
+    version = "0.0.5",
+)
 bazel_dep(
     name = "platforms",
     version = "1.0.0",
@@ -133,7 +138,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_jvm_external",
-    version = "6.6",
+    version = "6.8",
 )
 bazel_dep(
     name = "rules_python",
@@ -234,7 +239,9 @@ maven.install(
         "com.google.crypto.tink:tink-awskms:1.9.1",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
+        "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
+        "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
@@ -262,6 +269,12 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
+
+        # These dependencies should come from rules_kotlin_jvm: https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/blob/main/MODULE.bazel#L60
+        # However, rules_jvm_external 6.8 seems to prioritize BOMs over explicitly declared versions only for the root module: https://github.com/bazel-contrib/rules_jvm_external/pull/1373
+        # Without these declarations, the versions are resolved to the ones explicitly declared in bazel_worker_java: https://github.com/bazelbuild/bazel-worker-api/blob/v0.0.5/java/MODULE.bazel#L17
+        "com.google.protobuf:protobuf-java",
+        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,

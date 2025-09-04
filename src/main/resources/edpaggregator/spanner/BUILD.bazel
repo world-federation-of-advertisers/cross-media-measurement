@@ -1,0 +1,14 @@
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "spanner",
+    srcs = glob([
+        "*.yaml",
+        "*.sql",
+    ]),
+)

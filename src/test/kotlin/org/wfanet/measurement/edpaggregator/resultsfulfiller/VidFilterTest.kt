@@ -71,8 +71,6 @@ class VidFilterTest {
     val result =
       VidFilter.filterAndExtractVids(
           listOf(labeledImpression).asFlow(),
-          0.0f,
-          1.0f,
           filter,
           collectionInterval,
           typeRegistry,
@@ -112,8 +110,6 @@ class VidFilterTest {
     val result =
       VidFilter.filterAndExtractVids(
           listOf(labeledImpression).asFlow(),
-          0.0f,
-          1.0f,
           filter,
           collectionInterval,
           typeRegistry,

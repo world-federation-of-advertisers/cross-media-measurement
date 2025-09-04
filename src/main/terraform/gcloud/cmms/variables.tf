@@ -120,6 +120,18 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
+variable "event_data_provider_configs_file_path" {
+  description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
+  type        = string
+  nullable    = false
+}
+
+variable "results_fulfiller_population_spec_file_path" {
+  description = "Path to the requisition fetcher population spec file."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
@@ -208,17 +220,12 @@ variable "results_fulfiller_event_proto_descriptor_blob_uri" {
   type = string
 }
 
-variable "edpa_edp_kms_audience" {
-  description = "Edp Aggregator EDP KMS audience."
+variable "results_fulfiller_event_template_type_name" {
+  description = "Fully qualified name of the event template proto message"
   type = string
 }
 
-variable "edpa_edp_service_account" {
-  description = "Edp Aggregator EDP service account"
-  type = string
-}
-
-variable "edpa_edp_resource_name" {
-  description = "Edp Aggregator EDP Resource name"
+variable "results_fulfiller_population_spec_blob_uri" {
+  description = "GCS blob uri of the Results Fulfiller population spec."
   type = string
 }

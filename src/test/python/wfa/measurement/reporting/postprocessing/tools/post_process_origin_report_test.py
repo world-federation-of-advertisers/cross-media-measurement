@@ -44,7 +44,7 @@ class TestOriginReport(unittest.TestCase):
     reportSummaryProcessor._process_primitive_measurements()
     reportSummaryProcessor._process_difference_measurements()
 
-    expected_cumulative_measurements = {
+    expected_weekly_cumulative_reaches = {
         'custom': {
             frozenset({'edp1', 'edp2'}): [
                 Measurement(100, 184302.26,
@@ -90,7 +90,7 @@ class TestOriginReport(unittest.TestCase):
         }
     }
 
-    expected_whole_campaign_measurements = {
+    expected_whole_campaign_reaches = {
         'custom': {
             frozenset({'edp1', 'edp2'}): Measurement(92459, 145777.47,
                                                      'reach_and_frequency/custom/edp1_edp2'),
@@ -117,7 +117,7 @@ class TestOriginReport(unittest.TestCase):
         }
     }
 
-    expected_k_reach_measurements = {
+    expected_whole_campaign_k_reaches_measurements = {
         'custom': {
             frozenset({'edp1', 'edp2'}): {
                 1: Measurement(0, 49832.83,
@@ -231,7 +231,7 @@ class TestOriginReport(unittest.TestCase):
             }
         }
     }
-    expected_impression_measurements = {
+    expected_whole_campaign_impressions_measurements = {
         'custom': {
             frozenset({'edp1', 'edp2'}): Measurement(239912, 506550.03,
                                                      'impression_count/custom/edp1_edp2'),
@@ -287,66 +287,66 @@ class TestOriginReport(unittest.TestCase):
                          expected_unique_reach_map)
     for measurement_policy in ['ami', 'mrc', 'custom']:
       self.assertCountEqual(
-          reportSummaryProcessor._cumulative_measurements[
+          reportSummaryProcessor._weekly_cumulative_reaches[
             measurement_policy].keys(),
-          expected_cumulative_measurements[measurement_policy].keys()
+          expected_weekly_cumulative_reaches[measurement_policy].keys()
       )
 
       self.assertCountEqual(
-          reportSummaryProcessor._whole_campaign_measurements[
+          reportSummaryProcessor._whole_campaign_reaches[
             measurement_policy].keys(),
-          expected_whole_campaign_measurements[measurement_policy].keys()
+          expected_whole_campaign_reaches[measurement_policy].keys()
       )
 
       self.assertCountEqual(
-          reportSummaryProcessor._k_reach[measurement_policy].keys(),
-          expected_k_reach_measurements[measurement_policy].keys()
+          reportSummaryProcessor._whole_campaign_k_reaches[measurement_policy].keys(),
+          expected_whole_campaign_k_reaches_measurements[measurement_policy].keys()
       )
 
       self.assertCountEqual(
-          reportSummaryProcessor._impression[measurement_policy].keys(),
-          expected_impression_measurements[measurement_policy].keys()
+          reportSummaryProcessor._whole_campaign_impressions[measurement_policy].keys(),
+          expected_whole_campaign_impressions_measurements[measurement_policy].keys()
       )
 
-      for edp_combination in expected_cumulative_measurements[
+      for edp_combination in expected_weekly_cumulative_reaches[
         measurement_policy].keys():
         self._assertMeasurementListsEqual(
-            reportSummaryProcessor._cumulative_measurements[measurement_policy][
+            reportSummaryProcessor._weekly_cumulative_reaches[measurement_policy][
               edp_combination],
-            expected_cumulative_measurements[measurement_policy][
+            expected_weekly_cumulative_reaches[measurement_policy][
               edp_combination],
             TOLERANCE
         )
 
-      for edp_combination in expected_whole_campaign_measurements[
+      for edp_combination in expected_whole_campaign_reaches[
         measurement_policy].keys():
         self._assertMeasurementsEqual(
-            reportSummaryProcessor._whole_campaign_measurements[
+            reportSummaryProcessor._whole_campaign_reaches[
               measurement_policy][
               edp_combination],
-            expected_whole_campaign_measurements[measurement_policy][
+            expected_whole_campaign_reaches[measurement_policy][
               edp_combination],
             TOLERANCE
         )
 
-      for edp_combination in expected_k_reach_measurements[
+      for edp_combination in expected_whole_campaign_k_reaches_measurements[
         measurement_policy].keys():
-        for frequency in expected_k_reach_measurements[measurement_policy][
+        for frequency in expected_whole_campaign_k_reaches_measurements[measurement_policy][
           edp_combination].keys():
           self._assertMeasurementsEqual(
-              reportSummaryProcessor._k_reach[measurement_policy][
+              reportSummaryProcessor._whole_campaign_k_reaches[measurement_policy][
                 edp_combination][frequency],
-              expected_k_reach_measurements[
+              expected_whole_campaign_k_reaches_measurements[
                 measurement_policy][edp_combination][frequency],
               TOLERANCE
           )
 
-      for edp_combination in expected_impression_measurements[
+      for edp_combination in expected_whole_campaign_impressions_measurements[
         measurement_policy].keys():
         self._assertMeasurementsEqual(
-            reportSummaryProcessor._impression[measurement_policy][
+            reportSummaryProcessor._whole_campaign_impressions[measurement_policy][
               edp_combination],
-            expected_impression_measurements[measurement_policy][
+            expected_whole_campaign_impressions_measurements[measurement_policy][
               edp_combination],
             TOLERANCE
         )

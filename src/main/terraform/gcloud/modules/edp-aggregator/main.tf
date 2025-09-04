@@ -153,10 +153,22 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   source = var.requisition_fetcher_config.local_path
 }
 
+resource "google_storage_bucket_object" "upload_edps_config" {
+  name   = var.edps_config.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.edps_config.local_path
+}
+
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
   name   = var.results_fulfiller_event_descriptor.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.results_fulfiller_event_descriptor.local_path
+}
+
+resource "google_storage_bucket_object" "upload_results_fulfiller_population_spec" {
+  name   = var.results_fulfiller_population_spec.destination
+  bucket = module.config_files_bucket.storage_bucket.name
+  source = var.results_fulfiller_population_spec.local_path
 }
 
 resource "google_project_iam_member" "eventarc_service_agent" {
@@ -259,6 +271,7 @@ module "result_fulfiller_tee_app" {
   secrets_to_access             = local.result_fulfiller_secrets_to_access
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
+  config_storage_bucket         = module.config_files_bucket.storage_bucket.name
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -301,6 +314,7 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 }
 
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
+  depends_on = [module.event_group_sync_cloud_function]
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"

@@ -66,8 +66,9 @@ reporting: #Reporting & {
 	_kingdomApiTarget: #KingdomApiTarget
 
 	_postgresConfig: {
-		iamUserLocal: "reporting-v2-internal"
-		database:     "reporting-v2"
+		iamUserLocal:     "reporting-v2-internal"
+		database:         "reporting-v2"
+		statementTimeout: "60s"
 	}
 
 	_verboseGrpcServerLogging: true

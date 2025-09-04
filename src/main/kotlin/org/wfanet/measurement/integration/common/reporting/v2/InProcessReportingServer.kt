@@ -80,6 +80,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFiltersService
@@ -101,6 +102,7 @@ class InProcessReportingServer(
   private val measurementConsumerConfig: MeasurementConsumerConfig,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
+  private val eventDescriptor: Descriptors.Descriptor,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
@@ -299,6 +301,7 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
+                EventDescriptor(eventDescriptor),
                 METRIC_SPEC_CONFIG,
                 authorization,
               )

@@ -57,6 +57,8 @@ class FulfillRequisitionRequestBuilder(
   private val frequencyVector: FrequencyVector,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val signingKeyHandle: SigningKeyHandle,
+  private val generateSecretShares: (ByteArray) -> (ByteArray) =
+    SecretShareGeneratorAdapter::generateSecretShares,
 ) {
   private val protocolConfig: HonestMajorityShareShuffle
 
@@ -111,9 +113,7 @@ class FulfillRequisitionRequestBuilder(
     }
 
     val secretShare =
-      SecretShare.parseFrom(
-        SecretShareGeneratorAdapter.generateSecretShares(secretShareGeneratorRequest.toByteArray())
-      )
+      SecretShare.parseFrom(generateSecretShares(secretShareGeneratorRequest.toByteArray()))
 
     shareVector = frequencyVector { data += secretShare.shareVectorList }
 
@@ -191,6 +191,8 @@ class FulfillRequisitionRequestBuilder(
       frequencyVector: FrequencyVector,
       dataProviderCertificateKey: DataProviderCertificateKey,
       signingKeyHandle: SigningKeyHandle,
+      generateSecretShares: (ByteArray) -> (ByteArray) =
+        SecretShareGeneratorAdapter::generateSecretShares,
     ): Sequence<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder(
           requisition,
@@ -198,6 +200,7 @@ class FulfillRequisitionRequestBuilder(
           frequencyVector,
           dataProviderCertificateKey,
           signingKeyHandle,
+          generateSecretShares,
         )
         .build()
   }
