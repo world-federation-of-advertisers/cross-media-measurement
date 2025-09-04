@@ -69,6 +69,9 @@ object ReportConversion {
   /**
    * A map to maintain backward compatibility with the old population coding.
    *
+   * All these coding are temporary and will be replaced by market-agnostic processing in MC API
+   * Phase II.
+   *
    * TODO(@ple13): Remove this map when the old population coding has been deprecated.
    */
   val populationCodingMap: Map<String, String> =
