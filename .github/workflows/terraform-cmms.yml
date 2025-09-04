@@ -60,6 +60,7 @@ jobs:
       GCLOUD_ZONE: ${{ vars.GCLOUD_ZONE }}
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+      EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
 
     steps:
@@ -86,6 +87,7 @@ jobs:
         mkdir -p "$CONFIG_DIR"
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
+        echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
         echo "$RESULTS_FULFILLER_POPULATION_SPEC_CONTENT" > "$CONFIG_DIR/results-fulfiller-population-spec.textproto"
 
     - name: Set up Maven GitHub Packages auth
@@ -145,7 +147,7 @@ jobs:
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
       env:
-        BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:edpa_event_template_metadata_type"
+        BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set"
       run: |
         bazelisk build "$BAZEL_TARGET_LABEL"
         RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
@@ -189,9 +191,6 @@ jobs:
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
         RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME: ${{ vars.RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME }}
         RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI }}
-        EDPA_EDP_KMS_AUDIENCE: ${{ vars.EDPA_EDP_KMS_AUDIENCE }}
-        EDPA_EDP_RESOURCE_NAME: ${{ vars.EDPA_EDP_RESOURCE_NAME }}
-        EDPA_EDP_SERVICE_ACCOUNT: ${{ vars.EDPA_EDP_SERVICE_ACCOUNT }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -207,6 +206,7 @@ jobs:
         -var="postgres_password=$POSTGRES_PASSWORD"
         -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
+        -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="data_watcher_function_name=$DATA_WATCHER_FUNCTION_NAME"
@@ -227,9 +227,6 @@ jobs:
         -var="results_fulfiller_event_template_type_name=$RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME"
         -var="results_fulfiller_population_spec_blob_uri=$RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
-        -var="edpa_edp_kms_audience=$EDPA_EDP_KMS_AUDIENCE"
-        -var="edpa_edp_service_account=$EDPA_EDP_SERVICE_ACCOUNT"
-        -var="edpa_edp_resource_name=$EDPA_EDP_RESOURCE_NAME"
         -out=tfplan
 
     - name: terraform apply
