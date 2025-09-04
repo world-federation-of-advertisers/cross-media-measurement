@@ -147,7 +147,7 @@ jobs:
     - name: Build test event proto descriptors
       id: build-test-event-descriptors
       env:
-        BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:edpa_event_template_metadata_type"
+        BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set"
       run: |
         bazelisk build "$BAZEL_TARGET_LABEL"
         RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
