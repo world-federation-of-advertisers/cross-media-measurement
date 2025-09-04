@@ -458,7 +458,7 @@ abstract class AbstractEdpSimulatorTest {
         }
       }
     }
-    val HMSS_VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
+    val VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
 
     /** Dummy [Throttler] for satisfying signatures without being used. */
     val dummyThrottler =
