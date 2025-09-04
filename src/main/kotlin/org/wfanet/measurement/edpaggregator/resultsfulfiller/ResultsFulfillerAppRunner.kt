@@ -232,7 +232,7 @@ class ResultsFulfillerAppRunner : Runnable {
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-    val trustedCertCollectionFile = File(TRUSTED_ROOT_CA_FILE_PATH)
+    val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
     val duchiesMap = buildDuchyMap()
 
@@ -240,7 +240,7 @@ class ResultsFulfillerAppRunner : Runnable {
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
-        trustedCertCollection = trustedCertCollectionFile,
+        trustedCertCollection = trustedRootCaCollectionFile,
         duchies = duchiesMap,
       )
 
@@ -326,9 +326,9 @@ class ResultsFulfillerAppRunner : Runnable {
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
     saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
-    val trustedRootCa =
+    val trustedRootCaCollectionFile =
       accessSecretBytes(googleProjectId, trustedCertCollectionSecretId, SECRET_VERSION)
-    saveByteArrayToFile(trustedRootCa, TRUSTED_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(trustedRootCaCollectionFile, TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
   }
 
   fun saveEdpsCerts() {
@@ -411,7 +411,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
-    private const val TRUSTED_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
+    private const val TRUSTED_ROOT_CA_COLLECTION_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"

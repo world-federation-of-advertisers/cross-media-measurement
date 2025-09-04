@@ -46,9 +46,9 @@ locals {
     is_binary_format  = false
   }
 
-  trusted_root_ca = {
+  trusted_root_ca_collection = {
     secret_id         = "trusted-root-ca"
-    secret_local_path = var.results_fulfiller_trusted_root_ca_file_path
+    secret_local_path = var.results_fulfiller_trusted_root_ca_collection_file_path
     is_binary_format  = false
   }
 
@@ -114,10 +114,8 @@ locals {
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,
                                           "--duchy-id", var.duchy_worker1_id,
                                           "--duchy-target", var.duchy_worker1_target,
-                                          "--duchy-cert-host", "localhost",
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
-                                          "--duchy-cert-host", "localhost",
                                         ]
     }
   }
@@ -197,7 +195,7 @@ module "edp_aggregator" {
   data_watcher_tls_key                      = local.data_watcher_tls_key
   data_watcher_tls_pem                      = local.data_watcher_tls_pem
   secure_computation_root_ca                = local.secure_computation_root_ca
-  trusted_root_ca                           = local.trusted_root_ca
+  trusted_root_ca_collection                = local.trusted_root_ca_collection
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
   results_fulfiller_disk_image_family       = "confidential-space"
