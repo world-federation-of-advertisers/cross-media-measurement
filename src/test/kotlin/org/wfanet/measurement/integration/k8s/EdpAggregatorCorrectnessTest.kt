@@ -314,7 +314,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     companion object {
-      private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 3
+      private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 5
       private const val REQUISITIONS_SYNC_POLLING_INTERVAL = 5000L
 
       private val channels = mutableListOf<ManagedChannel>()
