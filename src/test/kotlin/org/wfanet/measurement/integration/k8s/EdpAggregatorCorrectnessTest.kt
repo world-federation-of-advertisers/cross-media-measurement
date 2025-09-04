@@ -61,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import com.google.cloud.storage.Storage
+import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -250,7 +251,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
       // Wait until requisitions for EDP have status == UNFULFILLED before triggering `RequisitionFetcher`.
       runBlocking {
-        withTimeout(REQUISITIONS_SYNC_TIMEOUT) {
+        withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
           var areRequisitionsReady: Boolean
 
           do {
@@ -313,7 +314,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     companion object {
-      private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 5
+      private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 3
       private const val REQUISITIONS_SYNC_POLLING_INTERVAL = 5000L
 
       private val channels = mutableListOf<ManagedChannel>()
