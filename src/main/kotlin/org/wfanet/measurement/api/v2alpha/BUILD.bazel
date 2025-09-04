@@ -94,6 +94,7 @@ kt_jvm_library(
     name = "population_spec_validator",
     srcs = ["PopulationSpecValidator.kt"],
     deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
 )
