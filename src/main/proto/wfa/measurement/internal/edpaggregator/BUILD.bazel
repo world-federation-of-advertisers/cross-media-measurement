@@ -5,7 +5,10 @@ load(
     "kt_jvm_proto_library",
 )
 
-package(default_visibility = ["//:__subpackages__"])
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
 
 IMPORT_PREFIX = "/src/main/proto"
 
