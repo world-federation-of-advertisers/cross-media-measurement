@@ -16,3 +16,8 @@ databaseChangeLog:
   - include:
       file: create-requisition-metadata-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-impression-metadata-schema.sql
+      relativeToChangeLogFile: true
+
+
