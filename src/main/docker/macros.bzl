@@ -34,6 +34,17 @@ def java_image(
     """Java container image.
 
     This is a replacement for the java_image rule which sets common attrs.
+
+    Args:
+      name: Name of the target.
+      binary: The java_binary target to containerize.
+      main_class: (Unused) Entry point for the Java program.
+      args: Optional list of arguments passed as cmd_args.
+      base: Base image to use.
+      tags: Additional tags to apply.
+      visibility: Target visibility.
+      labels: Extra OCI labels to set (in addition to common defaults).
+      **kwargs: Additional arguments forwarded to the underlying rule.
     """
     tags = tags or []
 

@@ -76,7 +76,7 @@ object Errors {
   }
 
   fun parseMetadata(errorInfo: ErrorInfo): Map<Metadata, String> {
-    require(errorInfo.domain == DOMAIN) { "Error domain is not ${DOMAIN}" }
+    require(errorInfo.domain == DOMAIN) { "Error domain is not $DOMAIN" }
     return errorInfo.metadataMap.mapKeys { Metadata.fromKey(it.key) }
   }
 }
