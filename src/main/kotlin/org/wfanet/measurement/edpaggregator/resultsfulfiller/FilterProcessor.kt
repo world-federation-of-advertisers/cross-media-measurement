@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import java.time.Instant
+import java.util.logging.Logger
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -37,12 +38,18 @@ class FilterProcessor(
   val eventDescriptor: Descriptors.Descriptor
 ) {
 
+  companion object {
+    private val logger = Logger.getLogger(FilterProcessor::class.java.name)
+  }
+
   /**
    * Compiled CEL program for event filtering.
    */
   private val program: Program = if (filterSpec.celExpression.isEmpty()) {
+    logger.fine { "No CEL expression provided, using always-true filter" }
     Program { Program.newEvalResult(BoolT.True, null) }
   } else {
+    logger.fine { "Compiling CEL expression: ${filterSpec.celExpression}" }
     EventFilters.compileProgram(eventDescriptor, filterSpec.celExpression)
   }
 
@@ -88,24 +95,46 @@ class FilterProcessor(
    */
   fun processBatch(batch: EventBatch): EventBatch {
     if (batch.events.isEmpty()) {
+      logger.finest { "Skipping empty batch" }
       return batch
     }
 
+    logger.fine { "Processing batch with ${batch.events.size} events" }
+
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
+      logger.fine { "Batch time range [${batch.minTime}, ${batch.maxTime}] does not overlap with filter interval [$startInstant, $endInstant)" }
       return batch.copy(events = emptyList())
     }
 
+    var eventsFilteredByGroup = 0
+    var eventsFilteredByTime = 0
+    var eventsFilteredByCel = 0
+
     val filteredEvents = batch.events.filter { event ->
       if (!filterSpec.eventGroupReferenceIds.contains(event.eventGroupReferenceId)) {
+        eventsFilteredByGroup++
+        logger.finest { "Event filtered out by group reference ID: ${event.eventGroupReferenceId}" }
         return@filter false
       }
 
       if (!isEventInTimeRange(event)) {
+        eventsFilteredByTime++
+        logger.finest { "Event filtered out by time range: ${event.timestamp}" }
         return@filter false
       }
 
-      EventFilters.matches(event.message, program)
+      val celMatch = EventFilters.matches(event.message, program)
+      if (!celMatch) {
+        eventsFilteredByCel++
+        logger.finest { "Event filtered out by CEL expression" }
+      }
+      celMatch
+    }
+
+    logger.fine { 
+      "Batch processing complete: ${filteredEvents.size}/${batch.events.size} events passed filters " +
+      "(filtered by group: $eventsFilteredByGroup, by time: $eventsFilteredByTime, by CEL: $eventsFilteredByCel)"
     }
 
     return batch.copy(events = filteredEvents)
@@ -124,7 +153,11 @@ class FilterProcessor(
     // Check if batch [minTime, maxTime] overlaps with filter [startInstant, endInstant)
     // For the collection interval [start, end), events at exactly start time should be included
     // Overlap exists if: batch.maxTime >= startInstant AND batch.minTime < endInstant
-    return !batch.maxTime.isBefore(startInstant) && batch.minTime.isBefore(endInstant)
+    val overlaps = !batch.maxTime.isBefore(startInstant) && batch.minTime.isBefore(endInstant)
+    logger.finest { 
+      "Batch time overlap check: batch[${batch.minTime}, ${batch.maxTime}] vs filter[$startInstant, $endInstant) = $overlaps"
+    }
+    return overlaps
   }
 
   /**

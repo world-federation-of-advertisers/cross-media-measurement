@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.edpaggregator.TeeAppConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
@@ -376,21 +377,24 @@ class ResultsFulfillerAppRunner : Runnable {
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
-      val eventDescriptorBytes = getConfig(googleProjectId, it.eventTemplateDescriptorBlobUri)
-      val fileDescriptorSet =
-        DescriptorProtos.FileDescriptorSet.parseFrom(eventDescriptorBytes, EXTENSION_REGISTRY)
-      val descriptors: List<Descriptors.Descriptor> =
-        ProtoReflection.buildDescriptors(listOf(fileDescriptorSet), COMPILED_PROTOBUF_TYPES)
-      val typeName = it.eventTemplateTypeName
-      val eventDescriptor =
-        descriptors.firstOrNull { it.fullName == typeName }
-          ?: error("Descriptor not found for type: $typeName")
-      it.modelLine to
-        ModelLineInfo(
-          populationSpec = populationSpec,
-          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
-          eventDescriptor = eventDescriptor,
-        )
+      val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
+      val eventDescriptor = LabeledImpression.getDescriptor()
+      it.modelLine to ModelLineInfo(
+        populationSpec = populationSpec,
+        eventDescriptor = eventDescriptor,
+        vidIndexMap = vidIndexMap,
+      )
+    }
+  }
+
+  // @TODO(@marcopremier): Move this and `buildTypeRegistry` on common-jvm
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
     }
   }
 
@@ -479,6 +483,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDP_TARGET_SERVICE_ACCOUNT_FORMAT =
       "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
 
-    @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
+    @JvmStatic
+    fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
 }
