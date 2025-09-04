@@ -85,6 +85,7 @@ object ReportConversion {
       "FEMALE_AGE_GROUP1" to "FEMALE_AGE_GROUP1",
       "FEMALE_AGE_GROUP2" to "FEMALE_AGE_GROUP2",
       "FEMALE_AGE_GROUP3" to "FEMALE_AGE_GROUP3",
+      "-" to "-",
     )
 
   /**
@@ -161,7 +162,7 @@ object ReportConversion {
 
     for (pair in keyValuePairs) {
       val (key, value) = pair.split("=", limit = 2)
-      populationMap[populationCodingMap.getOrDefault(key, key)] =
+      populationMap[populationCodingMap.getValue(key)] =
         value.toLongOrNull()
           ?: throw IllegalArgumentException("Value for key '$key' is not a valid Long: '$value'")
     }
@@ -223,8 +224,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
       ?.trim(';')
       ?.split(';')
       ?.filter { it.isNotEmpty() }
-      ?.mapNotNull { group -> ReportConversion.populationCodingMap.getOrDefault(group, group) }
-      ?: emptyList()
+      ?.map { group -> ReportConversion.populationCodingMap.getValue(group) } ?: emptyList()
 
   // Generates a set of demographic groups. If the report doesn't support demographic slicing,
   // the set contains an empty list, otherwise, it contains all the demographic groups.
