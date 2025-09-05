@@ -104,7 +104,7 @@ class ResultsFulfillerAppRunner : Runnable {
     @CommandLine.Option(
       names = ["--duchy-cert-host"],
       required = false,
-      description = ["Duchy cert host"],
+      description = ["Duchy mTLS cert hostname override for localhost testing."],
     )
     var duchyCertHost: String? = null
   }
