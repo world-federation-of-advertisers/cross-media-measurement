@@ -294,29 +294,29 @@ package k8s
 			}
 		}
 		"basic-reports-reports-poll": {
-      _container: args: [
-            _debugVerboseGrpcClientLoggingFlag,
-            _debugVerboseGrpcServerLoggingFlag,
-            _reportingCertCollectionFileFlag,
-            _measurementConsumerConfigFileFlag,
-            _signingPrivateKeyStoreDirFlag,
-            _encryptionKeyPairDirFlag,
-            _encryptionKeyPairConfigFileFlag,
-            _metricSpecConfigFileFlag,
-            "--port=8443",
-            "--health-port=8080",
-      ] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
-      spec: {
-        jobTemplate: spec: template: spec: _mounts: {
-          "mc-config": {
-            volume: secret: secretName: Reporting._mcConfigSecretName
-            volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
-          }
-          "config-files": #ConfigMapMount
-        }
-        schedule: _basicReportsReportsPollCronSchedule
-      }
-    }
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_measurementConsumerConfigFileFlag,
+						_signingPrivateKeyStoreDirFlag,
+						_encryptionKeyPairDirFlag,
+						_encryptionKeyPairConfigFileFlag,
+						_metricSpecConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			spec: {
+				jobTemplate: spec: template: spec: _mounts: {
+					"mc-config": {
+						volume: secret: secretName: Reporting._mcConfigSecretName
+						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+					}
+					"config-files": #ConfigMapMount
+				}
+				schedule: _basicReportsReportsPollCronSchedule
+			}
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -368,8 +368,8 @@ package k8s
 			}
 		}
 		"basic-reports-reports-poll": {
-      _destinationMatchLabels: ["postgres-internal-reporting-server-app"]
-    }
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
+		}
 		"access-internal-api-server": {
 			_sourceMatchLabels: ["access-public-api-server-app"]
 			_egresses: {

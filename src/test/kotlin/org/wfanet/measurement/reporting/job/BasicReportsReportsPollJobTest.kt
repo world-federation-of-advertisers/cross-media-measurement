@@ -60,13 +60,10 @@ import org.wfanet.measurement.reporting.v2alpha.report
 
 @RunWith(JUnit4::class)
 class BasicReportsReportsPollJobTest {
-  private val basicReportsMock: BasicReportsCoroutineImplBase =
-    mockService {
-      onBlocking { listBasicReports(any()) }
-        .thenReturn(listBasicReportsResponse {
-          basicReports += INTERNAL_BASIC_REPORT
-        })
-    }
+  private val basicReportsMock: BasicReportsCoroutineImplBase = mockService {
+    onBlocking { listBasicReports(any()) }
+      .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+  }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
   }
@@ -108,13 +105,11 @@ class BasicReportsReportsPollJobTest {
         }
       )
 
-    verifyProtoArgument(
-      reportsMock,
-      ReportsCoroutineImplBase::getReport,
-    )
+    verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(
         getReportRequest {
-          name = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId).toName()
+          name =
+            ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId).toName()
         }
       )
   }
@@ -122,8 +117,7 @@ class BasicReportsReportsPollJobTest {
   @Test
   fun `execute sets basic report to FAILED when report for basic report is FAILED`(): Unit =
     runBlocking {
-      whenever(reportsMock.getReport(any()))
-        .thenReturn(REPORT.copy { state = Report.State.FAILED })
+      whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.FAILED })
 
       job.execute()
 
@@ -139,20 +133,16 @@ class BasicReportsReportsPollJobTest {
           }
         )
 
-      verifyProtoArgument(
-        reportsMock,
-        ReportsCoroutineImplBase::getReport,
-      )
+      verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getReportRequest {
-            name = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId).toName()
+            name =
+              ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId)
+                .toName()
           }
         )
 
-      verifyProtoArgument(
-        basicReportsMock,
-        BasicReportsCoroutineImplBase::setState,
-      )
+      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::setState)
         .isEqualTo(
           setStateRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -163,70 +153,70 @@ class BasicReportsReportsPollJobTest {
     }
 
   @Test
-  fun `execute gets report for basic report when attempt fails for a previous basic report`(): Unit =
-    runBlocking {
-      whenever(basicReportsMock.listBasicReports(any()))
-        .thenReturn(listBasicReportsResponse {
+  fun `execute gets report for basic report when attempt fails for a previous basic report`():
+    Unit = runBlocking {
+    whenever(basicReportsMock.listBasicReports(any()))
+      .thenReturn(
+        listBasicReportsResponse {
           basicReports += INTERNAL_BASIC_REPORT
           basicReports += INTERNAL_BASIC_REPORT
-        })
-      whenever(reportsMock.getReport(any()))
-        .thenThrow(Status.UNKNOWN.asRuntimeException())
-        .thenReturn(REPORT)
+        }
+      )
+    whenever(reportsMock.getReport(any()))
+      .thenThrow(Status.UNKNOWN.asRuntimeException())
+      .thenReturn(REPORT)
 
-      job.execute()
+    job.execute()
 
-      verify(reportsMock, times(2)).getReport(any())
-    }
+    verify(reportsMock, times(2)).getReport(any())
+  }
 
   @Test
-  fun `execute processes basic reports for 2 different MCs`(): Unit =
-    runBlocking {
-      val measurementConsumerConfigs = measurementConsumerConfigs {
-        configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig {
-          apiKey = "123"
-          offlinePrincipal = "principals/mc-user"
-        }
-        configs[MEASUREMENT_CONSUMER_NAME_2] = measurementConsumerConfig {
-          apiKey = "123"
-          offlinePrincipal = "principals/mc2-user"
-        }
+  fun `execute processes basic reports for 2 different MCs`(): Unit = runBlocking {
+    val measurementConsumerConfigs = measurementConsumerConfigs {
+      configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig {
+        apiKey = "123"
+        offlinePrincipal = "principals/mc-user"
       }
-
-      job =
-        BasicReportsReportsPollJob(
-          measurementConsumerConfigs,
-          BasicReportsCoroutineStub(grpcTestServerRule.channel),
-          ReportsCoroutineStub(grpcTestServerRule.channel),
-        )
-
-      job.execute()
-
-      val listBasicReportsCaptor: KArgumentCaptor<ListBasicReportsRequest> =
-        argumentCaptor()
-      verifyBlocking(basicReportsMock, times(2)) {
-        listBasicReports(listBasicReportsCaptor.capture())
+      configs[MEASUREMENT_CONSUMER_NAME_2] = measurementConsumerConfig {
+        apiKey = "123"
+        offlinePrincipal = "principals/mc2-user"
       }
-      assertThat(listBasicReportsCaptor.allValues)
-        .containsExactly(
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-                state = BasicReport.State.REPORT_CREATED
-              }
-            pageSize = BATCH_SIZE
-          },
-          listBasicReportsRequest {
-            filter =
-              ListBasicReportsRequestKt.filter {
-                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
-                state = BasicReport.State.REPORT_CREATED
-              }
-            pageSize = BATCH_SIZE
-          },
-        )
     }
+
+    job =
+      BasicReportsReportsPollJob(
+        measurementConsumerConfigs,
+        BasicReportsCoroutineStub(grpcTestServerRule.channel),
+        ReportsCoroutineStub(grpcTestServerRule.channel),
+      )
+
+    job.execute()
+
+    val listBasicReportsCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
+    verifyBlocking(basicReportsMock, times(2)) {
+      listBasicReports(listBasicReportsCaptor.capture())
+    }
+    assertThat(listBasicReportsCaptor.allValues)
+      .containsExactly(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+              state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        },
+      )
+  }
 
   companion object {
     private const val BATCH_SIZE = 10
@@ -253,9 +243,7 @@ class BasicReportsReportsPollJobTest {
       }
     }
 
-    private val INTERNAL_BASIC_REPORT = basicReport {
-      externalReportId = "a1234"
-    }
+    private val INTERNAL_BASIC_REPORT = basicReport { externalReportId = "a1234" }
 
     private val REPORT = report {
       reportingMetricEntries +=

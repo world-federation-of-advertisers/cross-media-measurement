@@ -17,14 +17,14 @@
 package org.wfanet.measurement.reporting.job
 
 import java.util.logging.Logger
-import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
-import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
@@ -48,26 +48,29 @@ class BasicReportsReportsPollJob(
     val measurementConsumerConfigByName =
       measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
 
-    for ((measurementConsumerName, measurementConsumerConfig) in measurementConsumerConfigByName.entries) {
+    for ((measurementConsumerName, measurementConsumerConfig) in
+      measurementConsumerConfigByName.entries) {
       val cmmsMeasurementConsumerId =
         MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId
 
       val resourceLists =
-        internalBasicReportsStub.listResources(
-          BATCH_SIZE,
-          null
-        ) { pageToken: ListBasicReportsPageToken?, remaining ->
+        internalBasicReportsStub.listResources(BATCH_SIZE, null) {
+          pageToken: ListBasicReportsPageToken?,
+          remaining ->
           val listBasicReportsResponse =
-            internalBasicReportsStub.listBasicReports(listBasicReportsRequest {
-              pageSize = remaining
-              if (pageToken != null) {
-                this.pageToken = pageToken
+            internalBasicReportsStub.listBasicReports(
+              listBasicReportsRequest {
+                pageSize = remaining
+                if (pageToken != null) {
+                  this.pageToken = pageToken
+                }
+                filter =
+                  ListBasicReportsRequestKt.filter {
+                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                    state = BasicReport.State.REPORT_CREATED
+                  }
               }
-              filter = ListBasicReportsRequestKt.filter {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                state = BasicReport.State.REPORT_CREATED
-              }
-            })
+            )
 
           val nextPageToken =
             if (listBasicReportsResponse.hasNextPageToken()) {
@@ -91,21 +94,27 @@ class BasicReportsReportsPollJob(
                     setOf("reporting.reports.get"),
                   )
                 )
-                .getReport(getReportRequest {
-                  name = ReportKey(
-                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                    reportId = basicReport.externalReportId,
-                  ).toName()
-                })
+                .getReport(
+                  getReportRequest {
+                    name =
+                      ReportKey(
+                          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                          reportId = basicReport.externalReportId,
+                        )
+                        .toName()
+                  }
+                )
 
             if (report.state == Report.State.SUCCEEDED) {
               // TODO(@tristanvuong2021#2607): Transform Report Results and persist in Spanner
             } else if (report.state == Report.State.FAILED) {
-              internalBasicReportsStub.setState(setStateRequest {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                externalBasicReportId = basicReport.externalBasicReportId
-                state = BasicReport.State.FAILED
-              })
+              internalBasicReportsStub.setState(
+                setStateRequest {
+                  this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                  externalBasicReportId = basicReport.externalBasicReportId
+                  state = BasicReport.State.FAILED
+                }
+              )
             }
           } catch (e: Exception) {
             logger.warning("Failed to get Report Results for BasicReports: $e")
