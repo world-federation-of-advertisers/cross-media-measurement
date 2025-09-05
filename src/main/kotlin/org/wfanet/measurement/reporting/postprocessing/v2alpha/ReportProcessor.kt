@@ -252,7 +252,7 @@ interface ReportProcessor {
       val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
 
       for (reportSummary in reportSummaries) {
-        val result: ReportPostProcessorResult? =
+        var result: ReportPostProcessorResult? =
           try {
             processReportSummary(reportSummary, verbose)
           } catch (e: Exception) {
@@ -266,13 +266,22 @@ interface ReportProcessor {
 
         if (result == null) {
           foundIssues.add(ReportPostProcessorIssue.INTERNAL_ERROR)
-          continue
-        }
 
-        if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
-          val updatedMeasurements = mutableMapOf<String, Long>()
-          result.updatedMeasurementsMap.forEach { (key, value) -> updatedMeasurements[key] = value }
-          correctedMeasurementsMap.putAll(updatedMeasurements)
+          // Logs the report summary when report post processor fails.
+          result = reportPostProcessorResult {
+            preCorrectionReportSummary = reportSummary
+            status = reportPostProcessorStatus {
+              statusCode = ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR
+            }
+          }
+        } else {
+          if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
+            val updatedMeasurements = mutableMapOf<String, Long>()
+            result.updatedMeasurementsMap.forEach { (key, value) ->
+              updatedMeasurements[key] = value
+            }
+            correctedMeasurementsMap.putAll(updatedMeasurements)
+          }
         }
         resultMap[reportSummary.demographicGroupsList.joinToString(separator = ",")] = result
       }

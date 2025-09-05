@@ -79,6 +79,11 @@ class ReportProcessorTest {
       // Verify that the output contains the INTERNAL_ERROR issue.
       assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
         .contains(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR)
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      assertThat(
+          reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
+        )
+        .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
 
       val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
 
