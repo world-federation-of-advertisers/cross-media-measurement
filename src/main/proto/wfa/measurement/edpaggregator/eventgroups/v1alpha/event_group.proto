@@ -75,7 +75,8 @@ message EventGroup {
   // Metadata that describes the events entailed by the EventGroup.
   Metadata event_group_metadata = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // The start and end dates of the campaign. May contain future dates.
+  // Publisher's data availability window for this campaign.
+  // May differ from the campaign dates.
   google.type.Interval data_availability_interval = 3
       [(google.api.field_behavior) = REQUIRED];
 
