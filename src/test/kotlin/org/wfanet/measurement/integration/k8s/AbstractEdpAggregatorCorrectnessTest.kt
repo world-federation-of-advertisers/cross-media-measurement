@@ -37,7 +37,8 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   private val mcSimulator: MeasurementConsumerSimulator
     get() = measurementSystem.mcSimulator
 
-  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: ((EventGroup) -> Boolean)?
+  protected abstract val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS:
+    ((EventGroup) -> Boolean)?
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
 
   @Test
@@ -47,7 +48,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testReachOnly(
         "1231",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
 
@@ -58,7 +59,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       mcSimulator.testReachAndFrequency(
         "1232",
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
       )
     }
 
@@ -67,7 +68,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachAndFrequency("1233", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+      mcSimulator.testDirectReachAndFrequency(
+        "1233",
+        1,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
     }
 
   @Test
@@ -75,7 +80,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     runBlocking {
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
-      mcSimulator.testDirectReachOnly("1234", 1, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+      mcSimulator.testDirectReachOnly(
+        "1234",
+        1,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
     }
 
   @Test
@@ -83,7 +92,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     runBlocking {
       // Use frontend simulator to create N incremental direct reach and frequency measurements and
       // verify its result.
-      mcSimulator.testDirectReachOnly(runId = "1235", numMeasurements = 3, eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+      mcSimulator.testDirectReachOnly(
+        runId = "1235",
+        numMeasurements = 3,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
     }
 
   @Test
@@ -91,7 +104,10 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     runBlocking {
       // Use frontend simulator to create an impression measurement and verify its
       // result.
-      mcSimulator.testImpression("1236", eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS)
+      mcSimulator.testImpression(
+        "1236",
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
     }
 
 

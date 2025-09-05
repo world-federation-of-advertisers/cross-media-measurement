@@ -86,12 +86,9 @@ class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
   lateinit var duchyInfos: List<DuchyFlags>
     private set
+
   class DuchyFlags {
-    @CommandLine.Option(
-      names = ["--duchy-id"],
-      required = true,
-      description = ["Id of the duchy"],
-    )
+    @CommandLine.Option(names = ["--duchy-id"], required = true, description = ["Id of the duchy"])
     lateinit var duchyId: String
 
     @CommandLine.Option(
@@ -104,7 +101,7 @@ class ResultsFulfillerAppRunner : Runnable {
     @CommandLine.Option(
       names = ["--duchy-cert-host"],
       required = false,
-      description = ["Duchy cert host"],
+      description = ["Duchy mTLS cert hostname override for localhost testing."],
     )
     var duchyCertHost: String? = null
   }
