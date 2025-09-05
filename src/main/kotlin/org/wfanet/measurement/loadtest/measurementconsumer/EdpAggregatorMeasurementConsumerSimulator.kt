@@ -23,7 +23,6 @@ import java.time.Duration
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.onEach
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -82,129 +81,121 @@ class EdpAggregatorMeasurementConsumerSimulator(
     maximumResultPollingDelay,
     onMeasurementsCreated = onMeasurementsCreated,
   ) {
-  override fun Flow<EventGroup>.filterEventGroups() : Flow<EventGroup> {
+
+  override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {
     return filter { it.eventGroupReferenceId in syntheticEventGroupMap.keys }
   }
 
   /**
-   * Filters a list of vids for a
-   * [MeasurementConsumerSimulator.MeasurementInfo]. Filters by
-   * targetDataProviderId, if provided. Otherwise, filters by collection
-   * interval.
+   * Filters a list of vids for a [MeasurementConsumerSimulator.MeasurementInfo]. Filters by
+   * targetDataProviderId, if provided. Otherwise, filters by collection interval.
    */
- private fun getMeasurementFilteredVids(
+  private fun getMeasurementFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String? = null,
   ): Sequence<Long> {
-    val eventGroupSpecs
-        : Sequence<Triple<SyntheticEventGroupSpec, String, Interval>> =
-              measurementInfo.requisitions.asSequence().flatMap {
-      requisitionInfo->requisitionInfo.eventGroups
+    val eventGroupSpecs: Sequence<Triple<SyntheticEventGroupSpec, String, Interval>> =
+      measurementInfo.requisitions.asSequence().flatMap { requisitionInfo ->
+        requisitionInfo.eventGroups
           .zip(requisitionInfo.requisitionSpec.events.eventGroupsList)
-          .filter{(eventGroup, _)->targetDataProviderId == null ||
-                  targetDataProviderId ==
-                      requireNotNull(EventGroupKey.fromName(eventGroup.name))
-                          .dataProviderId}
-          .map {
-        (eventGroup, eventGroupEntry)
-            ->Triple(syntheticEventGroupMap.getValue(
-                         eventGroup.eventGroupReferenceId),
-                     eventGroupEntry.value.filter.expression,
-                     eventGroupEntry.value.collectionInterval, )
+          .filter { (eventGroup, _) ->
+            targetDataProviderId == null ||
+              targetDataProviderId ==
+                requireNotNull(EventGroupKey.fromName(eventGroup.name)).dataProviderId
+          }
+          .map { (eventGroup, eventGroupEntry) ->
+            Triple(
+              syntheticEventGroupMap.getValue(eventGroup.eventGroupReferenceId),
+              eventGroupEntry.value.filter.expression,
+              eventGroupEntry.value.collectionInterval,
+            )
+          }
       }
-    }
     return eventGroupSpecs
-        .
-    flatMap{
-      (syntheticEventGroupSpec, expression, collectionInterval)
-          ->val program : Program =
-          EventFilters
-              .compileProgram(messageInstance.descriptorForType, expression)
-                  SyntheticDataGeneration
-              .generateEvents(messageInstance, syntheticPopulationSpec,
-                              syntheticEventGroupSpec, )
-              .flatMap{it.labeledEvents}
-              .filter{
-                  impression->EventFilters.matches(impression.message, program)}
-              .filter{impression->targetDataProviderId != null ||
-                      (impression.timestamp >=
-                           collectionInterval.startTime.toInstant() &&
-                       impression.timestamp <
-                           collectionInterval.endTime.toInstant())}
-    }.map {
-      it.vid
-    }
+      .flatMap { (syntheticEventGroupSpec, expression, collectionInterval) ->
+        val program: Program =
+          EventFilters.compileProgram(messageInstance.descriptorForType, expression)
+        SyntheticDataGeneration.generateEvents(
+            messageInstance,
+            syntheticPopulationSpec,
+            syntheticEventGroupSpec,
+          )
+          .flatMap { it.labeledEvents }
+          .filter { impression -> EventFilters.matches(impression.message, program) }
+          .filter { impression ->
+            targetDataProviderId != null ||
+              (impression.timestamp >= collectionInterval.startTime.toInstant() &&
+                impression.timestamp < collectionInterval.endTime.toInstant())
+          }
+      }
+      .map { it.vid }
   }
 
-  override fun getFilteredVids(measurementInfo : MeasurementInfo)
-      : Sequence<Long>{return getMeasurementFilteredVids(measurementInfo, null)}
+  override fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long> {
+    return getMeasurementFilteredVids(measurementInfo, null)
+  }
 
-        override fun getFilteredVids(measurementInfo : MeasurementInfo,
-                                     targetDataProviderId : String, )
-      : Sequence<Long>{return getMeasurementFilteredVids(measurementInfo,
-                                                         targetDataProviderId)}
+  override fun getFilteredVids(
+    measurementInfo: MeasurementInfo,
+    targetDataProviderId: String,
+  ): Sequence<Long> {
+    return getMeasurementFilteredVids(measurementInfo, targetDataProviderId)
+  }
 
-        override fun buildRequisitionInfo(
-            dataProvider : DataProvider, eventGroups : List<EventGroup>,
-            measurementConsumer : MeasurementConsumer, nonce : Long,
-            percentage : Double, )
-      : RequisitionInfo{val requisitionSpec = requisitionSpec{for (eventGroup in eventGroups){events =
-                                                                                                  RequisitionSpecKt
-                                                                                                      .events{this.eventGroups += RequisitionSpecKt
-                                                                                                                                      .eventGroupEntry{key =
-                                                                                                                                                           eventGroup
-                                                                                                                                                               .name value = RequisitionSpecKt
-                                                                                                                                                                                 .EventGroupEntryKt
-                                                                                                                                                                                 .value{collectionInterval = interval{startTime = eventGroup
-                                                                                                                                                                                                                                      .dataAvailabilityInterval
-                                                                                                                                                                                                                                      .startTime val durationMillis = Duration
-                                                                                                                                                                                                                                                                          .between(eventGroup
-                                                                                                                                                                                                                                                                                       .dataAvailabilityInterval
-                                                                                                                                                                                                                                                                                       .startTime
-                                                                                                                                                                                                                                                                                       .toInstant(),
-                                                                                                                                                                                                                                                                                   eventGroup
-                                                                                                                                                                                                                                                                                       .dataAvailabilityInterval
-                                                                                                                                                                                                                                                                                       .endTime
-                                                                                                                                                                                                                                                                                       .toInstant(), )
-                                                                                                                                                                                                                                                                          .toMillis()* percentage val requisitionEndTime = (eventGroup
-                                                                                                                                                                                                                                                                                                                                .dataAvailabilityInterval
-                                                                                                                                                                                                                                                                                                                                .startTime
-                                                                                                                                                                                                                                                                                                                                .toInstant()
-                                                                                                                                                                                                                                                                                                                                .plusMillis(
-                                                                                                                                                                                                                                                                                                                                    durationMillis
-                                                                                                                                                                                                                                                                                                                                        .toLong()))
-                                                                                                                                                                                                                                                                                                                               .toProtoTime()
+  override fun buildRequisitionInfo(
+    dataProvider: DataProvider,
+    eventGroups: List<EventGroup>,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long,
+    percentage: Double,
+  ): RequisitionInfo {
+    val requisitionSpec = requisitionSpec {
+      for (eventGroup in eventGroups) {
+        events =
+          RequisitionSpecKt.events {
+            this.eventGroups +=
+              RequisitionSpecKt.eventGroupEntry {
+                key = eventGroup.name
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = interval {
+                      startTime = eventGroup.dataAvailabilityInterval.startTime
+                      val durationMillis =
+                        Duration.between(
+                            eventGroup.dataAvailabilityInterval.startTime.toInstant(),
+                            eventGroup.dataAvailabilityInterval.endTime.toInstant(),
+                          )
+                          .toMillis() * percentage
+                      val requisitionEndTime =
+                        (eventGroup.dataAvailabilityInterval.startTime
+                            .toInstant()
+                            .plusMillis(durationMillis.toLong()))
+                          .toProtoTime()
 
-                                                                                                                                                                                                                                                                                                                                   endTime =
-                                                                                                                                                                                                                          requisitionEndTime} filter =
-                                                                                                                                                                                            RequisitionSpecKt
-                                                                                                                                                                                                .eventFilter{
-                                                                                                                                                                                                    expression =
-                                                                                                                                                                                                        filterExpression}}}}} measurementPublicKey =
-                                                                  measurementConsumer
-                                                                      .publicKey
-                                                                      .message this
-                                                                      .nonce =
-                                                                      nonce} val
-                            signedRequisitionSpec = signRequisitionSpec(
-                                requisitionSpec,
-                                measurementConsumerData.signingKey)
-                                val dataProviderEntry =
-                                    dataProvider.toDataProviderEntry(
-                                        signedRequisitionSpec,
-                                        Hashing.hashSha256(nonce))
+                      endTime = requisitionEndTime
+                    }
+                    filter = RequisitionSpecKt.eventFilter { expression = filterExpression }
+                  }
+              }
+          }
+      }
+      measurementPublicKey = measurementConsumer.publicKey.message
+      this.nonce = nonce
+    }
+    val signedRequisitionSpec =
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+    val dataProviderEntry =
+      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
 
-                                        return RequisitionInfo(
-                                            dataProviderEntry, requisitionSpec,
-                                            eventGroups)}
+    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
+  }
 
-        companion object {
-   private
-    const val DEFAULT_FILTER_EXPRESSION =
-        "person.gender == ${Person.Gender.MALE_VALUE} && " +
+  companion object {
+    private const val DEFAULT_FILTER_EXPRESSION =
+      "person.gender == ${Person.Gender.MALE_VALUE} && " +
         "(video_ad.viewed_fraction > 0.25 || video_ad.viewed_fraction == 0.25)"
-        /** Default time range for events. */
-        private val DEFAULT_EVENT_RANGE = OpenEndTimeRange.fromClosedDateRange(
-            LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
+    /** Default time range for events. */
+    private val DEFAULT_EVENT_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))
   }
 }
