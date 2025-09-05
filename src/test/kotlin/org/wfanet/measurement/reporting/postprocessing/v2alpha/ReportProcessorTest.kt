@@ -64,6 +64,36 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `report post processing output has INTERNAL_ERROR issue when noise correction throws exception`() =
+    runBlocking {
+      // The sample report has cumulative impression count measurement. This causes the noise
+      // correction to throw an exception as only cumulative reach measurement is supported.
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurement_type.json")
+          .toFile()
+      val reportAsJson = reportFile.readText()
+
+      val reportProcessingOutput: ReportProcessingOutput =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+
+      // Verify that the output contains the INTERNAL_ERROR issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
+        .contains(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR)
+
+      val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
+
+      // Verify that the log is written to the storage.
+      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+      assertThat(
+          ReportPostProcessorLog.parseFrom(
+            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+          )
+        )
+        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+    }
+
+  @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()

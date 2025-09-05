@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessor.Default.currentStorageFactory
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.storage.StorageClient
@@ -248,8 +249,26 @@ interface ReportProcessor {
       val reportSummaries = report.toReportSummaries()
       val correctedMeasurementsMap = mutableMapOf<String, Long>()
       val resultMap = mutableMapOf<String, ReportPostProcessorResult>()
+      val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
+
       for (reportSummary in reportSummaries) {
-        val result: ReportPostProcessorResult = processReportSummary(reportSummary, verbose)
+        val result: ReportPostProcessorResult? =
+          try {
+            processReportSummary(reportSummary, verbose)
+          } catch (e: Exception) {
+            logger.warning(
+              "Report processing for " +
+                "${reportSummary.demographicGroupsList.joinToString(separator = ",")} failed " +
+                "with an exception: ${e.message}"
+            )
+            null
+          }
+
+        if (result == null) {
+          foundIssues.add(ReportPostProcessorIssue.INTERNAL_ERROR)
+          continue
+        }
+
         if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
           val updatedMeasurements = mutableMapOf<String, Long>()
           result.updatedMeasurementsMap.forEach { (key, value) -> updatedMeasurements[key] = value }
@@ -257,8 +276,6 @@ interface ReportProcessor {
         }
         resultMap[reportSummary.demographicGroupsList.joinToString(separator = ",")] = result
       }
-
-      val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
 
       // Iterate over the results only once.
       for (result in resultMap.values) {
@@ -310,7 +327,7 @@ interface ReportProcessor {
         reportId = report.name
         createTime = report.createTime
         results.putAll(resultMap)
-        issues.addAll(issues)
+        issues.addAll(foundIssues)
       }
 
       return ReportProcessingOutput(
