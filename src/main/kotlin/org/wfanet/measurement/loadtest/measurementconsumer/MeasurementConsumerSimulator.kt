@@ -155,7 +155,6 @@ abstract class MeasurementConsumerSimulator(
   private val expectedDirectNoiseMechanism: NoiseMechanism,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
-  private val eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   private val reportName: String = "some-report-id",
   private val modelLineName: String = "some-model-line",
   private val onMeasurementsCreated: (() -> Unit)? = null,
@@ -209,6 +208,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
@@ -220,6 +220,7 @@ abstract class MeasurementConsumerSimulator(
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
         vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
@@ -285,6 +286,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -296,6 +298,7 @@ abstract class MeasurementConsumerSimulator(
           ::newInvalidReachAndFrequencyMeasurementSpec,
           requiredCapabilities,
           vidSamplingInterval,
+          eventGroupFilter = eventGroupFilter,
         )
         .measurement
     logger.info(
@@ -326,8 +329,12 @@ abstract class MeasurementConsumerSimulator(
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
-    // Create new measurements on behalf of the measurement consumer.
+  suspend fun testDirectReachAndFrequency(
+    runId: String,
+    numMeasurements: Int,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
+    // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
     val measurementInfos =
@@ -341,6 +348,7 @@ abstract class MeasurementConsumerSimulator(
             DEFAULT_VID_SAMPLING_INTERVAL,
             measurementNumber.toDouble() / numMeasurements,
             1,
+            eventGroupFilter = eventGroupFilter,
           )
         val measurementName = measurementInfo.measurement.name
         logger.info("Created direct reach and frequency measurement $measurementName.")
@@ -408,7 +416,11 @@ abstract class MeasurementConsumerSimulator(
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachOnly(runId: String, numMeasurements: Int) {
+  suspend fun testDirectReachOnly(
+    runId: String,
+    numMeasurements: Int,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     logger.info("Creating measurements...")
@@ -423,6 +435,7 @@ abstract class MeasurementConsumerSimulator(
             DEFAULT_VID_SAMPLING_INTERVAL,
             measurementNumber.toDouble() / numMeasurements,
             1,
+            eventGroupFilter = eventGroupFilter,
           )
         val measurementName = measurementInfo.measurement.name
         logger.info("Created direct reach measurement $measurementName.")
@@ -468,6 +481,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -478,6 +492,7 @@ abstract class MeasurementConsumerSimulator(
         ::newReachOnlyMeasurementSpec,
         requiredCapabilities,
         vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
@@ -487,7 +502,7 @@ abstract class MeasurementConsumerSimulator(
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
     var attemptCount = 0
-    while (reachOnlyResult == null && (attemptCount < 4)) {
+    while (reachOnlyResult == null && (attemptCount < 6)) {
       attemptCount++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
@@ -504,6 +519,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -514,6 +530,7 @@ abstract class MeasurementConsumerSimulator(
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
         vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-and-frequency measurement $measurementName.")
@@ -543,8 +560,11 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
-    val result = executeReachOnly(runId, requiredCapabilities, vidSamplingInterval)
+    logger.info { "Creating reach only Measurement..." }
+    val result =
+      executeReachOnly(runId, requiredCapabilities, vidSamplingInterval, eventGroupFilter)
 
     val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
 
@@ -582,7 +602,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun testImpression(runId: String) {
+  suspend fun testImpression(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -593,6 +613,7 @@ abstract class MeasurementConsumerSimulator(
         ::newImpressionMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
         DEFAULT_VID_SAMPLING_INTERVAL,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
@@ -626,7 +647,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun testDuration(runId: String) {
+  suspend fun testDuration(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -637,6 +658,7 @@ abstract class MeasurementConsumerSimulator(
         ::newDurationMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
         DEFAULT_VID_SAMPLING_INTERVAL,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
@@ -686,10 +708,10 @@ abstract class MeasurementConsumerSimulator(
         ::newPopulationMeasurementSpec,
       )
 
+    onMeasurementsCreated?.invoke()
+
     val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
-
-    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     val populationResult: Result = pollForResult { getPopulationResult(measurementName) }
@@ -864,6 +886,7 @@ abstract class MeasurementConsumerSimulator(
     vidSamplingInterval: VidSamplingInterval,
     timePercentage: Double = 1.0,
     maxDataProviders: Int = 20,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name).filterEventGroups().toList()
@@ -1030,7 +1053,7 @@ abstract class MeasurementConsumerSimulator(
         throw Exception("Error fetching measurement $measurementName", e)
       }
 
-    logger.info("Current Measurement state is: " + measurement.state)
+    logger.info("Current Measurement ${measurement.name} state is: " + measurement.state)
 
     return measurement
   }

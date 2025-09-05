@@ -77,11 +77,34 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
-    names = ["--kingdom-cert-collection-secret-id"],
-    description = ["Secret ID of Kingdom root collections file."],
+    names = ["--trusted-cert-collection-secret-id"],
+    description = ["Secret ID of trusted root collections file."],
     required = true,
   )
-  private lateinit var kingdomCertCollectionSecretId: String
+  private lateinit var trustedCertCollectionSecretId: String
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
+  lateinit var duchyInfos: List<DuchyFlags>
+    private set
+
+  class DuchyFlags {
+    @CommandLine.Option(names = ["--duchy-id"], required = true, description = ["Id of the duchy"])
+    lateinit var duchyId: String
+
+    @CommandLine.Option(
+      names = ["--duchy-target"],
+      required = true,
+      description = ["Target of the duchy"],
+    )
+    lateinit var duchyTarget: String
+
+    @CommandLine.Option(
+      names = ["--duchy-cert-host"],
+      required = false,
+      description = ["Duchy mTLS cert hostname override for localhost testing."],
+    )
+    var duchyCertHost: String? = null
+  }
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Model line info\n")
   lateinit var modelLines: List<ModelLineFlags>
@@ -206,15 +229,16 @@ class ResultsFulfillerAppRunner : Runnable {
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-    val kingdomCertCollectionFile = File(KINGDOM_ROOT_CA_FILE_PATH)
+    val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
-    // TODO: Add support for duchy channels
+    val duchiesMap = buildDuchyMap()
+
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
         cmmsCertHost = kingdomPublicApiCertHost,
         cmmsTarget = kingdomPublicApiTarget,
-        trustedCertCollection = kingdomCertCollectionFile,
-        duchies = emptyMap(),
+        trustedCertCollection = trustedRootCaCollectionFile,
+        duchies = duchiesMap,
       )
 
     val modelLinesMap = runBlocking { buildModelLineMap() }
@@ -258,6 +282,12 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
+  fun buildDuchyMap(): Map<String, DuchyInfo> {
+    return duchyInfos.associate { it: DuchyFlags ->
+      it.duchyId to DuchyInfo(it.duchyTarget, it.duchyCertHost)
+    }
+  }
+
   suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
       val configContent: ByteArray =
@@ -293,9 +323,9 @@ class ResultsFulfillerAppRunner : Runnable {
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
     saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
-    val kingdomRootCa =
-      accessSecretBytes(googleProjectId, kingdomCertCollectionSecretId, SECRET_VERSION)
-    saveByteArrayToFile(kingdomRootCa, KINGDOM_ROOT_CA_FILE_PATH)
+    val trustedRootCaCollectionFile =
+      accessSecretBytes(googleProjectId, trustedCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(trustedRootCaCollectionFile, TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
   }
 
   fun saveEdpsCerts() {
@@ -348,7 +378,7 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}")
+    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
     val pubSubClient = DefaultGooglePubSubClient()
     return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
   }
@@ -378,7 +408,7 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
-    private const val KINGDOM_ROOT_CA_FILE_PATH = "/tmp/edpa_certs/kingdom_root.pem"
+    private const val TRUSTED_ROOT_CA_COLLECTION_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
