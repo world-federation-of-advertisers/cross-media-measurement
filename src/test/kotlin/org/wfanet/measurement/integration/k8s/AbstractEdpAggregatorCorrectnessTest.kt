@@ -110,8 +110,6 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
-
-
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
