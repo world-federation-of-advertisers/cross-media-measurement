@@ -14,6 +14,8 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any as ProtoAny
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -23,6 +25,9 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.EndV
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.StartVidNotPositiveDetail
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangeIndex
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {
@@ -150,5 +155,72 @@ class PopulationSpecValidatorTest {
     }
     assertThat(PopulationSpecValidator.validateVidRangesList(testPopulationSpec).getOrNull())
       .isTrue()
+  }
+
+  @Test
+  fun `validate throws if required template is missing from attributes`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<PopulationSpecValidationException> {
+        PopulationSpecValidator.validate(populationSpec, TestEvent.getDescriptor())
+      }
+
+    val personDescriptor = Person.getDescriptor()
+    assertThat(exception.details)
+      .containsExactly(
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          personDescriptor.findFieldByNumber(Person.GENDER_FIELD_NUMBER),
+          0,
+        ),
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          personDescriptor.findFieldByNumber(Person.AGE_GROUP_FIELD_NUMBER),
+          0,
+        ),
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          personDescriptor.findFieldByNumber(Person.SOCIAL_GRADE_GROUP_FIELD_NUMBER),
+          0,
+        ),
+      )
+  }
+
+  @Test
+  fun `validate throws if population field is missing from attributes`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+        attributes +=
+          ProtoAny.pack(
+            person {
+              gender = Person.Gender.FEMALE
+              ageGroup = Person.AgeGroup.YEARS_35_TO_54
+            }
+          )
+      }
+    }
+
+    val exception =
+      assertFailsWith<PopulationSpecValidationException> {
+        PopulationSpecValidator.validate(populationSpec, TestEvent.getDescriptor())
+      }
+
+    val personDescriptor = Person.getDescriptor()
+    assertThat(exception.details)
+      .containsExactly(
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          personDescriptor.findFieldByNumber(Person.SOCIAL_GRADE_GROUP_FIELD_NUMBER),
+          0,
+        )
+      )
   }
 }
