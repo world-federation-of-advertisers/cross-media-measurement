@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_display_names = ["edp7"]
+  edp_display_names = ["edp7", "edpa_meta"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -198,5 +198,5 @@ module "edp_aggregator" {
   trusted_root_ca_collection                = local.trusted_root_ca_collection
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
-  results_fulfiller_disk_image_family       = "confidential-space-debug"
+  results_fulfiller_disk_image_family       = "confidential-space"
 }
