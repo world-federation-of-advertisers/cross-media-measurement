@@ -168,6 +168,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -201,7 +202,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           eventGroup = eventGroup {
             measurementConsumer = MEASUREMENT_CONSUMER_NAME
             eventGroupReferenceId =
-              "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DATA.displayName}${referenceIdSuffix}"
+              "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DISPLAY_NAME}${referenceIdSuffix}"
             mediaTypes += MEDIA_TYPES
             eventGroupMetadata = EVENT_GROUP_METADATA
             dataAvailabilityInterval = DATA_AVAILABILITY_INTERVAL
@@ -217,7 +218,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       name = EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId =
-        "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DATA.displayName}${referenceIdSuffix}"
+        "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DISPLAY_NAME}${referenceIdSuffix}"
     }
     eventGroupsServiceMock.stub {
       onBlocking { listEventGroups(any()) }
@@ -226,6 +227,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -303,6 +305,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         "measurementConsumers/differentMcId",
         certificatesStub,
         dataProvidersStub,
@@ -342,6 +345,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -396,6 +400,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -464,6 +469,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -544,6 +550,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -599,6 +606,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -611,7 +619,6 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        vidIndexMap = null,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -644,6 +651,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -696,6 +704,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -796,6 +805,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       val edpSimulator =
         EdpSimulator(
           EDP_DATA,
+          EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
           dataProvidersStub,
@@ -925,6 +935,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       val edpSimulator =
         EdpSimulator(
           EDP_DATA,
+          EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
           dataProvidersStub,
@@ -1074,6 +1085,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       val edpSimulator =
         EdpSimulator(
           EDP_DATA,
+          EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
           dataProvidersStub,
@@ -1181,6 +1193,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1239,6 +1252,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1299,6 +1313,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1370,6 +1385,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1438,6 +1454,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1506,6 +1523,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1572,6 +1590,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1638,6 +1657,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1704,6 +1724,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1770,6 +1791,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1833,6 +1855,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1890,6 +1913,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -1994,6 +2018,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2065,6 +2090,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2136,6 +2162,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2194,6 +2221,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2259,6 +2287,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2324,6 +2353,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2390,6 +2420,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2453,6 +2484,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2517,6 +2549,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2584,6 +2617,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2646,6 +2680,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
@@ -2705,6 +2740,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
     val simulator =
       EdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
         dataProvidersStub,
