@@ -34,7 +34,7 @@ import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 
-class BasicReportsReportsPollJob(
+class BasicReportsReportsJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val internalBasicReportsStub: InternalBasicReportsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,

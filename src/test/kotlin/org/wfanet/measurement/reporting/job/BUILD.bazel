@@ -27,12 +27,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "BasicReportsReportsPollJobTest",
-    srcs = ["BasicReportsReportsPollJobTest.kt"],
+    name = "BasicReportsReportsJobTest",
+    srcs = ["BasicReportsReportsJobTest.kt"],
     associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_poll_job",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_job",
     ],
-    test_class = "org.wfanet.measurement.reporting.job.BasicReportsReportsPollJobTest",
+    test_class = "org.wfanet.measurement.reporting.job.BasicReportsReportsJobTest",
     deps = [
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",

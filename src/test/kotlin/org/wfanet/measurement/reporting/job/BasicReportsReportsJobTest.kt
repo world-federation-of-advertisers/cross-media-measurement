@@ -59,7 +59,7 @@ import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.report
 
 @RunWith(JUnit4::class)
-class BasicReportsReportsPollJobTest {
+class BasicReportsReportsJobTest {
   private val basicReportsMock: BasicReportsCoroutineImplBase = mockService {
     onBlocking { listBasicReports(any()) }
       .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
@@ -74,12 +74,12 @@ class BasicReportsReportsPollJobTest {
     addService(reportsMock)
   }
 
-  private lateinit var job: BasicReportsReportsPollJob
+  private lateinit var job: BasicReportsReportsJob
 
   @Before
   fun initJob() {
     job =
-      BasicReportsReportsPollJob(
+      BasicReportsReportsJob(
         MEASUREMENT_CONSUMER_CONFIGS,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),
@@ -185,7 +185,7 @@ class BasicReportsReportsPollJobTest {
     }
 
     job =
-      BasicReportsReportsPollJob(
+      BasicReportsReportsJob(
         measurementConsumerConfigs,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),

@@ -19,7 +19,7 @@ package k8s
 	_verboseGrpcClientLogging: bool | *false
 
 	_reportSchedulingCronSchedule:        string | *"30 6 * * *" // Daily at 6:30 AM
-	_basicReportsReportsPollCronSchedule: string | *"30 7 * * *" // Daily at 7:30 AM
+	_basicReportsReportsCronSchedule: string | *"30 7 * * *" // Daily at 7:30 AM
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -68,7 +68,7 @@ package k8s
 		"postgres-internal-reporting-server":  string | *"reporting/v2/internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
-		"basic-reports-reports-poll":          string | *"reporting/v2/basic-reports-reports-poll"
+		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
@@ -293,7 +293,7 @@ package k8s
 				schedule: _reportSchedulingCronSchedule
 			}
 		}
-		"basic-reports-reports-poll": {
+		"basic-reports-reports": {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -314,7 +314,7 @@ package k8s
 					}
 					"config-files": #ConfigMapMount
 				}
-				schedule: _basicReportsReportsPollCronSchedule
+				schedule: _basicReportsReportsCronSchedule
 			}
 		}
 	}
@@ -329,7 +329,7 @@ package k8s
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
-				"basic-reports-reports-poll-app",
+				"basic-reports-reports-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -367,7 +367,7 @@ package k8s
 				any: {}
 			}
 		}
-		"basic-reports-reports-poll": {
+		"basic-reports-reports": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 		}
 		"access-internal-api-server": {

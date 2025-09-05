@@ -52,8 +52,8 @@ java_image(
 )
 
 kt_jvm_library(
-    name = "basic_reports_reports_poll_job_executor",
-    srcs = ["BasicReportsReportsPollJobExecutor.kt"],
+    name = "basic_reports_reports_job_executor",
+    srcs = ["BasicReportsReportsJobExecutor.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
@@ -62,7 +62,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:v2alpha_flags",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_poll_job",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_job",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metrics_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reports_service",
@@ -86,14 +86,14 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "BasicReportsReportsPollJobExecutor",
-    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsReportsPollJobExecutorKt",
-    runtime_deps = [":basic_reports_reports_poll_job_executor"],
+    name = "BasicReportsReportsJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsReportsJobExecutorKt",
+    runtime_deps = [":basic_reports_reports_job_executor"],
 )
 
 java_image(
-    name = "basic_reports_reports_poll_job_executor_image",
-    binary = ":BasicReportsReportsPollJobExecutor",
-    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsReportsPollJobExecutorKt",
+    name = "basic_reports_reports_job_executor_image",
+    binary = ":BasicReportsReportsJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsReportsJobExecutorKt",
     visibility = ["//src:docker_image_deployment"],
 )

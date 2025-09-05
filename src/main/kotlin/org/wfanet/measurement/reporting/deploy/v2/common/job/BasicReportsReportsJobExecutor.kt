@@ -54,7 +54,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
-import org.wfanet.measurement.reporting.job.BasicReportsReportsPollJob
+import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
@@ -64,7 +64,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineSt
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "BasicReportsReportsPollJobExecutor",
+  name = "BasicReportsReportsJobExecutor",
   description =
     ["Process for Polling Reports associated with BasicReports to check if they are SUCCEEDED."],
   mixinStandardHelpOptions = true,
@@ -176,14 +176,14 @@ private fun run(
       .build()
       .withShutdownTimeout(Duration.ofSeconds(5))
 
-  val basicReportsReportsPollJob =
-    BasicReportsReportsPollJob(
+  val basicReportsReportsJob =
+    BasicReportsReportsJob(
       measurementConsumerConfigs,
       InternalBasicReportsCoroutineStub(channel),
       ReportsCoroutineStub(inProcessReportsChannel),
     )
 
-  runBlocking { basicReportsReportsPollJob.execute() }
+  runBlocking { basicReportsReportsJob.execute() }
   inProcessMetricsChannel.shutdown()
   inProcessReportsChannel.shutdown()
   inProcessMetricsServer.shutdown()

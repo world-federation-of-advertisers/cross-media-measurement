@@ -27,8 +27,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "basic_reports_reports_poll_job",
-    srcs = ["BasicReportsReportsPollJob.kt"],
+    name = "basic_reports_reports_job",
+    srcs = ["BasicReportsReportsJob.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

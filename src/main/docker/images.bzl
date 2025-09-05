@@ -274,9 +274,9 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/v2/report-scheduling",
     ),
     struct(
-        name = "basic_reports_reports_poll_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_poll_executor_image",
-        repository = _PREFIX + "/reporting/v2/basic-reports-reports-poll",
+        name = "basic_reports_reports_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_executor_image",
+        repository = _PREFIX + "/reporting/v2/basic-reports-reports",
     ),
     struct(
         name = "reporting_spanner_update_schema_image",
