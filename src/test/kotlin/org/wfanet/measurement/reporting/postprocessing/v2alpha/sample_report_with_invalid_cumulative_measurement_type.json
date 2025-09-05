@@ -1,0 +1,239 @@
+{
+  "name": "measurementConsumers/fLhOpt2Z4x8/reports/c8f5ab1b95b44c0691f44111700054c3",
+  "reportingMetricEntries": [
+    {
+      "key": "reportingSets/custom_edp1_union_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/ami_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/custom_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/custom_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/ami_edp1_union_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/mrc_edp1_union_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/ami_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/mrc_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/mrc_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/union",
+          "metricCalculationSpecs/cumulative"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/custom_edp1_minus_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/mrc_edp1_minus_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/mrc_edp2_minus_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/ami_edp2_minus_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/custom_edp2_minus_edp1",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    },
+    {
+      "key": "reportingSets/ami_edp1_minus_edp2",
+      "value": {
+        "metricCalculationSpecs": [
+          "metricCalculationSpecs/difference"
+        ]
+      }
+    }
+  ],
+  "state": "SUCCEEDED",
+  "createTime": "2024-12-13T10:24:10.134402Z",
+  "metricCalculationResults": [
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "reportingSets/custom_edp1_union_edp2",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1.0E-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.0041,
+                  "delta": 1.0E-12
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 0.01
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2024-10-01T00:00:00Z",
+            "endTime": "2024-12-03T00:00:00Z"
+          },
+          "metricResult": {
+            "impression_count": {
+              "value": "100",
+              "univariateStatistics": {
+                "standardDeviation": 184302.26284602462
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/fLhOpt2Z4x8/measurements/QhqTw0Bz45Q"
+            ]
+          },
+          "filter": "",
+          "metric": "measurementConsumers/fLhOpt2Z4x8/metrics/a1cfe162d-cfac-443e-b71f-c75cf569200c",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "metricCalculationSpecs/cumulative"
+    }
+  ],
+  "reportSchedule": "",
+  "tags": {
+    "brands": "'Beyond Beauty' 'Call Connect'",
+    "campaign_name": "Noisecorrection4",
+    "end_date": "2024-12-06T00:00:00Z",
+    "filter_video_completion_custom": "video.completed_100_percent",
+    "filter_video_viewability_custom": "video.viewable_100_percent",
+    "filter_video_viewability_mrc": "video.viewable_100_percent",
+    "metricCalculationSpecs/cumulative": "{common_filter=FEMALE_AGE_GROUP2;MALE_AGE_GROUP2;, cumulative=true, grouping=-, metric_frequency=weekly2, metrics=reach, set_operation=cumulative}",
+    "metricCalculationSpecs/difference": "{common_filter=FEMALE_AGE_GROUP2;MALE_AGE_GROUP2;, cumulative=false, grouping=-, metric_frequency=-, metrics=reach, set_operation=difference}",
+    "metricCalculationSpecs/union": "{common_filter=FEMALE_AGE_GROUP2;MALE_AGE_GROUP2;, cumulative=false, grouping=-, metric_frequency=-, metrics=frequency5,impressions, set_operation=union}",
+    "reportingSets/ami_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=AMI, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=f3hjMoxiSnc, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "reportingSets/ami_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=AMI, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=YmXyjXOZlb0, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp2, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "reportingSets/ami_edp1_union_edp2": "{anchor=, campaign_id=50ff7587-88f5-41ec-ace5-3dcf66b4fe78, channels=, incrementality_type=, lhs_reporting_set_ids=ami_edp2 ami_edp1, measured_entity=, measurement_entities=, measurement_policy=AMI, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1,edp2, unique_Reach_Target=, version=1.0, video_completion=, viewability=}",
+    "reportingSets/ami_edp1_minus_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=ami_edp1, measured_entity=, measurement_entities=, measurement_policy=AMI, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=ami_edp2, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp1, version=1.0, video_completion=, viewability=}",
+    "reportingSets/ami_edp2_minus_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=ami_edp2, measured_entity=, measurement_entities=, measurement_policy=AMI, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=ami_edp1, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp2, version=1.0, video_completion=, viewability=}",
+    "reportingSets/mrc_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=MRC, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=f3hjMoxiSnc, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1, unique_Reach_Target=, version=1.0, viewability=viewable_100_percent}",
+    "reportingSets/mrc_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=MRC, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=YmXyjXOZlb0, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp2, unique_Reach_Target=, version=1.0, viewability=viewable_100_percent}",
+    "reportingSets/mrc_edp1_union_edp2": "{anchor=, campaign_id=50ff7587-88f5-41ec-ace5-3dcf66b4fe78, channels=, incrementality_type=, lhs_reporting_set_ids=mrc_edp2 mrc_edp1, measured_entity=, measurement_entities=, measurement_policy=MRC, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1,edp2, unique_Reach_Target=, version=1.0, viewability=viewable_100_percent}",
+    "reportingSets/mrc_edp1_minus_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=mrc_edp1, measured_entity=, measurement_entities=, measurement_policy=MRC, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=mrc_edp2, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp1, version=1.0, viewability=viewable_100_percent}",
+    "reportingSets/mrc_edp2_minus_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=mrc_edp2, measured_entity=, measurement_entities=, measurement_policy=MRC, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=mrc_edp1, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp2, version=1.0, viewability=viewable_100_percent}",
+    "reportingSets/custom_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=CUSTOM, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=f3hjMoxiSnc, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1, unique_Reach_Target=, version=1.0, video_completion=completed_100_percent, viewability=viewable_100_percent}",
+    "reportingSets/custom_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=, measured_entity=, measurement_entities=, measurement_policy=CUSTOM, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=YmXyjXOZlb0, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp2, unique_Reach_Target=, version=1.0, video_completion=completed_100_percent, viewability=viewable_100_percent}",
+    "reportingSets/custom_edp1_union_edp2": "{anchor=, campaign_id=50ff7587-88f5-41ec-ace5-3dcf66b4fe78, channels=, incrementality_type=, lhs_reporting_set_ids=custom_edp2 custom_edp1, measured_entity=, measurement_entities=, measurement_policy=CUSTOM, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=, set_operation=union,cumulative, target=edp1,edp2, unique_Reach_Target=, version=1.0, video_completion=completed_100_percent, viewability=viewable_100_percent}",
+    "reportingSets/custom_edp1_minus_edp2": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=custom_edp1, measured_entity=, measurement_entities=, measurement_policy=CUSTOM, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=custom_edp2, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp1, version=1.0, video_completion=completed_100_percent, viewability=viewable_100_percent}",
+    "reportingSets/custom_edp2_minus_edp1": "{anchor=, campaign_id=, channels=, incrementality_type=, lhs_reporting_set_ids=custom_edp2, measured_entity=, measurement_entities=, measurement_policy=CUSTOM, measurement_policy_incrementality=, media_type=VIDEO, position_in_incrementality=, primitive_egroup_id=, rhs_reporting_set_ids=custom_edp1, set_operation=difference, target=edp1,edp2, unique_Reach_Target=edp2, version=1.0, video_completion=completed_100_percent, viewability=viewable_100_percent}",
+    "media_types": "VIDEO",
+    "population": "MALE_AGE_GROUP1=74254;MALE_AGE_GROUP2=75427;MALE_AGE_GROUP3=92201;FEMALE_AGE_GROUP1=71124;FEMALE_AGE_GROUP2=83950;FEMALE_AGE_GROUP3=103044",
+    "report_name": "Noisecorrection4",
+    "start_date": "2024-10-01T00:00:00Z",
+    "target": "'edp1' 'edp2'"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2024,
+      "month": 10,
+      "day": 1,
+      "hours": 0,
+      "minutes": 0,
+      "seconds": 0,
+      "nanos": 0,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2024,
+      "month": 12,
+      "day": 6
+    }
+  }
+}
