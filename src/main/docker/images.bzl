@@ -275,7 +275,7 @@ REPORTING_V2_COMMON_IMAGES = [
     ),
     struct(
         name = "basic_reports_reports_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_executor_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_job_executor_image",
         repository = _PREFIX + "/reporting/v2/basic-reports-reports",
     ),
     struct(
