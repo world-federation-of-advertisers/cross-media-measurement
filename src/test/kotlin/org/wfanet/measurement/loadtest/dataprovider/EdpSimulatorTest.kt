@@ -17,9 +17,13 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import java.time.Clock
@@ -52,6 +56,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -81,6 +87,7 @@ import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -89,10 +96,12 @@ import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint
@@ -107,6 +116,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
@@ -176,7 +187,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -234,7 +245,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -304,7 +315,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking {
@@ -343,7 +354,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -397,7 +408,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -465,7 +476,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         PrivacyBudgets.createNoOpPrivacyBudgetManager(),
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -545,7 +556,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
@@ -579,7 +590,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   @Test
-  fun `refuses HMSS requisition due to empty hmssVidIndexMap`() {
+  fun `refuses HMSS requisition due to empty vidIndexMap`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += HMSS_REQUISITION })
@@ -600,7 +611,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        hmssVidIndexMap = null,
+        vidIndexMap = null,
       )
     runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
 
@@ -620,6 +631,111 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       )
     assertThat(refuseRequest.refusal.message).contains("Protocol not set or not supported.")
     assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `refuses TrusTee requisition due to invalid number of duchy entries`() {
+    val requisition = TRUSTEE_REQUISITION.copy { duchies += DUCHY_ENTRY_TWO }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        AbstractEdpSimulatorTest.dummyThrottler,
+        PrivacyBudgets.createNoOpPrivacyBudgetManager(),
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+      )
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val refuseRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequest)
+      .ignoringFieldScope(
+        FieldScopes.allowingFieldDescriptors(
+          Refusal.getDescriptor().findFieldByNumber(Refusal.MESSAGE_FIELD_NUMBER)
+        )
+      )
+      .isEqualTo(
+        refuseRequisitionRequest {
+          name = REQUISITION.name
+          refusal = refusal { justification = Refusal.Justification.SPEC_INVALID }
+        }
+      )
+    assertThat(refuseRequest.refusal.message).contains("One duchy entry is expected")
+    assertThat(fakeRequisitionFulfillmentService.fullfillRequisitionInvocations).isEmpty()
+  }
+
+  @Test
+  fun `fulfills TrusTee requisition`() {
+    val trusTeeEncryptionParams =
+      TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
+        kmsClient = KMS_CLIENT,
+        kmsKekUri = KEK_URI,
+        workloadIdentityProvider = "workload-identity-provider",
+        impersonatedServiceAccount = "impersonated-service-account",
+      )
+
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += TRUSTEE_REQUISITION })
+    }
+
+    val edpSimulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        certificatesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        dummyThrottler,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        trusTeeEncryptionParams = trusTeeEncryptionParams,
+      )
+
+    runBlocking { edpSimulator.executeRequisitionFulfillingWorkflow() }
+
+    val requests: List<FulfillRequisitionRequest> =
+      fakeRequisitionFulfillmentService.fullfillRequisitionInvocations.single().requests
+    val header: FulfillRequisitionRequest.Header = requests.first().header
+
+    assertThat(header)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        FulfillRequisitionRequestKt.header {
+          name = TRUSTEE_REQUISITION.name
+          requisitionFingerprint =
+            computeRequisitionFingerprint(
+              TRUSTEE_REQUISITION.measurementSpec.message.value,
+              Hashing.hashSha256(TRUSTEE_REQUISITION.encryptedRequisitionSpec.ciphertext),
+            )
+          nonce = REQUISITION_SPEC.nonce
+          trusTee =
+            FulfillRequisitionRequestKt.HeaderKt.trusTee {
+              dataFormat =
+                FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+            }
+        }
+      )
   }
 
   @Test
@@ -692,7 +808,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -821,7 +937,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -970,7 +1086,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           dummyThrottler,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          HMSS_VID_INDEX_MAP,
+          VID_INDEX_MAP,
         )
       runBlocking {
         edpSimulator.ensureEventGroups()
@@ -1077,7 +1193,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         sketchEncrypter = fakeSketchEncrypter,
       )
 
@@ -1135,7 +1251,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
     val requisition =
       REQUISITION.copy {
@@ -1195,7 +1311,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
@@ -1266,7 +1382,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1334,7 +1450,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1402,7 +1518,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1468,7 +1584,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1534,7 +1650,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1600,7 +1716,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1666,7 +1782,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
       )
 
     runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
@@ -1729,7 +1845,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1786,7 +1902,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1890,7 +2006,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -1961,7 +2077,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2032,7 +2148,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2090,7 +2206,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2155,7 +2271,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2220,7 +2336,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2286,7 +2402,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2349,7 +2465,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2413,7 +2529,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2480,7 +2596,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2542,7 +2658,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2601,7 +2717,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         dummyThrottler,
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        HMSS_VID_INDEX_MAP,
+        VID_INDEX_MAP,
         random = Random(RANDOM_SEED),
       )
 
@@ -2627,6 +2743,16 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
   }
 
   companion object {
+    private val KMS_CLIENT = FakeKmsClient()
+    private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
+      KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
+    }
+
     private val MEDIA_TYPES = setOf(MediaType.VIDEO, MediaType.DISPLAY)
     private val DATA_AVAILABILITY_INTERVAL = interval {
       startTime = FIRST_EVENT_DATE.atStartOfDay(SYNTHETIC_DATA_TIME_ZONE).toInstant().toProtoTime()
@@ -2708,6 +2834,21 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
       duchies += DUCHY_ENTRY_TWO
     }
 
+    private val TRUSTEE_REQUISITION = requisition {
+      name = "${EDP_NAME}/requisitions/foo"
+      measurement = MEASUREMENT_NAME
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols += ProtocolConfigKt.protocol { trusTee = ProtocolConfigKt.trusTee {} }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+      duchies += DUCHY_ENTRY_ONE
+    }
+
     private val syntheticGeneratorEventQuery =
       object :
         SyntheticGeneratorEventQuery(
@@ -2717,6 +2858,24 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         ) {
         override fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec {
           return SYNTHETIC_DATA_SPEC
+        }
+      }
+
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1L
+          endVidInclusive = 1000L
+        }
+      }
+    }
+    private val VID_INDEX_MAP = InMemoryVidIndexMap.build(POPULATION_SPEC)
+
+    /** Dummy [Throttler] for satisfying signatures without being used. */
+    private val dummyThrottler =
+      object : Throttler {
+        override suspend fun <T> onReady(block: suspend () -> T): T {
+          throw UnsupportedOperationException("Should not be called")
         }
       }
 

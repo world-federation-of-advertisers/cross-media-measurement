@@ -65,7 +65,7 @@ kt_jvm_proto_library(
 )
 
 proto_descriptor_set(
-    name = "edpa_event_template_metadata_type",
+    name = "test_event_descriptor_set",
     deps = [
         ":test_event_proto",
     ],

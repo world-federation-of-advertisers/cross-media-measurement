@@ -120,6 +120,12 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
+variable "event_data_provider_configs_file_path" {
+  description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
+  type        = string
+  nullable    = false
+}
+
 variable "results_fulfiller_population_spec_file_path" {
   description = "Path to the requisition fetcher population spec file."
   type        = string
@@ -224,17 +230,27 @@ variable "results_fulfiller_population_spec_blob_uri" {
   type = string
 }
 
-variable "edpa_edp_kms_audience" {
-  description = "Edp Aggregator EDP KMS audience."
+variable "duchy_worker1_id" {
+  description = "ID of duchy worker 1."
   type = string
 }
 
-variable "edpa_edp_service_account" {
-  description = "Edp Aggregator EDP service account"
+variable "duchy_worker1_target" {
+  description = "Target of duchy worker 1."
   type = string
 }
 
-variable "edpa_edp_resource_name" {
-  description = "Edp Aggregator EDP Resource name"
+variable "duchy_worker2_id" {
+  description = "ID of duchy worker 2."
+  type = string
+}
+
+variable "duchy_worker2_target" {
+  description = "Target of duchy worker 2."
+  type = string
+}
+
+variable "results_fulfiller_trusted_root_ca_collection_file_path" {
+  description = "Trusted root CA used by the Results Fulfiller."
   type = string
 }

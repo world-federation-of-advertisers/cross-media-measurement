@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.CreatePopulationRequest
 import org.wfanet.measurement.internal.kingdom.GetPopulationRequest
 import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
@@ -42,9 +43,10 @@ class SpannerPopulationsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : PopulationsCoroutineImplBase(coroutineContext) {
 
-  override suspend fun createPopulation(request: Population): Population {
+  override suspend fun createPopulation(request: CreatePopulationRequest): Population {
     try {
-      return CreatePopulation(request).execute(client, idGenerator)
+      return CreatePopulation(request.population, request.requestId.ifEmpty { null })
+        .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "DataProvider not found.")
     }
