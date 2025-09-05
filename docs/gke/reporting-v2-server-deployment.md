@@ -35,13 +35,15 @@ free to use whichever you prefer.
         -   `reporting-grpc-gateway`
         -   `access-internal-api-server`
         -   `access-public-api-server`
-    -   1 Kubernetes cron job
+    -   2 Kubernetes cron job
         -   `report-scheduling`
-    -   7 Kubernetes network policies
+        -   `basic-reports-reports-poll`
+    -   8 Kubernetes network policies
         -   `postgres-internal-reporting-server-network-policy`
         -   `reporting-v2alpha-public-api-server-network-policy`
         -   `reporting-grpc-gateway-network-policy`
         -   `report-scheduling-network-policy`
+        -   `basic-reports-reports-poll` 
         -   `access-internal-api-server-network-policy`
         -   `access-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
@@ -297,8 +299,9 @@ reporting-v2alpha-public-api-server   LoadBalancer   10.16.32.255   34.135.79.68
 ```
 
 ```
-NAME                       SCHEDULE     SUSPEND   ACTIVE   LAST SCHEDULE   AGE
-report-scheduling-cronjob  30 6 * * *   False     0        <none>          10m
+NAME                                SCHEDULE     SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+report-scheduling-cronjob           30 6 * * *   False     0        <none>          10m
+basic-reports-reports-poll-cronjob  30 7 * * *   False     0        <none>          10m
 ```
 
 ## Appendix
