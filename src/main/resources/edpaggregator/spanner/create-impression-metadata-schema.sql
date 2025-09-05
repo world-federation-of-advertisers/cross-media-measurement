@@ -14,13 +14,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset renjiezh:1 dbms:cloudspanner
+-- changeset lindreamdeyi:2 dbms:cloudspanner
 
 -- Cloud Spanner database schema for the EDP Aggregator.
 
 -- Set protobuf FileDescriptorSet as a base64 string.
 SET PROTO_DESCRIPTORS =
-'Ct8DCkd3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9yZXF1aXNpdGlvbl9tZXRhZGF0YV9zdGF0ZS5wcm90bxImd2ZhLm1lYXN1cmVtZW50LmludGVybmFsLmVkcGFnZ3JlZ2F0b3IqkQIKGFJlcXVpc2l0aW9uTWV0YWRhdGFTdGF0ZRIqCiZSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1NUT1JFRBABEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1FVRVVFRBACEikKJVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1BST0NFU1NJTkcQAxIoCiRSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9GVUxGSUxMRUQQBBImCiJSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9SRUZVU0VEEAVCUAotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQh1SZXF1aXNpdGlvbk1ldGFkYXRhU3RhdGVQcm90b1ABYgZwcm90bzM='
+'Ct0CCkZ3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9pbXByZXNzaW9uX21ldGFkYXRhX3N0YXRlLnByb3RvEiZ3ZmEubWVhc3VyZW1lbnQuaW50ZXJuYWwuZWRwYWdncmVnYXRvciqRAQoXSW1wcmVzc2lvbk1ldGFkYXRhU3RhdGUSKQolSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiQKIElNUFJFU1NJT05fTUVUQURBVEFfU1RBVEVfQUNUSVZFEAESJQohSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9ERUxFVEVEEAJCTwotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQhxJbXByZXNzaW9uTWV0YWRhdGFTdGF0ZVByb3RvUAFiBnByb3RvMw=='
 
 START BATCH DDL;
 
@@ -43,7 +43,7 @@ CREATE TABLE ImpressionMetadata (
   -- The URL of the encrypted data bloe type.
   BlobTypeUrl STRING(MAX) NOT NULL,
   -- The reference resource ID of the EventGroup.
-  EventGroupReferenceId STRING(63) NOT NULL,
+  EventGroupReferenceId STRING(MAX) NOT NULL,
   -- The resource name of the ModelLine in the CMMS (Kingdom).
   CmmsModelLine STRING(MAX) NOT NULL,
   -- The start of the time interval that the impressions in blob covers.
@@ -61,25 +61,21 @@ CREATE TABLE ImpressionMetadata (
     (ABS(MOD(ImpressionMetadataId, 64))) STORED,
 ) PRIMARY KEY (DataProviderResourceId, ImpressionMetadataId);
 
--- Index for looking up by resource ID, unique per DataProvider.
+-- Enforces uniqueness of ImpressionMetadataResourceId per DataProvider and supports
+-- fast lookups by this key.
 CREATE UNIQUE INDEX ImpressionMetadataByResourceId
   ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataResourceId);
 
--- Index for idempotency check on creation.
+-- Enforces uniqueness for idempotency on creation. This is a null-filtered index
+-- as CreateRequestId is optional.
 CREATE UNIQUE INDEX ImpressionMetadataByCreateRequestId
-  ON ImpressionMetadata(DataProviderResourceId, CreateRequestId);
+  ON ImpressionMetadata(DataProviderResourceId, CreateRequestId)
+  WHERE CreateRequestId IS NOT NULL;
 
--- Index for looking up by blob URI.
+-- Enforces that BlobUri is unique per DataProvider. This also enables fast
+-- lookups by this key.
 CREATE UNIQUE INDEX ImpressionMetadataByBlobUri
   ON ImpressionMetadata(DataProviderResourceId, BlobUri);
-
--- Index for looking up by blob type url.
-CREATE INDEX ImpressionMetadataByBlobTypeUrl
-  ON ImpressionMetadata(DataProviderResourceId, BlobTypeUrl);
-
--- Index for looking up by EventGroup reference ID.
-CREATE INDEX ImpressionMetadataByEventGroupReferenceId
-  ON ImpressionMetadata(DataProviderResourceId, EventGroupReferenceId);
 
 -- Index for looking up by CMMS ModelLine.
 CREATE INDEX ImpressionMetadataByCmmsModelLine
