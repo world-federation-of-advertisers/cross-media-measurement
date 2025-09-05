@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
---changeset kungfucraig:2 dbms:cloudspanner
+--changeset kungfucraig:6 dbms:cloudspanner
 -- comment: Create ReportResults tables and make them usable for BasicReport results
 
 START BATCH DDL;
@@ -38,15 +38,19 @@ START BATCH DDL;
 CREATE TABLE ReportResults (
   MeasurementConsumerId INT64 NOT NULL,
   ReportResultId INT64 NOT NULL,
+  ExternalReportResultId INT64 NOT NULL,
   -- This is the start time of the set of results. Dates in subtables
   -- are with respect to the time defined by this timestamp. This is also
   -- used to indicate the start date for cumulative results in the child tables
   ReportIntervalStartTime TIMESTAMP NOT NULL,
   -- The time that this row was created.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-  FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers (MeasurementConsumerId)
+  CONSTRAINT FKey_ReportResults_MeasurementConsumers FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers (MeasurementConsumerId)
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+-- Ensure uniqueness and fast lookups of the ExternalReportResultId
+CREATE UNIQUE INDEX ReportResultsByExternalReportResultId
+    ON ReportResults (ExternalReportResultId);
 
 -- Each row of this table represents the Results for a particular ReportingSet Venn diagram
 -- region that is entailed by the Report.
@@ -61,27 +65,31 @@ CREATE TABLE ReportingSetResults(
   -- Corresponds to the ReportingSet for which the results are computed.
   -- We expect that all ReportingSets referenced here represent only unions of
   -- EventGroups.
-  ReportingSetId INT64 NOT NULL,
+  ReportingSetId STRING(MAX) NOT NULL,
   -- Corresponds to the enum VennDiagramRegionType in report_results.proto.
   -- The VennDiagram region type may only be PRIMITIVE when the ReportingSet was
   -- passed in by the user, or in the case of BasicReport, when it corresponds to
   -- exactly one DataProvider. ReportingSets created as a side effect of Report creation
   -- should always be type UNION.
   VennDiagramRegionType INT64 NOT NULL,
-  -- The ID of ImpressionQualificationFilter for which the set of results was computed.
+  -- The name of ImpressionQualificationFilter for which the set of results was computed.
   -- In the future this column could be nullable if we decide to make IQFs optional and/or
   -- deprecate them. We limit the use of Custom IQFs to a single filter. When the filter is
-  -- custom the value of this column will be -1.
+  -- custom the value of this column will be "custom-1" to allow for the possibility that
+  -- multiple custom filters could be used in the future.
   ImpressionQualificationFilterName STRING(MAX) NOT NULL,
   -- Corresponds to the MetricFrequencyType enum in report_results.proto (e.g. WEEKLY)
   MetricFrequencyType INT64 NOT NULL,
   -- The grouping dimension.
   -- See the comment at the top of this file related to this field.
   GroupingDimensionFingerprint INT64 NOT NULL,
- -- The fingerprint of the normalized EventFilter proto that was used to create
- -- the results. It does not include any filters implied by the IQF.
+ -- The fingerprint of the canonicalized EventFilter proto that was used to create
+ -- the results. This requires a custom deterministic serialization of the protobuf
+ -- prior to fingerprinting. It does not include any filters implied by the IQF.
  -- This field is NULL if no filters were applied.
  FilterFingerprint INT64,
+ -- The actual filter used
+ EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
  -- The population size associated with the results
  PopulationSize INT64 NOT NULL,
  -- The creation time of this row.
@@ -131,7 +139,7 @@ CREATE TABLE ReportResultValues (
   ReportingWindowResultId INT64 NOT NULL,
   ReportResultValueId INT64 NOT NULL,
   -- Denoised cumulative results for the window represented by the parent table
-  CumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
+  CumulativeResults `wfa.measurement.internal.reporting.v3.ResultGroup.MetricSet.BasicMetricSet`,
   -- Denoised non-cumulative results for the window represented by the parent table.
   NonCumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   -- The creation time of this row.

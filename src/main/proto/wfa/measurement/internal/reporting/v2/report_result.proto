@@ -1,0 +1,83 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/type/date.proto";
+import "google/type/datetime.proto";
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+import "wfa/measurement/internal/reporting/v2/result_group.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+message ReportResult {
+  enum MetricFrequencyType {
+    METRIC_FREQUENCY_TYPE_UNSPECIFIED = 0;
+    TOTAL = 1;
+    WEEKLY = 2;
+  }
+
+  enum VennDiagramRegionType {
+    VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED = 0;
+    // Indicates that the metrics for a ReportingSet are for the
+    // union of the entailed ReportingSets
+    UNION = 1;
+    // Indicates that the metrics for a ReportingSet are for the
+    // primitive Venn diagram region entailed by sub-ReportingSets
+    PRIMITIVE = 2;
+  }  // `MeasurementConsumer` ID from the CMMS public API.
+
+  string cmms_measurement_consumer_id = 1;
+  fixed64 external_report_result_id = 2;
+  google.type.DateTime report_start = 3;
+
+  message ReportingSetResult {
+    string external_reporting_set_id = 1;
+    VennDiagramRegionType venn_diagram_region_type = 2;
+    // The name of th IQF or "custom-1" if the IQF is custom.
+    string impression_qualification_filter_name = 3;
+    MetricFrequencyType metric_frequency_type = 4;
+    // The event template dimensions the result is grouped by
+    // Each event template field path may exist at most once in this list.
+    repeated EventTemplateField groupings = 5;
+    // The filter, sans the IQF criteria, that was applied to these results.
+    EventFilter event_filter = 6;
+    int32 population_size = 7;
+
+
+    message ReportingWindowResult {
+      google.type.Date window_start_date = 1;
+      google.type.Date window_end_date = 2;
+
+      message ReportResultValues {
+        string external_report_result_value_id = 1;
+        enum ResultType {
+          RESULT_TYPE_UNSPECIFIED = 0;
+          NOISY = 1;
+          DENOISED = 2;
+        }
+        ResultType result_type = 2;
+        wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
+        wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
+      }
+    }
+    repeated ReportingWindowResult reporting_window_result = 8;
+  }
+  repeated ReportingSetResult reporting_set_result = 4;
+}
+
