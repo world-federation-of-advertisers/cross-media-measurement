@@ -369,8 +369,18 @@ proto_library(
 
 SERVICE_LIBS = [
     "basic_reports",
-    #"report_results",
+    "report_results",
 ]
+
+proto_library(
+    name = "report_results_service_proto",
+    srcs = ["report_results_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_result_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
 
 proto_library(
     name = "basic_reports_service_proto",
