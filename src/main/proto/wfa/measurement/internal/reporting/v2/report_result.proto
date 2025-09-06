@@ -58,14 +58,19 @@ message ReportResult {
     // The filter, sans the IQF criteria, that was applied to these results.
     EventFilter event_filter = 6;
     int32 population_size = 7;
-
-
+    // Represents the results for a reporting window with respect to a
+    // ReportingSetResult.
     message ReportingWindowResult {
       google.type.Date window_start_date = 1;
       google.type.Date window_end_date = 2;
-
+      // Represents result values with respect to a ReportingWindowResult.
+      //
+      // The combination of (cmms_measurement_consumer_id,
+      //                     external_report_result_id,
+      //                     external_report_result_value_id)
+      // is unique.
       message ReportResultValues {
-        string external_report_result_value_id = 1;
+        fixed64 external_report_result_value_id = 1;
         enum ResultType {
           RESULT_TYPE_UNSPECIFIED = 0;
           NOISY = 1;

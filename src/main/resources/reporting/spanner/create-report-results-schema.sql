@@ -38,6 +38,7 @@ START BATCH DDL;
 CREATE TABLE ReportResults (
   MeasurementConsumerId INT64 NOT NULL,
   ReportResultId INT64 NOT NULL,
+  CmmsMeasurementConsumerId STRING(MAX) NOT NULL,
   ExternalReportResultId INT64 NOT NULL,
   -- This is the start time of the set of results. Dates in subtables
   -- are with respect to the time defined by this timestamp. This is also
@@ -89,7 +90,7 @@ CREATE TABLE ReportingSetResults(
  -- This field is NULL if no filters were applied.
  FilterFingerprint INT64,
  -- The actual filter used
- EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
+ -- EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
  -- The population size associated with the results
  PopulationSize INT64 NOT NULL,
  -- The creation time of this row.
@@ -138,8 +139,10 @@ CREATE TABLE ReportResultValues (
   ReportingSetResultId INT64 NOT NULL,
   ReportingWindowResultId INT64 NOT NULL,
   ReportResultValueId INT64 NOT NULL,
-  -- Denoised cumulative results for the window represented by the parent table
-  CumulativeResults `wfa.measurement.internal.reporting.v3.ResultGroup.MetricSet.BasicMetricSet`,
+  -- External ID is be unique with respect to MC ID and ExternalReportResultId
+  ExternalReportResultValueId INT64 NOT NULL,
+   -- Denoised cumulative results for the window represented by the parent table
+  CumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   -- Denoised non-cumulative results for the window represented by the parent table.
   NonCumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   -- The creation time of this row.
@@ -147,6 +150,8 @@ CREATE TABLE ReportResultValues (
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId, ReportingSetResultId,
                ReportingWindowResultId, ReportResultValueId),
   INTERLEAVE IN PARENT ReportingWindowResults ON DELETE CASCADE;
+CREATE UNIQUE INDEX ReportResultValuesByKey
+    ON ReportResultValues(MeasurementConsumerId, ReportResultId, ExternalReportResultValueId);
 
 -- Contains noisy values. We do not expected this table to contain any derived metrics.
 -- Both CumulativeResults and NonCumulativeResults must not be null.
@@ -156,17 +161,21 @@ CREATE TABLE NoisyReportResultValues (
   ReportingSetResultId INT64 NOT NULL,
   ReportingWindowResultId INT64 NOT NULL,
   NoisyReportResultValueId INT64 NOT NULL,
+  -- External ID is be unique with respect to MC ID and ExternalReportResultId
+  ExternalNoisyReportResultValueId INT64 NOT NULL,
   -- Noisy cumulative results for the window represented by the parent table.
-  -- Only non-drived metrics will be present.
+  -- Only non-derived metrics will be present.
   CumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   -- Noisy non-cumulative results for the window represented by the parent table.
-  -- Only non-drived metrics will be present.
+  -- Only non-derived metrics will be present.
   NonCumulativeResults `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   -- The creation time of this row.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId, ReportingSetResultId,
                 ReportingWindowResultId, NoisyReportResultValueId),
   INTERLEAVE IN PARENT ReportingWindowResults ON DELETE CASCADE;
+CREATE UNIQUE INDEX NoisyReportResultValuesByKey
+   ON NoisyReportResultValues (MeasurementConsumerId, ReportResultId, ExternalNoisyReportResultValueId);
 
 ALTER TABLE BasicReports ADD COLUMN ReportResultId INT64;
 ALTER TABLE BasicReports ALTER COLUMN BasicReportResultDetails
