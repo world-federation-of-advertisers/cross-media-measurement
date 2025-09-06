@@ -90,7 +90,7 @@ CREATE TABLE ReportingSetResults(
  -- This field is NULL if no filters were applied.
  FilterFingerprint INT64,
  -- The actual filter used
- -- EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
+ EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
  -- The population size associated with the results
  PopulationSize INT64 NOT NULL,
  -- The creation time of this row.

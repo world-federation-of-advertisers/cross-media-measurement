@@ -34,7 +34,7 @@ service ReportResults {
   rpc BatchAddCumulativeNoisyResultValues(BatchAddNoisyResultValuesRequest) returns (google.protobuf.Empty);
   // Add a batch of denoised result to a ReportResult. This method should not need to
   // create any intermediate artifacts as noisy result values should already exist.
-  // Due to the difference we process noisy vs. denoised results, there is no method
+  // Due to the difference in how we process noisy vs. denoised results, there is no method
   // for working with cumulative and non-cumulative result values separately.
   rpc BatchAddDenoisedResults(BatchAddDenoisedResultValuesRequest) returns (google.protobuf.Empty);
   // Gets all of the noisy result values associated with a particular report result.
