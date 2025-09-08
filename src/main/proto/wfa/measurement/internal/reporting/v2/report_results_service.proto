@@ -29,27 +29,27 @@ service ReportResults {
   // already exist existing rows will be reused. This method will only add
   // non-cumulative noisy results. If non-cumulative noisy results already exist
   // for the NoisyReportResultValue indicate then an error will be thrown.
-  rpc BatchAddNonCumulativeNoisyResultValues(BatchAddNoisyResultValuesRequest) returns (google.protobuf.Empty);
-  // Same as BatchAddNonCumulativeNoisyResults but applies to cumulative results.
-  rpc BatchAddCumulativeNoisyResultValues(BatchAddNoisyResultValuesRequest) returns (google.protobuf.Empty);
+  rpc AddNonCumulativeNoisyResultValues(AddNoisyResultValuesRequest) returns (google.protobuf.Empty);
+  // Same as AddNonCumulativeNoisyResults but applies to cumulative results.
+  rpc AddCumulativeNoisyResultValues(AddNoisyResultValuesRequest) returns (google.protobuf.Empty);
   // Add a batch of denoised result to a ReportResult. This method should not need to
   // create any intermediate artifacts as noisy result values should already exist.
   // Due to the difference in how we process noisy vs. denoised results, there is no method
   // for working with cumulative and non-cumulative result values separately.
-  rpc BatchAddDenoisedResults(BatchAddDenoisedResultValuesRequest) returns (google.protobuf.Empty);
+  rpc AddDenoisedResults(AddDenoisedResultValuesRequest) returns (google.protobuf.Empty);
   // Gets all of the noisy result values associated with a particular report result.
-  rpc BatchGetNoisyResultValues(BatchGetNoisyResultValuesRequest) returns (ReportResult);
+  rpc GetNoisyResultValues(GetNoisyResultValuesRequest) returns (ReportResult);
 }
 
-message BatchAddNoisyResultValuesRequest {
+message AddNoisyResultValuesRequest {
   ReportResult report_result = 1;
 }
 
-message BatchAddDenoisedResultValuesRequest {
+message AddDenoisedResultValuesRequest {
   ReportResult report_result = 1;
 }
 
-message BatchGetNoisyResultValuesRequest {
+message GetNoisyResultValuesRequest {
   string cmms_measurement_consumer_id = 1;
   fixed64 external_report_result_id = 2;
 }

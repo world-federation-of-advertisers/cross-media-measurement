@@ -38,7 +38,6 @@ START BATCH DDL;
 CREATE TABLE ReportResults (
   MeasurementConsumerId INT64 NOT NULL,
   ReportResultId INT64 NOT NULL,
-  CmmsMeasurementConsumerId STRING(MAX) NOT NULL,
   ExternalReportResultId INT64 NOT NULL,
   -- This is the start time of the set of results. Dates in subtables
   -- are with respect to the time defined by this timestamp. This is also
@@ -46,12 +45,11 @@ CREATE TABLE ReportResults (
   ReportIntervalStartTime TIMESTAMP NOT NULL,
   -- The time that this row was created.
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-  CONSTRAINT FKey_ReportResults_MeasurementConsumers FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers (MeasurementConsumerId)
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 -- Ensure uniqueness and fast lookups of the ExternalReportResultId
 CREATE UNIQUE INDEX ReportResultsByExternalReportResultId
-    ON ReportResults (ExternalReportResultId);
+    ON ReportResults (MeasurementConsumerId, ExternalReportResultId);
 
 -- Each row of this table represents the Results for a particular ReportingSet Venn diagram
 -- region that is entailed by the Report.
@@ -66,19 +64,19 @@ CREATE TABLE ReportingSetResults(
   -- Corresponds to the ReportingSet for which the results are computed.
   -- We expect that all ReportingSets referenced here represent only unions of
   -- EventGroups.
-  ReportingSetId STRING(MAX) NOT NULL,
+  ReportingSetId STRING(63) NOT NULL,
   -- Corresponds to the enum VennDiagramRegionType in report_results.proto.
   -- The VennDiagram region type may only be PRIMITIVE when the ReportingSet was
   -- passed in by the user, or in the case of BasicReport, when it corresponds to
   -- exactly one DataProvider. ReportingSets created as a side effect of Report creation
   -- should always be type UNION.
   VennDiagramRegionType INT64 NOT NULL,
-  -- The name of ImpressionQualificationFilter for which the set of results was computed.
+  -- The ID of ImpressionQualificationFilter for which the set of results was computed.
   -- In the future this column could be nullable if we decide to make IQFs optional and/or
   -- deprecate them. We limit the use of Custom IQFs to a single filter. When the filter is
-  -- custom the value of this column will be "custom-1" to allow for the possibility that
-  -- multiple custom filters could be used in the future.
-  ImpressionQualificationFilterName STRING(MAX) NOT NULL,
+  -- custom the value of this column will be -1
+  -- If the future additional negative values could indicate more custom filters.
+  ImpressionQualificationFilterId INT64 NOT NULL,
   -- Corresponds to the MetricFrequencyType enum in report_results.proto (e.g. WEEKLY)
   MetricFrequencyType INT64 NOT NULL,
   -- The grouping dimension.
@@ -102,7 +100,7 @@ CREATE UNIQUE INDEX ReportingSetResultsByDimensions
     ON ReportingSetResults(
     MeasurementConsumerId, ReportResultId,
     ReportingSetId, VennDiagramRegionType,
-    ImpressionQualificationFilterName, MetricFrequencyType,
+    ImpressionQualificationFilterId, MetricFrequencyType,
     GroupingDimensionFingerprint, FilterFingerprint),
  INTERLEAVE IN ReportResults;
 
@@ -150,7 +148,7 @@ CREATE TABLE ReportResultValues (
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId, ReportingSetResultId,
                ReportingWindowResultId, ReportResultValueId),
   INTERLEAVE IN PARENT ReportingWindowResults ON DELETE CASCADE;
-CREATE UNIQUE INDEX ReportResultValuesByKey
+CREATE UNIQUE INDEX ReportResultValuesByExternalReportResultId
     ON ReportResultValues(MeasurementConsumerId, ReportResultId, ExternalReportResultValueId);
 
 -- Contains noisy values. We do not expected this table to contain any derived metrics.
@@ -174,7 +172,7 @@ CREATE TABLE NoisyReportResultValues (
 ) PRIMARY KEY (MeasurementConsumerId, ReportResultId, ReportingSetResultId,
                 ReportingWindowResultId, NoisyReportResultValueId),
   INTERLEAVE IN PARENT ReportingWindowResults ON DELETE CASCADE;
-CREATE UNIQUE INDEX NoisyReportResultValuesByKey
+CREATE UNIQUE INDEX NoisyReportResultValuesByExternalReportResultId
    ON NoisyReportResultValues (MeasurementConsumerId, ReportResultId, ExternalNoisyReportResultValueId);
 
 ALTER TABLE BasicReports ADD COLUMN ReportResultId INT64;
