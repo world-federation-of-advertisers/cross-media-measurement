@@ -84,6 +84,8 @@ class ReportProcessorTest {
           reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
         )
         .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results.values.first().errorMessage)
+        .contains("Cumulative measurements must be reach measurements.")
 
       val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
 

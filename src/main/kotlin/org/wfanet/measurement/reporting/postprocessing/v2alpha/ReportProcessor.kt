@@ -252,36 +252,34 @@ interface ReportProcessor {
       val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
 
       for (reportSummary in reportSummaries) {
-        var result: ReportPostProcessorResult? =
+        var result: ReportPostProcessorResult =
           try {
             processReportSummary(reportSummary, verbose)
           } catch (e: Exception) {
-            logger.warning(
-              "Report processing for " +
+            val errorMessage =
+              "Report processing for the demographic groups " +
                 "${reportSummary.demographicGroupsList.joinToString(separator = ",")} failed " +
                 "with an exception: ${e.message}"
-            )
-            null
-          }
 
-        if (result == null) {
-          foundIssues.add(ReportPostProcessorIssue.INTERNAL_ERROR)
+            logger.warning(errorMessage)
 
-          // Logs the report summary when report post processor fails.
-          result = reportPostProcessorResult {
-            preCorrectionReportSummary = reportSummary
-            status = reportPostProcessorStatus {
-              statusCode = ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR
+            // Logs the report summary when report post processor fails.
+            reportPostProcessorResult {
+              preCorrectionReportSummary = reportSummary
+              status = reportPostProcessorStatus {
+                statusCode = ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR
+              }
+              this.errorMessage = errorMessage
             }
           }
-        } else {
-          if (result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
-            val updatedMeasurements = mutableMapOf<String, Long>()
-            result.updatedMeasurementsMap.forEach { (key, value) ->
-              updatedMeasurements[key] = value
-            }
-            correctedMeasurementsMap.putAll(updatedMeasurements)
-          }
+
+        if (
+          result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND &&
+            result.status.statusCode != ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR
+        ) {
+          val updatedMeasurements = mutableMapOf<String, Long>()
+          result.updatedMeasurementsMap.forEach { (key, value) -> updatedMeasurements[key] = value }
+          correctedMeasurementsMap.putAll(updatedMeasurements)
         }
         resultMap[reportSummary.demographicGroupsList.joinToString(separator = ",")] = result
       }
@@ -291,6 +289,11 @@ interface ReportProcessor {
         // Checks for QP solver solution not found.
         if (result.status.statusCode == ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND) {
           foundIssues.add(ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND)
+        }
+
+        // Checks for internal error failure.
+        if (result.status.statusCode == ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR) {
+          foundIssues.add(ReportPostProcessorIssue.INTERNAL_ERROR)
         }
 
         // Checks for zero variance measurements quality pre-correction inconsistency.
