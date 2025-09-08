@@ -20,7 +20,9 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlin.text.trimIndent
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -172,6 +174,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRequisitionMetadata(
     set("CreateRequestId").to(createRequestId)
     set("CmmsRequisition").to(requisitionMetadata.cmmsRequisition)
     set("BlobUri").to(requisitionMetadata.blobUri)
+    set("BlobTypeUrl").to(requisitionMetadata.blobTypeUrl)
     set("GroupId").to(requisitionMetadata.groupId)
     set("CmmsCreateTime").to(requisitionMetadata.cmmsCreateTime)
     set("Report").to(requisitionMetadata.report)
@@ -261,6 +264,7 @@ private object RequisitionMetadataEntity {
         if (!struct.isNull("RefusalMessage")) {
           refusalMessage = struct.getString("RefusalMessage")
         }
+        etag = ETags.computeETag(updateTime.toInstant())
       },
       struct.getLong("RequisitionMetadataId"),
     )

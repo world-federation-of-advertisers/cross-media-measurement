@@ -27,9 +27,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCmmsRequisition
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCreateRequestId
@@ -298,10 +296,9 @@ class SpannerRequisitionMetadataService(
             requisitionMetadataResourceId,
           )
         val requisitionMetadata = requisitionMetadataResult.requisitionMetadata
-        val etag = ETags.computeETag(requisitionMetadata.updateTime.toInstant())
 
-        if (requestEtag != etag) {
-          throw EtagMismatchException(requestEtag, etag)
+        if (requestEtag != requisitionMetadata.etag) {
+          throw EtagMismatchException(requestEtag, requisitionMetadata.etag)
             .asStatusRuntimeException(Status.Code.ABORTED)
         }
         txn.updateRequisitionMetadataState(

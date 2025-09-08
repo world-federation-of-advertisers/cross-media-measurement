@@ -24,7 +24,7 @@ SET PROTO_DESCRIPTORS =
 
 START BATCH DDL;
 
-ALTER PROTO BUNDLE INSERT (
+CREATE PROTO BUNDLE (
   `wfa.measurement.internal.edpaggregator.RequisitionMetadataState`,
 );
 
