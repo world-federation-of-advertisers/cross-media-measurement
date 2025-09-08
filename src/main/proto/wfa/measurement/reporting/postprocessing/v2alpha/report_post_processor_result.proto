@@ -48,6 +48,9 @@ message ReportPostProcessorStatus {
     // OSQP solver converged to a solution, but it did not meet the required
     // tolerance.
     PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
+
+    // The process crashed or terminated unexpectedly due to an internal error.
+    INTERNAL_ERROR = 6;
   }
 
   // The final status code indicating the overall outcome of the solver stage
@@ -150,4 +153,8 @@ message ReportPostProcessorResult {
   // the corrected measurements from the 'updated_measurements' map (if a
   // solution was found).
   ReportQuality post_correction_quality = 4;
+
+  // If an unhandled exception occurred during processing, this field contains
+  // the error message.
+  string error_message = 7;
 }
