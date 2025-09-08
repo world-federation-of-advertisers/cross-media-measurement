@@ -77,8 +77,8 @@ message ReportResult {
           DENOISED = 2;
         }
         ResultType result_type = 2;
-        wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
-        wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
+        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
+        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
       }
     }
     repeated ReportingWindowResult reporting_window_result = 8;
