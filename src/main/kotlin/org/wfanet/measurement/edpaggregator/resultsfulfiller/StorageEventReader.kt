@@ -56,6 +56,11 @@ class StorageEventReader(
   private val bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
 ) : EventReader {
 
+  /** Returns the underlying blob details. */
+  fun getBlobDetails(): BlobDetails {
+    return blobDetails
+  }
+
   /**
    * Reads events from the configured blob and emits batches.
    *
@@ -78,10 +83,6 @@ class StorageEventReader(
    * 3. **Parsing**: Converts impressions to [LabeledEvent] with [DynamicMessage]
    * 4. **Batching**: Accumulates events until [batchSize] is reached
    * 5. **Emission**: Emits complete batches through the flow
-   *
-   * ## Optimization Strategies
-   * - **Streaming Processing**: Never loads entire blob into memory
-   * - **Batch Buffering**: Minimizes flow emissions for efficiency
    *
    * @param blobDetails metadata containing encryption keys and blob configuration
    * @return cold [Flow] emitting batched lists of [LabeledEvent] instances
