@@ -18,8 +18,10 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.api.gax.paging.Page
 import com.google.cloud.storage.Blob
-import com.google.cloud.storage.Storage
+import com.google.protobuf.ByteString
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.JsonFormat
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -38,14 +40,18 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataReques
 import com.google.type.interval
 import com.google.type.Interval
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.StorageClient
+import kotlin.text.Charsets.UTF_8
 
 
 class DataAvailability(
-  private val storageClient: Storage,
+  private val storageClient: StorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val impressionMetadataServiceStub: ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
@@ -61,10 +67,7 @@ class DataAvailability(
       val objectPath = path.substringAfter("/")
       val folderPrefix = objectPath.substringBeforeLast("/", "")
 
-      val impressionMetadataBlobs: Page<Blob> = storageClient.list(
-        bucket,
-        Storage.BlobListOption.prefix(if (folderPrefix.isEmpty()) "" else "$folderPrefix/")
-      )
+      val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
       // 1. Retrieve blob details from storage and build a map
       val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, objectPath, bucket)
@@ -138,24 +141,50 @@ class DataAvailability(
   }
 
   /**
-   * Builds a mapping from model line identifiers to their corresponding impression metadata entries.
+   * Reads impression metadata blobs from a given flow of storage objects and groups them by
+   * model line.
    *
-   * This function iterates through all blobs in the given [impressionMetadataBlobs] page, skipping the
-   * blob whose name exactly matches [objectPath].
-   * The resulting map groups all [ImpressionMetadata] objects by their `modelLine` field.
+   * This function iterates over each blob in [impressionMetadataBlobs], skipping the one whose
+   * blob key exactly matches [objectPath].
    *
-   * @param impressionMetadataBlobs a [Page] of GCS [Blob] objects to read and parse.
-   * @param objectPath the path of a blob to skip; any blob with this exact name is excluded from processing.
-   * @param bucket the name of the GCS bucket containing the blobs.
-   * @return a [Map] where each key is a model line identifier and each value is a [List] of
-   *         [ImpressionMetadata] objects belonging to that model line.
+   * For each blob:
+   * - Reads the full blob content into a [ByteString] via [StorageClient.Blob.read] and [flatten].
+   * - Attempts to parse the content as a binary `BlobDetails` protobuf.
+   * - If binary parsing fails with [InvalidProtocolBufferException], falls back to parsing as JSON
+   *   using [JsonFormat.parser] with `ignoringUnknownFields()`.
+   * - Constructs an [ImpressionMetadata] object using:
+   *   - `blobUri` set to the URI built from [bucket] and the blob's key
+   *   - `eventGroupReferenceId`, `modelLine`, and `interval` from the parsed `BlobDetails`
+   * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
+   *
+   * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
+   * @param objectPath the blob key to exclude from processing (e.g., a done/marker file path).
+   * @param bucket the GCS bucket name to use when constructing URIs for blobs.
+   * @return a map where each key is a `modelLine` string and each value is the list of
+   *         [ImpressionMetadata] objects associated with that model line.
+   *
+   * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
+   *         `BlobDetails`.
    */
-  fun createImpressionMetadataMap(impressionMetadataBlobs : Page<Blob>, objectPath: String, bucket: String) : Map<String, List<ImpressionMetadata>> {
+  suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, objectPath: String, bucket: String) : Map<String, List<ImpressionMetadata>> {
     val modelLines = mutableMapOf<String, MutableList<ImpressionMetadata>>()
-    for (blob in impressionMetadataBlobs.iterateAll()) {
-      if (blob.name != objectPath) {
-        val blobDetails = BlobDetails.parseFrom(blob.getContent())
-        val metadata_blob_uri = "gs://$bucket/${blob.name}"
+    impressionMetadataBlobs.collect { blob ->
+      if (blob.blobKey != objectPath) {
+
+        val bytes: ByteString = blob.read().flatten()
+
+        val blobDetails = try {
+          BlobDetails.parseFrom(bytes)
+        } catch (e: InvalidProtocolBufferException) {
+          // Fallback to JSON
+          val builder = BlobDetails.newBuilder()
+          JsonFormat.parser()
+            .ignoringUnknownFields()
+            .merge(bytes.toString(UTF_8), builder)
+          builder.build()
+        }
+
+        val metadata_blob_uri = "gs://$bucket/${blob.blobKey}"
         val impressionMetadata = impressionMetadata {
           blobUri = metadata_blob_uri
           eventGroupReferenceId = blobDetails.eventGroupReferenceId

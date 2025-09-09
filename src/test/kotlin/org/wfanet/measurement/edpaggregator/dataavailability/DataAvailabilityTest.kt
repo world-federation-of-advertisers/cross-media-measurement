@@ -27,14 +27,15 @@ import org.mockito.kotlin.mock
 import com.google.api.gax.paging.Page
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
+import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -50,12 +51,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import java.time.Clock
 import java.time.Duration
 import org.mockito.kotlin.times
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.StorageClient
+import java.io.File
+import com.google.protobuf.util.JsonFormat
+
+enum class BlobEncoding { PROTO, JSON }
 
 @RunWith(JUnit4::class)
 class DataAvailabilityTest {
 
     private val bucket = "my-bucket"
-    private val folderPrefix = "some/prefix"
+    private val folderPrefix = "some/prefix/"
 
     private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
         onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -111,12 +119,48 @@ class DataAvailabilityTest {
         addService(impressionMetadataServiceMock)
     }
 
-    @Test
-    fun `register single contiguous day for existing model line`() {
+    @get:Rule val tempFolder = TemporaryFolder()
 
-       val storageClient = mockGoogleStorage(listOf(
-           300L to 400L,
-       ))
+    @Test
+    fun `register single contiguous day for existing model line using proto message`() {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(300L to 400L)
+            )
+        }
+
+        val dataAvailability = DataAvailability(
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
+        )
+
+        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+    }
+
+    @Test
+    fun `register single contiguous day for existing model line using json message`() {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(300L to 400L),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -135,9 +179,16 @@ class DataAvailabilityTest {
     @Test
     fun `register single overlapping day for existing model line`() {
 
-        val storageClient = mockGoogleStorage(listOf(
-            250L to 400L,
-        ))
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(250L to 400L),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -156,9 +207,16 @@ class DataAvailabilityTest {
     @Test
     fun `registers a single contiguous day preceding an existing interval for an existing model line`() {
 
-        val storageClient = mockGoogleStorage(listOf(
-            50L to 100L,
-        ))
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(50L to 100L),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -177,11 +235,20 @@ class DataAvailabilityTest {
     @Test
     fun `register multiple contiguous day for existing model line`() {
 
-        val storageClient = mockGoogleStorage(listOf(
-            300L to 400L,
-            400L to 500L,
-            500L to 600L
-        ))
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(
+                    300L to 400L,
+                    400L to 500L,
+                    500L to 600L
+                ),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -200,7 +267,16 @@ class DataAvailabilityTest {
     @Test
     fun `blob details with missing interval is ignored`() {
 
-        val storageClient = mockGoogleStorage(listOf(null to null))
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(null to null),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -219,9 +295,16 @@ class DataAvailabilityTest {
     @Test
     fun `invalid single interval fails for existing model line`() {
 
-        val storageClient = mockGoogleStorage(listOf(
-            320L to 400L
-        ))
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(320L to 400L),
+                BlobEncoding.JSON
+            )
+        }
 
         val dataAvailability = DataAvailability(
             storageClient,
@@ -237,41 +320,54 @@ class DataAvailabilityTest {
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
-    fun mockGoogleStorage(intervals: List<Pair<Long?, Long?>>): Storage {
-        val mockBlobs = intervals.mapIndexed { index, (startSeconds, endSeconds) ->
-            val blobDetails = blobDetails {
+    /**
+     * Seeds a directory (prefix) with BlobDetails files, one per interval.
+     * Returns the blob keys written.
+     */
+    suspend fun seedBlobDetails(
+        storageClient: StorageClient,
+        prefix: String,
+        intervals: List<Pair<Long?, Long?>>,
+        encoding: BlobEncoding = BlobEncoding.PROTO,
+    ): List<String> {
+        require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
+
+        val written = mutableListOf<String>()
+
+        intervals.forEachIndexed { index, (startSeconds, endSeconds) ->
+            val details = blobDetails {
                 blobUri = "some_blob_uri_$index"
                 eventGroupReferenceId = "event${index + 1}"
                 modelLine = "modelLine1"
                 interval = interval {
                     if (startSeconds != null) {
-                        startTime = timestamp {
-                            seconds = startSeconds
-                            nanos = 0
-                        }
+                        startTime = timestamp { seconds = startSeconds; nanos = 0 }
                     }
                     if (endSeconds != null) {
-                        endTime = timestamp {
-                            seconds = endSeconds
-                            nanos = 0
-                        }
+                        endTime = timestamp { seconds = endSeconds; nanos = 0 }
                     }
                 }
             }
 
-            mock<Blob> {
-                on { name } doReturn "$folderPrefix/file${index + 1}"
-                on { getContent() } doReturn blobDetails.toByteArray()
+            val filename = when (encoding) {
+                BlobEncoding.PROTO -> "blob-details-$index.pb"
+                BlobEncoding.JSON  -> "blob-details-$index.json"
             }
+            val key = "$prefix$filename"
+
+            val bytes = details.serialize(encoding)
+            storageClient.writeBlob(key, bytes)
+
+            written += key
         }
 
-        val mockPage = mock<Page<Blob>> {
-            on { iterateAll() } doReturn mockBlobs
-        }
-
-        return mock {
-            on { list(eq(bucket), any<Storage.BlobListOption>()) } doReturn mockPage
-        }
+        return written
     }
+
+    private fun BlobDetails.serialize(encoding: BlobEncoding): ByteString =
+        when (encoding) {
+            BlobEncoding.PROTO -> ByteString.copyFrom(this.toByteArray())
+            BlobEncoding.JSON  -> ByteString.copyFromUtf8(JsonFormat.printer().print(this))
+        }
 
 }
