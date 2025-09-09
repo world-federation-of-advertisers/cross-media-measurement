@@ -1311,11 +1311,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.failBasicReport(
-            failBasicReportRequest {
-              externalBasicReportId = "1234"
-            }
-          )
+          service.failBasicReport(failBasicReportRequest { externalBasicReportId = "1234" })
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -1334,11 +1330,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.failBasicReport(
-            failBasicReportRequest {
-              cmmsMeasurementConsumerId = "1234"
-            }
-          )
+          service.failBasicReport(failBasicReportRequest { cmmsMeasurementConsumerId = "1234" })
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
