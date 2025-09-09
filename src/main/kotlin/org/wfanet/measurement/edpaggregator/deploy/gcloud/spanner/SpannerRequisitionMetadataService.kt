@@ -57,7 +57,6 @@ import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceG
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
-import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 
 class SpannerRequisitionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
@@ -156,7 +155,7 @@ class SpannerRequisitionMetadataService(
       throw RequiredFieldNotSetException("blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (requisitionMetadata.blobTypeUrlBytes.isEmpty()) {
+    if (requisitionMetadata.blobTypeUrl.isEmpty()) {
       throw RequiredFieldNotSetException("blob_type_url")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -293,6 +292,11 @@ class SpannerRequisitionMetadataService(
   override suspend fun refuseRequisitionMetadata(
     request: RefuseRequisitionMetadataRequest
   ): RequisitionMetadata {
+    if (request.refusalMessage.isEmpty()) {
+      throw RequiredFieldNotSetException("refusal_message")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val requisitionMetadata =
       transitionState(
         request.dataProviderResourceId,
