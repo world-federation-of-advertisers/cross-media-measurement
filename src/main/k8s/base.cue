@@ -312,6 +312,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #ConfigMapMount: Mount=#Mount & {
 	volume: configMap: name: _ | *Mount.name
 }
+#SecretMount: Mount=#Mount & {
+	volume: secret: secretName: _ | *Mount.name
+}
 
 // K8s ObjectMeta.
 #ObjectMeta: {

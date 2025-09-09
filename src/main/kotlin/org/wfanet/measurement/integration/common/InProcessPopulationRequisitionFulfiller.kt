@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
 import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -36,22 +35,19 @@ import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
-import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 
 class InProcessPopulationRequisitionFulfiller(
-  val pdpData: DataProviderData,
-  val resourceName: String,
-  private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
-  val typeRegistry: TypeRegistry,
+  private val pdpData: DataProviderData,
+  private val resourceName: String,
   private val kingdomPublicApiChannel: Channel,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
   private val daemonScope = CoroutineScope(daemonContext)
@@ -65,6 +61,10 @@ class InProcessPopulationRequisitionFulfiller(
   private val modelReleasesClient by lazy {
     ModelReleasesGrpcKt.ModelReleasesCoroutineStub(kingdomPublicApiChannel)
       .withPrincipalName(resourceName)
+  }
+
+  private val populationsClient by lazy {
+    PopulationsGrpcKt.PopulationsCoroutineStub(kingdomPublicApiChannel)
   }
 
   private val certificatesClient by lazy {
@@ -94,8 +94,8 @@ class InProcessPopulationRequisitionFulfiller(
             trustedCertificates,
             modelRolloutsClient,
             modelReleasesClient,
-            populationInfoMap,
-            typeRegistry,
+            populationsClient,
+            TestEvent.getDescriptor(),
           )
         populationRequisitionFulfiller.run()
       }
