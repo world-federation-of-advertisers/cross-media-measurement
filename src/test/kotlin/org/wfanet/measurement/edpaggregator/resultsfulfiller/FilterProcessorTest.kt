@@ -30,18 +30,15 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 
-
 @RunWith(JUnit4::class)
 class FilterProcessorTest {
 
   private val testEventDescriptor: Descriptors.Descriptor = TestEvent.getDescriptor()
 
-  /**
-   * Helper function to create a DynamicMessage for a TestEvent.
-   */
+  /** Helper function to create a DynamicMessage for a TestEvent. */
   private fun createDynamicMessage(
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
-    gender: Person.Gender = Person.Gender.MALE
+    gender: Person.Gender = Person.Gender.MALE,
   ): DynamicMessage {
     val personDescriptor = Person.getDescriptor()
     val ageGroupField = personDescriptor.findFieldByName("age_group")
@@ -57,45 +54,37 @@ class FilterProcessorTest {
         DynamicMessage.newBuilder(personDescriptor)
           .setField(ageGroupField, ageGroupValueDescriptor)
           .setField(genderField, genderValueDescriptor)
-          .build()
+          .build(),
       )
       .build()
   }
 
-  /**
-   * Helper function to create a LabeledEvent for testing.
-   */
+  /** Helper function to create a LabeledEvent for testing. */
   private fun createTestLabeledEvent(
     vid: Long,
     timestamp: Instant = Instant.now(),
     eventGroupReferenceId: String? = null,
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
-    gender: Person.Gender = Person.Gender.MALE
+    gender: Person.Gender = Person.Gender.MALE,
   ): LabeledEvent<Message> {
     val message = createDynamicMessage(ageGroup, gender)
     return LabeledEvent(
       timestamp = timestamp,
       vid = vid,
       message = message,
-      eventGroupReferenceId = eventGroupReferenceId ?: "test-group"
+      eventGroupReferenceId = eventGroupReferenceId ?: "test-group",
     )
   }
 
-  /**
-   * Helper function to create an EventBatch with proper minTime and maxTime.
-   */
-  private fun createEventBatch(
-    events: List<LabeledEvent<Message>>
-  ): EventBatch {
+  /** Helper function to create an EventBatch with proper minTime and maxTime. */
+  private fun createEventBatch(events: List<LabeledEvent<Message>>): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
     return EventBatch(events, minTime, maxTime)
   }
 
-  /**
-   * Helper function to create a default interval that covers a wide time range.
-   */
+  /** Helper function to create a default interval that covers a wide time range. */
   private fun createDefaultInterval(): Interval {
     val startTime = Instant.parse("2000-01-01T00:00:00Z")
     val endTime = Instant.parse("2050-12-31T23:59:59Z")
@@ -106,285 +95,366 @@ class FilterProcessorTest {
       .build()
   }
 
-  /**
-   * Helper function to create a FilterSpec for testing.
-   */
+  /** Helper function to create a FilterSpec for testing. */
   private fun createTestFilterSpec(
     celExpression: String = "",
     collectionInterval: Interval = createDefaultInterval(),
-    eventGroupReferenceIds: List<String> = listOf("test-group")
+    eventGroupReferenceIds: List<String> = listOf("test-group"),
   ): FilterSpec {
     return FilterSpec(
       celExpression = celExpression,
       collectionInterval = collectionInterval,
-      eventGroupReferenceIds = eventGroupReferenceIds
+      eventGroupReferenceIds = eventGroupReferenceIds,
     )
   }
 
   @Test
-  fun `processBatch filters events with CEL expression`() { runBlocking {
-    val celExpression = "person.age_group == 1" // YEARS_18_TO_34
-    val filterSpec = createTestFilterSpec(celExpression = celExpression)
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+  fun `processBatch filters events with CEL expression`() {
+    runBlocking {
+      val celExpression = "person.age_group == 1" // YEARS_18_TO_34
+      val filterSpec = createTestFilterSpec(celExpression = celExpression)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    val events = listOf(
-      createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
-      createTestLabeledEvent(vid = 2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
-      createTestLabeledEvent(vid = 3, ageGroup = Person.AgeGroup.YEARS_18_TO_34)
-    )
+      val events =
+        listOf(
+          createTestLabeledEvent(vid = 1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
+          createTestLabeledEvent(vid = 2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
+          createTestLabeledEvent(vid = 3, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
+        )
 
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-    assertThat(result.events).hasSize(2)
-    assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
-  }}
-
-  @Test
-  fun `processBatch with empty CEL expression matches all events`() { runBlocking {
-    val filterSpec = createTestFilterSpec(celExpression = "")
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
-
-    val events = listOf(
-      createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
-      createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
-      createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_55_PLUS)
-    )
-
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
-
-    assertThat(result.events).hasSize(3)
-    assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L)
-  }}
+      assertThat(result.events).hasSize(2)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
+    }
+  }
 
   @Test
-  fun `processBatch filters by time range`() { runBlocking {
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-31T23:59:59Z")
+  fun `processBatch with empty CEL expression matches all events`() {
+    runBlocking {
+      val filterSpec = createTestFilterSpec(celExpression = "")
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
+      val events =
+        listOf(
+          createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34),
+          createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_35_TO_54),
+          createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_55_PLUS),
+        )
 
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      collectionInterval = interval
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-    val events = listOf(
-      createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-31T23:59:59Z")), // Before range
-      createTestLabeledEvent(2, timestamp = Instant.parse("2025-01-15T12:00:00Z")), // Within range
-      createTestLabeledEvent(3, timestamp = Instant.parse("2025-02-01T00:00:00Z"))  // After range
-    )
-
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
-
-    // Only event 2 should match (within time range)
-    assertThat(result.events).hasSize(1)
-    assertThat(result.events[0].vid).isEqualTo(2L)
-  }}
+      assertThat(result.events).hasSize(3)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 2L, 3L)
+    }
+  }
 
   @Test
-  fun `processBatch filters by event group reference ID`() { runBlocking {
-    val targetEventGroupId = "event-group-1"
+  fun `processBatch filters by time range`() {
+    runBlocking {
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-31T23:59:59Z")
 
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      eventGroupReferenceIds = listOf(targetEventGroupId)
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
 
-    val events = listOf(
-      createTestLabeledEvent(1, eventGroupReferenceId = "event-group-1"),
-      createTestLabeledEvent(2, eventGroupReferenceId = "event-group-2"),
-      createTestLabeledEvent(3, eventGroupReferenceId = "event-group-1")
-    )
+      val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            1,
+            timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+          ), // Before range
+          createTestLabeledEvent(
+            2,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+          ), // Within range
+          createTestLabeledEvent(
+            3,
+            timestamp = Instant.parse("2025-02-01T00:00:00Z"),
+          ), // After range
+        )
 
-    assertThat(result.events).hasSize(2)
-    assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
-  }}
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-  @Test
-  fun `processBatch applies combined filters`() { runBlocking {
-    val celExpression = "person.gender == 1" // MALE
-    val targetEventGroupId = "event-group-1"
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-31T23:59:59Z")
-
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
-
-    val filterSpec = createTestFilterSpec(
-      celExpression = celExpression,
-      collectionInterval = interval,
-      eventGroupReferenceIds = listOf(targetEventGroupId)
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
-
-    val events = listOf(
-      createTestLabeledEvent(1, gender = Person.Gender.MALE, timestamp = Instant.parse("2025-01-15T12:00:00Z"), eventGroupReferenceId = "event-group-1"),
-      createTestLabeledEvent(2, gender = Person.Gender.FEMALE, timestamp = Instant.parse("2025-01-15T12:00:00Z"), eventGroupReferenceId = "event-group-1"),
-      createTestLabeledEvent(3, gender = Person.Gender.MALE, timestamp = Instant.parse("2025-01-15T12:00:00Z"), eventGroupReferenceId = "event-group-2"),
-      createTestLabeledEvent(4, gender = Person.Gender.MALE, timestamp = Instant.parse("2024-12-31T23:59:59Z"), eventGroupReferenceId = "event-group-1")
-    )
-
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
-
-    // Only event 1 should match all criteria (male, correct group, within time range)
-    assertThat(result.events).hasSize(1)
-    assertThat(result.events[0].vid).isEqualTo(1L)
-  }}
+      // Only event 2 should match (within time range)
+      assertThat(result.events).hasSize(1)
+      assertThat(result.events[0].vid).isEqualTo(2L)
+    }
+  }
 
   @Test
-  fun `processBatch with complex CEL expression`() { runBlocking {
-    val celExpression = "person.age_group == 1 && person.gender == 1" // YEARS_18_TO_34 && MALE
-    val filterSpec = createTestFilterSpec(celExpression = celExpression)
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+  fun `processBatch filters by event group reference ID`() {
+    runBlocking {
+      val targetEventGroupId = "event-group-1"
 
-    val events = listOf(
-      createTestLabeledEvent(1, ageGroup = Person.AgeGroup.YEARS_18_TO_34, gender = Person.Gender.MALE),
-      createTestLabeledEvent(2, ageGroup = Person.AgeGroup.YEARS_18_TO_34, gender = Person.Gender.FEMALE),
-      createTestLabeledEvent(3, ageGroup = Person.AgeGroup.YEARS_35_TO_54, gender = Person.Gender.MALE),
-      createTestLabeledEvent(4, ageGroup = Person.AgeGroup.YEARS_18_TO_34, gender = Person.Gender.MALE)
-    )
+      val filterSpec =
+        createTestFilterSpec(
+          celExpression = "",
+          eventGroupReferenceIds = listOf(targetEventGroupId),
+        )
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
+      val events =
+        listOf(
+          createTestLabeledEvent(1, eventGroupReferenceId = "event-group-1"),
+          createTestLabeledEvent(2, eventGroupReferenceId = "event-group-2"),
+          createTestLabeledEvent(3, eventGroupReferenceId = "event-group-1"),
+        )
 
-    assertThat(result.events).hasSize(2)
-    assertThat(result.events.map { it.vid }).containsExactly(1L, 4L)
-  }}
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-  @Test
-  fun `processBatch skips entire batch when no time overlap`() { runBlocking {
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-31T23:59:59Z")
-
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
-
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      collectionInterval = interval
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
-
-    // All events are outside the collection interval (before it starts)
-    val events = listOf(
-      createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-01T00:00:00Z")),
-      createTestLabeledEvent(2, timestamp = Instant.parse("2024-12-15T12:00:00Z")),
-      createTestLabeledEvent(3, timestamp = Instant.parse("2024-12-31T23:59:59Z"))
-    )
-
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
-
-    // Should return empty batch since no time overlap
-    assertThat(result.events).isEmpty()
-  }}
+      assertThat(result.events).hasSize(2)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
+    }
+  }
 
   @Test
-  fun `processBatch processes batch when time ranges overlap`() { runBlocking {
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-31T23:59:59Z")
+  fun `processBatch applies combined filters`() {
+    runBlocking {
+      val celExpression = "person.gender == 1" // MALE
+      val targetEventGroupId = "event-group-1"
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-31T23:59:59Z")
 
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
 
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      collectionInterval = interval
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+      val filterSpec =
+        createTestFilterSpec(
+          celExpression = celExpression,
+          collectionInterval = interval,
+          eventGroupReferenceIds = listOf(targetEventGroupId),
+        )
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    // Batch spans across filter interval (some events before, some during, some after)
-    val events = listOf(
-      createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-31T23:59:59Z")), // Before interval
-      createTestLabeledEvent(2, timestamp = Instant.parse("2025-01-15T12:00:00Z")), // Within interval
-      createTestLabeledEvent(3, timestamp = Instant.parse("2025-02-01T00:00:00Z"))  // After interval
-    )
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            1,
+            gender = Person.Gender.MALE,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            eventGroupReferenceId = "event-group-1",
+          ),
+          createTestLabeledEvent(
+            2,
+            gender = Person.Gender.FEMALE,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            eventGroupReferenceId = "event-group-1",
+          ),
+          createTestLabeledEvent(
+            3,
+            gender = Person.Gender.MALE,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+            eventGroupReferenceId = "event-group-2",
+          ),
+          createTestLabeledEvent(
+            4,
+            gender = Person.Gender.MALE,
+            timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+            eventGroupReferenceId = "event-group-1",
+          ),
+        )
 
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-    // Should process batch and filter individual events - only event 2 should match
-    assertThat(result.events).hasSize(1)
-    assertThat(result.events[0].vid).isEqualTo(2L)
-  }}
-
-  @Test
-  fun `processBatch skips batch when entirely after filter interval`() { runBlocking {
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-31T23:59:59Z")
-
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
-
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      collectionInterval = interval
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
-
-    // All events are after the collection interval
-    val events = listOf(
-      createTestLabeledEvent(1, timestamp = Instant.parse("2025-02-01T00:00:00Z")),
-      createTestLabeledEvent(2, timestamp = Instant.parse("2025-03-15T12:00:00Z")),
-      createTestLabeledEvent(3, timestamp = Instant.parse("2025-04-01T00:00:00Z"))
-    )
-
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
-
-    // Should return empty batch since no time overlap
-    assertThat(result.events).isEmpty()
-  }}
+      // Only event 1 should match all criteria (male, correct group, within time range)
+      assertThat(result.events).hasSize(1)
+      assertThat(result.events[0].vid).isEqualTo(1L)
+    }
+  }
 
   @Test
-  fun `processBatch filters events at time range boundaries`() { runBlocking {
-    val startTime = Instant.parse("2025-01-01T00:00:00Z")
-    val endTime = Instant.parse("2025-01-02T00:00:00Z")
+  fun `processBatch with complex CEL expression`() {
+    runBlocking {
+      val celExpression = "person.age_group == 1 && person.gender == 1" // YEARS_18_TO_34 && MALE
+      val filterSpec = createTestFilterSpec(celExpression = celExpression)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-    val interval = Interval.newBuilder()
-      .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
-      .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
-      .build()
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            1,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            gender = Person.Gender.MALE,
+          ),
+          createTestLabeledEvent(
+            2,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            gender = Person.Gender.FEMALE,
+          ),
+          createTestLabeledEvent(
+            3,
+            ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+            gender = Person.Gender.MALE,
+          ),
+          createTestLabeledEvent(
+            4,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            gender = Person.Gender.MALE,
+          ),
+        )
 
-    val filterSpec = createTestFilterSpec(
-      celExpression = "",
-      collectionInterval = interval
-    )
-    val filterProcessor = FilterProcessor(filterSpec, testEventDescriptor)
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
 
-    val events = listOf(
-      createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-31T23:59:59.999Z")), // Just before start
-      createTestLabeledEvent(2, timestamp = startTime), // Exactly at start (inclusive)
-      createTestLabeledEvent(3, timestamp = Instant.parse("2025-01-01T12:00:00Z")), // Within range
-      createTestLabeledEvent(4, timestamp = endTime.minusMillis(1)), // Just before end
-      createTestLabeledEvent(5, timestamp = endTime) // Exactly at end (exclusive)
-    )
+      assertThat(result.events).hasSize(2)
+      assertThat(result.events.map { it.vid }).containsExactly(1L, 4L)
+    }
+  }
 
-    val batch = createEventBatch(events)
-    val result = filterProcessor.processBatch(batch)
+  @Test
+  fun `processBatch skips entire batch when no time overlap`() {
+    runBlocking {
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-31T23:59:59Z")
 
-    // Events 2, 3, and 4 should match (start inclusive, end exclusive)
-    assertThat(result.events).hasSize(3)
-    assertThat(result.events.map { it.vid }).containsExactly(2L, 3L, 4L)
-  }}
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
+
+      val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      // All events are outside the collection interval (before it starts)
+      val events =
+        listOf(
+          createTestLabeledEvent(1, timestamp = Instant.parse("2024-12-01T00:00:00Z")),
+          createTestLabeledEvent(2, timestamp = Instant.parse("2024-12-15T12:00:00Z")),
+          createTestLabeledEvent(3, timestamp = Instant.parse("2024-12-31T23:59:59Z")),
+        )
+
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
+
+      // Should return empty batch since no time overlap
+      assertThat(result.events).isEmpty()
+    }
+  }
+
+  @Test
+  fun `processBatch processes batch when time ranges overlap`() {
+    runBlocking {
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-31T23:59:59Z")
+
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
+
+      val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      // Batch spans across filter interval (some events before, some during, some after)
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            1,
+            timestamp = Instant.parse("2024-12-31T23:59:59Z"),
+          ), // Before interval
+          createTestLabeledEvent(
+            2,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+          ), // Within interval
+          createTestLabeledEvent(
+            3,
+            timestamp = Instant.parse("2025-02-01T00:00:00Z"),
+          ), // After interval
+        )
+
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
+
+      // Should process batch and filter individual events - only event 2 should match
+      assertThat(result.events).hasSize(1)
+      assertThat(result.events[0].vid).isEqualTo(2L)
+    }
+  }
+
+  @Test
+  fun `processBatch skips batch when entirely after filter interval`() {
+    runBlocking {
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-31T23:59:59Z")
+
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
+
+      val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      // All events are after the collection interval
+      val events =
+        listOf(
+          createTestLabeledEvent(1, timestamp = Instant.parse("2025-02-01T00:00:00Z")),
+          createTestLabeledEvent(2, timestamp = Instant.parse("2025-03-15T12:00:00Z")),
+          createTestLabeledEvent(3, timestamp = Instant.parse("2025-04-01T00:00:00Z")),
+        )
+
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
+
+      // Should return empty batch since no time overlap
+      assertThat(result.events).isEmpty()
+    }
+  }
+
+  @Test
+  fun `processBatch filters events at time range boundaries`() {
+    runBlocking {
+      val startTime = Instant.parse("2025-01-01T00:00:00Z")
+      val endTime = Instant.parse("2025-01-02T00:00:00Z")
+
+      val interval =
+        Interval.newBuilder()
+          .setStartTime(Timestamps.fromMillis(startTime.toEpochMilli()))
+          .setEndTime(Timestamps.fromMillis(endTime.toEpochMilli()))
+          .build()
+
+      val filterSpec = createTestFilterSpec(celExpression = "", collectionInterval = interval)
+      val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
+
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            1,
+            timestamp = Instant.parse("2024-12-31T23:59:59.999Z"),
+          ), // Just before start
+          createTestLabeledEvent(2, timestamp = startTime), // Exactly at start (inclusive)
+          createTestLabeledEvent(
+            3,
+            timestamp = Instant.parse("2025-01-01T12:00:00Z"),
+          ), // Within range
+          createTestLabeledEvent(4, timestamp = endTime.minusMillis(1)), // Just before end
+          createTestLabeledEvent(5, timestamp = endTime), // Exactly at end (exclusive)
+        )
+
+      val batch = createEventBatch(events)
+      val result = filterProcessor.processBatch(batch)
+
+      // Events 2, 3, and 4 should match (start inclusive, end exclusive)
+      assertThat(result.events).hasSize(3)
+      assertThat(result.events.map { it.vid }).containsExactly(2L, 3L, 4L)
+    }
+  }
 }
