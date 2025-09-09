@@ -9,15 +9,36 @@ repositories owned by the WFA.
 
 ## Code Review
 
-### Pull Request Description
+### Commit Message Format
 
-The pull request (PR) description is also used to populate the commit message
-when the PR is merged. New commits should adhere to the
+The final commit message must adhere strictly to the format below. This enables
+tooling to parse commit messages.
+
+New commits must adhere to the
 [Conventional Commits](https://www.conventionalcommits.org/) specification, with
-the addendum that the breaking change indicator (`!`) must be used for any
-change that needs to be mentioned in the release notes. The first line of the
-commit message corresponds to the PR title, and the body and footers correspond
-to the PR description body.
+the following details:
+
+1.  Type definitions are as follows, adopted from the
+    [Angular Commit Message Guidelines](https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md#type)
+
+    Type         | Description
+    ------------ | -----------
+    **build**    | Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)
+    **ci**       | Changes to our CI configuration files and scripts (examples: Github Actions, SauceLabs)
+    **docs**     | Documentation only changes
+    **feat**     | A new feature
+    **fix**      | A bug fix
+    **perf**     | A code change that improves performance
+    **refactor** | A code change that neither fixes a bug nor adds a feature, i.e. has no externally visible changes
+    **test**     | Adding missing tests or correcting existing tests
+
+2.  The breaking change indicator (`!`) **must** be used for any breaking
+    change. These are changes that need to be mentioned in release notes as
+    potentially requiring action.
+
+3.  `BREAKING-CHANGE` is used instead of `BREAKING CHANGE` so that it is a valid
+    [Git trailer](https://git-scm.com/docs/git-interpret-trailers). The value of
+    the trailer is intended to be directly copied into release notes.
 
 The `description` element of the commit message should be a short summary of
 what is being done by the PR. This should be a complete imperative (written as
@@ -25,11 +46,37 @@ if it were an order) sentence. For example, "Delete the Foo method from the Bar
 service." as opposed to "Deletes the Foo method from the Bar service."
 
 The `body` and `footer(s)` elements of the commit message are optional, and
-should be used to add additional context.
+should be used to add additional context. The `footer(s)` must be formatted as
+valid Git trailers.
 
-[Example pull request:](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/1718)
+This project uses the following additional trailers:
+
+*   `Issue`
+
+    A GitHub issue associated with the PR. The trailer can be repeated for
+    multiple issues. The value should use the same
+    [short link format](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests)
+    as TODOs, *not* full URLs.
+
+    Every significant PR should be associated with at least one GitHub issue.
+    Note that this trailer is in addition to any closing keywords used in the
+    `body` element.
+
+*   `RELNOTES`
+
+    Text that is intended to be included in release notes, but isn't related to
+    a breaking change.
+
+The pull request (PR) description is used to populate the initial commit message
+when the PR is merged. As such, much of the above format applies to the PR
+description as well. The first line of the commit message corresponds to the PR
+title, and the body and footers correspond to the PR description body.
 
 ![example pull request body](dev-std-body-ex.png)
+
+Note that it is **critical** to ensure that GitHub's line wrapping behavior does
+not interfere with the parseability of the commit message. Remove any line
+wrapping that GitHub introduces into PR title and the final commit message.
 
 ### Use Reviewable
 
@@ -102,7 +149,7 @@ when it takes more than 48 hours for PRs to be merged. This is because:
 Before adding other reviewers, please:
 
 *   Ensure the PR description has adequate detail – frequently, this will
-    include a link to a related Rally task
+    include a reference to a related GitHub issue
 *   Check for typos
 *   Check for style guide violations (see the next subsection)
 *   Make sure there’s sufficient documentation

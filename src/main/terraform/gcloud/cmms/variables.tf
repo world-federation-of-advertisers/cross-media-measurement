@@ -229,3 +229,28 @@ variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
   type = string
 }
+
+variable "duchy_worker1_id" {
+  description = "ID of duchy worker 1."
+  type = string
+}
+
+variable "duchy_worker1_target" {
+  description = "Target of duchy worker 1."
+  type = string
+}
+
+variable "duchy_worker2_id" {
+  description = "ID of duchy worker 2."
+  type = string
+}
+
+variable "duchy_worker2_target" {
+  description = "Target of duchy worker 2."
+  type = string
+}
+
+variable "results_fulfiller_trusted_root_ca_collection_file_path" {
+  description = "Trusted root CA used by the Results Fulfiller."
+  type = string
+}

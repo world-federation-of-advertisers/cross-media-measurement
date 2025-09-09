@@ -358,8 +358,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.117.0/MODULE.bazel": "32b567b110f10b4b94cdafb302ee2cc08f3b2ffec287c8ea5edda3364f0338ff",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.117.0/source.json": "2ddfe03ba98a75a0cf6733155defc86d9d0b9ea61692c259ea1af907d580640c",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.119.0/MODULE.bazel": "ad7115ca341f63682bf9d2963c904744fecfec9dce028e86002400684564118b",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.119.0/source.json": "60d2499c431678d5b1d3c603964c3847c0f4fbb9bc914453595e3007ac099993",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
@@ -2506,7 +2506,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "wqFszNmqCC3h/8M7QShIbUDQp7kRIXVRZRuM17KI1jA=",
-        "usagesDigest": "grQJAxsR47/plAaR86mi3qh6JVmTm5M5zEbqTNA87qI=",
+        "usagesDigest": "Rb8/9BlXvHMGAWr4kBZqkNjQXe7LB/VIE0nDosvPOH8=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2576,7 +2576,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:b7e27d71997c35000b0097c1c2ffc58e2f00a614804e5c9eb28fa480d540bbc0",
+              "identifier": "sha256:045d4d33b19383ea3955495093083de7ef96096a58b5fbb782952f9d456e6df8",
               "platform": "linux/amd64",
               "target_name": "java_image_base_linux_amd64",
               "bazel_tags": []
@@ -2590,7 +2590,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:b7e27d71997c35000b0097c1c2ffc58e2f00a614804e5c9eb28fa480d540bbc0",
+              "identifier": "sha256:045d4d33b19383ea3955495093083de7ef96096a58b5fbb782952f9d456e6df8",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_linux_amd64"
               },
@@ -2605,7 +2605,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:3b3eed40edb1ee75d9da5363177e38eb329c5f6231e86cdc9ae0384049ea82fd",
+              "identifier": "sha256:be8ef44736f1b68e878655c1536ed646467d0517c00057a1aff5022a5aecd1cd",
               "platform": "linux/amd64",
               "target_name": "java_debug_image_base_linux_amd64",
               "bazel_tags": []
@@ -2619,7 +2619,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:3b3eed40edb1ee75d9da5363177e38eb329c5f6231e86cdc9ae0384049ea82fd",
+              "identifier": "sha256:be8ef44736f1b68e878655c1536ed646467d0517c00057a1aff5022a5aecd1cd",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_debug_image_base_linux_amd64"
               },

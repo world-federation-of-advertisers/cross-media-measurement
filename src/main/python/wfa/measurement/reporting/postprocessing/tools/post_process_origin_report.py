@@ -465,9 +465,11 @@ def main(argv):
   logging.info("Reading the report summary from stdin.")
   report_summary.ParseFromString(sys.stdin.buffer.read())
 
+  logging.info("Processing the report summary.")
   report_post_processor_result = ReportSummaryProcessor(
       report_summary).process()
 
+  logging.info("Serializing the report post processor result.")
   serialized_data = report_post_processor_result.SerializeToString()
 
   logging.info(

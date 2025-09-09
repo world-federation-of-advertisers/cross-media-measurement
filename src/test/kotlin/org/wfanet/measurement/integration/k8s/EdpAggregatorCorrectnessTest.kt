@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -42,7 +44,7 @@ import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.api.v2alpha.EventGroup as PublicApiEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -68,23 +70,63 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
+  override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (CmmsEventGroup) -> Boolean = {
+    it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
+  }
+
+  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
+    it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
+  }
+
   private class UploadEventGroup : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
-    private val eventGroupObjectMapKey = "edp7/event-groups-map/edp7-event-group.pb"
-    private val eventGroupObjectKey = "edp7/event-groups/edp7-event-group.pb"
-    private val eventGroupBlobUri = "gs://$bucket/$eventGroupObjectKey"
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
     private val storageClient = StorageOptions.getDefaultInstance().service
+
+    /** Per-eventGroupReferenceId storage config so each provider writes to its own directory. */
+    private data class EventGroupStorage(
+      val objectMapKey: String,
+      val objectKey: String,
+      val blobUri: String,
+    )
+
+    private val eventGroupStorageMap: Map<String, EventGroupStorage> =
+      mapOf(
+        GROUP_REFERENCE_ID_EDPA_EDP1 to
+          EventGroupStorage(
+            objectMapKey = "edp7/event-groups-map/edp7-event-group.pb",
+            objectKey = "edp7/event-groups/edp7-event-group.pb",
+            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.pb",
+          ),
+        GROUP_REFERENCE_ID_EDPA_EDP2 to
+          EventGroupStorage(
+            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.pb",
+            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.pb",
+            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.pb",
+          ),
+      )
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
-            deleteExistingEventGroupsMap()
-            uploadEventGroups(createEventGroups())
-            waitForEventGroupSyncToComplete()
+            deleteExistingEventGroupsMaps()
+            val allEventGroups = createEventGroups()
+            val eventGroupsByReferenceId: Map<String, List<EventGroup>> =
+              allEventGroups.groupBy { it.eventGroupReferenceId }
+
+            for ((refId, groups) in eventGroupsByReferenceId) {
+              val storage =
+                eventGroupStorageMap[refId]
+                  ?: error("Missing storage mapping for eventGroupReferenceId=$refId")
+
+              uploadEventGroups(storage, groups)
+              waitForEventGroupSyncToComplete(storage)
+              logger.info("Event Group Sync completed for $refId.")
+            }
+
             logger.info("Event Group Sync completed.")
           }
           base.evaluate()
@@ -92,25 +134,30 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private suspend fun waitForEventGroupSyncToComplete() {
+    private suspend fun waitForEventGroupSyncToComplete(storage: EventGroupStorage) {
       withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
-        while (!isEventGroupSyncDone()) {
+        while (!isEventGroupSyncDone(storage)) {
           logger.info("Waiting on Event Group Sync to complete...")
           delay(EVENT_GROUP_SYNC_POLLING_INTERVAL)
         }
       }
     }
 
-    private fun isEventGroupSyncDone(): Boolean {
-      return storageClient.get(bucket, eventGroupObjectMapKey) != null
+    private fun isEventGroupSyncDone(storage: EventGroupStorage): Boolean {
+      return storageClient.get(bucket, storage.objectMapKey) != null
     }
 
-    private fun deleteExistingEventGroupsMap() {
-      storageClient.delete(bucket, eventGroupObjectMapKey)
+    private fun deleteExistingEventGroupsMaps() {
+      eventGroupStorageMap.values.forEach { storage ->
+        storageClient.delete(bucket, storage.objectMapKey)
+      }
     }
 
-    private suspend fun uploadEventGroups(eventGroup: List<EventGroup>) {
-      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(eventGroupBlobUri)
+    private suspend fun uploadEventGroups(
+      storage: EventGroupStorage,
+      eventGroups: List<EventGroup>,
+    ) {
+      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(storage.blobUri)
       MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
@@ -118,7 +165,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             projectId = googleProjectId,
           )
         )
-        .writeBlob(eventGroupObjectKey, eventGroup.asFlow().map { it.toByteString() })
+        .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
     }
 
     private fun createEventGroups(): List<EventGroup> {
@@ -168,12 +215,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
+    private val storageClient = StorageOptions.getDefaultInstance().service
+    private val bucket = TEST_CONFIG.storageBucket
+    private val edp_requisitions_prefix = "edp7/requisitions/"
+
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
     override val mcSimulator: MeasurementConsumerSimulator
       get() = _mcSimulator
-
-    private val channels = mutableListOf<ManagedChannel>()
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -190,39 +239,55 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      val jwt = TEST_CONFIG.authIdToken
-      val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
+      // Delete existing requisitions from storage bucket
+      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
 
-      val client = HttpClient.newHttpClient()
-      val request =
-        HttpRequest.newBuilder()
-          .uri(URI.create(requisitionFetcherEndpoint))
-          .timeout(Duration.ofSeconds(120))
-          .header("Authorization", "Bearer $jwt")
-          .GET()
-          .build()
-      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+      blobs.iterateAll().forEach { blob ->
+        storageClient.delete(bucket, blob.name)
+        println("Deleted: ${blob.name}")
+      }
 
-      check(response.statusCode() == 200)
+      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
+      // `RequisitionFetcher`.
+      runBlocking {
+        withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
+          var areRequisitionsReady: Boolean
+
+          do {
+            val jwt = TEST_CONFIG.authIdToken
+            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
+
+            val client = HttpClient.newHttpClient()
+            val request =
+              HttpRequest.newBuilder()
+                .uri(URI.create(requisitionFetcherEndpoint))
+                .timeout(Duration.ofSeconds(120))
+                .header("Authorization", "Bearer $jwt")
+                .GET()
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            check(response.statusCode() == 200)
+
+            val blobCount =
+              storageClient
+                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+                .iterateAll()
+                .count()
+
+            areRequisitionsReady = blobCount > 0
+
+            if (!areRequisitionsReady) {
+              logger.info("Waiting for requisitions to appear...")
+              delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
+            } else {
+              logger.info("Requisitions written to the Storage Client")
+            }
+          } while (!areRequisitionsReady)
+        }
+      }
     }
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
-      val measurementConsumerData =
-        MeasurementConsumerData(
-          TEST_CONFIG.measurementConsumer,
-          MC_SIGNING_KEY,
-          MC_ENCRYPTION_PRIVATE_KEY,
-          TEST_CONFIG.apiAuthenticationKey,
-        )
-
-      val publicApiChannel =
-        buildMutualTlsChannel(
-            TEST_CONFIG.kingdomPublicApiTarget,
-            MEASUREMENT_CONSUMER_SIGNING_CERTS,
-            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-          )
-          .also { channels.add(it) }
-          .withDefaultDeadline(RPC_DEADLINE_DURATION)
 
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
@@ -237,7 +302,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA,
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -246,6 +310,30 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       for (channel in channels) {
         channel.shutdown()
       }
+    }
+
+    companion object {
+      private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 5
+      private const val REQUISITIONS_SYNC_POLLING_INTERVAL = 5000L
+
+      private val channels = mutableListOf<ManagedChannel>()
+
+      val publicApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.kingdomPublicApiTarget,
+            MEASUREMENT_CONSUMER_SIGNING_CERTS,
+            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+          )
+          .also { channels.add(it) }
+          .withDefaultDeadline(RPC_DEADLINE_DURATION)
+
+      val measurementConsumerData =
+        MeasurementConsumerData(
+          TEST_CONFIG.measurementConsumer,
+          MC_SIGNING_KEY,
+          MC_ENCRYPTION_PRIVATE_KEY,
+          TEST_CONFIG.apiAuthenticationKey,
+        )
     }
   }
 
@@ -272,10 +360,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-    private const val REQUIRED_EVENT_GROUP_REFERENCE_ID = "edpa-eg-reference-id-1"
-    private val EVENT_GROUP_FILTERING_LAMBDA: (PublicApiEventGroup) -> Boolean = {
-      it.eventGroupReferenceId == REQUIRED_EVENT_GROUP_REFERENCE_ID
-    }
+    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
+    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
 
     private val TEST_DATA_RUNTIME_PATH =
       org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
@@ -291,7 +377,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
-    val syntheticEventGroupMap = mapOf("edpa-eg-reference-id-1" to syntheticEventGroupSpec)
+    val syntheticEventGroupMap =
+      mapOf(
+        GROUP_REFERENCE_ID_EDPA_EDP1 to syntheticEventGroupSpec,
+        GROUP_REFERENCE_ID_EDPA_EDP2 to syntheticEventGroupSpec,
+      )
 
     private val ZONE_ID = ZoneId.of("UTC")
 

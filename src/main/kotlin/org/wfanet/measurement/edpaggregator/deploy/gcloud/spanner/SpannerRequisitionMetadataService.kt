@@ -74,11 +74,10 @@ class SpannerRequisitionMetadataService(
       if (request.requisitionMetadata.refusalMessage.isNotEmpty())
         State.REQUISITION_METADATA_STATE_REFUSED
       else State.REQUISITION_METADATA_STATE_STORED
-    var requisitionMetadataResourceId = ""
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createRequisitionMetadata"))
-    val existingRequisitionMetadata: RequisitionMetadata? =
+    val requisitionMetadata: RequisitionMetadata =
       try {
         transactionRunner.run { txn ->
           if (request.requestId.isNotEmpty()) {
@@ -99,7 +98,7 @@ class SpannerRequisitionMetadataService(
           }
 
           val requisitionMetadataId = idGenerator.generateId()
-          requisitionMetadataResourceId =
+          val requisitionMetadataResourceId =
             request.requisitionMetadata.requisitionMetadataResourceId.ifEmpty {
               externalIdToApiId(idGenerator.generateId())
             }
@@ -119,7 +118,10 @@ class SpannerRequisitionMetadataService(
             State.REQUISITION_METADATA_STATE_UNSPECIFIED,
             initialState,
           )
-          null
+          request.requisitionMetadata.copy {
+            state = initialState
+            this.requisitionMetadataResourceId = requisitionMetadataResourceId
+          }
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
@@ -127,18 +129,13 @@ class SpannerRequisitionMetadataService(
             .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         }
         throw e
-      } catch (_: NullPointerException) {
-        // transactionRunner.run doesn't support a NULL return value
-        null
       }
 
-    return if (existingRequisitionMetadata != null) {
-      existingRequisitionMetadata
+    return if (requisitionMetadata.hasCreateTime()) {
+      requisitionMetadata
     } else {
       val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      request.requisitionMetadata.copy {
-        state = initialState
-        this.requisitionMetadataResourceId = requisitionMetadataResourceId
+      requisitionMetadata.copy {
         createTime = commitTimestamp
         updateTime = commitTimestamp
         etag = ETags.computeETag(commitTimestamp.toInstant())
