@@ -350,8 +350,8 @@ class DataAvailabilityTest {
             }
 
             val filename = when (encoding) {
-                BlobEncoding.PROTO -> "blob-details-$index.pb"
-                BlobEncoding.JSON  -> "blob-details-$index.json"
+                BlobEncoding.PROTO -> "metadata-$index.pb"
+                BlobEncoding.JSON  -> "metadata-$index.json"
             }
             val key = "$prefix$filename"
 
