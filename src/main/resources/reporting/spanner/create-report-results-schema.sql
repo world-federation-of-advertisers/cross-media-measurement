@@ -64,7 +64,7 @@ CREATE TABLE ReportingSetResults(
   -- Corresponds to the ReportingSet for which the results are computed.
   -- We expect that all ReportingSets referenced here represent only unions of
   -- EventGroups.
-  ReportingSetId STRING(63) NOT NULL,
+ExternalReportingSetId STRING(63) NOT NULL,
   -- Corresponds to the enum VennDiagramRegionType in report_results.proto.
   -- The VennDiagram region type may only be PRIMITIVE when the ReportingSet was
   -- passed in by the user, or in the case of BasicReport, when it corresponds to
@@ -99,7 +99,7 @@ CREATE TABLE ReportingSetResults(
 CREATE UNIQUE INDEX ReportingSetResultsByDimensions
     ON ReportingSetResults(
     MeasurementConsumerId, ReportResultId,
-    ReportingSetId, VennDiagramRegionType,
+    ExternalReportingSetId, VennDiagramRegionType,
     ImpressionQualificationFilterId, MetricFrequencyType,
     GroupingDimensionFingerprint, FilterFingerprint),
  INTERLEAVE IN ReportResults;

@@ -37,6 +37,9 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
           ) {
             "Invalid external impression qualification filter resource ID ${impressionQualificationFilter.externalImpressionQualificationFilterId}"
           }
+          check(impressionQualificationFilter.impressionQualificationFilterId > 0) {
+            "Impression qualification filter ID must be positive. Got: ${impressionQualificationFilter.impressionQualificationFilterId}"
+          }
           add(impressionQualificationFilter)
         }
       }
