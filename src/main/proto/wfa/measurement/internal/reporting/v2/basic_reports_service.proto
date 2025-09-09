@@ -108,6 +108,8 @@ message ListBasicReportsRequest {
     //
     // Ignored if `page_token` is set.
     google.protobuf.Timestamp create_time_after = 2;
+
+    BasicReport.State state = 3;
   }
   Filter filter = 1;
   // The maximum number of basic reports to return. The service may return fewer
