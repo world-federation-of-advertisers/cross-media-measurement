@@ -522,7 +522,7 @@ class SpannerBasicReportsService(
     externalCampaignGroupId: String,
   ): String {
     val reportingSetResult: ReportingSetReader.Result =
-        getReportingSets(cmmsMeasurementConsumerId, listOf(externalCampaignGroupId)).single()
+      getReportingSets(cmmsMeasurementConsumerId, listOf(externalCampaignGroupId)).single()
 
     return reportingSetResult.reportingSet.displayName
   }
