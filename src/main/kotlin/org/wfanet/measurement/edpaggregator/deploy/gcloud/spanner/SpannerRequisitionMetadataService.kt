@@ -27,7 +27,10 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RequisitionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCmmsRequisition
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCreateRequestId
@@ -54,6 +57,7 @@ import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceG
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 
 class SpannerRequisitionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
@@ -64,73 +68,108 @@ class SpannerRequisitionMetadataService(
   override suspend fun createRequisitionMetadata(
     request: CreateRequisitionMetadataRequest
   ): RequisitionMetadata {
-    if (request.requisitionMetadata.dataProviderResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    validateRequisitionMetadata(request.requisitionMetadata)
+
+    val initialState =
+      if (request.requisitionMetadata.refusalMessage.isNotEmpty())
+        State.REQUISITION_METADATA_STATE_REFUSED
+      else State.REQUISITION_METADATA_STATE_STORED
+    var requisitionMetadataResourceId = ""
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createRequisitionMetadata"))
-    return try {
-      transactionRunner.run { txn ->
-        if (request.requestId.isNotEmpty()) {
-          try {
-            UUID.fromString(request.requestId)
-          } catch (_: IllegalArgumentException) {
-            throw InvalidFieldValueException("request_id")
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val existingRequisitionMetadata: RequisitionMetadata? =
+      try {
+        transactionRunner.run { txn ->
+          if (request.requestId.isNotEmpty()) {
+            try {
+              UUID.fromString(request.requestId)
+            } catch (_: IllegalArgumentException) {
+              throw InvalidFieldValueException("request_id")
+                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            }
+            val existing: RequisitionMetadataResult? =
+              txn.getRequisitionMetadataByCreateRequestId(
+                request.requisitionMetadata.dataProviderResourceId,
+                request.requestId,
+              )
+            if (existing != null) {
+              return@run existing.requisitionMetadata
+            }
           }
-          val existing =
-            txn.getRequisitionMetadataByCreateRequestId(
-              request.requisitionMetadata.dataProviderResourceId,
-              request.requestId,
-            )
-          if (existing != null) {
-            return@run existing.requisitionMetadata
-          }
+
+          val requisitionMetadataId = idGenerator.generateId()
+          requisitionMetadataResourceId =
+            request.requisitionMetadata.requisitionMetadataResourceId.ifEmpty {
+              externalIdToApiId(idGenerator.generateId())
+            }
+          val actionId = idGenerator.generateId()
+
+          txn.insertRequisitionMetadata(
+            requisitionMetadataId,
+            requisitionMetadataResourceId,
+            initialState,
+            request.requisitionMetadata,
+            request.requestId,
+          )
+          txn.insertRequisitionMetadataAction(
+            request.requisitionMetadata.dataProviderResourceId,
+            requisitionMetadataId,
+            actionId,
+            State.REQUISITION_METADATA_STATE_UNSPECIFIED,
+            initialState,
+          )
+          null
         }
-
-        // TODO: Avoid conflicts for requisition metadata id and resource name.
-        val requisitionMetadataId = idGenerator.generateId()
-        val requisitionMetadataResourceId =
-          request.requisitionMetadata.requisitionMetadataResourceId.ifEmpty {
-            externalIdToApiId(idGenerator.generateId())
-          }
-        val actionId = idGenerator.generateId()
-
-        val initialState =
-          if (request.requisitionMetadata.refusalMessage.isNotEmpty())
-            State.REQUISITION_METADATA_STATE_REFUSED
-          else State.REQUISITION_METADATA_STATE_STORED
-
-        txn.insertRequisitionMetadata(
-          requisitionMetadataId,
-          requisitionMetadataResourceId,
-          request.requisitionMetadata,
-          request.requestId,
-        )
-        txn.insertRequisitionMetadataAction(
-          request.requisitionMetadata.dataProviderResourceId,
-          requisitionMetadataId,
-          actionId,
-          State.REQUISITION_METADATA_STATE_UNSPECIFIED,
-          initialState,
-        )
-
-        val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-        request.requisitionMetadata.copy {
-          state = initialState
-          this.requisitionMetadataResourceId = requisitionMetadataResourceId
-          createTime = commitTimestamp
-          updateTime = commitTimestamp
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw RequisitionMetadataAlreadyExistsException(e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
         }
+        throw e
+      } catch (_: NullPointerException) {
+        // transactionRunner.run doesn't support a NULL return value
+        null
       }
-    } catch (e: SpannerException) {
-      if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-        throw RequisitionMetadataAlreadyExistsException(e)
-          .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+
+    return if (existingRequisitionMetadata != null) {
+      existingRequisitionMetadata
+    } else {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      request.requisitionMetadata.copy {
+        state = initialState
+        this.requisitionMetadataResourceId = requisitionMetadataResourceId
+        createTime = commitTimestamp
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
-      throw e
+    }
+  }
+
+  private fun validateRequisitionMetadata(requisitionMetadata: RequisitionMetadata) {
+    if (requisitionMetadata.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requisitionMetadata.cmmsRequisition.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_requisition")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requisitionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("blob_uri")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requisitionMetadata.blobTypeUrlBytes.isEmpty()) {
+      throw RequiredFieldNotSetException("blob_type_url")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requisitionMetadata.groupId.isEmpty()) {
+      throw RequiredFieldNotSetException("group_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requisitionMetadata.report.isEmpty()) {
+      throw RequiredFieldNotSetException("report")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -289,37 +328,39 @@ class SpannerRequisitionMetadataService(
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=queueRequisitionMetadata"))
     return try {
-      transactionRunner.run { txn ->
-        val requisitionMetadataResult =
-          txn.getRequisitionMetadataByResourceId(
+      val updatedRequisitionMetadata =
+        transactionRunner.run { txn ->
+          val result =
+            txn.getRequisitionMetadataByResourceId(
+              dataProviderResourceId,
+              requisitionMetadataResourceId,
+            )
+          val requisitionMetadata = result.requisitionMetadata
+
+          if (requestEtag != requisitionMetadata.etag) {
+            throw EtagMismatchException(requestEtag, requisitionMetadata.etag)
+              .asStatusRuntimeException(Status.Code.ABORTED)
+          }
+          txn.updateRequisitionMetadataState(
             dataProviderResourceId,
-            requisitionMetadataResourceId,
+            result.requisitionMetadataId,
+            nextState,
+            block,
           )
-        val requisitionMetadata = requisitionMetadataResult.requisitionMetadata
-
-        if (requestEtag != requisitionMetadata.etag) {
-          throw EtagMismatchException(requestEtag, requisitionMetadata.etag)
-            .asStatusRuntimeException(Status.Code.ABORTED)
+          txn.insertRequisitionMetadataAction(
+            dataProviderResourceId,
+            result.requisitionMetadataId,
+            idGenerator.generateId(),
+            requisitionMetadata.state,
+            nextState,
+          )
+          requisitionMetadata
         }
-        txn.updateRequisitionMetadataState(
-          dataProviderResourceId,
-          requisitionMetadataResult.requisitionMetadataId,
-          nextState,
-          block,
-        )
-        txn.insertRequisitionMetadataAction(
-          dataProviderResourceId,
-          requisitionMetadataResult.requisitionMetadataId,
-          idGenerator.generateId(),
-          requisitionMetadata.state,
-          nextState,
-        )
-
-        val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-        requisitionMetadata.copy {
-          state = nextState
-          updateTime = commitTimestamp
-        }
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      updatedRequisitionMetadata.copy {
+        state = nextState
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     } catch (e: RequisitionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)

@@ -8,7 +8,10 @@ package(
 
 kt_jvm_library(
     name = "db",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "RequisitionMetadata.kt",
+        "RequisitionMetadataActions.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:flows",
         "//src/main/kotlin/org/wfanet/measurement/common/api:etags",

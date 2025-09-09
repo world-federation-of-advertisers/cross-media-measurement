@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -164,43 +165,32 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateReques
 fun AsyncDatabaseClient.TransactionContext.insertRequisitionMetadata(
   requisitionMetadataId: Long,
   requisitionMetadataResourceId: String,
+  state: State,
   requisitionMetadata: RequisitionMetadata,
-  createRequestId: String? = null,
+  createRequestId: String,
 ) {
   bufferInsertMutation("RequisitionMetadata") {
     set("DataProviderResourceId").to(requisitionMetadata.dataProviderResourceId)
     set("RequisitionMetadataId").to(requisitionMetadataId)
     set("RequisitionMetadataResourceId").to(requisitionMetadataResourceId)
-    set("CreateRequestId").to(createRequestId)
+    if (createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(createRequestId)
+    }
     set("CmmsRequisition").to(requisitionMetadata.cmmsRequisition)
     set("BlobUri").to(requisitionMetadata.blobUri)
     set("BlobTypeUrl").to(requisitionMetadata.blobTypeUrl)
     set("GroupId").to(requisitionMetadata.groupId)
-    set("CmmsCreateTime").to(requisitionMetadata.cmmsCreateTime)
+    set("CmmsCreateTime").to(requisitionMetadata.cmmsCreateTime.toGcloudTimestamp())
     set("Report").to(requisitionMetadata.report)
-    set("State").to(requisitionMetadata.stateValue.toLong())
-    set("WorkItem").to(requisitionMetadata.workItem.ifEmpty { null })
+    set("State").to(state)
+    if (requisitionMetadata.workItem.isNotEmpty()) {
+      set("WorkItem").to(requisitionMetadata.workItem)
+    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-    set("RefusalMessage").to(requisitionMetadata.refusalMessage.ifEmpty { null })
-  }
-}
-
-/** Buffers an insert for a [RequisitionMetadataActions] row. */
-fun AsyncDatabaseClient.TransactionContext.insertRequisitionMetadataAction(
-  dataProviderResourceId: String,
-  requisitionMetadataId: Long,
-  actionId: Long,
-  previousState: State,
-  currentState: State,
-) {
-  bufferInsertMutation("RequisitionMetadataActions") {
-    set("DataProviderResourceId").to(dataProviderResourceId)
-    set("RequisitionMetadataId").to(requisitionMetadataId)
-    set("ActionId").to(actionId)
-    set("CreateTime").to(Value.COMMIT_TIMESTAMP)
-    set("PreviousState").to(previousState.number.toLong())
-    set("CurrentState").to(currentState.number.toLong())
+    if (requisitionMetadata.refusalMessage.isNotEmpty()) {
+      set("RefusalMessage").to(requisitionMetadata.refusalMessage)
+    }
   }
 }
 
@@ -232,6 +222,7 @@ private object RequisitionMetadataEntity {
     CreateRequestId,
     CmmsRequisition,
     BlobUri,
+    BlobTypeUrl,
     GroupId,
     CmmsCreateTime,
     Report,
@@ -241,6 +232,7 @@ private object RequisitionMetadataEntity {
     UpdateTime,
     RefusalMessage,
   FROM
+    RequisitionMetadata
   """
       .trimIndent()
 
