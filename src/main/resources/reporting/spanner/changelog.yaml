@@ -33,6 +33,3 @@ databaseChangeLog:
 - include:
     file: update-proto-bundle-to-fix-reporting-unit.sql
     relativeToChangeLogFile: true
-- include:
-    file: create-basic-reports-state-index.sql
-    relativeToChangeLogFile: true

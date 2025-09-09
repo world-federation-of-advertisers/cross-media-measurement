@@ -27,7 +27,6 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
@@ -190,10 +189,6 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       )
     }
 
-    if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
-      appendLine("AND State = @state")
-    }
-
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
     if (limit > 0) {
       appendLine("LIMIT @limit")
@@ -207,10 +202,6 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         bind("externalBasicReportId").to(pageToken.lastBasicReport.externalBasicReportId)
       } else if (filter.hasCreateTimeAfter()) {
         bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
-      }
-
-      if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
-        bind("state").toInt64(filter.state)
       }
 
       if (limit > 0) {
