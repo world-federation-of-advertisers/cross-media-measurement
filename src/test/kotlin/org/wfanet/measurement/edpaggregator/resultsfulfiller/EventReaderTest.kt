@@ -129,7 +129,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with paths
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = kmsClient,
@@ -182,7 +182,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with kmsClient = null to indicate unencrypted data
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = null,
@@ -217,7 +217,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with paths
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = kmsClient,

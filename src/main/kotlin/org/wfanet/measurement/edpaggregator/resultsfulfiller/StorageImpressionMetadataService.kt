@@ -33,11 +33,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 /**
  * Storage-backed [ImpressionMetadataService].
  *
- * Resolves per-day metadata paths using an [EventPathResolver], reads [BlobDetails] messages from
- * storage, and emits sources with UTC day intervals. Date expansion uses [zoneIdForDates].
+ * Resolves per-day metadata paths, reads [BlobDetails] messages from storage, and emits sources
+ * with UTC day intervals. Date expansion uses [zoneIdForDates].
  *
  * @param impressionsMetadataStorageConfig configuration for metadata storage
  * @param impressionsBlobDetailsUriPrefix the URI prefix for the metadata paths
+ * @param zoneIdForDates the zone used to determine date boundaries
  */
 class StorageImpressionMetadataService(
   private val impressionsMetadataStorageConfig: StorageConfig,
