@@ -169,7 +169,9 @@ class DataAvailability(
   suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, objectPath: String, bucket: String) : Map<String, List<ImpressionMetadata>> {
     val modelLines = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.collect { blob ->
-      if (blob.blobKey != objectPath) {
+
+      val fileName = blob.blobKey.substringAfterLast("/")
+      if (METADATA_FILE_NAME in fileName) {
 
         val bytes: ByteString = blob.read().flatten()
 
@@ -251,6 +253,7 @@ class DataAvailability(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val METADATA_FILE_NAME = "metadata"
   }
 
 }
