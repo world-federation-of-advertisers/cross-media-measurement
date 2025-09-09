@@ -60,12 +60,12 @@ service BasicReports {
   rpc ListBasicReports(ListBasicReportsRequest)
       returns (ListBasicReportsResponse);
 
-  // Sets the `BasicReport.state` field to the specified state.
+  // Transitions the `BasicReport` to the `BasicReport.State.FAILED` state.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
-  rpc SetState(SetStateRequest) returns (BasicReport);
+  rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
 }
 
 message InsertBasicReportRequest {
@@ -131,8 +131,7 @@ message ListBasicReportsResponse {
   ListBasicReportsPageToken next_page_token = 2;
 }
 
-message SetStateRequest {
+message FailBasicReportRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
-  BasicReport.State state = 3;
 }

@@ -54,6 +54,7 @@ import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
@@ -68,7 +69,6 @@ import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
-import org.wfanet.measurement.internal.reporting.v2.setStateRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)
@@ -1224,7 +1224,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     }
 
   @Test
-  fun `setState updates state to FAILED`(): Unit = runBlocking {
+  fun `failBasicReport updates state to FAILED`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1247,13 +1247,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       )
 
-    val setStateRequest = setStateRequest {
+    val failBasicReportRequest = failBasicReportRequest {
       cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
       externalBasicReportId = createdBasicReport.externalBasicReportId
-      state = BasicReport.State.FAILED
     }
 
-    val updatedBasicReport = service.setState(setStateRequest)
+    val updatedBasicReport = service.failBasicReport(failBasicReportRequest)
 
     val retrievedBasicReport =
       service.getBasicReport(
@@ -1263,12 +1262,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         }
       )
 
-    assertThat(updatedBasicReport.state).isEqualTo(setStateRequest.state)
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
     assertThat(retrievedBasicReport).isEqualTo(updatedBasicReport)
   }
 
   @Test
-  fun `setState throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
+  fun `failBasicReport throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1285,11 +1284,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.setState(
-          setStateRequest {
+        service.failBasicReport(
+          failBasicReportRequest {
             cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
             externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
-            state = BasicReport.State.FAILED
           }
         )
       }
@@ -1309,14 +1307,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `setState throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`(): Unit =
+  fun `failBasicReport throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.setState(
-            setStateRequest {
+          service.failBasicReport(
+            failBasicReportRequest {
               externalBasicReportId = "1234"
-              state = BasicReport.State.FAILED
             }
           )
         }
@@ -1333,14 +1330,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     }
 
   @Test
-  fun `setState throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit =
+  fun `failBasicReport throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.setState(
-            setStateRequest {
+          service.failBasicReport(
+            failBasicReportRequest {
               cmmsMeasurementConsumerId = "1234"
-              state = BasicReport.State.FAILED
             }
           )
         }
@@ -1355,29 +1351,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           }
         )
     }
-
-  @Test
-  fun `setState throws INVALID_ARGUMENT when state is missing`(): Unit = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.setState(
-          setStateRequest {
-            cmmsMeasurementConsumerId = "1234"
-            externalBasicReportId = "1234"
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "state"
-        }
-      )
-  }
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
