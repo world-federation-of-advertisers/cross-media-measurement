@@ -49,15 +49,20 @@ message ReportResult {
   message ReportingSetResult {
     string external_reporting_set_id = 1;
     VennDiagramRegionType venn_diagram_region_type = 2;
-    // The name of th IQF or "custom-1" if the IQF is custom.
-    string impression_qualification_filter_name = 3;
-    MetricFrequencyType metric_frequency_type = 4;
+    // Selects the IQF.
+    oneof impression_qualification_filter_select {
+      // The external ID of the IQF
+      string external_impression_qualification_filter_id = 3;
+      // Set if the filter is custom.
+      bool custom = 4;
+    }
+    MetricFrequencyType metric_frequency_type = 5;
     // The event template dimensions the result is grouped by
     // Each event template field path may exist at most once in this list.
-    repeated EventTemplateField groupings = 5;
+    repeated EventTemplateField groupings = 6;
     // The filter, sans the IQF criteria, that was applied to these results.
-    EventFilter event_filter = 6;
-    int32 population_size = 7;
+    EventFilter event_filter = 7;
+    int32 population_size = 8;
     // Represents the results for a reporting window with respect to a
     // ReportingSetResult.
     message ReportingWindowResult {
@@ -81,7 +86,7 @@ message ReportResult {
         ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
       }
     }
-    repeated ReportingWindowResult reporting_window_result = 8;
+    repeated ReportingWindowResult reporting_window_result = 9;
   }
   repeated ReportingSetResult reporting_set_result = 4;
 }
