@@ -26,7 +26,9 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 
 #PopulationRequisitionFulfiller: {
 	_config:      #PopulationRequisitionFulfillerConfig
-	_imageConfig: #ImageConfig
+	_imageConfig: #ImageConfig & {
+		repoSuffix: "data-provider/population-requisition-fulfiller"
+	}
 
 	deployment: #Deployment & {
 		_name:   "population-requisition-fulfiller"
