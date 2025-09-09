@@ -113,6 +113,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     get() = _eventGroupsOptions
 
   override fun buildEdpSimulator(
+    edpDisplayName: String,
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId:
@@ -128,6 +129,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
   ): AbstractEdpSimulator {
     return EdpSimulator(
       edpData,
+      edpDisplayName,
       measurementConsumerName,
       CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel),
       DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomPublicApiChannel),
