@@ -49,8 +49,8 @@ message ReportResult {
   message ReportingSetResult {
     string external_reporting_set_id = 1;
     VennDiagramRegionType venn_diagram_region_type = 2;
-    // Selects the IQF.
-    oneof impression_qualification_filter_select {
+    // Selects how to specify the IQF.
+    oneof impression_qualification_filter {
       // The external ID of the IQF
       string external_impression_qualification_filter_id = 3;
       // Set if the filter is custom.
