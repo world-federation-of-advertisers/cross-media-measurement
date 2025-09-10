@@ -68,9 +68,8 @@ CREATE UNIQUE INDEX ImpressionMetadataByResourceId
 
 -- Enforces uniqueness for idempotency on creation. This is a null-filtered index
 -- as CreateRequestId is optional.
-CREATE UNIQUE INDEX ImpressionMetadataByCreateRequestId
-  ON ImpressionMetadata(DataProviderResourceId, CreateRequestId)
-  WHERE CreateRequestId IS NOT NULL;
+CREATE UNIQUE NULL_FILTERED INDEX ImpressionMetadataByCreateRequestId
+  ON ImpressionMetadata(DataProviderResourceId, CreateRequestId);
 
 -- Enforces that BlobUri is unique per DataProvider. This also enables fast
 -- lookups by this key.
