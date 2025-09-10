@@ -17,8 +17,8 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.kotlin.unpack
 import com.google.type.interval
 import java.time.LocalDate
 import java.time.ZoneId
@@ -27,7 +27,6 @@ import kotlin.random.Random
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -36,18 +35,13 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 
 @RunWith(JUnit4::class)
@@ -61,7 +55,7 @@ class RequisitionSpecsTest {
     // Create TypeRegistry with the test event descriptor
     val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    val labeledImpression = labeledImpression {
+    labeledImpression {
       vid = 1
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
@@ -73,24 +67,40 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
-      flowOf(
-        labeledImpression,
-        labeledImpression.copy {
-          this.event =
-            this.event
-              .unpack(TestEvent::class.java)
-              .toBuilder()
-              .apply {
-                this.person = this.person.toBuilder().apply { gender = Person.Gender.MALE }.build()
-              }
-              .build()
-              .pack()
+    val testEvent1 = testEvent {
+      this.person = person {
+        gender = Person.Gender.FEMALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+    val testEvent2 = testEvent {
+      this.person = person {
+        gender = Person.Gender.MALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+
+    DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
+    DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent2.toByteString()).build()
+
+    val labeledImpressions =
+      listOf(
+        labeledImpression {
+          vid = 1
+          eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+          event = testEvent1.pack()
+        },
+        labeledImpression {
+          vid = 1
+          eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+          event = testEvent2.pack()
         },
       )
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }
+          .thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     val result =
@@ -113,7 +123,7 @@ class RequisitionSpecsTest {
     // Create TypeRegistry with the test event descriptor
     val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
 
-    val labeledImpression = labeledImpression {
+    labeledImpression {
       vid = 1
       eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
       event =
@@ -125,17 +135,34 @@ class RequisitionSpecsTest {
           }
           .pack()
     }
-    val impressions =
-      flowOf(
-        labeledImpression,
-        labeledImpression.copy {
+    val testEvent1 = testEvent {
+      this.person = person {
+        gender = Person.Gender.FEMALE
+        ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      }
+    }
+
+    DynamicMessage.newBuilder(testEventDescriptor).mergeFrom(testEvent1.toByteString()).build()
+
+    val labeledImpressions =
+      listOf(
+        labeledImpression {
+          vid = 1
+          eventTime = FIRST_EVENT_DATE.atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+          event = testEvent1.pack()
+        },
+        labeledImpression {
+          vid = 1
           eventTime =
             FIRST_EVENT_DATE.plusDays(1).atTime(1, 1, 1).toInstant(ZoneOffset.UTC).toProtoTime()
+          event = testEvent1.pack()
         },
       )
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
+
+    val eventReader: LegacyEventReader =
+      mock<LegacyEventReader> {
+        onBlocking { getLabeledImpressions(any(), any()) }
+          .thenReturn(flowOf(*labeledImpressions.toTypedArray()))
       }
 
     val result =
@@ -149,50 +176,6 @@ class RequisitionSpecsTest {
 
     assertThat(result.count()).isEqualTo(1)
     verifyBlocking(eventReader, times(1)) { getLabeledImpressions(any(), any()) }
-  }
-
-  fun `throws exception for invalid vid interval`() = runBlocking {
-    // Set up test environment
-    val testEventDescriptor = TestEvent.getDescriptor()
-
-    // Create TypeRegistry with the test event descriptor
-    val typeRegistry = TypeRegistry.newBuilder().add(testEventDescriptor).build()
-
-    // This event gets filters out since event interval end is at 11PM.
-    val labeledImpression = labeledImpression {
-      vid = 1
-      eventTime =
-        FIRST_EVENT_DATE.plusDays(1)
-          .atStartOfDay()
-          .minusSeconds(1)
-          .toInstant(ZoneOffset.UTC)
-          .toProtoTime()
-      event =
-        testEvent {
-            this.person = person {
-              gender = Person.Gender.FEMALE
-              ageGroup = Person.AgeGroup.YEARS_18_TO_34
-            }
-          }
-          .pack()
-    }
-    val impressions = flowOf(labeledImpression)
-    val eventReader: EventReader =
-      mock<EventReader> {
-        onBlocking { getLabeledImpressions(any(), any()) }.thenReturn(impressions)
-      }
-
-    assertThrows(IllegalArgumentException::class.java) {
-      runBlocking {
-        RequisitionSpecs.getSampledVids(
-          REQUISITION_SPEC,
-          EVENT_GROUP_MAP,
-          typeRegistry,
-          eventReader,
-          ZoneOffset.UTC,
-        )
-      }
-    }
   }
 
   companion object {

@@ -50,7 +50,7 @@ message ImpressionMetadata {
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
-  // The blob storage URI of the LabeledImpressions file.
+  // The blob storage URI of the metadata for the LabeledImpressions file.
   // This is provided by the client on creation and cannot be changed.
   string blob_uri = 2 [
     (google.api.field_behavior) = REQUIRED,

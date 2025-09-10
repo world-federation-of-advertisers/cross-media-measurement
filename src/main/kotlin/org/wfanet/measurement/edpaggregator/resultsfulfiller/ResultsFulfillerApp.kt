@@ -127,11 +127,11 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader =
-      EventReader(
+    val eventReader: LegacyEventReader =
+      LegacyEventReader(
         kmsClient = kmsClient,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
         impressionsStorageConfig = impressionsStorageConfig,
+        impressionDekStorageConfig = impressionsMetadataStorageConfig,
         labeledImpressionsDekPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
       )
