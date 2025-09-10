@@ -28,6 +28,8 @@ object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
 
   enum class Reason {
+    IMPRESSION_METADATA_NOT_FOUND,
+    IMPRESSION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -40,6 +42,7 @@ object Errors {
 
   enum class Metadata(val key: String) {
     DATA_PROVIDER_RESOURCE_ID("dataProviderResourceId"),
+    IMPRESSION_METADATA_RESOURCE_ID("impressionMetadataResourceId"),
     REQUISITION_METADATA_RESOURCE_ID("requisitionMetadataResourceId"),
     CMMS_REQUISITION("cmmsRequisition"),
     BLOB_URI("blobUri"),
@@ -103,6 +106,49 @@ sealed class ServiceException(
   }
 }
 
+class ImpressionMetadataNotFoundException(
+  dataProviderResourceId: String,
+  impressionMetadataResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+    "ImpressionMetadata with resource ID $impressionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
+    ),
+    cause,
+  )
+
+class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata already exists",
+    emptyMap(),
+    cause,
+  )
+
+class RequisitionMetadataNotFoundException
+private constructor(
+  message: String,
+  metadata: Map<Errors.Metadata, String>,
+  cause: Throwable? = null,
+) : ServiceException(Errors.Reason.REQUISITION_METADATA_NOT_FOUND, message, metadata, cause) {
+  companion object {
+    fun byResourceId(
+      dataProviderResourceId: String,
+      requisitionMetadataResourceId: String,
+      cause: Throwable? = null,
+    ): RequisitionMetadataNotFoundException =
+      RequisitionMetadataNotFoundException(
+        "RequisitionMetadata with resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+        mapOf(
+          Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+          Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
+        ),
+        cause,
+      )
 class RequisitionMetadataNotFoundException(
   dataProviderResourceId: String,
   requisitionMetadataResourceId: String,
