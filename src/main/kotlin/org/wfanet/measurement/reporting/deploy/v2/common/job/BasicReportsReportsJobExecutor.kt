@@ -28,11 +28,11 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.withTrustedPrincipalAuthentication
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as CMMSCertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as CMMSDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as CMMSMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as CMMSMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as CMMSModelLinesCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -127,11 +127,11 @@ private fun run(
         InternalMetricsCoroutineStub(channel),
         VariancesImpl,
         InternalMeasurementsCoroutineStub(channel),
-        KingdomDataProvidersCoroutineStub(kingdomChannel),
-        KingdomMeasurementsCoroutineStub(kingdomChannel),
-        KingdomCertificatesCoroutineStub(kingdomChannel),
-        KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
-        KingdomModelLinesCoroutineStub(kingdomChannel),
+        CMMSDataProvidersCoroutineStub(kingdomChannel),
+        CMMSMeasurementsCoroutineStub(kingdomChannel),
+        CMMSCertificatesCoroutineStub(kingdomChannel),
+        CMMSMeasurementConsumersCoroutineStub(kingdomChannel),
+        CMMSModelLinesCoroutineStub(kingdomChannel),
         authorization,
         InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
         SecureRandom().asKotlinRandom(),
@@ -184,12 +184,15 @@ private fun run(
     )
 
   runBlocking { basicReportsReportsJob.execute() }
-  inProcessMetricsChannel.shutdown()
-  inProcessReportsChannel.shutdown()
-  inProcessMetricsServer.shutdown()
-  inProcessReportsServer.shutdown()
-  inProcessMetricsServer.awaitTermination()
-  inProcessReportsServer.awaitTermination()
+
+  Runtime.getRuntime().addShutdownHook(Thread {
+    inProcessMetricsChannel.shutdown()
+    inProcessReportsChannel.shutdown()
+    inProcessMetricsServer.shutdown()
+    inProcessReportsServer.shutdown()
+    inProcessMetricsServer.awaitTermination()
+    inProcessReportsServer.awaitTermination()
+  })
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

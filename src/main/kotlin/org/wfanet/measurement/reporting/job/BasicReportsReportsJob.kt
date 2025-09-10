@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
+import java.util.logging.Level
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
@@ -105,18 +106,28 @@ class BasicReportsReportsJob(
                   }
                 )
 
-            if (report.state == Report.State.SUCCEEDED) {
-              // TODO(@tristanvuong2021#2607): Transform Report Results and persist in Spanner
-            } else if (report.state == Report.State.FAILED) {
-              internalBasicReportsStub.failBasicReport(
-                failBasicReportRequest {
-                  this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                  externalBasicReportId = basicReport.externalBasicReportId
-                }
-              )
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case enums cannot be null.
+            when (report.state) {
+              Report.State.SUCCEEDED -> {
+                // TODO(world-federation-of-advertisers/cross-media-measurement#2607): Transform Report Results and persist in Spanner
+              }
+              Report.State.FAILED -> {
+                internalBasicReportsStub.failBasicReport(
+                  failBasicReportRequest {
+                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                    externalBasicReportId = basicReport.externalBasicReportId
+                  }
+                )
+              }
+
+              Report.State.STATE_UNSPECIFIED,
+              Report.State.RUNNING,
+              Report.State.UNRECOGNIZED -> {
+                // Do nothing
+              }
             }
           } catch (e: Exception) {
-            logger.warning("Failed to get Report Results for BasicReports: $e")
+            logger.log(Level.WARNING, "Failed to get Report Results for BasicReports", e)
           }
         }
       }

@@ -112,6 +112,39 @@ class BasicReportsReportsJobTest {
             ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId).toName()
         }
       )
+
+    verify(basicReportsMock, times(0)).failBasicReport(any())
+
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2607): Verify transformation of Report Results and persistence in Spanner
+  }
+
+  @Test
+  fun `execute only gets report when report for basic report is RUNNING`(): Unit = runBlocking {
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(REPORT.copy { state = Report.State.RUNNING })
+    job.execute()
+
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
+      .isEqualTo(
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.REPORT_CREATED
+            }
+          pageSize = BATCH_SIZE
+        }
+      )
+
+    verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
+      .isEqualTo(
+        getReportRequest {
+          name =
+            ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, INTERNAL_BASIC_REPORT.externalReportId).toName()
+        }
+      )
+
+    verify(basicReportsMock, times(0)).failBasicReport(any())
   }
 
   @Test
