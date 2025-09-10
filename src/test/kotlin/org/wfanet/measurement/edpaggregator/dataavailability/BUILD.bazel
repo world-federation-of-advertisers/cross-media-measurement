@@ -1,11 +1,11 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "DataAvailabilityTest",
-    srcs = ["DataAvailabilityTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityTest",
+    name = "DataAvailabilitySyncTest",
+    srcs = ["DataAvailabilitySyncTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
