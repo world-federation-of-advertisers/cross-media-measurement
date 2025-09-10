@@ -29,19 +29,24 @@ jobs:
           STARTING_COMMIT: "d18f4e63a0bbc1d478a27f6e77e3cedabc6fb8f5"
         run: |
           set -euo pipefail
+
+          populate_milestone_highlights() {
+            declare -n out=$1
+            declare -r milestone=$2
+            # Assumes issue titles are single-line.
+            readarray -t highlights < <(
+              gh issue list --milestone "${milestone}" \
+                --search 'type:"Feature request" state:closed' \
+                --json number,title \
+                --jq '.[] | "\(.title). See #\(.number)"'
+            )
+          }
+
           highlights=()
           breaking_changes=()
           issues_addressed=()
           
-          # Generate highlights section
-
-          # DO_NOT_SUBMIT: use parameter for milestone
-          readarray -t highlights < <(
-            gh issue list --milestone "v0.5.25" \
-              --search 'type:"Feature request" state:closed' \
-              --json number,title \
-              --jq '.[] | "\(.title|gsub("\\n"; " ")). See #\(.number)"'
-          )          
+          populate_milestone_highlights highlights "v0.5.25"
 
           IFS=$'\n'; for pr_title in $(git log --format='%s' "${STARTING_COMMIT}..HEAD"); do 
             echo "=============="
