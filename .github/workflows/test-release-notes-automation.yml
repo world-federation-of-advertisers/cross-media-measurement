@@ -20,8 +20,95 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.x' }
+
+      - name: Fetch data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # DO_NOT_SUBMIT: sha of nightly/20250728.1
+          STARTING_COMMIT: "d18f4e63a0bbc1d478a27f6e77e3cedabc6fb8f5"
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import json
+          import subprocess
+          import sys
+
+          STARTING_COMMIT = os.getenv("STARTING_COMMIT")
+
+          def run(cmd, input_text=None):
+              return subprocess.run(
+                  cmd, check=True, text=True, stdout=subprocess.PIPE, input=input_text
+              ).stdout
+
+          def fetch_issue_data(issue_number: int) -> tuple[str, str]:
+              out = run([
+                  "gh", "api",
+                  "-H", "Accept: application/vnd.github+json",
+                  "-H", "X-GitHub-Api-Version: 2022-11-28",
+                  f"/repos/world-federation-of-advertisers/cross-media-measurement/issues/{issue_number}",
+              ])
+              data = json.loads(out)
+
+              t = data.get("type") or {}
+              issue_type = t.get("name", "_NO_TYPE_")
+              issue_title = data.get("title")
+
+              return issue_type, issue_title
+
+          # Get PR titles (subjects)
+          log_out = run(["git", "--no-pager", "log", "--format=%s", f"{STARTING_COMMIT}..HEAD"])
+          pr_titles = [line for line in log_out.splitlines() if line]
+
+          output = []
+          for pr_title in pr_titles:
+              print(f"Processing: {pr_title}")
+
+              m = re.search(r"\(#(\d+)\)$", pr_title)
+              if not m:
+                  print(f"No PR number: {pr_title}")
+                  continue
+
+              pr_number = int(m.group(1))
+
+              body_json = run(["gh", "pr", "view", str(pr_number), "--json", "body"])
+              pr_body = json.loads(body_json).get("body")
+
+              trailers_text = run(
+                  ["git", "interpret-trailers", "--trim-empty", "--parse"],
+                  input_text="\n" + pr_body,
+              )
+
+              pr_output = {}
+              pr_output["pr"] = {"id": pr_number}
+
+              for line in trailers_text.splitlines():
+                  m2 = re.match(r'^([^:]+):\s(.*)$', line)
+                  key, value = m2.group(1), m2.group(2)
+                  if key == "Issue":
+                      if re.fullmatch(r"#\d+", value):
+                          issue_number = int(value[1:])
+                          issue_type, issue_title = fetch_issue_data(issue_number)
+                          pr_output.setdefault("issues",[]).append({"id":issue_number, "type":issue_type, "title":issue_title})
+                  elif key in ("RELNOTES", "BREAKING-CHANGE"):
+                      pr_output.setdefault(key.lower().replace("-", "_"), []).append(value)
+
+              output.append(pr_output)
+              print(pr_output)
+              print(json.dumps(pr_output))
+              print(json.dumps(pr_output, indent=2))
+
+          print(json.dumps(output, indent=2))
+          json_output=json.dumps(output)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f"json={json_output}", file=f)
+          PY
+
       - name: Scan commits
         shell: bash
+        if: false
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -34,7 +121,7 @@ jobs:
             declare -n out=$1
             declare -r milestone=$2
             # Assumes issue titles are single-line.
-            readarray -t highlights < <(
+            readarray -t out < <(
               gh issue list --milestone "${milestone}" \
                 --search 'type:"Feature request" state:closed' \
                 --json number,title \
@@ -46,98 +133,103 @@ jobs:
           breaking_changes=()
           issues_addressed=()
           
+          # DO_NOT_SUBMIT: parameter for milestone
           populate_milestone_highlights highlights "v0.5.25"
 
-          IFS=$'\n'; for pr_title in $(git log --format='%s' "${STARTING_COMMIT}..HEAD"); do 
+          readarray -d '' -t pr_titles < <(git log --format='%s' "${STARTING_COMMIT}..HEAD")
+          for pr_title in "{pr_titles[@]}"; do 
             echo "=============="
             echo "Processing: $pr_title"
             echo "=============="
-            if [[ $pr_title =~ \(#([0-9]+)\)$ ]]; then 
-              pr_number="${BASH_REMATCH[1]}"
-              pr_body="$(gh pr view ${pr_number} --repo ${REPO} --json body -q .body)"
-              echo "Body:"
-              echo "${pr_body}"
+            if [[ ! $pr_title =~ \(#([0-9]+)\)$ ]]; then
+              echo "No PR number: $pr_title"
+              continue
+            fi
 
-              issue_numbers=()
-              trailers=$(printf "\n%s" "${pr_body}" | git interpret-trailers --trim-empty --parse)
+            pr_number="${BASH_REMATCH[1]}"
+            pr_body="$(gh pr view ${pr_number} --repo ${REPO} --json body -q .body)"
+            echo "Body:"
+            echo "${pr_body}"
 
-              echo "-------------------"
-              echo "Trailers:"
+            issue_numbers=()
+            trailers=$(printf "\n%s" "${pr_body}" | git interpret-trailers --trim-empty --parse)
 
-              # DO_NOT_SUBMIT: i think we don't want to do anything extra for handling cases like this (no blank line before trailers): https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2845
+            echo "-------------------"
+            echo "Trailers:"
 
-              for trailer in ${trailers}; do
-                # DO_NOT_SUBMIT: code duplication (regex) when splitting the trailers again for relnotes and breaking changes
-                if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
-                  key="${BASH_REMATCH[1]}"
-                  value="${BASH_REMATCH[2]}"
-                  echo "$key -> $value"
-                  # DO_NOT_SUBMIT: TODO: avoid values that are links instead of "#123", like in this PR https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2776
-                  if [[ ${key} == "Issue" ]] && [[ "${value}" =~ ^#[0-9]+$ ]]; then
-                    issue_numbers+=(${value#\#})
-                  fi
+            # DO_NOT_SUBMIT: i think we don't want to do anything extra for handling cases like this (no blank line before trailers): https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2845
+
+            for trailer in ${trailers}; do
+              # DO_NOT_SUBMIT: code duplication (regex) when splitting the trailers again for relnotes and breaking changes
+              if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
+                key="${BASH_REMATCH[1]}"
+                value="${BASH_REMATCH[2]}"
+                echo "$key -> $value"
+                # DO_NOT_SUBMIT: TODO: avoid values that are links instead of "#123", like in this PR https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/2776
+                if [[ ${key} == "Issue" ]] && [[ "${value}" =~ ^#[0-9]+$ ]]; then
+                  issue_numbers+=(${value#\#})
                 fi
-              done
-
-              echo "-------------------"
-              echo "Processing issues:"
-
-              # Generate issues addressed section (issues with type=bug)
-
-              # DO_NOT_SUBMIT: TODO: prevent 1 issue N PRs showing multiple times in the issues addressed section.
-              for issue_number in "${issue_numbers[@]}"; do
-                # DO_NOT_SUBMIT: only one request (title + type)?
-                issue_type=$(gh api \
-                  -H "Accept: application/vnd.github+json" \
-                  -H "X-GitHub-Api-Version: 2022-11-28" \
-                  "/repos/${REPO}/issues/${issue_number}" | jq -r '(.type // {"name": "_NO_TYPE_"}) | .name')
-                echo "Processing issue: ${issue_number}, type=${issue_type}"
-                # DO_NOT_SUBMIT: replace "_NO_TYPE_" evaluation to the name of the type "Bug"
-                if [[ "${issue_type}" == "Bug" ]]; then
-                  issue_title=$(gh issue view "${issue_number}" --json title -q .title)
-                  # DO_NOT_SUBMIT: remove PR number (used for debugging)
-                  note="${issue_title%.}. See #${issue_number}"
-                  echo "Adding note for issues addressed: ${note}"
-                  issues_addressed+=("${note}")
-                fi
-              done
-
-              # Generate breaking changes section
-
-              echo "-------------------"
-              echo "Processing relnotes and breaking changes:"
-              
-              reference=""
-              if ((${#issue_numbers[@]})); then
-                for n in "${issue_numbers[@]}"; do
-                  reference+="myIssue#${n} "
-                done
-                reference="${reference% }"
-              else
-                reference="myPR#${pr_number}"
               fi
+            done
 
-              for trailer in ${trailers}; do
-                if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
-                  key="${BASH_REMATCH[1]}"
-                  value="${BASH_REMATCH[2]}"
-                  note="${value%.}. See ${reference}"
-                  case "${key}" in
-                    RELNOTES)
-                      echo "Adding note for RELNOTES: ${note}"
-                      breaking_changes+=("[Highlight] ${note}")
-                      ;;
-                    BREAKING-CHANGE)
-                      echo "Adding note for BREAKING-CHANGE: ${note}"
-                      breaking_changes+=("[Breaking change] ${note}")
-                      ;;
-                    *)
-                      :
-                      ;;
-                  esac
-                fi
+            echo "-------------------"
+            echo "Processing issues:"
+
+            # Generate issues addressed section (issues with type=bug)
+
+            # DO_NOT_SUBMIT: TODO: prevent 1 issue N PRs showing multiple times in the issues addressed section.
+            for issue_number in "${issue_numbers[@]}"; do
+              # DO_NOT_SUBMIT: only one request (title + type)?
+              issue_type=$(gh api \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${REPO}/issues/${issue_number}" | jq -r '(.type // {"name": "_NO_TYPE_"}) | .name')
+              echo "Processing issue: ${issue_number}, type=${issue_type}"
+              # DO_NOT_SUBMIT: replace "_NO_TYPE_" evaluation to the name of the type "Bug"
+              if [[ "${issue_type}" == "Bug" ]]; then
+                issue_title=$(gh issue view "${issue_number}" --json title -q .title)
+                # DO_NOT_SUBMIT: remove PR number (used for debugging)
+                note="${issue_title%.}. See #${issue_number}"
+                echo "Adding note for issues addressed: ${note}"
+                issues_addressed+=("${note}")
+              fi
+            done
+
+            # Generate breaking changes section
+
+            echo "-------------------"
+            echo "Processing relnotes and breaking changes:"
+            
+            reference=""
+            if ((${#issue_numbers[@]})); then
+              for n in "${issue_numbers[@]}"; do
+                reference+="myIssue#${n} "
               done
-            fi 
+              reference="${reference% }"
+            else
+              reference="myPR#${pr_number}"
+            fi
+
+            for trailer in ${trailers}; do
+              if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
+                key="${BASH_REMATCH[1]}"
+                value="${BASH_REMATCH[2]}"
+                note="${value%.}. See ${reference}"
+                case "${key}" in
+                  RELNOTES)
+                    echo "Adding note for RELNOTES: ${note}"
+                    breaking_changes+=("[Highlight] ${note}")
+                    ;;
+                  BREAKING-CHANGE)
+                    echo "Adding note for BREAKING-CHANGE: ${note}"
+                    breaking_changes+=("[Breaking change] ${note}")
+                    ;;
+                  *)
+                    :
+                    ;;
+                esac
+              fi
+            done
           done
 
           echo "========== SUMMARY =========="
