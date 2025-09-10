@@ -91,7 +91,7 @@ jobs:
                 if [[ "${issue_type}" == "Bug" ]]; then
                   issue_title=$(gh issue view "${issue_number}" --json title -q .title)
                   # DO_NOT_SUBMIT: remove PR number (used for debugging)
-                  note="${issue_title}. See #${issue_number}"
+                  note="${issue_title%.}. See #${issue_number}"
                   echo "Adding note for issues addressed: ${note}"
                   issues_addressed+=("${note}")
                 fi
@@ -116,7 +116,7 @@ jobs:
                 if [[ "${trailer}" =~ ^([^:]+):[[:space:]](.*)$ ]]; then
                   key="${BASH_REMATCH[1]}"
                   value="${BASH_REMATCH[2]}"
-                  note="${value} See ${reference}"
+                  note="${value%.}. See ${reference}"
                   case "${key}" in
                     RELNOTES)
                       echo "Adding note for RELNOTES: ${note}"
