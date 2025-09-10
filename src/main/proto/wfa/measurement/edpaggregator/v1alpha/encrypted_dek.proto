@@ -35,4 +35,13 @@ message EncryptedDek {
 
   // The encrypted data encryption key
   bytes encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The format of `encrypted_dek`.
+  enum Format {
+    FORMAT_UNSPECIFIED = 0;
+    RAW_BYTES = 1;
+    BASE64_ENCODED = 2;
+  }
+  Format format = 3 [(google.api.field_behavior) = REQUIRED];
+
 }
