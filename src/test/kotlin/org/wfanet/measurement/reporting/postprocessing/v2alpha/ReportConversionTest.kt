@@ -220,7 +220,7 @@ class ReportConversionTest {
         cummulativeCustomEdp1Edp2MeasurementDetail,
       )
     assertThat(reportSummary[0].demographicGroupsList)
-      .isEqualTo(listOf("FEMALE_YEARS_35_TO_54", "MALE_YEARS_35_TO_54"))
+      .isEqualTo(listOf("FEMALE_AGE_GROUP2", "MALE_AGE_GROUP2"))
     assertThat(reportSummary[0].population).isEqualTo(159377L)
   }
 
@@ -558,7 +558,7 @@ class ReportConversionTest {
           metric = "measurementConsumers/TjyUnormbAg/metrics/difference/unique_reach_edp3"
         }
       }
-      demographicGroups += "FEMALE_YEARS_35_TO_54"
+      demographicGroups += "FEMALE_AGE_GROUP2"
       population = 0
     }
     assertThat(reportSummary).hasSize(1)
@@ -819,7 +819,7 @@ class ReportConversionTest {
           metric = "measurementConsumers/fLhOpt2Z4x8/metrics/aff225199-571a-4e16-b33d-a71cbbff8a70"
         }
       }
-      demographicGroups += "MALE_YEARS_35_TO_54"
+      demographicGroups += "MALE_AGE_GROUP2"
       population = 75427
     }
     assertThat(reportSummaries).contains(expectedReportSummary12)

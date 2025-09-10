@@ -74,6 +74,64 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "labeled_event",
+    srcs = ["LabeledEvent.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_batch",
+    srcs = ["EventBatch.kt"],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_source",
+    srcs = ["EventSource.kt"],
+    deps = [
+        ":event_batch",
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_event_source",
+    srcs = ["StorageEventSource.kt"],
+    deps = [
+        ":event_batch",
+        ":event_reader",
+        ":event_source",
+        ":impression_metadata_service",
+        ":labeled_event",
+        ":storage_event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "filter_spec",
+    srcs = ["FilterSpec.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "vid_filter",
     srcs = ["VidFilter.kt"],
     deps = [
@@ -85,8 +143,109 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "frequency_vector",
+    srcs = [
+        "StripedByteFrequencyVector.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "filter_processor",
+    srcs = ["FilterProcessor.kt"],
+    deps = [
+        ":event_batch",
+        ":event_source",
+        ":filter_spec",
+        ":labeled_event",
+        "//imports/java/org/projectnessie/cel",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_processing_pipeline",
+    srcs = ["EventProcessingPipeline.kt"],
+    deps = [
+        ":event_source",
+        ":filter_spec",
+        ":frequency_vector",
+        ":frequency_vector_sink",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "parallel_batched_pipeline",
+    srcs = ["ParallelBatchedPipeline.kt"],
+    deps = [
+        ":event_batch",
+        ":event_processing_pipeline",
+        ":filter_processor",
+        ":filter_spec",
+        ":frequency_vector",
+        ":frequency_vector_sink",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "event_reader",
     srcs = ["EventReader.kt"],
+    deps = [
+        ":labeled_event",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "storage_event_reader",
+    srcs = ["StorageEventReader.kt"],
+    deps = [
+        ":event_reader",
+        ":impression_read_exception",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "impression_metadata_service",
+    srcs = [
+        "ImpressionMetadataService.kt",
+        "StorageImpressionMetadataService.kt",
+    ],
+    deps = [
+        ":impression_read_exception",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+kt_jvm_library(
+    name = "legacy_event_reader",
+    srcs = ["LegacyEventReader.kt"],
     deps = [
         ":impression_read_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:encrypted_storage",
@@ -94,8 +253,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
@@ -104,7 +262,7 @@ kt_jvm_library(
     name = "model_line_info",
     srcs = ["ModelLineInfo.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
 )
@@ -114,6 +272,7 @@ kt_jvm_library(
     srcs = ["ResultsFulfillerApp.kt"],
     deps = [
         ":continuous_gaussian_noiser_selector",
+        ":legacy_event_reader",
         ":no_noiser_selector",
         ":requisition_stub_factory",
         ":results_fulfiller",
@@ -160,9 +319,24 @@ kt_jvm_library(
     srcs = ["RequisitionSpecs.kt"],
     deps = [
         ":event_reader",
+        ":legacy_event_reader",
         ":vid_filter",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "frequency_vector_sink",
+    srcs = ["FrequencyVectorSink.kt"],
+    deps = [
+        ":event_batch",
+        ":filter_processor",
+        ":filter_spec",
+        ":frequency_vector",
+        ":labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 
@@ -174,8 +348,9 @@ kt_jvm_library(
         ":results_fulfiller_app",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
-        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:tee_app_config",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/kms:gcp_kms_client_factory",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:google_pub_sub_client",
@@ -196,6 +371,9 @@ java_image(
     name = "results_fulfiller_image",
     base = "@java_image_base_root",
     binary = ":ResultsFulfiller",
+    labels = {
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET",
+    },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
 )
