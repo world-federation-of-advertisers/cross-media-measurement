@@ -185,14 +185,17 @@ private fun run(
 
   runBlocking { basicReportsReportsJob.execute() }
 
-  Runtime.getRuntime().addShutdownHook(Thread {
-    inProcessMetricsChannel.shutdown()
-    inProcessReportsChannel.shutdown()
-    inProcessMetricsServer.shutdown()
-    inProcessReportsServer.shutdown()
-    inProcessMetricsServer.awaitTermination()
-    inProcessReportsServer.awaitTermination()
-  })
+  Runtime.getRuntime()
+    .addShutdownHook(
+      Thread {
+        inProcessMetricsChannel.shutdown()
+        inProcessReportsChannel.shutdown()
+        inProcessMetricsServer.shutdown()
+        inProcessReportsServer.shutdown()
+        inProcessMetricsServer.awaitTermination()
+        inProcessReportsServer.awaitTermination()
+      }
+    )
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
