@@ -14,13 +14,14 @@
 
 package k8s
 
-_pdpName:     string @tag("pdp_name")
-_pdpCertName: string @tag("pdp_cert_name")
+_pdpName:             string @tag("pdp_name")
+_pdpCertName:         string @tag("pdp_cert_name")
+_eventMessageTypeUrl: string @tag("event_message_type_url")
 
 _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 	dataProviderResourceName:     _pdpName
 	dataProviderCertResourceName: _pdpCertName
-	eventMessageTypeUrl:          "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+	eventMessageTypeUrl:          _eventMessageTypeUrl
 }
 
 objectSets: [

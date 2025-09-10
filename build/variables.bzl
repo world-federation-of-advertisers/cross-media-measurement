@@ -114,6 +114,13 @@ REPORTING_K8S_SETTINGS = struct(
     basic_reports_enabled = "$(basic_reports_enabled)",
 )
 
+# Settings for Population DataProvider Kubernetes objects.
+PDP_K8S_SETTINGS = struct(
+    pdp_name = "$(pdp_name)",
+    pdp_cert_name = "$(pdp_cert_name)",
+    event_message_type_url = "$(event_message_type_url)",
+)
+
 # Settings for simulator Kubernetes deployments.
 SIMULATOR_K8S_SETTINGS = struct(
     mc_name = "$(mc_name)",
