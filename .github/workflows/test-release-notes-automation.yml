@@ -87,8 +87,17 @@ jobs:
                 fi
               done
 
-  
-              # Generate hightlights and breaking changes sections
+              # Generate highlights section
+
+              # DO_NOT_SUBMIT: use parameter for milestone
+              readarray -t highlights < <(
+                gh issue list --milestone "v0.5.25" \
+                  --search 'type:"Feature request" state:closed' \
+                  --json number,title \
+                  --jq '.[] | "\(.title|gsub("\\n"; " ")). See #\(.number)"'
+              )
+
+              # Generate breaking changes section
 
               echo "-------------------"
               echo "Processing relnotes and breaking changes:"
@@ -110,12 +119,12 @@ jobs:
                   note="${value} See ${reference}"
                   case "${key}" in
                     RELNOTES)
-                      echo "Adding note for highlight: ${note}"
+                      echo "Adding note from RELNOTES: ${note}"
                       highlights+=("${note}")
                       ;;
                     BREAKING-CHANGE)
-                      echo "Adding note for breaking change: ${note}"
-                      breaking_changes+=("${note}")
+                      echo "Adding note from BREAKING-CHANGE: ${note}"
+                      breaking_changes+=("[Breaking change] ${note}")
                       ;;
                     *)
                       :
