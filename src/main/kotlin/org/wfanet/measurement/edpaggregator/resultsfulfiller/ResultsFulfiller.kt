@@ -82,7 +82,7 @@ class ResultsFulfiller(
 ) {
 
   suspend fun fulfillRequisitions() {
-    logger.info("fulfilling requisitions...")
+    logger.info("Fulfilling requisitions... ")
     val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
