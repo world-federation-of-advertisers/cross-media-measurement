@@ -33,6 +33,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.CreateBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.FailBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.GetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.InsertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
@@ -57,6 +58,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicR
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementConsumerExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToFailed
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalReportId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setState
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
@@ -343,7 +345,7 @@ class SpannerBasicReportsService(
     }
   }
 
-  override suspend fun setState(request: SetStateRequest): BasicReport {
+  override suspend fun failBasicReport(request: FailBasicReportRequest): BasicReport {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -351,11 +353,6 @@ class SpannerBasicReportsService(
 
     if (request.externalBasicReportId.isEmpty()) {
       throw RequiredFieldNotSetException("external_basic_report_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    if (request.state == BasicReport.State.STATE_UNSPECIFIED) {
-      throw RequiredFieldNotSetException("state")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -369,7 +366,7 @@ class SpannerBasicReportsService(
               cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
               externalBasicReportId = request.externalBasicReportId,
             )
-            .also { txn.setState(it.measurementConsumerId, it.basicReportId, request.state) }
+            .also { txn.setBasicReportStateToFailed(it.measurementConsumerId, it.basicReportId) }
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -381,7 +378,7 @@ class SpannerBasicReportsService(
           request.cmmsMeasurementConsumerId,
           basicReportResult.basicReport.externalCampaignGroupId,
         )
-      state = request.state
+      state = BasicReport.State.FAILED
     }
   }
 
@@ -527,11 +524,7 @@ class SpannerBasicReportsService(
     externalCampaignGroupId: String,
   ): String {
     val reportingSetResult: ReportingSetReader.Result =
-      try {
-        getReportingSets(cmmsMeasurementConsumerId, listOf(externalCampaignGroupId)).first()
-      } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.INTERNAL)
-      }
+      getReportingSets(cmmsMeasurementConsumerId, listOf(externalCampaignGroupId)).single()
 
     return reportingSetResult.reportingSet.displayName
   }
