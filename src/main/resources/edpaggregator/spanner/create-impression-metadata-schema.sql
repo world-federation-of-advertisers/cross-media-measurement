@@ -20,7 +20,7 @@
 
 -- Set protobuf FileDescriptorSet as a base64 string.
 SET PROTO_DESCRIPTORS =
-'Ct0CCkZ3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9pbXByZXNzaW9uX21ldGFkYXRhX3N0YXRlLnByb3RvEiZ3ZmEubWVhc3VyZW1lbnQuaW50ZXJuYWwuZWRwYWdncmVnYXRvciqRAQoXSW1wcmVzc2lvbk1ldGFkYXRhU3RhdGUSKQolSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiQKIElNUFJFU1NJT05fTUVUQURBVEFfU1RBVEVfQUNUSVZFEAESJQohSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9ERUxFVEVEEAJCTwotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQhxJbXByZXNzaW9uTWV0YWRhdGFTdGF0ZVByb3RvUAFiBnByb3RvMw=='
+'Ct0CCkZ3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9pbXByZXNzaW9uX21ldGFkYXRhX3N0YXRlLnByb3RvEiZ3ZmEubWVhc3VyZW1lbnQuaW50ZXJuYWwuZWRwYWdncmVnYXRvciqRAQoXSW1wcmVzc2lvbk1ldGFkYXRhU3RhdGUSKQolSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiQKIElNUFJFU1NJT05fTUVUQURBVEFfU1RBVEVfQUNUSVZFEAESJQohSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9ERUxFVEVEEAJCTwotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQhxJbXByZXNzaW9uTWV0YWRhdGFTdGF0ZVByb3RvUAFiBnByb3RvMw==';
 
 START BATCH DDL;
 
@@ -77,13 +77,17 @@ CREATE UNIQUE INDEX ImpressionMetadataByCreateRequestId
 CREATE UNIQUE INDEX ImpressionMetadataByBlobUri
   ON ImpressionMetadata(DataProviderResourceId, BlobUri);
 
--- Index for looking up by CMMS ModelLine.
-CREATE INDEX ImpressionMetadataByCmmsModelLine
-  ON ImpressionMetadata(DataProviderResourceId, CmmsModelLine);
-
--- Index for looking up by Interval.
-CREATE INDEX ImpressionMetadataByInterval
-  ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataIndexShardId, IntervalStartTime, IntervalEndTime);
+-- Index for the primary query pattern: finding impressions for a specific model
+-- line and event group that overlap with a given time interval.
+CREATE INDEX ImpressionMetadataByModelLineAndEventGroupAndInterval
+  ON ImpressionMetadata(
+    DataProviderResourceId,
+    CmmsModelLine,
+    EventGroupReferenceId,
+    ImpressionMetadataIndexShardId,
+    IntervalStartTime,
+    IntervalEndTime
+  );
 
 -- Index for listing by state for a single DataProvider.
 CREATE INDEX ImpressionMetadataByState
