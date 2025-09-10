@@ -15,14 +15,11 @@
 package org.wfanet.measurement.dataprovider
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -30,8 +27,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 // This suite of tests only tests the methods that take in flows as the vids parameter. The methods
 // take in iterable types as the vids parameter are inherently tested because they call the methods
@@ -262,28 +257,13 @@ class MeasurementResultsTest {
   fun `computePopulation returns correct population value`() = runBlocking {
     val eventMessageDescriptor = TestEvent.getDescriptor()
     val filterExpression = "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
-    val operativeFields =
-      eventMessageDescriptor.fields
-        .flatMap { templateField ->
-          templateField.messageType.fields.map { templateFieldDescriptor ->
-            if (
-              templateFieldDescriptor.options
-                .getExtension(EventAnnotationsProto.templateField)
-                .populationAttribute
-            ) {
-              "${templateField.name}.${templateFieldDescriptor.name}"
-            } else null
-          }
-        }
-        .filterNotNull()
-        .toSet()
 
-    val typeRegistry = TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
-
-    val program: Program =
-      EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFields)
-
-    val result = MeasurementResults.computePopulation(POPULATION_INFO, program, typeRegistry)
+    val result =
+      MeasurementResults.computePopulation(
+        POPULATION_SPEC,
+        filterExpression,
+        eventMessageDescriptor,
+      )
 
     // Result should be the size of VID_RANGE_1
     assertThat(result).isEqualTo(100)
@@ -330,6 +310,5 @@ class MeasurementResultsTest {
     private val POPULATION_SPEC = populationSpec {
       subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2)
     }
-    private val POPULATION_INFO = PopulationInfo(POPULATION_SPEC, TestEvent.getDescriptor())
   }
 }

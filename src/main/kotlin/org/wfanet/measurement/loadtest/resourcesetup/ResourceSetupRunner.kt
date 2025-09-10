@@ -64,18 +64,12 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
   val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
 
-  // Makes sure the three maps contain the same set of EDPs.
-  require(
-    flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
-  )
   val dataProviderContents =
-    flags.edpCsCertDerFiles.map {
+    flags.dataProviderParams.map {
       EntityContent(
-        displayName = it.key,
-        signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
-        encryptionPublicKey =
-          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
+        displayName = it.displayName,
+        signingKey = loadSigningKey(it.consentSignalingCertFile, it.consentSignalingKeyFile),
+        encryptionPublicKey = loadPublicKey(it.encryptionPublicKeysetFile).toEncryptionPublicKey(),
       )
     }
   val measurementConsumerContent =
