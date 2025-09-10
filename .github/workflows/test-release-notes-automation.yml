@@ -91,7 +91,7 @@ jobs:
                 if [[ "${issue_type}" == "Bug" ]]; then
                   issue_title=$(gh issue view "${issue_number}" --json title -q .title)
                   # DO_NOT_SUBMIT: remove PR number (used for debugging)
-                  note="${issue_title}. See #${issue_number} myPR#${pr_number}"
+                  note="${issue_title}. See #${issue_number}"
                   echo "Adding note for issues addressed: ${note}"
                   issues_addressed+=("${note}")
                 fi
@@ -119,8 +119,8 @@ jobs:
                   note="${value} See ${reference}"
                   case "${key}" in
                     RELNOTES)
-                      echo "[Highlight] Adding note for RELNOTES: ${note}"
-                      breaking_changes+=("${note}")
+                      echo "Adding note for RELNOTES: ${note}"
+                      breaking_changes+=("[Highlight] ${note}")
                       ;;
                     BREAKING-CHANGE)
                       echo "Adding note for BREAKING-CHANGE: ${note}"
@@ -153,5 +153,6 @@ jobs:
           render_bullets breaking_changes
           echo
           echo "Issues addressed"
-          render_bullets issues_addressed
+          readarray -t unique_issues_addressed < <(printf "%s\n" "${issues_addressed[@]}" | sort -u)
+          render_bullets unique_issues_addressed
           
