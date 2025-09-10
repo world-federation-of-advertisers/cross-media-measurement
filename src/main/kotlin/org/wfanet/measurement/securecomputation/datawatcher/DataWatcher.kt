@@ -59,7 +59,7 @@ class DataWatcher(
               sendToControlPlane(config, path)
             }
             WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK -> {
-              sendToHttpEndpoint(config)
+              sendToHttpEndpoint(config, path)
             }
             WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
               error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
@@ -93,7 +93,7 @@ class DataWatcher(
     workItemsStub.createWorkItem(request)
   }
 
-  private fun sendToHttpEndpoint(config: WatchedPath) {
+  private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
 
     val idToken: IdToken =
       idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
@@ -105,6 +105,7 @@ class DataWatcher(
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
         .header("Authorization", "Bearer $jwt")
+        .header(DATA_WATHCER_PATH_HEADER, path)
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
@@ -115,5 +116,6 @@ class DataWatcher(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val DATA_WATHCER_PATH_HEADER: String = "X-DataWatcher-Path"
   }
 }
