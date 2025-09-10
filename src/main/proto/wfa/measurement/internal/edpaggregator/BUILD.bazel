@@ -100,15 +100,9 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_descriptor_set(
-    name = "impression_state_descriptor_set",
+    name = "edp_aggregator_descriptor_set",
     deps = [
         ":impression_metadata_state_proto",
-    ],
-)
-
-proto_descriptor_set(
-    name = "requisition_state_descriptor_set",
-    deps = [
         ":requisition_metadata_state_proto",
     ],
 )
