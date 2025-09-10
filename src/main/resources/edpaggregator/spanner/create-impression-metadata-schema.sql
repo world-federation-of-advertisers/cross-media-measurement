@@ -76,24 +76,16 @@ CREATE UNIQUE NULL_FILTERED INDEX ImpressionMetadataByCreateRequestId
 CREATE UNIQUE INDEX ImpressionMetadataByBlobUri
   ON ImpressionMetadata(DataProviderResourceId, BlobUri);
 
--- Index for the primary query pattern: finding impressions for a specific model
--- line and event group that overlap with a given time interval.
-CREATE INDEX ImpressionMetadataByModelLineAndEventGroupAndInterval
-  ON ImpressionMetadata(
+-- Index for finding ImpressionMetadata using various list filters and pagination
+CREATE INDEX ImpressionMetadataByListFilterAndPagination
     DataProviderResourceId,
     CmmsModelLine,
     EventGroupReferenceId,
-    ImpressionMetadataIndexShardId,
+    State,
     IntervalStartTime,
-    IntervalEndTime
+    IntervalEndTime,
+    CreateTime,
+    ImpressionMetadataResourceId
   );
-
--- Index for listing by state for a single DataProvider.
-CREATE INDEX ImpressionMetadataByState
-  ON ImpressionMetadata(DataProviderResourceId, State, ImpressionMetadataIndexShardId, UpdateTime, ImpressionMetadataId);
-
--- Index for listing for a single DataProvider with pagination.
-CREATE INDEX ImpressionMetadataByCreateTime
-  ON ImpressionMetadata(DataProviderResourceId, ImpressionMetadataIndexShardId, CreateTime, ImpressionMetadataId);
 
 RUN BATCH;
