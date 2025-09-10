@@ -119,11 +119,11 @@ jobs:
                   note="${value} See ${reference}"
                   case "${key}" in
                     RELNOTES)
-                      echo "Adding note from RELNOTES: ${note}"
-                      highlights+=("${note}")
+                      echo "[Highlight] Adding note for RELNOTES: ${note}"
+                      breaking_changes+=("${note}")
                       ;;
                     BREAKING-CHANGE)
-                      echo "Adding note from BREAKING-CHANGE: ${note}"
+                      echo "Adding note for BREAKING-CHANGE: ${note}"
                       breaking_changes+=("[Breaking change] ${note}")
                       ;;
                     *)
