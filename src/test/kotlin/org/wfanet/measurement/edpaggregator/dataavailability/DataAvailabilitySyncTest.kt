@@ -23,16 +23,10 @@ import org.junit.Rule
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import com.google.protobuf.timestamp
-import org.mockito.kotlin.mock
-import com.google.api.gax.paging.Page
-import com.google.cloud.storage.Blob
-import com.google.cloud.storage.Storage
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
-import org.mockito.kotlin.doReturn
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -45,7 +39,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import java.time.Clock
@@ -56,14 +49,15 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import java.io.File
 import com.google.protobuf.util.JsonFormat
+import kotlinx.coroutines.flow.emptyFlow
 
 enum class BlobEncoding { PROTO, JSON }
 
 @RunWith(JUnit4::class)
-class DataAvailabilityTest {
+class DataAvailabilitySyncTest {
 
     private val bucket = "my-bucket"
-    private val folderPrefix = "some/prefix/"
+    private val folderPrefix = "edp/edp_name/"
 
     private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
         onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -134,7 +128,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -142,9 +136,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -162,7 +156,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -170,9 +164,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -190,7 +184,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -198,9 +192,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -218,7 +212,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -226,9 +220,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -250,7 +244,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -258,9 +252,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(3)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -278,7 +272,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -286,9 +280,9 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
 
@@ -306,7 +300,7 @@ class DataAvailabilityTest {
             )
         }
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersStub,
             impressionMetadataStub,
@@ -314,10 +308,65 @@ class DataAvailabilityTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailability.sync("$bucket/$folderPrefix/file.metadata") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { createImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+    }
+
+    @Test
+    fun `metadata file is ignored if file prefix doesn't follow expected path`() {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(300L to 400L)
+            )
+        }
+
+        val dataAvailabilitySync = DataAvailabilitySync(
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
+        )
+
+        runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
+        verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { listImpressionMetadata(any()) }
+    }
+
+    @Test
+    fun `metadata file is ignored if no associated impression file is found`() {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(300L to 400L),
+                createImpressionFile = false
+            )
+        }
+
+        val dataAvailabilitySync = DataAvailabilitySync(
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
+        )
+
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+        verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { listImpressionMetadata(any()) }
     }
 
     /**
@@ -329,14 +378,16 @@ class DataAvailabilityTest {
         prefix: String,
         intervals: List<Pair<Long?, Long?>>,
         encoding: BlobEncoding = BlobEncoding.PROTO,
+        createImpressionFile: Boolean = true
     ): List<String> {
         require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
         val written = mutableListOf<String>()
 
         intervals.forEachIndexed { index, (startSeconds, endSeconds) ->
+            val blobUri = "some_blob_uri_$index"
             val details = blobDetails {
-                blobUri = "some_blob_uri_$index"
+                this.blobUri = blobUri
                 eventGroupReferenceId = "event${index + 1}"
                 modelLine = "modelLine1"
                 interval = interval {
@@ -357,6 +408,9 @@ class DataAvailabilityTest {
 
             val bytes = details.serialize(encoding)
             storageClient.writeBlob(key, bytes)
+            if(createImpressionFile) {
+                storageClient.writeBlob(blobUri, emptyFlow())
+            }
 
             written += key
         }
