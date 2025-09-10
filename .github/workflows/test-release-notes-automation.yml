@@ -24,6 +24,7 @@ jobs:
         with: { python-version: '3.x' }
 
       - name: Fetch data
+        id: fetch-data
         env:
           GH_TOKEN: ${{ github.token }}
           # DO_NOT_SUBMIT: sha of nightly/20250728.1
@@ -96,14 +97,21 @@ jobs:
                       pr_output.setdefault(key.lower().replace("-", "_"), []).append(value)
 
               output.append(pr_output)
-              print(pr_output)
               print(json.dumps(pr_output))
-              print(json.dumps(pr_output, indent=2))
 
-          print(json.dumps(output, indent=2))
           json_output=json.dumps(output)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               print(f"json={json_output}", file=f)
+          PY
+
+      - name: Print debug data
+        env:
+          JSON: ${{ steps.fetch-data.outputs.json }}
+        run: |
+          python - <<'PY'
+          import os, json
+          data = json.loads(os.environ["JSON"])
+          print(json.dumps(data, indent=2))
           PY
 
       - name: Scan commits
