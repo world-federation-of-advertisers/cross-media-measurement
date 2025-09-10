@@ -69,7 +69,6 @@ import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
-import org.wfanet.measurement.internal.reporting.v2.setStateRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 
 @RunWith(JUnit4::class)

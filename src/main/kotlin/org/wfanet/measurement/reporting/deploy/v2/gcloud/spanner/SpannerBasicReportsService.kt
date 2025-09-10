@@ -42,7 +42,6 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
-import org.wfanet.measurement.internal.reporting.v2.SetStateRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
@@ -60,7 +59,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementC
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToFailed
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalReportId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setState
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException

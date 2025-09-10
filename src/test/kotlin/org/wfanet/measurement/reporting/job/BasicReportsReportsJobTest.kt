@@ -46,9 +46,9 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.setStateRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -142,12 +142,11 @@ class BasicReportsReportsJobTest {
           }
         )
 
-      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::setState)
+      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
         .isEqualTo(
-          setStateRequest {
+          failBasicReportRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
-            state = BasicReport.State.FAILED
           }
         )
     }

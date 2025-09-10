@@ -27,8 +27,8 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.setStateRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
@@ -108,11 +108,10 @@ class BasicReportsReportsJob(
             if (report.state == Report.State.SUCCEEDED) {
               // TODO(@tristanvuong2021#2607): Transform Report Results and persist in Spanner
             } else if (report.state == Report.State.FAILED) {
-              internalBasicReportsStub.setState(
-                setStateRequest {
+              internalBasicReportsStub.failBasicReport(
+                failBasicReportRequest {
                   this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                   externalBasicReportId = basicReport.externalBasicReportId
-                  state = BasicReport.State.FAILED
                 }
               )
             }
