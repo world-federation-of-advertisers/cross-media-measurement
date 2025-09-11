@@ -58,6 +58,9 @@ message ReportPostProcessorLog {
 
     // Independence check for union failed after correction.
     INDEPENDENCE_CHECK_FAILS_POST_CORRECTION = 5;
+
+    // The process crashed or terminated unexpectedly due to an internal error.
+    INTERNAL_ERROR = 6;
   }
 
   repeated ReportPostProcessorIssue issues = 4;
