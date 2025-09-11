@@ -201,7 +201,7 @@ class StorageEventSource(
 
     eventReader.readEvents().collect { events ->
       val eventBatch =
-        EventBatch<Message>(
+        EventBatch(
           events = events,
           minTime = events.minOf { it.timestamp },
           maxTime = events.maxOf { it.timestamp },

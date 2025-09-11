@@ -28,6 +28,8 @@ object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
 
   enum class Reason {
+    IMPRESSION_METADATA_NOT_FOUND,
+    IMPRESSION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_INVALID_STATE,
@@ -38,6 +40,7 @@ object Errors {
 
   enum class Metadata(val key: String) {
     DATA_PROVIDER_RESOURCE_ID("dataProviderResourceId"),
+    IMPRESSION_METADATA_RESOURCE_ID("impressionMetadataResourceId"),
     REQUISITION_METADATA_RESOURCE_ID("requisitionMetadataResourceId"),
     CMMS_REQUISITION("cmmsRequisition"),
     BLOB_URI("blobUri"),
@@ -100,6 +103,29 @@ sealed class ServiceException(
     return CommonErrors.buildStatusRuntimeException(code, message, errorInfo, this)
   }
 }
+
+class ImpressionMetadataNotFoundException(
+  dataProviderResourceId: String,
+  impressionMetadataResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+    "ImpressionMetadata with resource ID $impressionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
+    ),
+    cause,
+  )
+
+class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata already exists",
+    emptyMap(),
+    cause,
+  )
 
 class RequisitionMetadataNotFoundException
 private constructor(
@@ -200,6 +226,7 @@ class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable?
     }
   }
 }
+
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
   ServiceException(
