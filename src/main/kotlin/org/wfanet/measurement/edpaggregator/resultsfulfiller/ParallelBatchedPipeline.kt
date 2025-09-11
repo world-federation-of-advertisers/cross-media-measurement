@@ -139,15 +139,28 @@ class ParallelBatchedPipeline<T : Message>(
     logger.info("Round-robin batch distribution started")
 
     try {
+      var batchCount = 0
       val totalEvents =
         eventSource.generateEventBatches().withIndex().fold(0) { acc: Long, (i, batch) ->
-          workerChannels[i % workers].send(batch) // suspends on backpressure
+          val workerIndex = i % workers
+          logger.fine(
+            "Distributing batch ${i + 1} with ${batch.size} events to worker ${workerIndex + 1}, " +
+            "time range: [${batch.minTime} to ${batch.maxTime}]"
+          )
+          workerChannels[workerIndex].send(batch) // suspends on backpressure
+          batchCount++
+          if (batchCount % 50 == 0) {
+            logger.info("Distributed $batchCount batches so far (${acc + batch.size} events)")
+          }
           acc + batch.size.toLong()
         }
-      logger.info("Batch distribution finished (channels closed): ${totalEvents} events")
+      logger.info(
+        "Batch distribution finished: $batchCount total batches with $totalEvents events distributed"
+      )
       return totalEvents
     } finally {
       // Always close channels so workers can exit, even on failure/cancellation.
+      logger.fine("Closing all ${workerChannels.size} worker channels")
       workerChannels.forEach { it.close() }
     }
   }
@@ -189,18 +202,39 @@ class ParallelBatchedPipeline<T : Message>(
     processedBatches: AtomicLong,
     startTime: TimeMark,
   ) {
-    logger.fine("Worker $workerId started")
+    logger.info("Worker $workerId started processing with ${sinks.size} sinks")
+    var localBatchCount = 0
+    var localEventCount = 0L
 
     for (batch in channel) {
-      sinks.forEach { sink -> sink.processBatch(batch) }
+      localBatchCount++
+      localEventCount += batch.size
+      
+      logger.fine(
+        "Worker $workerId processing batch #$localBatchCount with ${batch.size} events, " +
+        "time range: [${batch.minTime} to ${batch.maxTime}]"
+      )
+      
+      sinks.forEachIndexed { sinkIndex, sink ->
+        logger.fine("Worker $workerId applying sink ${sinkIndex + 1}/${sinks.size} to batch with ${batch.size} events")
+        sink.processBatch(batch)
+      }
 
       val processed = processedBatches.incrementAndGet()
       if (processed % PROGRESS_LOG_INTERVAL == 0L) {
         logProcessingProgress(processed * batchSize, startTime)
       }
+      
+      if (localBatchCount % 20 == 0) {
+        logger.fine(
+          "Worker $workerId progress: processed $localBatchCount batches, $localEventCount events"
+        )
+      }
     }
 
-    logger.fine("Worker $workerId completed")
+    logger.info(
+      "Worker $workerId completed: processed $localBatchCount batches with $localEventCount total events"
+    )
   }
 
   private fun logProcessingProgress(processed: Long, startTime: TimeMark) {

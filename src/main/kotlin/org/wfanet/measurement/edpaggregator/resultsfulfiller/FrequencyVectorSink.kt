@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Message
+import java.util.logging.Logger
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 /**
@@ -37,9 +38,49 @@ class FrequencyVectorSink<T : Message>(
    * @param batch
    */
   fun processBatch(batch: EventBatch<T>) {
-    filterProcessor.processBatch(batch).events.forEach { event ->
+    logger.fine(
+      "Processing batch with ${batch.events.size} events for filter: " +
+      "CEL='${filterProcessor.filterSpec.celExpression}', " +
+      "eventGroups=${filterProcessor.filterSpec.eventGroupReferenceIds}"
+    )
+    
+    val filteredBatch = filterProcessor.processBatch(batch)
+    val matchedEvents = filteredBatch.events
+    
+    logger.info(
+      "Filter matched ${matchedEvents.size}/${batch.events.size} events for sink with " +
+      "eventGroups=${filterProcessor.filterSpec.eventGroupReferenceIds}"
+    )
+    
+    var incrementCount = 0
+    val vidCounts = mutableMapOf<Int, Int>()
+    matchedEvents.forEach { event ->
       val index = vidIndexMap[event.vid]
-      frequencyVector.increment(index)
+      if (index >= 0) {
+        val beforeValue = frequencyVector.getByteArray()[index].toInt() and 0xFF
+        frequencyVector.increment(index)
+        val afterValue = frequencyVector.getByteArray()[index].toInt() and 0xFF
+        incrementCount++
+        vidCounts[index] = vidCounts.getOrDefault(index, 0) + 1
+        logger.finest("Incremented frequency vector at index $index for VID '${event.vid}': $beforeValue -> $afterValue")
+      } else {
+        logger.warning("VID '${event.vid}' not found in VidIndexMap, skipping")
+      }
+    }
+    
+    logger.info(
+      "Updated frequency vector with $incrementCount increments " +
+      "(${matchedEvents.size - incrementCount} VIDs not in index map). " +
+      "Unique VIDs processed: ${vidCounts.size}"
+    )
+    
+    if (vidCounts.isNotEmpty()) {
+      val maxCount = vidCounts.values.maxOrNull() ?: 0
+      val duplicateVids = vidCounts.filter { it.value > 1 }
+      if (duplicateVids.isNotEmpty()) {
+        logger.warning("Duplicate VIDs in batch - same VID processed multiple times: $duplicateVids")
+      }
+      logger.fine("VID frequency distribution in batch - max events per VID: $maxCount, unique VIDs: ${vidCounts.size}")
     }
   }
 
@@ -51,5 +92,9 @@ class FrequencyVectorSink<T : Message>(
   /** Returns the frequency vector. */
   fun getFrequencyVector(): StripedByteFrequencyVector {
     return frequencyVector
+  }
+  
+  companion object {
+    private val logger = Logger.getLogger(FrequencyVectorSink::class.java.name)
   }
 }

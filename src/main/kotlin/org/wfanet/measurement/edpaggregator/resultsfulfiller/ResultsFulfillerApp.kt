@@ -31,6 +31,10 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ContinuousGaussianNoiseSelector
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.NoNoiserSelector
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.PipelineConfiguration
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageImpressionMetadataService
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams

@@ -121,7 +121,9 @@ class ResultsFulfiller(
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    logger.info("ResultsFulfiller.fulfillRequisitions() started")
     val groupedRequisitions = getRequisitions()
+    logger.info("Retrieved grouped requisitions with ${groupedRequisitions.requisitionsList.size} items")
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     val eventGroupReferenceIdMap =
@@ -130,14 +132,17 @@ class ResultsFulfiller(
       }
 
     logger.info("Processing ${requisitions.size} Requisitions")
+    logger.info("Event group reference ID map: ${eventGroupReferenceIdMap.keys}")
     totalRequisitions.addAndGet(requisitions.size)
 
     val modelLine = groupedRequisitions.modelLine
+    logger.info("Model line: $modelLine")
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
     val vidIndexMap = modelInfo.vidIndexMap
+    logger.info("Population spec size: ${populationSpec.size}, VID index map size: ${vidIndexMap.size}")
 
     val eventSource =
       StorageEventSource(
@@ -149,8 +154,10 @@ class ResultsFulfiller(
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
       )
+    logger.info("Created StorageEventSource with ${groupedRequisitions.eventGroupMapList.size} event group details")
 
     val frequencyVectorStart = TimeSource.Monotonic.markNow()
+    logger.info("Starting event processing orchestrator...")
     val frequencyVectorMap =
       orchestrator.run(
         eventSource = eventSource,
@@ -163,7 +170,8 @@ class ResultsFulfiller(
       )
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
 
-    logger.info("Frequency vector calculation completed, processing individual requisitions")
+    logger.info("Frequency vector calculation completed, got ${frequencyVectorMap.size} results")
+    logger.info("Processing individual requisitions with parallelism: $parallelism")
 
     requisitions
       .asFlow()
@@ -184,6 +192,7 @@ class ResultsFulfiller(
       }
       .collect()
 
+    logger.info("All requisitions fulfilled successfully")
     logFulfillmentStats()
   }
 
@@ -200,9 +209,67 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
   ) {
+    logger.info("=== PROCESSING REQUISITION: ${requisition.name} ===")
+    logger.info("Protocol configs: ${requisition.protocolConfig.protocolsList.map { it.protocolCase }}")
+    
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    
+    // Log measurement spec details
+    logger.info("=== MEASUREMENT SPEC DETAILS ===")
+    logger.info("Measurement type: ${measurementSpec.measurementTypeCase}")
+    logger.info("VID sampling interval start: ${measurementSpec.vidSamplingInterval.start}")
+    logger.info("VID sampling interval width: ${measurementSpec.vidSamplingInterval.width}")
+    
+    // Calculate expected frequency vector size based on sampling
+    val populationSize = populationSpec.size.toInt()
+    val samplingStart = measurementSpec.vidSamplingInterval.start
+    val samplingWidth = measurementSpec.vidSamplingInterval.width
+    val globalStartIndex = (populationSize * samplingStart).toInt()
+    val globalEndIndex = (populationSize * (samplingStart + samplingWidth)).toInt() - 1
+    val primaryRangeCount = (globalStartIndex..minOf(globalEndIndex, populationSize - 1)).count()
+    val wrappedRangeCount = if (globalEndIndex >= populationSize) {
+      (0..(globalEndIndex - populationSize)).count()
+    } else 0
+    val expectedFreqVectorSize = primaryRangeCount + wrappedRangeCount
+    
+    logger.info("=== VID SAMPLING CALCULATIONS ===")
+    logger.info("Population size: $populationSize")
+    logger.info("Global start index: $globalStartIndex")
+    logger.info("Global end index: $globalEndIndex")
+    logger.info("Primary range count: $primaryRangeCount")
+    logger.info("Wrapped range count: $wrappedRangeCount")
+    logger.info("Expected frequency vector size after sampling: $expectedFreqVectorSize")
+    
+    // Process frequency vector from pipeline
+    logger.info("=== PIPELINE FREQUENCY VECTOR DETAILS ===")
+    logger.info("StripedByteFrequencyVector size: ${frequencyVector.size}")
+    logger.info("StripedByteFrequencyVector stripe count: ${frequencyVector.stripeCount}")
+    
     val freqBytes = frequencyVector.getByteArray()
     val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    
+    logger.info("=== FREQUENCY DATA DETAILS ===")
+    logger.info("Frequency data array size: ${frequencyData.size}")
+    val nonZeroEntries = frequencyData.count { it > 0 }
+    val totalCount = frequencyData.sum()
+    val maxFrequency = frequencyData.maxOrNull() ?: 0
+    logger.info("Non-zero entries (reach before sampling): $nonZeroEntries")
+    logger.info("Total frequency (sum): $totalCount")
+    logger.info("Max frequency value: $maxFrequency")
+    
+    // Sample of non-zero entries
+    val nonZeroSample = frequencyData.withIndex()
+      .filter { it.value > 0 }
+      .take(10)
+      .map { "(idx=${it.index}, freq=${it.value})" }
+    logger.info("Sample non-zero entries (first 10): $nonZeroSample")
+    
+    // Check if frequency data size matches population size
+    if (frequencyData.size != populationSize) {
+      logger.warning("WARNING: Frequency data size (${frequencyData.size}) != population size ($populationSize)")
+    } else {
+      logger.info("Frequency data size matches population size: ${frequencyData.size}")
+    }
 
     val signedRequisitionSpec: SignedMessage =
       try {
@@ -232,8 +299,14 @@ class ResultsFulfiller(
     )
 
     val sendStart = TimeSource.Monotonic.markNow()
+    logger.info("=== FULFILLING REQUISITION ===")
+    logger.info("Fulfiller type: ${fulfiller.javaClass.simpleName}")
+    logger.info("Sending fulfillment for requisition: ${requisition.name}")
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+    logger.info("=== REQUISITION FULFILLED SUCCESSFULLY ===")
+    logger.info("Requisition: ${requisition.name}")
+    logger.info("========================================\n")
   }
 
   /**
@@ -252,6 +325,11 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
+      logger.info("=== DIRECT PROTOCOL HANDLING ===")
+      logger.info("Using frequency data array directly")
+      logger.info("Frequency data will be passed as-is to DirectMeasurementResultFactory")
+      logger.info("K-anonymity params: ${if (kAnonymityParams == null) "null" else "present"}")
+      
       // TODO: Calculate the maximum population for a given cel filter
       buildDirectMeasurementFulfiller(
         requisition = requisition,
@@ -264,23 +342,54 @@ class ResultsFulfiller(
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
     ) {
+      logger.info("=== HMSS PROTOCOL HANDLING ===")
+      logger.info("K-anonymity params: ${if (kAnonymityParams == null) "null" else "present"}")
+      logger.info("Creating FrequencyVectorBuilder from frequency data array")
+      
+      val frequencyVectorBuilder = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
+      logger.info("FrequencyVectorBuilder created - size: ${frequencyVectorBuilder.size}")
+      logger.info("FrequencyVectorBuilder frequencyDataArray size: ${frequencyVectorBuilder.frequencyDataArray.size}")
+      
+      val frequencyVector = frequencyVectorBuilder.build()
+      logger.info("Built FrequencyVector - data count: ${frequencyVector.dataCount}")
+      logger.info("FrequencyVector data size: ${frequencyVector.dataList.size}")
+      logger.info("First 10 frequency values: ${frequencyVector.dataList.take(10)}")
+      val nonZeroInVector = frequencyVector.dataList.count { it > 0 }
+      val totalInVector = frequencyVector.dataList.sum()
+      logger.info("Non-zero entries in built FrequencyVector: $nonZeroInVector")
+      logger.info("Total frequency in built FrequencyVector: $totalInVector")
+      
+      // Compare with original frequency data
+      val originalNonZero = frequencyData.count { it > 0 }
+      val originalTotal = frequencyData.sum()
+      logger.info("=== COMPARISON ===")
+      logger.info("Original frequency data: non-zero=$originalNonZero, total=$originalTotal")
+      logger.info("Built FrequencyVector: non-zero=$nonZeroInVector, total=$totalInVector")
+      if (nonZeroInVector != originalNonZero) {
+        logger.warning("WARNING: Non-zero count changed from $originalNonZero to $nonZeroInVector")
+      }
+      if (totalInVector != originalTotal) {
+        logger.warning("WARNING: Total frequency changed from $originalTotal to $totalInVector")
+      }
+      
       if (kAnonymityParams == null) {
+        logger.info("Creating HMShuffleMeasurementFulfiller without k-anonymity")
         HMShuffleMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
-          createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
-            .build(),
+          frequencyVector,
           dataProviderSigningKeyHandle,
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
         )
       } else {
+        logger.info("Creating HMShuffleMeasurementFulfiller with k-anonymity")
         HMShuffleMeasurementFulfiller.buildKAnonymized(
           requisition,
           requisitionSpec.nonce,
           measurementSpec,
           populationSpec,
-          createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData),
+          frequencyVectorBuilder,
           dataProviderSigningKeyHandle,
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
@@ -306,13 +415,44 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     frequencyData: IntArray,
   ): FrequencyVectorBuilder {
+    logger.info("=== CREATING FREQUENCY VECTOR BUILDER FROM ARRAY ===")
+    logger.info("Input frequency data size: ${frequencyData.size}")
+    logger.info("Population spec size: ${populationSpec.size}")
+    logger.info("VID sampling interval: start=${measurementSpec.vidSamplingInterval.start}, width=${measurementSpec.vidSamplingInterval.width}")
+    
     val builder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
-
+    logger.info("Created FrequencyVectorBuilder with size: ${builder.size}")
+    logger.info("Builder frequencyDataArray initial size: ${builder.frequencyDataArray.size}")
+    
+    // Count entries before and after
+    var incrementCount = 0
+    var skippedCount = 0
+    val nonZeroIndices = mutableListOf<Int>()
+    
     // Populate the builder with the frequency data
     for (index in frequencyData.indices) {
-      repeat(frequencyData[index]) { builder.increment(index) }
+      if (frequencyData[index] > 0) {
+        if (nonZeroIndices.size < 10) {
+          nonZeroIndices.add(index)
+        }
+        repeat(frequencyData[index]) { 
+          val beforeSize = builder.frequencyDataArray.count { it > 0 }
+          builder.increment(index)
+          val afterSize = builder.frequencyDataArray.count { it > 0 }
+          incrementCount++
+          if (beforeSize == afterSize && frequencyData[index] > 0) {
+            // This means the increment was filtered out by VID sampling
+            skippedCount++
+          }
+        }
+      }
     }
-
+    
+    logger.info("Increment operations: total=$incrementCount, potentially filtered=$skippedCount")
+    logger.info("Sample non-zero indices from input: ${nonZeroIndices.take(10)}")
+    logger.info("Builder frequencyDataArray final size: ${builder.frequencyDataArray.size}")
+    logger.info("Non-zero entries in builder after population: ${builder.frequencyDataArray.count { it > 0 }}")
+    
     return builder
   }
 

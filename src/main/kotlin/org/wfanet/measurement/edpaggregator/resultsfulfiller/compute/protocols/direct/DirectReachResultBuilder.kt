@@ -61,13 +61,18 @@ class DirectReachResultBuilder(
         "No valid methodologies for direct reach computation.",
       )
     }
+    val maxFreq = kAnonymityParams?.reachMaxFrequencyPerUser ?: 1
+    logger.info("Building histogram with maxFrequency=$maxFreq from frequency vector with ${frequencyData.count { it > 0 }} non-zero entries")
+    
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
-        maxFrequency = kAnonymityParams?.reachMaxFrequencyPerUser ?: 1,
+        maxFrequency = maxFreq,
       )
 
+    logger.info("Histogram built: ${histogram.contentToString()}, sum=${histogram.sum()}")
     val reachValue = getReachValue(histogram)
+    logger.info("Computed reach value: $reachValue")
 
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
