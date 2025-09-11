@@ -94,16 +94,18 @@ jobs:
 
               pr_number = int(m.group(1))
 
-              body_json = run(["gh", "pr", "view", str(pr_number), "--json", "body"])
-              pr_body = json.loads(body_json).get("body")
+              response = run(["gh", "pr", "view", str(pr_number), "--json", "body,author"])
+              pr_json = json.loads(response)
 
               trailers_text = run(
                   ["git", "interpret-trailers", "--trim-empty", "--parse"],
-                  input_text="\n" + pr_body,
+                  input_text="\n" + pr_json["body"],
               )
 
               pr_output = {}
               pr_output["pr_id"] = pr_number
+              pr_output["pr_title"] = pr_title
+              pr_output["pr_author"] = pr_json["author"]["login"]
 
               for line in trailers_text.splitlines():
                   m2 = re.match(r'^([^:]+):\s(.*)$', line)
@@ -193,12 +195,52 @@ jobs:
               print(f"json={json_output}", file=f)          
           PY
 
+      - name: Generate what's changed
+        id: generate-whats-changed
+        env:
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
+        run: |
+          python - <<'PY'
+          import os, json
+
+          pr_data = json.loads(os.environ["JSON"])
+          items = []
+
+          for pr in pr_data:
+              note = f"{pr['pr_title']} by @{pr['pr_author']}"
+              items.append(note)
+          
+          json_output=json.dumps(items)
+          print(json_output)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f"json={json_output}", file=f)          
+          PY
+
+
+      - name: Get milestone url
+        id: generate-milestone-url
+        shell: bash
+        env: 
+          GH_TOKEN: ${{ github.token }}
+          # DO_NOT_SUBMIT: use parameter
+          MILESTONE: v0.5.25
+        run: |
+          url=$(gh api "/repos/world-federation-of-advertisers/cross-media-measurement/milestones?state=all&per_page=100" --paginate --jq ".[] | select(.title==\"$MILESTONE\") | .html_url")
+          echo "URL for milestone ${MILESTONE} is ${url}"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
       - name: Print release notes
         shell: bash
         env:
           HIGHLIGHTS: ${{ steps.generate-highlights.outputs.json }}
           ISSUES_ADDRESSED: ${{ steps.generate-issues-addressed.outputs.json }}
           POTENTIALLY_REQUIRING_ACTION: ${{ steps.generate-potentially-requiring-action.outputs.json }}
+          WHATS_CHANGED: ${{ steps.generate-whats-changed.outputs.json }}
+          MILESTONE_URL: ${{ steps.generate-milestone-url.outputs.url}}
+          # DO_NOT_SUBMIT: use parameter
+          TAG_NAME: "v0.5.24"
+          # DO_NOT_SUBMIT: use parameter
+          PREVIOUS_TAG_NAME: "v0.5.25"
         run: |
           print_section() {
             local title=$1
@@ -208,9 +250,13 @@ jobs:
             jq -r '.[] | "* \(.)"' <<<"${json_array}"
           }
 
+          echo "See the [corresponding milestone](${MILESTONE_URL}) for this release."
           print_section "Highlights" "${HIGHLIGHTS}"
           print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
           print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"
+          print_section "What's Changed" "${WHATS_CHANGED}"
+          echo
+          echo "**Full Changelog**: https://github.com/world-federation-of-advertisers/cross-media-measurement/compare/${PREVIOUS_TAG_NAME}...${TAG_NAME}"
 
       - name: Scan commits
         shell: bash
