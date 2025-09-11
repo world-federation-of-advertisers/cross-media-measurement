@@ -9,7 +9,9 @@ package(
 
 kt_jvm_library(
     name = "spanner_requisition_metadata_service",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "SpannerRequisitionMetadataService.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",

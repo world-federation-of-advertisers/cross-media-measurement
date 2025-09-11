@@ -29,8 +29,10 @@ object Errors {
 
   enum class Reason {
     REQUISITION_METADATA_NOT_FOUND,
+    REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+    REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS,
-    REQUISITION_METADATA_INVALID_STATE,
+    REQUISITION_METADATA_STATE_INVALID,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
@@ -101,56 +103,50 @@ sealed class ServiceException(
   }
 }
 
-class RequisitionMetadataNotFoundException
-private constructor(
-  message: String,
-  metadata: Map<Errors.Metadata, String>,
+class RequisitionMetadataNotFoundException(
+  dataProviderResourceId: String,
+  requisitionMetadataResourceId: String,
   cause: Throwable? = null,
-) : ServiceException(Errors.Reason.REQUISITION_METADATA_NOT_FOUND, message, metadata, cause) {
-  companion object {
-    fun byResourceId(
-      dataProviderResourceId: String,
-      requisitionMetadataResourceId: String,
-      cause: Throwable? = null,
-    ): RequisitionMetadataNotFoundException =
-      RequisitionMetadataNotFoundException(
-        "RequisitionMetadata with resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
-        mapOf(
-          Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-          Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
-        ),
-        cause,
-      )
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
+    "RequisitionMetadata with Requisition Metadata Resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
+    ),
+    cause,
+  )
 
-    fun byCmmsRequisition(
-      dataProviderResourceId: String,
-      cmmsRequisition: String,
-      cause: Throwable? = null,
-    ): RequisitionMetadataNotFoundException =
-      RequisitionMetadataNotFoundException(
-        "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId not found",
-        mapOf(
-          Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-          Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
-        ),
-        cause,
-      )
+class RequisitionMetadataNotFoundByCmmsRequisitionException(
+  dataProviderResourceId: String,
+  cmmsRequisition: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
+    ),
+    cause,
+  )
 
-    fun byBlobUri(
-      dataProviderResourceId: String,
-      blobUri: String,
-      cause: Throwable? = null,
-    ): RequisitionMetadataNotFoundException =
-      RequisitionMetadataNotFoundException(
-        "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource ID $dataProviderResourceId not found",
-        mapOf(
-          Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-          Errors.Metadata.BLOB_URI to blobUri,
-        ),
-        cause,
-      )
-  }
-}
+class RequisitionMetadataNotFoundByBlobUriException(
+  dataProviderResourceId: String,
+  blobUri: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
+    "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource ID $dataProviderResourceId not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.BLOB_URI to blobUri,
+    ),
+    cause,
+  )
 
 class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(
@@ -168,7 +164,7 @@ class RequisitionMetadataInvalidStateException(
   cause: Throwable? = null,
 ) :
   ServiceException(
-    Errors.Reason.REQUISITION_METADATA_INVALID_STATE,
+    Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
     "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
