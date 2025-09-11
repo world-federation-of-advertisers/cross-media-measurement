@@ -50,6 +50,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import java.util.*
 import kotlin.text.Charsets.UTF_8
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.BlobUri
 
 
 class DataAvailabilitySync(
@@ -76,18 +78,14 @@ class DataAvailabilitySync(
     try {
 
       // 1. Crawl for metadata files
-      val bucket = path.substringBefore("/")
-      val objectPath = path.substringAfter("/")
-      val folderPrefix = objectPath.substringBeforeLast("/", "")
-
-      require(EDP_PREFIX_REGEX.matches(folderPrefix)) {
-        "Invalid folder prefix ($folderPrefix): must match pattern 'edp/<edp_name_here>/'"
-      }
+      val doneBlobUri: BlobUri =
+        SelectedStorageClient.parseBlobUri(path)
+      val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
       val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
       // 1. Retrieve blob details from storage and build a map
-      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, objectPath, bucket)
+      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri.bucket)
 
       // 2. Retrieve ImpressionMetadata from ImpressionMetadataStorage, join the intervals and validate them
       val availabilityEntries = mutableListOf<DataProvider.DataAvailabilityMapEntry>()
@@ -169,8 +167,8 @@ class DataAvailabilitySync(
    * Reads impression metadata blobs from a given flow of storage objects and groups them by
    * model line.
    *
-   * This function iterates over each blob in [impressionMetadataBlobs], skipping the one whose
-   * blob key exactly matches [objectPath].
+   * This function iterates over each blob in [impressionMetadataBlobs], filtering out those
+   * that does not have the string "metadata" in the file name.
    *
    * For each blob:
    * - Determines the format based on the file extension:
@@ -187,7 +185,6 @@ class DataAvailabilitySync(
    * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param objectPath the blob key to exclude from processing (e.g., a done/marker file path).
    * @param bucket the GCS bucket name to use when constructing URIs for blobs.
    * @return a map where each key is a `modelLine` string and each value is the list of
    *         [ImpressionMetadata] objects associated with that model line.
@@ -195,7 +192,7 @@ class DataAvailabilitySync(
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *         `BlobDetails`.
    */
-  suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, objectPath: String, bucket: String) : Map<String, List<ImpressionMetadata>> {
+  suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, bucket: String) : Map<String, List<ImpressionMetadata>> {
     val modelLines = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
         val fileName = blob.blobKey.substringAfterLast("/").lowercase()
@@ -288,7 +285,7 @@ class DataAvailabilitySync(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val METADATA_FILE_NAME = "metadata"
-    private val EDP_PREFIX_REGEX = Regex("""^edp/[^/]+$""")
+    val EDP_PREFIX_REGEX = Regex("""^edp/[^/]+(/.*)?$""")
     private const val PROTO_FILE_SUFFIX = ".pb"
     private const val JSON_FILE_SUFFIX = ".json"
   }
