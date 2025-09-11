@@ -166,7 +166,8 @@ import ("strings")
 		}
 
 		"v2alpha-public-api-server": {
-			_container: Container={
+			_rateLimitConfigPath: string
+			_container:           Container={
 				args: [
 					_debug_verbose_grpc_client_logging_flag,
 					_debug_verbose_grpc_server_logging_flag,
@@ -182,6 +183,7 @@ import ("strings")
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
 					_duchy_info_config_flag,
+					"--rate-limit-config-file=\(_rateLimitConfigPath)",
 				] + _directNoiseMechanismFlags + Container._commonServerFlags
 			}
 			spec: template: spec: {
