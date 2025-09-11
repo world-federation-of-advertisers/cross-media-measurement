@@ -56,7 +56,7 @@ enum class BlobEncoding { PROTO, JSON }
 @RunWith(JUnit4::class)
 class DataAvailabilitySyncTest {
 
-    private val bucket = "my-bucket"
+    private val bucket = "file:///my-bucket"
     private val folderPrefix = "edp/edp_name/"
 
     private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -378,7 +378,7 @@ class DataAvailabilitySyncTest {
         prefix: String,
         intervals: List<Pair<Long?, Long?>>,
         encoding: BlobEncoding = BlobEncoding.PROTO,
-        createImpressionFile: Boolean = true
+        createImpressionFile: Boolean = true,
     ): List<String> {
         require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
@@ -405,6 +405,7 @@ class DataAvailabilitySyncTest {
                 BlobEncoding.JSON  -> "metadata-$index.json"
             }
             val key = "$prefix$filename"
+
 
             val bytes = details.serialize(encoding)
             storageClient.writeBlob(key, bytes)
