@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.util.Timestamps
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -41,6 +42,7 @@ import com.google.type.interval
 import com.google.type.Interval
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.all
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
@@ -75,48 +77,45 @@ class DataAvailabilitySync(
    */
   suspend fun sync(path: String) {
 
-    try {
+    // 1. Crawl for metadata files
+    val doneBlobUri: BlobUri =
+      SelectedStorageClient.parseBlobUri(path)
+    val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-      // 1. Crawl for metadata files
-      val doneBlobUri: BlobUri =
-        SelectedStorageClient.parseBlobUri(path)
-      val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+    val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
-      val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
+    // 1. Retrieve blob details from storage and build a map and validate them
+    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri.bucket)
 
-      // 1. Retrieve blob details from storage and build a map
-      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri.bucket)
+    // 2. Save ImpressionMetadata using ImpressionMetadataStorage
+    impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-      // 2. Retrieve ImpressionMetadata from ImpressionMetadataStorage, join the intervals and validate them
-      val availabilityEntries = mutableListOf<DataProvider.DataAvailabilityMapEntry>()
-      for (modelLine in impressionMetadataMap.keys) {
-        val existingImpressionMetadata: List<ImpressionMetadata> = getImpressionMetadata(modelLine)
-        val combinedList: List<ImpressionMetadata> = impressionMetadataMap[modelLine]!! + existingImpressionMetadata
-        val intervalForModelLine: Interval? = try {
-          validateAndJoinModelLineIntervals(combinedList)
-        } catch (e: Exception) {
-          logger.severe("Invalid intervals for model line: $modelLine. ${e.message}")
-          null
+    // 3. Retrieve impressions metadata from ImpressionMetadataStorage for all model line
+    // found in the storage folder and update kingdom availability
+    val availabilityEntries = mutableListOf<DataProvider.DataAvailabilityMapEntry>()
+    impressionMetadataMap.keys.forEach {
+      val existingImpressionMetadataList: List<ImpressionMetadata> = getImpressionMetadata(it)
+      val (intervalStart, intervalEnd) = existingImpressionMetadataList
+        .map { it.interval.startTime to it.interval.endTime }
+        .reduce { (minStart, maxEnd), (start, end) ->
+          val newMin = if (Timestamps.compare(start, minStart) < 0) start else minStart
+          val newMax = if (Timestamps.compare(end, maxEnd) > 0) end else maxEnd
+          newMin to newMax
         }
-        if (intervalForModelLine != null) {
-          saveImpressionMetadata(impressionMetadataMap[modelLine]!!)
-          availabilityEntries += dataAvailabilityMapEntry {
-            key = modelLine
-            value = intervalForModelLine
-          }
+      availabilityEntries += dataAvailabilityMapEntry {
+        key = it
+        value = interval {
+          startTime = intervalStart
+          endTime = intervalEnd
         }
       }
-      if(!availabilityEntries.isEmpty()) {
-        dataProvidersStub.replaceDataAvailabilityIntervals(
-          replaceDataAvailabilityIntervalsRequest {
-            name = dataProviderName
-            dataAvailabilityIntervals += availabilityEntries
-          }
-        )
-      }
-    } catch (e: Exception) {
-      logger.severe(
-        "Unable to process Data Availability for ${path}: ${e.message}"
+    }
+    if(!availabilityEntries.isEmpty()) {
+      dataProvidersStub.replaceDataAvailabilityIntervals(
+        replaceDataAvailabilityIntervalsRequest {
+          name = dataProviderName
+          dataAvailabilityIntervals += availabilityEntries
+        }
       )
     }
 
@@ -193,7 +192,7 @@ class DataAvailabilitySync(
    *         `BlobDetails`.
    */
   suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, bucket: String) : Map<String, List<ImpressionMetadata>> {
-    val modelLines = mutableMapOf<String, MutableList<ImpressionMetadata>>()
+    val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
         val fileName = blob.blobKey.substringAfterLast("/").lowercase()
         METADATA_FILE_NAME in fileName &&
@@ -203,6 +202,7 @@ class DataAvailabilitySync(
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
       val bytes: ByteString = blob.read().flatten()
 
+      // Build the blob details object
       val blobDetails = if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
         BlobDetails.parseFrom(bytes)
       } else {
@@ -211,6 +211,11 @@ class DataAvailabilitySync(
           .ignoringUnknownFields()
           .merge(bytes.toString(UTF_8), builder)
         builder.build()
+      }
+
+      // Validate intervals
+      require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
+        "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
       }
 
       val metadata_blob_uri = "gs://$bucket/${blob.blobKey}"
@@ -224,68 +229,17 @@ class DataAvailabilitySync(
           modelLine = blobDetails.modelLine
           interval = blobDetails.interval
         }
-        modelLines
+        impressionMetadataMap
           .getOrPut(blobDetails.modelLine) { mutableListOf() }
           .add(impressionMetadata)
       }
     }
-    return modelLines
-  }
-
-  /**
-   * Validates a list of [ImpressionMetadata] intervals and returns a single [Interval]
-   * that spans from the earliest start time to the latest end time.
-   *
-   * ### Validation:
-   * 1. All intervals must have both a start time and an end time (`hasStartTime()` and `hasEndTime()` must be `true`).
-   * 2. The list must not be empty.
-   * 3. Each interval must be contiguous with or overlapping the previous interval
-   *
-   * @param impressionMetadata the list of [ImpressionMetadata] containing intervals to validate and join.
-   * @return a single [Interval] representing the union of all contiguous intervals.
-   * @throws IllegalArgumentException if:
-   *   - the list is empty,
-   *   - any interval is missing a start or end time,
-   *   - intervals are not contiguous in time.
-   */
-  fun validateAndJoinModelLineIntervals(impressionMetadata: List<ImpressionMetadata>) : Interval {
-    val intervals = impressionMetadata
-      .map { it.interval }
-      .also { list ->
-        require(list.all { it.hasStartTime() && it.hasEndTime() }) {
-          "Found interval without start or end time"
-        }
-      }
-      .sortedBy { it.startTime.seconds }
-
-    require(intervals.isNotEmpty()) { "No intervals provided for model line." }
-
-    var intervalStartTime: Timestamp? = null
-    var intervalEndTime: Timestamp? = null
-    intervals.forEach {
-      if (intervalStartTime == null && intervalEndTime == null){
-        intervalStartTime = it.startTime
-        intervalEndTime = it.endTime
-      } else {
-        require(it.startTime.seconds <= intervalEndTime!!.seconds) { "Intervals are not contiguous." }
-        intervalEndTime = if (intervalEndTime!!.seconds > it.endTime.seconds) {
-          intervalEndTime
-        } else {
-          it.endTime
-        }
-      }
-    }
-
-    return interval {
-      startTime = intervalStartTime!!
-      endTime = intervalEndTime!!
-    }
+    return impressionMetadataMap
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val METADATA_FILE_NAME = "metadata"
-    val EDP_PREFIX_REGEX = Regex("""^edp/[^/]+(/.*)?$""")
     private const val PROTO_FILE_SUFFIX = ".pb"
     private const val JSON_FILE_SUFFIX = ".json"
   }
