@@ -9,7 +9,7 @@ package(
 
 kt_jvm_library(
     name = "spanner_impression_metadata_service",
-    srcs = glob(["*.kt"]),
+    srcs = ["SpannerImpressionMetadataService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/api:etags",

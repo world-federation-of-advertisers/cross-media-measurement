@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
@@ -35,6 +36,18 @@ data class ImpressionMetadataResult(
   val impressionMetadata: ImpressionMetadata,
   val impressionMetadataId: Long,
 )
+
+/** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
+suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+): Boolean {
+  return readRow(
+    "ImpressionMetadata",
+    Key.of(dataProviderResourceId, impressionMetadataId),
+    listOf("ImpressionMetadataId"),
+  ) != null
+}
 
 /**
  * Reads a [ImpressionMetadata] by its public resource ID.
