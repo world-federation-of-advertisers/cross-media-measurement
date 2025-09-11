@@ -56,9 +56,6 @@ CREATE TABLE ImpressionMetadata (
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   -- The time this resource was last updated in this database.
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
-  -- A sharding key for indexes to prevent hotspotting.
-  ImpressionMetadataIndexShardId INT64 NOT NULL AS
-    (ABS(MOD(ImpressionMetadataId, 64))) STORED,
 ) PRIMARY KEY (DataProviderResourceId, ImpressionMetadataId);
 
 -- Enforces uniqueness of ImpressionMetadataResourceId per DataProvider and supports
@@ -78,6 +75,7 @@ CREATE UNIQUE INDEX ImpressionMetadataByBlobUri
 
 -- Index for finding ImpressionMetadata using various list filters and pagination
 CREATE INDEX ImpressionMetadataByListFilterAndPagination
+  ON ImpressionMetadata(
     DataProviderResourceId,
     CmmsModelLine,
     EventGroupReferenceId,
