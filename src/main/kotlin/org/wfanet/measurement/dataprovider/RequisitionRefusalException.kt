@@ -32,7 +32,7 @@ sealed class RequisitionRefusalException(
 ) : Exception(message, cause) {
 
   /** Base implementation of [RequisitionRefusalException]. */
-  class Default(
+  open class Default(
     justification: Requisition.Refusal.Justification,
     message: String,
     cause: Throwable? = null,
@@ -45,3 +45,25 @@ sealed class RequisitionRefusalException(
     cause: Throwable? = null,
   ) : RequisitionRefusalException(justification, message, cause)
 }
+
+/**
+ * Thrown to indicate that the specification of a [Requisition] is invalid, e.g. that
+ * [Requisition.encryptedRequisitionSpec] or [Requisition.measurementSpec] is invalid.
+ */
+class InvalidRequisitionException(message: String, cause: Throwable? = null) :
+  RequisitionRefusalException.Default(
+    Requisition.Refusal.Justification.SPEC_INVALID,
+    message,
+    cause,
+  )
+
+/**
+ * Thrown to indicate that a [Requisition] should be fulfillable, but must be refused due to some
+ * unrecoverable system error.
+ */
+class UnfulfillableRequisitionException(message: String, cause: Throwable? = null) :
+  RequisitionRefusalException.Default(
+    Requisition.Refusal.Justification.UNFULFILLABLE,
+    message,
+    cause,
+  )
