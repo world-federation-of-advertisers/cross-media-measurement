@@ -115,6 +115,7 @@ jobs:
           PY
 
       - name: Generate issues addressed
+        id: generate-issues-addressed
         env:
           JSON: ${{ steps.fetch-data.outputs.json }}
         run: |
@@ -123,7 +124,7 @@ jobs:
 
           pr_data = json.loads(os.environ["JSON"])
 
-          issues_addressed = []
+          items = []
           seen = set()
 
           for pr in pr_data:
@@ -134,12 +135,16 @@ jobs:
                       note = f"{title}. See #{ref}"
                       if note not in seen:
                           seen.add(note)
-                          issues_addressed.append(note)
+                          items.append(note)
 
-          print(issues_addressed)
+          json_output=json.dumps(items)
+          print(json_output)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f"json={json_output}", file=f)
           PY
 
-      - name: Generate highlights
+      - name: Generate potentially requiring action
+        id: generate-potentially-requiring-action
         env:
           JSON: ${{ steps.fetch-data.outputs.json }}
         run: |
@@ -150,19 +155,39 @@ jobs:
               # Prefer issue ids; fall back to the PR number if no issues
               refs = [f"#{issue['id']}" for issue in pr.get("issues", [])]
               if not refs:
-                  refs = [f"#{pr['id']}"]
+                  refs = [f"#{pr['pr_id']}"]
               return " ".join(refs)
 
           pr_data = json.loads(os.environ["JSON"])
-          highlights = []
+          items = []
 
           for pr in pr_data:
               note_refs = _compute_note_refs(pr)
               for line in pr.get("relnotes", []) + pr.get("breaking_change", []):
                   title = line.rstrip('.')
-                  highlights.append(f"{title}. See {note_refs}")
-          print(highlights)
+                  items.append(f"{title}. See {note_refs}")
+          
+          json_output=json.dumps(items)
+          print(json_output)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f"json={json_output}", file=f)          
           PY
+
+      - name: Print release notes
+        shell: bash
+        env:
+          ISSUES_ADDRESSED: ${{ steps.generate-issues-addressed.outputs.json }}
+          POTENTIALLY_REQUIRING_ACTION: ${{ steps.generate-potentially-requiring-action.outputs.json }}
+        run: |
+          print_section() {
+            local title=$1
+            local json_array=$2
+            echo "## ${title}"
+            jq -r '.[] | "* \(.)"' <<<"${json_array}"
+          }
+
+          print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
+          print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"
 
       - name: Scan commits
         shell: bash
