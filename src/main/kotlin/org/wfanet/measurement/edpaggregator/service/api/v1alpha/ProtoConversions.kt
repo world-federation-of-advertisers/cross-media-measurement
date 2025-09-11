@@ -15,11 +15,10 @@
 package org.wfanet.measurement.edpaggregator.service.api.v1alpha
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
 
 /** Converts an internal [InternalRequisitionMetadata] to a public [RequisitionMetadata]. */
@@ -27,10 +26,7 @@ fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
   val source = this
   return requisitionMetadata {
     name =
-      RequisitionMetadataKey(
-          externalIdToApiId(source.externalDataProviderId),
-          externalIdToApiId(source.externalRequisitionMetadataId),
-        )
+      RequisitionMetadataKey(source.dataProviderResourceId, source.requisitionMetadataResourceId)
         .toName()
     cmmsRequisition = source.cmmsRequisition
     blobUri = source.blobUri
@@ -54,7 +50,7 @@ fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
 fun RequisitionMetadata.toInternal(dataProviderKey: DataProviderKey): InternalRequisitionMetadata {
   val source = this
   return internalRequisitionMetadata {
-    this.externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+    this.dataProviderResourceId = dataProviderKey.dataProviderId
     cmmsRequisition = source.cmmsRequisition
     blobUri = source.blobUri
     blobTypeUrl = source.blobTypeUrl
@@ -66,17 +62,15 @@ fun RequisitionMetadata.toInternal(dataProviderKey: DataProviderKey): InternalRe
   }
 }
 
-/**
- * Converts an internal [InternalRequisitionMetadata.State] to a public [RequisitionMetadata.State].
- */
-internal fun InternalRequisitionMetadata.State.toState(): RequisitionMetadata.State {
+/** Converts an [InternalState] to a public [RequisitionMetadata.State]. */
+internal fun InternalState.toState(): RequisitionMetadata.State {
   return when (this) {
-    InternalRequisitionMetadata.State.STORED -> RequisitionMetadata.State.STORED
-    InternalRequisitionMetadata.State.QUEUED -> RequisitionMetadata.State.QUEUED
-    InternalRequisitionMetadata.State.PROCESSING -> RequisitionMetadata.State.PROCESSING
-    InternalRequisitionMetadata.State.FULFILLED -> RequisitionMetadata.State.FULFILLED
-    InternalRequisitionMetadata.State.REFUSED -> RequisitionMetadata.State.REFUSED
-    InternalRequisitionMetadata.State.UNRECOGNIZED,
-    InternalRequisitionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+    InternalState.REQUISITION_METADATA_STATE_STORED -> RequisitionMetadata.State.STORED
+    InternalState.REQUISITION_METADATA_STATE_QUEUED -> RequisitionMetadata.State.QUEUED
+    InternalState.REQUISITION_METADATA_STATE_PROCESSING -> RequisitionMetadata.State.PROCESSING
+    InternalState.REQUISITION_METADATA_STATE_FULFILLED -> RequisitionMetadata.State.FULFILLED
+    InternalState.REQUISITION_METADATA_STATE_REFUSED -> RequisitionMetadata.State.REFUSED
+    InternalState.UNRECOGNIZED,
+    InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED -> error("Unrecognized state")
   }
 }
