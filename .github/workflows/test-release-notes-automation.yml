@@ -23,8 +23,28 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.x' }
 
-      - name: Fetch data
-        id: fetch-data
+      - name: Generate highlights
+        id: generate-highlights
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # DO_NOT_SUBMIT: use parameter
+          MILESTONE: v0.5.25
+        run: |
+          set -euo pipefail
+          
+          # Build a JSON array of strings: "<title>. See #<number>"
+          notes_json_array=$(gh issue list --milestone "${MILESTONE}" \
+            --search 'type:"Feature request" state:closed' \
+            --json number,title \
+            --jq 'map("\(.title). See #\(.number)")')
+
+          jq . <<< "${notes_json_array}"
+
+          printf "json=%s\n" "$(jq -c . <<< ${notes_json_array})" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch PRs data
+        id: fetch-prs-data
         env:
           GH_TOKEN: ${{ github.token }}
           # DO_NOT_SUBMIT: sha of nightly/20250728.1
@@ -106,7 +126,7 @@ jobs:
 
       - name: Print debug data
         env:
-          JSON: ${{ steps.fetch-data.outputs.json }}
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
         run: |
           python - <<'PY'
           import os, json
@@ -117,7 +137,7 @@ jobs:
       - name: Generate issues addressed
         id: generate-issues-addressed
         env:
-          JSON: ${{ steps.fetch-data.outputs.json }}
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
         run: |
           python - <<'PY'
           import os, json
@@ -146,7 +166,7 @@ jobs:
       - name: Generate potentially requiring action
         id: generate-potentially-requiring-action
         env:
-          JSON: ${{ steps.fetch-data.outputs.json }}
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
         run: |
           python - <<'PY'
           import os, json
@@ -176,16 +196,19 @@ jobs:
       - name: Print release notes
         shell: bash
         env:
+          HIGHLIGHTS: ${{ steps.generate-highlights.outputs.json }}
           ISSUES_ADDRESSED: ${{ steps.generate-issues-addressed.outputs.json }}
           POTENTIALLY_REQUIRING_ACTION: ${{ steps.generate-potentially-requiring-action.outputs.json }}
         run: |
           print_section() {
             local title=$1
             local json_array=$2
+            echo
             echo "## ${title}"
             jq -r '.[] | "* \(.)"' <<<"${json_array}"
           }
 
+          print_section "Highlights" "${HIGHLIGHTS}"
           print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
           print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"
 
