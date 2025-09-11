@@ -168,7 +168,7 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
-    val eventGroupPath = "$modelLine/$eventGroupReferenceId"
+    val eventGroupPath = "model-line/$modelLine/event-group-reference-id/$eventGroupReferenceId"
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
