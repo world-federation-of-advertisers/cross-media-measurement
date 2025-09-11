@@ -138,6 +138,12 @@ class StorageEventSource(
    */
   override fun generateEventBatches(): Flow<EventBatch<Message>> {
     logger.info("Starting storage-based event generation with batching")
+    logger.info("Model line: '$modelLine', batch size: $batchSize")
+    logger.info(
+      "Event groups to process: ${eventGroupDetailsList.map { 
+        "${it.eventGroupReferenceId} with ${it.collectionIntervalsList.size} intervals" 
+      }}"
+    )
 
     return channelFlow {
       val eventReaders: List<StorageEventReader> = createEventReaders()
@@ -163,19 +169,44 @@ class StorageEventSource(
 
   /** Creates EventReader instances for all data sources provided by the metadata service. */
   private suspend fun createEventReaders(): List<StorageEventReader> {
+    logger.info("Creating EventReaders for all data sources")
+    
     val allSources =
       eventGroupDetailsList.flatMap { details ->
+        logger.fine(
+          "Fetching data sources for event group '${details.eventGroupReferenceId}' " +
+          "with ${details.collectionIntervalsList.size} intervals"
+        )
         details.collectionIntervalsList.flatMap { interval ->
-          impressionMetadataService.listImpressionDataSources(
+          logger.fine(
+            "Fetching sources for interval [${interval.startTime} to ${interval.endTime}]"
+          )
+          val sources = impressionMetadataService.listImpressionDataSources(
             modelLine,
             details.eventGroupReferenceId,
             interval,
           )
+          logger.info(
+            "Found ${sources.size} data sources for event group '${details.eventGroupReferenceId}' " +
+            "in interval [${interval.startTime} to ${interval.endTime}]"
+          )
+          sources
         }
       }
 
+    logger.info("Total data sources found: ${allSources.size}")
+
     // Deduplicate sources by blob URI to avoid double-reading overlapping intervals.
     val uniqueSources = allSources.distinctBy { it.blobDetails.blobUri }
+    
+    logger.info(
+      "After deduplication: ${uniqueSources.size} unique sources " +
+      "(${allSources.size - uniqueSources.size} duplicates removed)"
+    )
+    
+    uniqueSources.forEach { source ->
+      logger.fine("Will read from: ${source.blobDetails.blobUri}")
+    }
 
     return uniqueSources.map { source ->
       StorageEventReader(
@@ -197,7 +228,7 @@ class StorageEventSource(
     var eventCount = 0
     val blobDetails = eventReader.getBlobDetails()
 
-    logger.fine("Reading events from ${blobDetails.blobUri}")
+    logger.info("Starting to read events from ${blobDetails.blobUri}")
 
     eventReader.readEvents().collect { events ->
       val eventBatch =
@@ -206,12 +237,30 @@ class StorageEventSource(
           minTime = events.minOf { it.timestamp },
           maxTime = events.maxOf { it.timestamp },
         )
+      
+      logger.fine(
+        "Sending batch #${batchCount + 1} with ${events.size} events from ${blobDetails.blobUri}, " +
+        "time range: [${eventBatch.minTime} to ${eventBatch.maxTime}]"
+      )
+      
+      // Log sample event details for debugging
+      if (events.isNotEmpty()) {
+        val sampleEvent = events.first()
+        logger.finest(
+          "Sample event from batch: eventGroupReferenceId='${sampleEvent.eventGroupReferenceId}', " +
+          "vid='${sampleEvent.vid}', timestamp=${sampleEvent.timestamp}"
+        )
+      }
+      
       sendEventBatch(eventBatch)
       batchCount++
       eventCount += events.size
     }
 
-    logger.fine("Read $eventCount events in $batchCount batches for ${blobDetails.blobUri}")
+    logger.info(
+      "Completed reading from ${blobDetails.blobUri}: " +
+      "$eventCount events in $batchCount batches"
+    )
     return EventReaderResult(batchCount, eventCount)
   }
 

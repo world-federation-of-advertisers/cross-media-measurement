@@ -121,7 +121,9 @@ class ResultsFulfiller(
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    logger.info("ResultsFulfiller.fulfillRequisitions() started")
     val groupedRequisitions = getRequisitions()
+    logger.info("Retrieved grouped requisitions with ${groupedRequisitions.requisitionsList.size} items")
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     val eventGroupReferenceIdMap =
@@ -130,14 +132,17 @@ class ResultsFulfiller(
       }
 
     logger.info("Processing ${requisitions.size} Requisitions")
+    logger.info("Event group reference ID map: ${eventGroupReferenceIdMap.keys}")
     totalRequisitions.addAndGet(requisitions.size)
 
     val modelLine = groupedRequisitions.modelLine
+    logger.info("Model line: $modelLine")
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
     val vidIndexMap = modelInfo.vidIndexMap
+    logger.info("Population spec size: ${populationSpec.size}, VID index map size: ${vidIndexMap.size}")
 
     val eventSource =
       StorageEventSource(
@@ -149,8 +154,10 @@ class ResultsFulfiller(
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
       )
+    logger.info("Created StorageEventSource with ${groupedRequisitions.eventGroupMapList.size} event group details")
 
     val frequencyVectorStart = TimeSource.Monotonic.markNow()
+    logger.info("Starting event processing orchestrator...")
     val frequencyVectorMap =
       orchestrator.run(
         eventSource = eventSource,
@@ -163,7 +170,8 @@ class ResultsFulfiller(
       )
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
 
-    logger.info("Frequency vector calculation completed, processing individual requisitions")
+    logger.info("Frequency vector calculation completed, got ${frequencyVectorMap.size} results")
+    logger.info("Processing individual requisitions with parallelism: $parallelism")
 
     requisitions
       .asFlow()
@@ -184,6 +192,7 @@ class ResultsFulfiller(
       }
       .collect()
 
+    logger.info("All requisitions fulfilled successfully")
     logFulfillmentStats()
   }
 
@@ -200,9 +209,22 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
   ) {
+    logger.info("Starting fulfillSingleRequisition for: ${requisition.name}")
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
     val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    val nonZeroEntries = frequencyData.count { it > 0 }
+    val totalCount = frequencyData.sum()
+    val maxFrequency = frequencyData.maxOrNull() ?: 0
+    logger.info("Frequency data size: ${frequencyData.size}, non-zero entries: $nonZeroEntries, total count: $totalCount, max frequency: $maxFrequency")
+    
+    // Log first few non-zero entries for debugging
+    val nonZeroSample = frequencyData.withIndex().filter { it.value > 0 }.take(10)
+    logger.info("Sample non-zero entries: ${nonZeroSample.map { "(idx=${it.index}, freq=${it.value})" }}")
+    
+    // Calculate reach expectation from frequency data
+    val reachFromFreqData = frequencyData.count { it > 0 }
+    logger.info("Expected reach from frequency data: $reachFromFreqData")
 
     val signedRequisitionSpec: SignedMessage =
       try {
@@ -232,8 +254,10 @@ class ResultsFulfiller(
     )
 
     val sendStart = TimeSource.Monotonic.markNow()
+    logger.info("Sending fulfillment for requisition: ${requisition.name}")
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+    logger.info("Successfully fulfilled requisition: ${requisition.name}")
   }
 
   /**

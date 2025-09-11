@@ -74,38 +74,53 @@ data class FilterSpecIndex(
       eventGroupReferenceIdMap: Map<String, String>,
       privateEncryptionKey: PrivateKeyHandle,
     ): FilterSpecIndex {
+      val logger = Logger.getLogger(FilterSpecIndex::class.java.name)
       val filterSpecToReqNames = mutableMapOf<FilterSpec, MutableList<String>>()
       val reqNameToFilterSpec = mutableMapOf<String, FilterSpec>()
 
+      logger.info("Building FilterSpecIndex from ${requisitions.size} requisitions")
+      logger.fine("Event group reference ID map: $eventGroupReferenceIdMap")
+
       for (requisition in requisitions) {
+        logger.fine("Processing requisition: ${requisition.name}")
+        
         val signedRequisitionSpec: SignedMessage =
           decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
         val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
 
         require(!requisitionSpec.events.eventGroupsList.isEmpty()) {
-          "event groups list is empty for requisition"
+          "event groups list is empty for requisition ${requisition.name}"
         }
 
         val eventGroups = requisitionSpec.events.eventGroupsList
+        logger.fine(
+          "Requisition '${requisition.name}' has ${eventGroups.size} event groups: " +
+          eventGroups.map { it.key }
+        )
+        
         val firstEventGroup = eventGroups.first()
 
         // Validate consistent filter and interval across groups
         require(
           eventGroups.all { it.value.filter.expression == firstEventGroup.value.filter.expression }
         ) {
-          "All event groups must have the same CEL expression"
+          "All event groups must have the same CEL expression in requisition ${requisition.name}"
         }
         require(
           eventGroups.all {
             it.value.collectionInterval == firstEventGroup.value.collectionInterval
           }
         ) {
-          "All event groups must have the same collection interval"
+          "All event groups must have the same collection interval in requisition ${requisition.name}"
         }
 
         // Canonicalize eventGroupReferenceIds for deduplication
         val eventGroupReferenceIds =
-          eventGroups.map { eventGroupReferenceIdMap.getValue(it.key) }.sorted()
+          eventGroups.map { eventGroup ->
+            val refId = eventGroupReferenceIdMap.getValue(eventGroup.key)
+            logger.finest("Mapped event group '${eventGroup.key}' to reference ID '$refId'")
+            refId
+          }.sorted()
 
         val filterSpec =
           FilterSpec(
@@ -114,10 +129,22 @@ data class FilterSpecIndex(
             eventGroupReferenceIds = eventGroupReferenceIds,
           )
 
+        logger.info(
+          "Created FilterSpec for requisition '${requisition.name}': " +
+          "CEL='${filterSpec.celExpression}', " +
+          "interval=[${filterSpec.collectionInterval.startTime} to ${filterSpec.collectionInterval.endTime}], " +
+          "eventGroups=$eventGroupReferenceIds"
+        )
+
         filterSpecToReqNames.getOrPut(filterSpec) { mutableListOf() }.add(requisition.name)
         reqNameToFilterSpec[requisition.name] = filterSpec
       }
 
+      logger.info(
+        "FilterSpecIndex built: ${filterSpecToReqNames.size} unique FilterSpecs " +
+        "for ${requisitions.size} requisitions"
+      )
+      
       return FilterSpecIndex(filterSpecToReqNames, reqNameToFilterSpec)
     }
   }
@@ -190,21 +217,41 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
-    logger.info("Starting with ${requisitions.size} requisitions")
+    logger.info("Starting EventProcessingOrchestrator with ${requisitions.size} requisitions")
+    requisitions.forEach { req ->
+      logger.fine("Processing requisition: ${req.name}")
+    }
 
     config.validate()
+    logger.info(
+      "Pipeline config: batchSize=${config.batchSize}, workers=${config.workers}, " +
+      "threadPoolSize=${config.threadPoolSize}"
+    )
 
     val executorService: ExecutorService = createExecutorService(config.threadPoolSize)
     val dispatcher = executorService.asCoroutineDispatcher()
 
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
+      logger.info("Building FilterSpec index from requisitions")
       val filterSpecIndex =
         FilterSpecIndex.fromRequisitions(
           requisitions,
           eventGroupReferenceIdMap,
           privateEncryptionKey,
         )
+      
+      logger.info(
+        "Created ${filterSpecIndex.filterSpecToRequisitionNames.size} unique FilterSpecs " +
+        "from ${requisitions.size} requisitions"
+      )
+      filterSpecIndex.filterSpecToRequisitionNames.forEach { (spec, reqNames) ->
+        logger.info(
+          "FilterSpec [CEL='${spec.celExpression}', " +
+          "eventGroups=${spec.eventGroupReferenceIds}] " +
+          "maps to requisitions: $reqNames"
+        )
+      }
 
       // Create one sink per unique FilterSpec
       val sinkByFilterSpec =
@@ -216,6 +263,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         )
 
       val pipeline = createPipeline(config)
+      logger.info("Starting pipeline processing with ${sinkByFilterSpec.size} sinks")
 
       withContext(dispatcher) {
         pipeline.processEventBatches(
@@ -224,14 +272,28 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         )
       }
 
+      logger.info("Pipeline processing completed, mapping results to requisitions")
+      
       // Map results back to requisition names using their FilterSpec
       val results =
         requisitions.associate { req ->
           val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
-          req.name to sinkByFilterSpec.getValue(spec).getFrequencyVector()
+          val frequencyVector = sinkByFilterSpec.getValue(spec).getFrequencyVector()
+          val freqBytes = frequencyVector.getByteArray()
+          val frequencyData = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+          val nonZeroCount = frequencyData.count { it > 0 }
+          val totalCount = frequencyData.sum()
+          logger.info(
+            "Requisition '${req.name}' -> FilterSpec with eventGroups=${spec.eventGroupReferenceIds}, " +
+            "frequency vector size: ${frequencyVector.size}, non-zero entries: $nonZeroCount, total events: $totalCount"
+          )
+          req.name to frequencyVector
         }
 
       logger.info("Completed successfully, returning ${results.size} results")
+      results.forEach { (reqName, vector) ->
+        logger.fine("Result for requisition '$reqName': frequency vector size=${vector.size}")
+      }
       return results
     } finally {
       shutdownExecutorService(executorService)

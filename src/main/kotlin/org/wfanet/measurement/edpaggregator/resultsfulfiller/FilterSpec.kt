@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
+import java.util.logging.Logger
 import org.wfanet.measurement.common.toInstant
 
 /**
@@ -42,5 +43,15 @@ data class FilterSpec(
     ) {
       "collectionInterval startTime must be before endTime"
     }
+    
+    logger.info(
+      "Created FilterSpec with CEL: '${celExpression}', " +
+      "interval: [${collectionInterval.startTime.toInstant()} to ${collectionInterval.endTime.toInstant()}), " +
+      "eventGroupReferenceIds: ${eventGroupReferenceIds.sorted()}"
+    )
+  }
+  
+  companion object {
+    private val logger = Logger.getLogger(FilterSpec::class.java.name)
   }
 }

@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import java.time.Instant
+import java.util.logging.Logger
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -86,26 +87,61 @@ class FilterProcessor<T : Message>(
    */
   fun processBatch(batch: EventBatch<T>): EventBatch<T> {
     if (batch.events.isEmpty()) {
+      logger.fine("Skipping empty batch")
       return batch
     }
 
+    logger.fine(
+      "Processing batch with ${batch.events.size} events, " +
+      "batch time range: [${batch.minTime} to ${batch.maxTime}]"
+    )
+
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
+      logger.info(
+        "Batch time range [${batch.minTime} to ${batch.maxTime}] does not overlap with " +
+        "filter interval [${startInstant} to ${endInstant}), skipping entire batch"
+      )
       return EventBatch(emptyList(), minTime = batch.minTime, maxTime = batch.maxTime)
     }
+
+    var eventGroupFilteredCount = 0
+    var timeRangeFilteredCount = 0
+    var celFilteredCount = 0
 
     val filteredEvents =
       batch.events.filter { event ->
         if (!filterSpec.eventGroupReferenceIds.contains(event.eventGroupReferenceId)) {
+          eventGroupFilteredCount++
+          logger.finest(
+            "Event filtered out: eventGroupReferenceId '${event.eventGroupReferenceId}' " +
+            "not in allowed list ${filterSpec.eventGroupReferenceIds}"
+          )
           return@filter false
         }
 
         if (!isEventInTimeRange(event)) {
+          timeRangeFilteredCount++
+          logger.finest(
+            "Event filtered out: timestamp ${event.timestamp} outside range " +
+            "[${startInstant} to ${endInstant})"
+          )
           return@filter false
         }
 
-        EventFilters.matches(event.message, program)
+        val matched = EventFilters.matches(event.message, program)
+        if (!matched) {
+          celFilteredCount++
+          logger.finest("Event filtered out by CEL expression: '${filterSpec.celExpression}'")
+        }
+        matched
       }
+
+    logger.info(
+      "Batch processing complete: ${filteredEvents.size}/${batch.events.size} events passed filters. " +
+      "Filtered out - eventGroup: $eventGroupFilteredCount, timeRange: $timeRangeFilteredCount, " +
+      "CEL: $celFilteredCount"
+    )
 
     return EventBatch(filteredEvents, minTime = batch.minTime, maxTime = batch.maxTime)
   }
@@ -138,5 +174,9 @@ class FilterProcessor<T : Message>(
   private fun isEventInTimeRange(event: LabeledEvent<T>): Boolean {
     val eventTime = event.timestamp
     return !eventTime.isBefore(startInstant) && eventTime.isBefore(endInstant)
+  }
+  
+  companion object {
+    private val logger = Logger.getLogger(FilterProcessor::class.java.name)
   }
 }
