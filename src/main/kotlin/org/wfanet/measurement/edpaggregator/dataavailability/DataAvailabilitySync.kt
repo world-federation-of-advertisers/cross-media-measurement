@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.util.Timestamps
 import io.grpc.StatusException
@@ -39,10 +38,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import com.google.type.interval
-import com.google.type.Interval
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.all
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
@@ -50,7 +47,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
-import java.util.*
+import java.util.UUID
 import kotlin.text.Charsets.UTF_8
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.BlobUri

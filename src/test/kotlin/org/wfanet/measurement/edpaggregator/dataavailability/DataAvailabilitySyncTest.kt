@@ -289,7 +289,7 @@ class DataAvailabilitySyncTest {
         }
 
     }
-    
+
     @Test
     fun `metadata file is ignored if file prefix doesn't follow expected path`() {
 
