@@ -26,11 +26,12 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
-import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
@@ -80,7 +81,11 @@ class SpannerImpressionMetadataService(
   override suspend fun createImpressionMetadata(
     request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
-    validateImpressionMetadata(request.impressionMetadata)
+    try {
+      validateImpressionMetadata(request.impressionMetadata)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val initialState = State.IMPRESSION_METADATA_STATE_ACTIVE
 
@@ -92,8 +97,8 @@ class SpannerImpressionMetadataService(
           if (request.requestId.isNotEmpty()) {
             try {
               UUID.fromString(request.requestId)
-            } catch (_: IllegalArgumentException) {
-              throw InvalidFieldValueException("request_id")
+            } catch (e: IllegalArgumentException) {
+              throw InvalidFieldValueException("request_id", e)
                 .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
             }
 
@@ -107,10 +112,13 @@ class SpannerImpressionMetadataService(
             }
           }
 
-          val impressionMetadataId = idGenerator.generateId()
+          val impressionMetadataId =
+            idGenerator.generateNewId { id ->
+              txn.impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
+            }
           val impressionMetadataResourceId =
             request.impressionMetadata.impressionMetadataResourceId.ifEmpty {
-              externalIdToApiId(idGenerator.generateId())
+              "imp-" + UUID.randomUUID()
             }
 
           txn.insertImpressionMetadata(
@@ -123,6 +131,8 @@ class SpannerImpressionMetadataService(
           request.impressionMetadata.copy {
             state = initialState
             this.impressionMetadataResourceId = impressionMetadataResourceId
+            clearCreateTime()
+            clearUpdateTime()
           }
         }
       } catch (e: SpannerException) {
@@ -148,27 +158,21 @@ class SpannerImpressionMetadataService(
   private fun validateImpressionMetadata(impressionMetadata: ImpressionMetadata) {
     if (impressionMetadata.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (impressionMetadata.blobUri.isEmpty()) {
       throw RequiredFieldNotSetException("blob_uri")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (impressionMetadata.blobTypeUrl.isEmpty()) {
       throw RequiredFieldNotSetException("blob_type_url")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (impressionMetadata.eventGroupReferenceId.isEmpty()) {
       throw RequiredFieldNotSetException("event_group_reference_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (impressionMetadata.cmmsModelLine.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_model_line")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (!impressionMetadata.hasInterval()) {
       throw RequiredFieldNotSetException("interval")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 }
