@@ -83,7 +83,7 @@ jobs:
               )
 
               pr_output = {}
-              pr_output["pr"] = {"id": pr_number}
+              pr_output["pr_id"] = pr_number
 
               for line in trailers_text.splitlines():
                   m2 = re.match(r'^([^:]+):\s(.*)$', line)
@@ -112,6 +112,56 @@ jobs:
           import os, json
           data = json.loads(os.environ["JSON"])
           print(json.dumps(data, indent=2))
+          PY
+
+      - name: Generate issues addressed
+        env:
+          JSON: ${{ steps.fetch-data.outputs.json }}
+        run: |
+          python - <<'PY'
+          import os, json
+
+          pr_data = json.loads(os.environ["JSON"])
+
+          issues_addressed = []
+          seen = set()
+
+          for pr in pr_data:
+              for issue in pr.get("issues", []):
+                  if issue["type"] == "Bug":
+                      title = issue["title"].rstrip('.')
+                      ref = issue["id"]
+                      note = f"{title}. See #{ref}"
+                      if note not in seen:
+                          seen.add(note)
+                          issues_addressed.append(note)
+
+          print(issues_addressed)
+          PY
+
+      - name: Generate highlights
+        env:
+          JSON: ${{ steps.fetch-data.outputs.json }}
+        run: |
+          python - <<'PY'
+          import os, json
+
+          def _compute_note_refs(pr):
+              # Prefer issue ids; fall back to the PR number if no issues
+              refs = [f"#{issue['id']}" for issue in pr.get("issues", [])]
+              if not refs:
+                  refs = [f"#{pr['id']}"]
+              return " ".join(refs)
+
+          pr_data = json.loads(os.environ["JSON"])
+          highlights = []
+
+          for pr in pr_data:
+              note_refs = _compute_note_refs(pr)
+              for line in pr.get("relnotes", []) + pr.get("breaking_change", []):
+                  title = line.rstrip('.')
+                  highlights.append(f"{title}. See {note_refs}")
+          print(highlights)
           PY
 
       - name: Scan commits
