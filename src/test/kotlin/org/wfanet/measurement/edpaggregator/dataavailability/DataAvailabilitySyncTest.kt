@@ -50,6 +50,7 @@ import org.wfanet.measurement.storage.StorageClient
 import java.io.File
 import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.emptyFlow
+import kotlin.test.assertFailsWith
 
 enum class BlobEncoding { PROTO, JSON }
 
@@ -259,7 +260,7 @@ class DataAvailabilitySyncTest {
     }
 
     @Test
-    fun `blob details with missing interval is ignored`() {
+    fun `blob details with missing interval throws IllegalArgumentException`() {
 
         val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
@@ -267,7 +268,10 @@ class DataAvailabilitySyncTest {
             seedBlobDetails(
                 storageClient,
                 folderPrefix,
-                listOf(null to null),
+                listOf(
+                    300L to 400L,
+                    null to null,
+                ),
                 BlobEncoding.JSON
             )
         }
@@ -280,40 +284,12 @@ class DataAvailabilitySyncTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
-        verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
-    }
-
-    @Test
-    fun `invalid single interval fails for existing model line`() {
-
-        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-
-        runBlocking {
-            seedBlobDetails(
-                storageClient,
-                folderPrefix,
-                listOf(320L to 400L),
-                BlobEncoding.JSON
-            )
+        assertFailsWith<IllegalArgumentException> {
+            runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         }
 
-        val dataAvailabilitySync = DataAvailabilitySync(
-            storageClient,
-            dataProvidersStub,
-            impressionMetadataStub,
-            "dataProviders/dataProvider123",
-            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
-        )
-
-        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
-        verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
     }
-
+    
     @Test
     fun `metadata file is ignored if file prefix doesn't follow expected path`() {
 
