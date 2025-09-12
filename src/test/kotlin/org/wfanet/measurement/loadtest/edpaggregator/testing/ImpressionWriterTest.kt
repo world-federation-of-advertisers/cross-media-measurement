@@ -64,6 +64,7 @@ class ImpressionWriterTest {
     val impressionWriter =
       ImpressionsWriter(
         "some-event-group-path",
+        "some-event-group-reference-id",
         kekUri,
         kmsClient,
         "some-impression-bucket",

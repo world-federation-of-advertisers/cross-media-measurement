@@ -12,7 +12,11 @@ package(
 
 kt_jvm_library(
     name = "results_fulfiller",
-    srcs = ["ResultsFulfiller.kt"],
+    srcs = [
+        "ResultsFulfiller.kt",
+        "FulfillerSelector.kt",
+        "DefaultFulfillerSelector.kt",
+    ],
     deps = [
         ":continuous_gaussian_noiser_selector",
         ":event_batch",

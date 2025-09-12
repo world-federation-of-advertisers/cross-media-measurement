@@ -23,8 +23,8 @@ readonly DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 readonly CONTAINER_USER='builder'
 readonly CONTAINER_HOME="/${CONTAINER_USER}"
 readonly OUTPUT_BASE="${PWD}/bazel-container-output"
-readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${CONTAINER_USER}"
 readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
+readonly DISK_CACHE="${CONTAINER_HOME}/.cache/bazel/container-disk-cache"
 readonly GCLOUD_SDK_CONFIG="${CONTAINER_HOME}/.config/gcloud"
 
 command_exists() {
@@ -74,18 +74,6 @@ get_output_volume() {
   echo "bazel-output-${wdir_hash}"
 }
 
-# Outputs the host's Bazel output user root.
-# See https://docs.bazel.build/versions/4.2.1/output_directories.html
-get_host_output_user_root() {
-  local output_root
-  if [[ "${OSTYPE}" == 'darwin'* ]]; then
-    output_root='/private/var/tmp'
-  else
-    output_root="${HOME}/.cache/bazel"
-  fi
-  echo "${output_root}/_bazel_${USER}"
-}
-
 get_host_cache_dir() {
   if [[ -v XDG_CACHE_HOME ]]; then
     echo "${XDG_CACHE_HOME}"
@@ -97,10 +85,6 @@ get_host_cache_dir() {
 }
 
 ensure_host_bazelisk_cache_dir() {
-  local host_cache_dir
-  host_cache_dir="$(get_host_cache_dir)"
-  readonly host_cache_dir
-
   readonly bazelisk_cache_dir="${host_cache_dir}/bazelisk"
   mkdir -p "${bazelisk_cache_dir}"
   echo "${bazelisk_cache_dir}"
@@ -120,18 +104,21 @@ main() {
   docker_socket="$(get_docker_socket)"
   readonly docker_socket
 
-  local host_output_user_root
-  host_output_user_root="$(get_host_output_user_root)"
-  readonly host_output_user_root
-  mkdir -p "${host_output_user_root}"
-
   local install_base
   install_base="$(get_host_install_base)"
   readonly install_base
 
-  local host_bazelisk_cache_dir
-  host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
-  readonly host_bazelisk_cache_dir
+  local host_cache_dir
+  host_cache_dir="$(get_host_cache_dir)"
+  readonly host_cache_dir
+
+  readonly host_bazelisk_cache_dir="${host_cache_dir}/bazelisk"
+  mkdir -p "${host_bazelisk_cache_dir}"
+
+  local host_disk_cache_dir
+  host_disk_cache_dir="${host_cache_dir}/bazel/bazel-container/$(hash_md5 "${PWD}")"
+  readonly host_disk_cache_dir
+  mkdir -p "${host_disk_cache_dir}"
 
   mkdir -p "${OUTPUT_BASE}"
 
@@ -147,9 +134,9 @@ main() {
     '--mount'
       "type=bind,source=${PWD},target=${PWD},readonly"
     '--mount'
-      "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
-    '--mount'
       "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_HOME}"
+    '--mount'
+      "type=bind,source=${host_disk_cache_dir},target=${DISK_CACHE}"
     '--mount'
       "type=bind,source=${docker_socket},target=/var/run/docker.sock"
     "--workdir=${PWD}"
@@ -202,7 +189,6 @@ main() {
   fi
 
   local -a startup_options=(
-    "--output_user_root=${OUTPUT_USER_ROOT}"
     "--output_base=${OUTPUT_BASE}"
   )
   if [[ -n "${install_base}" ]]; then
@@ -229,6 +215,7 @@ main() {
       "${startup_options[@]}" \
       "${command}" \
       --config=container \
+      "--disk_cache=${DISK_CACHE}" \
       --experimental_convenience_symlinks=ignore \
       "$@"
   )

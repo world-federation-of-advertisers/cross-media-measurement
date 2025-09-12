@@ -41,9 +41,6 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
@@ -80,20 +77,14 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStubMap:
-    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
-  private val dataProviderCertificateKey: DataProviderCertificateKey,
-  private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
-  private val noiserSelector: NoiserSelector,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val kAnonymityParams: KAnonymityParams?,
   private val pipelineConfiguration: PipelineConfiguration,
   private val impressionMetadataService: ImpressionMetadataService,
   private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
+  private val fulfillerSelector: FulfillerSelector,
 ) {
 
   private val totalRequisitions = AtomicInteger(0)
@@ -216,7 +207,7 @@ class ResultsFulfiller(
 
     val buildStart = TimeSource.Monotonic.markNow()
     val fulfiller =
-      selectFulfiller(
+      fulfillerSelector.selectFulfiller(
         requisition = requisition,
         measurementSpec = measurementSpec,
         requisitionSpec = requisitionSpec,
@@ -244,81 +235,6 @@ class ResultsFulfiller(
    *
    * @throws IllegalArgumentException If the protocol is unsupported.
    */
-  private suspend fun selectFulfiller(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
-    populationSpec: PopulationSpec,
-  ): MeasurementFulfiller {
-    val vec = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
-    return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
-      // TODO: Calculate the maximum population for a given cel filter
-      buildDirectMeasurementFulfiller(
-        requisition = requisition,
-        measurementSpec = measurementSpec,
-        requisitionSpec = requisitionSpec,
-        maxPopulation = null,
-        frequencyData = vec.frequencyDataArray,
-        kAnonymityParams = kAnonymityParams,
-      )
-    } else if (
-      requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
-    ) {
-      if (kAnonymityParams == null) {
-        HMShuffleMeasurementFulfiller(
-          requisition,
-          requisitionSpec.nonce,
-          vec.build(),
-          dataProviderSigningKeyHandle,
-          dataProviderCertificateKey,
-          requisitionFulfillmentStubMap,
-        )
-      } else {
-        HMShuffleMeasurementFulfiller.buildKAnonymized(
-          requisition,
-          requisitionSpec.nonce,
-          measurementSpec,
-          populationSpec,
-          vec,
-          dataProviderSigningKeyHandle,
-          dataProviderCertificateKey,
-          requisitionFulfillmentStubMap,
-          kAnonymityParams,
-          maxPopulation = null,
-        )
-      }
-    } else {
-      throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
-    }
-  }
-
-  /**
-   * Creates a [FrequencyVectorBuilder] and populates it from a raw frequency array.
-   *
-   * @param measurementSpec The measurement specification describing the sketch layout.
-   * @param populationSpec The population specification used when building the sketch.
-   * @param frequencyData Raw frequency counts per index (byte-expanded to `Int`).
-   * @return A builder pre-populated with the provided frequencies.
-   */
-  private fun createFrequencyVectorBuilderFromArray(
-    measurementSpec: MeasurementSpec,
-    populationSpec: PopulationSpec,
-    frequencyData: IntArray,
-  ): FrequencyVectorBuilder {
-    val builder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
-
-    // Populate the builder with the frequency data
-    for (index in frequencyData.indices) {
-      val frequency = frequencyData[index]
-      if (frequency > 0) {
-        builder.incrementBy(index, frequency)
-      }
-    }
-
-    return builder
-  }
-
   /**
    * Loads [GroupedRequisitions] from blob storage using the configured URI.
    *
@@ -367,43 +283,6 @@ class ResultsFulfiller(
    * @param kAnonymityParams Optional k-anonymity parameters to apply.
    * @return A fully configured [DirectMeasurementFulfiller].
    */
-  private suspend fun buildDirectMeasurementFulfiller(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec,
-    maxPopulation: Int?,
-    frequencyData: IntArray,
-    kAnonymityParams: KAnonymityParams?,
-  ): DirectMeasurementFulfiller {
-    val measurementEncryptionPublicKey: EncryptionPublicKey =
-      measurementSpec.measurementPublicKey.unpack()
-    val directProtocolConfig =
-      requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-    val noiseMechanism =
-      noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-    val result =
-      DirectMeasurementResultFactory.buildMeasurementResult(
-        directProtocolConfig,
-        noiseMechanism,
-        measurementSpec,
-        frequencyData,
-        maxPopulation,
-        kAnonymityParams = kAnonymityParams,
-      )
-    return DirectMeasurementFulfiller(
-      requisition.name,
-      requisition.dataProviderCertificate,
-      result,
-      requisitionSpec.nonce,
-      measurementEncryptionPublicKey,
-      directProtocolConfig,
-      noiseMechanism,
-      dataProviderSigningKeyHandle,
-      dataProviderCertificateKey,
-      requisitionsStub,
-    )
-  }
-
   /**
    * Logs aggregate counters and timings for the current process lifetime.
    *

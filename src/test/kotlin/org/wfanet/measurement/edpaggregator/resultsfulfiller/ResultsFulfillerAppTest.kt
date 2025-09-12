@@ -852,6 +852,7 @@ class ResultsFulfillerAppTest {
     val blobDetails = blobDetails {
       this.blobUri = IMPRESSIONS_FILE_URI
       this.encryptedDek = encryptedDek
+      this.eventGroupReferenceId = EVENT_GROUP_NAME
     }
     logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
     impressionsMetadataStorageClient.writeBlob(
