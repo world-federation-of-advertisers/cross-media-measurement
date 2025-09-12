@@ -140,7 +140,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -168,7 +168,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -196,7 +196,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -224,7 +224,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -256,7 +256,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -314,7 +314,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineAvailability(any()) }
     }
 
     @Test
@@ -342,7 +342,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { listImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineAvailability(any()) }
     }
 
     /**
