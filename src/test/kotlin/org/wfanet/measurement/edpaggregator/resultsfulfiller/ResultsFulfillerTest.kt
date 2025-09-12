@@ -442,6 +442,7 @@ class ResultsFulfillerTest {
         BlobDetails.newBuilder()
           .setBlobUri(IMPRESSIONS_FILE_URI)
           .setEncryptedDek(encryptedDek)
+          .setEventGroupReferenceId(EVENT_GROUP_NAME)
           .build()
       logger.info("Writing $impressionMetadataBlobKey")
 

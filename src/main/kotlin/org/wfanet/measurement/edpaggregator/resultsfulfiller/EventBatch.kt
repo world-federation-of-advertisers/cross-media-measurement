@@ -27,11 +27,14 @@ import com.google.protobuf.Message
  * @param events A batch of parsed events
  * @param minTime The earliest event time in the batch, used for fast filtering.
  * @param maxTime The latest event time in the batch, used for filtering.
+ * @param eventGroupReferenceId identifier linking this event to a specific event group or campaign.
+ *   Used for filtering events by group membership.
  */
 data class EventBatch<T : Message>(
   val events: List<LabeledEvent<T>>,
   val minTime: java.time.Instant,
   val maxTime: java.time.Instant,
+  val eventGroupReferenceId: String,
 ) {
   val size: Int
     get() = events.size

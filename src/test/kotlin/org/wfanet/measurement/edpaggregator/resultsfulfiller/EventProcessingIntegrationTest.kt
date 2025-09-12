@@ -142,9 +142,9 @@ class EventProcessingIntegrationTest {
         eventGroupReferenceId = eventGroup2,
       )
 
-    // Write events to storage
-    val eventReader =
-      setupStorageWithEvents(
+    // Write events to storage and create event source
+    val eventSource =
+      setupStorageWithEventsAsSource(
         mapOf(eventGroup1 to eventsGroup1, eventGroup2 to eventsGroup2),
         testDate,
       )
@@ -165,10 +165,6 @@ class EventProcessingIntegrationTest {
       )
 
     val requisitions = listOf(requisition1, requisition2)
-
-    // Create event source from event reader
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup1, eventGroup2), testDate, testDate)
 
     // Load population spec
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
@@ -1100,6 +1096,30 @@ class EventProcessingIntegrationTest {
     }
   }
 
+  /** EventSource that combines multiple StorageEventReaders, preserving event group associations. */
+  private class MultiStorageEventSource(
+    private val storageEventReaders: List<StorageEventReader>,
+  ) : EventSource<Message> {
+    override fun generateEventBatches(): Flow<EventBatch<Message>> {
+      return flow {
+        // Process each StorageEventReader separately to preserve event group associations
+        storageEventReaders.forEach { storageEventReader ->
+          val blobDetails = storageEventReader.getBlobDetails()
+          storageEventReader.readEvents().collect { eventList ->
+            if (eventList.isNotEmpty()) {
+              // Calculate min and max times from the actual events
+              val eventTimes = eventList.map { labeledEvent -> labeledEvent.timestamp }
+              val minTime = eventTimes.minOrNull() ?: Instant.now()
+              val maxTime = eventTimes.maxOrNull() ?: Instant.now()
+
+              emit(EventBatch(eventList, minTime, maxTime, blobDetails.eventGroupReferenceId))
+            }
+          }
+        }
+      }
+    }
+  }
+
   /** Simple test implementation of EventSource that wraps an EventReader. */
   private class TestEventSource(
     private val eventReader: EventReader<Message>,
@@ -1117,7 +1137,7 @@ class EventProcessingIntegrationTest {
             val minTime = eventTimes.minOrNull() ?: Instant.now()
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
-            emit(EventBatch(eventList, minTime, maxTime))
+            emit(EventBatch(eventList, minTime, maxTime, eventGroups.firstOrNull() ?: ""))
           }
         }
       }
@@ -1204,6 +1224,26 @@ class EventProcessingIntegrationTest {
     return MultiGroupEventReader(readers)
   }
 
+  private suspend fun setupStorageWithEventsAsSource(
+    eventsByGroup: Map<String, List<LabeledImpression>>,
+    testDate: LocalDate,
+  ): EventSource<Message> {
+    val impressionsTmpPath = tempFolder.newFolder("test-impressions-source")
+    val dekTmpPath = tempFolder.newFolder("test-deks-source")
+
+    eventsByGroup.forEach { (eventGroup, events) ->
+      writeEventsToStorage(events, eventGroup, testDate, impressionsTmpPath, dekTmpPath)
+    }
+
+    // Create StorageEventReaders for all event groups
+    val storageEventReaders =
+      eventsByGroup.keys.map { eventGroup ->
+        createStorageEventReader(testDate, eventGroup, impressionsTmpPath, dekTmpPath) as StorageEventReader
+      }
+
+    return MultiStorageEventSource(storageEventReaders)
+  }
+
   private suspend fun setupMultiDayStorage(
     eventsByDayAndGroup: Map<LocalDate, Map<String, List<LabeledImpression>>>
   ): EventReader<Message> {
@@ -1242,6 +1282,7 @@ class EventProcessingIntegrationTest {
     // For tests we write unencrypted impressions to: file:///impressions/$date/$eventGroup
     val testBlobDetails = blobDetails {
       blobUri = "file:///impressions/$date/$eventGroup"
+      eventGroupReferenceId = eventGroup
       // No encryptedDek set: kmsClient = null below indicates unencrypted reads
     }
 
