@@ -260,38 +260,62 @@ class SpannerRequisitionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val requisitionMetadata =
-      transitionState(
-        request.dataProviderResourceId,
-        request.requisitionMetadataResourceId,
-        request.etag,
-        State.REQUISITION_METADATA_STATE_QUEUED,
-      ) {
-        set("WorkItem").to(request.workItem)
-      }
-    return requisitionMetadata.copy { workItem = request.workItem }
+    return try {
+      val requisitionMetadata =
+        transitionState(
+          request.dataProviderResourceId,
+          request.requisitionMetadataResourceId,
+          request.etag,
+          State.REQUISITION_METADATA_STATE_QUEUED,
+        ) {
+          set("WorkItem").to(request.workItem)
+        }
+      requisitionMetadata.copy { workItem = request.workItem }
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequisitionMetadataNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
   }
 
   override suspend fun startProcessingRequisitionMetadata(
     request: StartProcessingRequisitionMetadataRequest
   ): RequisitionMetadata {
-    return transitionState(
-      request.dataProviderResourceId,
-      request.requisitionMetadataResourceId,
-      request.etag,
-      State.REQUISITION_METADATA_STATE_PROCESSING,
-    )
+    return try {
+      transitionState(
+        request.dataProviderResourceId,
+        request.requisitionMetadataResourceId,
+        request.etag,
+        State.REQUISITION_METADATA_STATE_PROCESSING,
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequisitionMetadataNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
   }
 
   override suspend fun fulfillRequisitionMetadata(
     request: FulfillRequisitionMetadataRequest
   ): RequisitionMetadata {
-    return transitionState(
-      request.dataProviderResourceId,
-      request.requisitionMetadataResourceId,
-      request.etag,
-      State.REQUISITION_METADATA_STATE_FULFILLED,
-    )
+    return try {
+      transitionState(
+        request.dataProviderResourceId,
+        request.requisitionMetadataResourceId,
+        request.etag,
+        State.REQUISITION_METADATA_STATE_FULFILLED,
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequisitionMetadataNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
   }
 
   override suspend fun refuseRequisitionMetadata(
@@ -302,19 +326,33 @@ class SpannerRequisitionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val requisitionMetadata =
-      transitionState(
-        request.dataProviderResourceId,
-        request.requisitionMetadataResourceId,
-        request.etag,
-        State.REQUISITION_METADATA_STATE_REFUSED,
-      ) {
-        set("RefusalMessage").to(request.refusalMessage)
-      }
-    return requisitionMetadata.copy { refusalMessage = request.refusalMessage }
+    return try {
+      val requisitionMetadata =
+        transitionState(
+          request.dataProviderResourceId,
+          request.requisitionMetadataResourceId,
+          request.etag,
+          State.REQUISITION_METADATA_STATE_REFUSED,
+        ) {
+          set("RefusalMessage").to(request.refusalMessage)
+        }
+      requisitionMetadata.copy { refusalMessage = request.refusalMessage }
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequisitionMetadataNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
   }
 
-  /** Returns the copy of original RequisitionMetadata with updated state and updateTime. */
+  /**
+   * Returns the copy of original RequisitionMetadata with updated state and updateTime.
+   *
+   * @throws RequiredFieldNotSetException
+   * @throws RequisitionMetadataNotFoundException
+   * @throws EtagMismatchException
+   */
   private suspend fun transitionState(
     dataProviderResourceId: String,
     requisitionMetadataResourceId: String,
@@ -324,52 +362,45 @@ class SpannerRequisitionMetadataService(
   ): RequisitionMetadata {
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (requisitionMetadataResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("requisition_metadata_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=queueRequisitionMetadata"))
-    return try {
-      val updatedRequisitionMetadata =
-        transactionRunner.run { txn ->
-          val result =
-            txn.getRequisitionMetadataByResourceId(
-              dataProviderResourceId,
-              requisitionMetadataResourceId,
-            )
-          val requisitionMetadata = result.requisitionMetadata
+    val updatedRequisitionMetadata =
+      transactionRunner.run { txn ->
+        val result =
+          txn.getRequisitionMetadataByResourceId(
+            dataProviderResourceId,
+            requisitionMetadataResourceId,
+          )
+        val requisitionMetadata = result.requisitionMetadata
 
-          if (requestEtag != requisitionMetadata.etag) {
-            throw EtagMismatchException(requestEtag, requisitionMetadata.etag)
-              .asStatusRuntimeException(Status.Code.ABORTED)
-          }
-          txn.updateRequisitionMetadataState(
-            dataProviderResourceId,
-            result.requisitionMetadataId,
-            nextState,
-            block,
-          )
-          txn.insertRequisitionMetadataAction(
-            dataProviderResourceId,
-            result.requisitionMetadataId,
-            idGenerator.generateId(),
-            requisitionMetadata.state,
-            nextState,
-          )
-          requisitionMetadata
+        if (requestEtag != requisitionMetadata.etag) {
+          throw EtagMismatchException(requestEtag, requisitionMetadata.etag)
         }
-      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      updatedRequisitionMetadata.copy {
-        state = nextState
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
+        txn.updateRequisitionMetadataState(
+          dataProviderResourceId,
+          result.requisitionMetadataId,
+          nextState,
+          block,
+        )
+        txn.insertRequisitionMetadataAction(
+          dataProviderResourceId,
+          result.requisitionMetadataId,
+          idGenerator.generateId(),
+          requisitionMetadata.state,
+          nextState,
+        )
+        requisitionMetadata
       }
-    } catch (e: RequisitionMetadataNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return updatedRequisitionMetadata.copy {
+      state = nextState
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
     }
   }
 

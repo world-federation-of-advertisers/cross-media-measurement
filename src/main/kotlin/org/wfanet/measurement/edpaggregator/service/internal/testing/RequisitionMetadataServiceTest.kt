@@ -497,28 +497,15 @@ abstract class RequisitionMetadataServiceTest {
 
     assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_QUEUED)
     assertThat(response.workItem).isEqualTo(WORK_ITEM)
-
-    val updatedRequisitionMetadata =
-      service.getRequisitionMetadata(
-        getRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
-        }
-      )
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
+    assertThat(response)
       .isEqualTo(
-        requisitionMetadata.copy {
-          state = State.REQUISITION_METADATA_STATE_QUEUED
-          workItem = WORK_ITEM
-        }
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
@@ -644,23 +631,15 @@ abstract class RequisitionMetadataServiceTest {
       )
 
     assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_PROCESSING)
-
-    val updatedRequisitionMetadata =
-      service.getRequisitionMetadata(
-        getRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
-        }
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
-      .isEqualTo(requisitionMetadata.copy { state = State.REQUISITION_METADATA_STATE_PROCESSING })
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
@@ -761,23 +740,15 @@ abstract class RequisitionMetadataServiceTest {
       )
 
     assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_FULFILLED)
-
-    val updatedRequisitionMetadata =
-      service.getRequisitionMetadata(
-        getRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
-        }
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
-      .isEqualTo(requisitionMetadata.copy { state = State.REQUISITION_METADATA_STATE_FULFILLED })
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
@@ -878,28 +849,15 @@ abstract class RequisitionMetadataServiceTest {
 
     assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_REFUSED)
     assertThat(response.refusalMessage).isEqualTo(REFUSAL_MESSAGE)
-
-    val updatedRequisitionMetadata =
-      service.getRequisitionMetadata(
-        getRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
-        }
-      )
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
+    assertThat(response)
       .isEqualTo(
-        requisitionMetadata.copy {
-          state = State.REQUISITION_METADATA_STATE_REFUSED
-          refusalMessage = REFUSAL_MESSAGE
-        }
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
