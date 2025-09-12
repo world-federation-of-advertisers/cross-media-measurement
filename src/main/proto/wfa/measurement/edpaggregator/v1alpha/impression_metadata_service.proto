@@ -42,10 +42,6 @@ service ImpressionMetadataService {
   rpc GetImpressionMetadata(GetImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
 
-  // Retrieves the availability of a specific ModelLine entry.
-  rpc GetModelLineAvailability(GetModelLineAvailabilityRequest)
-      returns (ImpressionMetadata) {}
-
   // Lists ImpressionMetadata entries, with optional filtering.
   rpc ListImpressionMetadata(ListImpressionMetadataRequest)
       returns (ListImpressionMetadataResponse) {}
