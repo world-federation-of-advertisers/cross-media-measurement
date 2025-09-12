@@ -61,6 +61,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
+ * @param pipelineConfiguration Configuration for the event processing pipeline.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -75,6 +76,7 @@ class ResultsFulfillerApp(
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -127,13 +129,12 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = impressionsStorageConfig,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix =
+    val impressionsMetadataService =
+      StorageImpressionMetadataService(
+        impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
+        impressionsBlobDetailsUriPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        zoneIdForDates = ZoneOffset.UTC,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -141,39 +142,48 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
+
     val kAnonymityParams: KAnonymityParams? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "K-Anonymity min impressions must be > 0"
-        }
         require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "K-Anonymity min users must be > 0"
+          "k-anonymity minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
+        }
+        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
+          "k-anonymity minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
         }
         require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "K-Anonymity reach maximum frequency per user must be > 0"
+          "k-anonymity reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
         }
         KAnonymityParams(
-          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
+          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
         )
       } else {
         null
       }
+
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub,
-        requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey,
-        dataProviderResultSigningKeyHandle,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+        dataProviderCertificateKey = dataProviderCertificateKey,
+        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        zoneId = ZoneOffset.UTC,
         noiserSelector = noiseSelector,
-        eventReader = eventReader,
         modelLineInfoMap = modelLineInfoMap,
         kAnonymityParams = kAnonymityParams,
+        pipelineConfiguration = pipelineConfiguration,
+        impressionMetadataService = impressionsMetadataService,
+        impressionsStorageConfig = impressionsStorageConfig,
+        kmsClient = kmsClient,
       )
       .fulfillRequisitions()
+  }
+
+  companion object {
+    private val DEFAULT_PIPELINE_CONFIGURATION =
+      PipelineConfiguration(batchSize = 256, channelCapacity = 128, threadPoolSize = 4, workers = 4)
   }
 }

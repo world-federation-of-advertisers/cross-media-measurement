@@ -133,7 +133,6 @@ class StorageEventReader(
             timestamp = impression.eventTime.toInstant(),
             vid = impression.vid,
             message = eventMessage,
-            eventGroupReferenceId = impression.eventGroupReferenceId,
           )
 
         currentBatch.add(labeledEvent)

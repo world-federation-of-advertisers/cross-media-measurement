@@ -63,25 +63,22 @@ class FilterProcessorTest {
   private fun createTestLabeledEvent(
     vid: Long,
     timestamp: Instant = Instant.now(),
-    eventGroupReferenceId: String? = null,
     ageGroup: Person.AgeGroup = Person.AgeGroup.YEARS_18_TO_34,
     gender: Person.Gender = Person.Gender.MALE,
   ): LabeledEvent<Message> {
     val message = createDynamicMessage(ageGroup, gender)
-    return LabeledEvent(
-      timestamp = timestamp,
-      vid = vid,
-      message = message,
-      eventGroupReferenceId = eventGroupReferenceId ?: "test-group",
-    )
+    return LabeledEvent(timestamp = timestamp, vid = vid, message = message)
   }
 
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
-  private fun createEventBatch(events: List<LabeledEvent<Message>>): EventBatch<Message> {
+  private fun createEventBatch(
+    events: List<LabeledEvent<Message>>,
+    eventGroupReferenceId: String = "test-group",
+  ): EventBatch<Message> {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    return EventBatch(events, minTime, maxTime)
+    return EventBatch(events, minTime, maxTime, eventGroupReferenceId)
   }
 
   /** Helper function to create a default interval that covers a wide time range. */
@@ -205,16 +202,21 @@ class FilterProcessorTest {
 
       val events =
         listOf(
-          createTestLabeledEvent(1, eventGroupReferenceId = "event-group-1"),
-          createTestLabeledEvent(2, eventGroupReferenceId = "event-group-2"),
-          createTestLabeledEvent(3, eventGroupReferenceId = "event-group-1"),
+          createTestLabeledEvent(1),
+          createTestLabeledEvent(2),
+          createTestLabeledEvent(3),
         )
 
-      val batch = createEventBatch(events)
-      val result = filterProcessor.processBatch(batch)
+      // Test batch with matching event group ID
+      val matchingBatch = createEventBatch(events, targetEventGroupId)
+      val matchingResult = filterProcessor.processBatch(matchingBatch)
+      assertThat(matchingResult.events).hasSize(3)
+      assertThat(matchingResult.events.map { it.vid }).containsExactly(1L, 2L, 3L)
 
-      assertThat(result.events).hasSize(2)
-      assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
+      // Test batch with non-matching event group ID
+      val nonMatchingBatch = createEventBatch(events, "event-group-2")
+      val nonMatchingResult = filterProcessor.processBatch(nonMatchingBatch)
+      assertThat(nonMatchingResult.events).isEmpty()
     }
   }
 
@@ -240,40 +242,48 @@ class FilterProcessorTest {
         )
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
-      val events =
+      // Test batch with matching event group ID
+      val matchingGroupEvents =
         listOf(
           createTestLabeledEvent(
             1,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-1",
           ),
           createTestLabeledEvent(
             2,
             gender = Person.Gender.FEMALE,
             timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-1",
-          ),
-          createTestLabeledEvent(
-            3,
-            gender = Person.Gender.MALE,
-            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
-            eventGroupReferenceId = "event-group-2",
           ),
           createTestLabeledEvent(
             4,
             gender = Person.Gender.MALE,
             timestamp = Instant.parse("2024-12-31T23:59:59Z"),
-            eventGroupReferenceId = "event-group-1",
           ),
         )
 
-      val batch = createEventBatch(events)
-      val result = filterProcessor.processBatch(batch)
+      val matchingBatch = createEventBatch(matchingGroupEvents, targetEventGroupId)
+      val matchingResult = filterProcessor.processBatch(matchingBatch)
 
       // Only event 1 should match all criteria (male, correct group, within time range)
-      assertThat(result.events).hasSize(1)
-      assertThat(result.events[0].vid).isEqualTo(1L)
+      assertThat(matchingResult.events).hasSize(1)
+      assertThat(matchingResult.events[0].vid).isEqualTo(1L)
+
+      // Test batch with non-matching event group ID
+      val nonMatchingGroupEvents =
+        listOf(
+          createTestLabeledEvent(
+            3,
+            gender = Person.Gender.MALE,
+            timestamp = Instant.parse("2025-01-15T12:00:00Z"),
+          ),
+        )
+
+      val nonMatchingBatch = createEventBatch(nonMatchingGroupEvents, "event-group-2")
+      val nonMatchingResult = filterProcessor.processBatch(nonMatchingBatch)
+
+      // No events should match (wrong event group)
+      assertThat(nonMatchingResult.events).isEmpty()
     }
   }
 
