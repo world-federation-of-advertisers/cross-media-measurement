@@ -19,29 +19,21 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import com.google.protobuf.util.Timestamps
-import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.flattenConcat
-import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineAvailabilityRequest
 import com.google.type.interval
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
@@ -87,33 +79,33 @@ class DataAvailabilitySync(
     // 2. Save ImpressionMetadata using ImpressionMetadataStorage
     impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-    // 3. Retrieve impressions metadata from ImpressionMetadataStorage for all model line
+    // 3. Retrieve model line availability from ImpressionMetadataStorage for all model line
     // found in the storage folder and update kingdom availability
     val availabilityEntries = mutableListOf<DataProvider.DataAvailabilityMapEntry>()
     impressionMetadataMap.keys.forEach {
-      val existingImpressionMetadataList: List<ImpressionMetadata> = getImpressionMetadata(it)
-      val (intervalStart, intervalEnd) = existingImpressionMetadataList
-        .map { it.interval.startTime to it.interval.endTime }
-        .reduce { (minStart, maxEnd), (start, end) ->
-          val newMin = if (Timestamps.compare(start, minStart) < 0) start else minStart
-          val newMax = if (Timestamps.compare(end, maxEnd) > 0) end else maxEnd
-          newMin to newMax
-        }
+
+      val modelLineAvailabilityInterval : ComputeModelLineAvailabilityResponse =
+        impressionMetadataServiceStub.computeModelLineAvailability(computeModelLineAvailabilityRequest {
+          modelLine = it
+        })
+
       availabilityEntries += dataAvailabilityMapEntry {
         key = it
         value = interval {
-          startTime = intervalStart
-          endTime = intervalEnd
+          startTime = modelLineAvailabilityInterval.modelLineAvailability.startTime
+          endTime = modelLineAvailabilityInterval.modelLineAvailability.endTime
         }
       }
     }
     if(!availabilityEntries.isEmpty()) {
-      dataProvidersStub.replaceDataAvailabilityIntervals(
-        replaceDataAvailabilityIntervalsRequest {
-          name = dataProviderName
-          dataAvailabilityIntervals += availabilityEntries
-        }
-      )
+      throttler.onReady {
+        dataProvidersStub.replaceDataAvailabilityIntervals(
+          replaceDataAvailabilityIntervalsRequest {
+            name = dataProviderName
+            dataAvailabilityIntervals += availabilityEntries
+          }
+        )
+      }
     }
 
   }
@@ -133,30 +125,6 @@ class DataAvailabilitySync(
       parent = dataProviderName
       requests += createImpressionMetadataRequests
     })
-  }
-
-  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  suspend fun getImpressionMetadata(modelLine: String):  List<ImpressionMetadata> {
-    return impressionMetadataServiceStub.listResources { pageToken: String ->
-      val response =
-        try {
-          throttler.onReady {
-            impressionMetadataServiceStub.listImpressionMetadata(
-              listImpressionMetadataRequest {
-                parent = dataProviderName
-                this.pageToken = pageToken
-                filter = filter {
-                  this.modelLine = modelLine
-                  state = ImpressionMetadata.State.ACTIVE
-                }
-              }
-            )
-          }
-        } catch (e: StatusException) {
-          throw Exception("Error listing ImpressionMetadata", e)
-        }
-      ResourceList(response.impressionMetadataList, response.nextPageToken)
-    }.flattenConcat().toList()
   }
 
   /**
