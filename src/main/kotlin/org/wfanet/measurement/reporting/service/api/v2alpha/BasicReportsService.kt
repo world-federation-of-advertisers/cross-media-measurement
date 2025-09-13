@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
@@ -39,6 +38,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as InternalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
@@ -59,6 +59,16 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import kotlin.random.Random
+import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecRequest
+import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.reporting.v2alpha.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -67,19 +77,30 @@ import org.wfanet.measurement.reporting.v2alpha.GetBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
+import org.wfanet.measurement.reporting.v2alpha.Report
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
+import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
+import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
   private val internalImpressionQualificationFiltersStub:
     ImpressionQualificationFiltersCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
+  private val reportsStub: ReportsCoroutineStub,
   private val eventDescriptor: EventDescriptor?,
   private val metricSpecConfig: MetricSpecConfig,
+  private val secureRandom: Random,
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -177,49 +198,74 @@ class BasicReportsService(
         }
       }
 
-    val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> =
-      buildDataProviderPrimitiveReportingSetMap(campaignGroup, campaignGroupKey)
-
-    // TODO(@tristanvuong2021#2555): create Report asynchronously
-
     val createReportRequestId = UUID.randomUUID().toString()
 
-    return try {
-      internalBasicReportsStub
-        .createBasicReport(
-          createBasicReportRequest {
-            basicReport =
-              request.basicReport.toInternal(
-                cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
-                basicReportId = request.basicReportId,
-                campaignGroupId = campaignGroupKey.reportingSetId,
-                createReportRequestId = createReportRequestId,
-              )
-            requestId = request.requestId
-          }
-        )
-        .toBasicReport()
-    } catch (e: StatusException) {
-      throw when (InternalErrors.getReason(e)) {
-        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
-          BasicReportAlreadyExistsException(
-              BasicReportKey(
+    val createdInternalBasicReport =
+      try {
+        internalBasicReportsStub
+          .createBasicReport(
+            createBasicReportRequest {
+              basicReport =
+                request.basicReport.toInternal(
                   cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
                   basicReportId = request.basicReportId,
+                  campaignGroupId = campaignGroupKey.reportingSetId,
+                  createReportRequestId = createReportRequestId,
                 )
-                .toName()
-            )
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-        InternalErrors.Reason.INVALID_FIELD_VALUE,
-        InternalErrors.Reason.METRIC_NOT_FOUND,
-        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+              requestId = request.requestId
+            }
+          )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
+            BasicReportAlreadyExistsException(
+                BasicReportKey(
+                    cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                    basicReportId = request.basicReportId,
+                  )
+                  .toName()
+              )
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+          InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
       }
+
+    val reportingSetMaps: ReportingSetMaps =
+      buildReportingSetsMap(campaignGroup, campaignGroupKey)
+
+    val reportingSetsMetricCalculationSpecsMap: Map<ReportingSet, List<MetricCalculationSpec>> =
+      buildReportingSetMetricCalculationSpecMap(
+        campaignGroupName = request.basicReport.campaignGroup,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecsLists,
+        dataProviderPrimitiveReportingSetMap = reportingSetMaps.dataProviderPrimitiveReportingSetMap,
+        resultGroupSpecs = request.basicReport.resultGroupSpecsList,
+        eventTemplateFieldsMap = eventTemplateFieldsMap,
+      )
+
+    val report = buildReport(request.basicReport.reportingInterval, campaignGroupKey, reportingSetMaps.reportingSetToNameMap, reportingSetsMetricCalculationSpecsMap)
+
+    val createReportRequest = createReportRequest {
+      parent = request.parent
+      this.report = report
+      requestId = createdInternalBasicReport.createReportRequestId
+      reportId = "a${UUID.randomUUID()}"
     }
+    reportsStub.createReport(createReportRequest)
+
+    internalBasicReportsStub.setExternalReportId(setExternalReportIdRequest {
+      cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      externalBasicReportId = request.basicReportId
+      externalReportId = createReportRequest.reportId
+    })
+
+    return createdInternalBasicReport.toBasicReport()
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
@@ -426,10 +472,15 @@ class BasicReportsService(
     }
   }
 
-  private suspend fun buildDataProviderPrimitiveReportingSetMap(
+  /**
+   * Builds two different maps from ReportingSets for the specified CampaignGroup: one for
+   * DataProvider resource name to Primitive ReportingSet and the other for ReportingSet without
+   * name to ReportingSet resource name.
+   */
+  private suspend fun buildReportingSetsMap(
     campaignGroup: ReportingSet,
     campaignGroupKey: ReportingSetKey,
-  ): Map<String, ReportingSet> {
+  ): ReportingSetMaps {
     val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
       for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
         val eventGroupKey = EventGroupKey.fromName(eventGroupName)
@@ -439,9 +490,10 @@ class BasicReportsService(
       }
     }
 
-    // For determining whether a ReportingSet already exists.
-    val campaignGroupReportingSetMap =
-      buildMap<ByteString, ReportingSet> {
+    // Map of ReportingSet without name to ReportingSet with name. For determining whether a
+    // ReportingSet already exists.
+    val campaignGroupReportingSetMap: Map<ReportingSet, ReportingSet> =
+      buildMap {
         internalReportingSetsStub
           .streamReportingSets(
             streamReportingSetsRequest {
@@ -455,7 +507,7 @@ class BasicReportsService(
           )
           .collect {
             val reportingSet = it.toReportingSet()
-            put(reportingSet.copy { clearName() }.toByteString(), reportingSet)
+            put(reportingSet.copy { clearName() }, reportingSet)
           }
       }
 
@@ -470,8 +522,8 @@ class BasicReportsService(
             }
         }
 
-        if (campaignGroupReportingSetMap.containsKey(reportingSet.toByteString())) {
-          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet.toByteString()))
+        if (campaignGroupReportingSetMap.containsKey(reportingSet)) {
+          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet))
         } else {
           val uuid = UUID.randomUUID()
           val id = "a$uuid"
@@ -483,14 +535,7 @@ class BasicReportsService(
                   createReportingSetRequest {
                     externalReportingSetId = "a$uuid"
                     this.reportingSet =
-                      reportingSet {
-                          this.campaignGroup = campaignGroup.name
-                          primitive =
-                            ReportingSetKt.primitive {
-                              cmmsEventGroups +=
-                                dataProviderEventGroupsMap.getValue(dataProviderName)
-                            }
-                        }
+                      reportingSet
                         .toInternal(
                           reportingSetId = id,
                           cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
@@ -518,7 +563,140 @@ class BasicReportsService(
       }
     }
 
-    return dataProviderPrimitiveReportingSetMap
+    // Map of ReportingSet without name to ReportingSet resource name.
+    val reportingSetToNameMap: Map<ReportingSet, String> = buildMap {
+      for (entry in campaignGroupReportingSetMap) {
+        put(entry.key, entry.value.name)
+      }
+
+      for (entry in dataProviderPrimitiveReportingSetMap) {
+        put(entry.value.copy { clearName() }, entry.value.name)
+      }
+    }
+
+    return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetToNameMap)
+  }
+
+  /**
+   * Build map of MetricCalculationSpec to MetricCalculationSpec resource name using CampaignGroup
+   * resource name as filter.
+   */
+  private suspend fun buildMetricCalculationSpecToNameMap(
+    campaignGroupKey: ReportingSetKey,
+  ): Map<MetricCalculationSpec, String> {
+    // Map of MetricCalculationSpec to MetricCalculationSpec resource name for
+    // MetricCalculationSpecs that already exist for the campaign group.
+    return internalMetricCalculationSpecsStub.listMetricCalculationSpecs(
+        listMetricCalculationSpecsRequest {
+          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+          filter = ListMetricCalculationSpecsRequestKt.filter {
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+          limit = 1000
+        }
+      ).metricCalculationSpecsList
+        .map { it.toPublic() }
+        .associate {
+        it.copy {
+          clearName()
+          val realMetricSpecs = metricSpecs
+          metricSpecs.clear()
+          for (realMetricSpec in realMetricSpecs) {
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case enums cannot be null.
+            when (realMetricSpec.typeCase) {
+              MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
+              }
+              MetricSpec.TypeCase.REACH -> {
+                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+              }
+              MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams { } }
+              }
+              MetricSpec.TypeCase.POPULATION_COUNT -> {
+                metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {  } }
+              }
+              MetricSpec.TypeCase.WATCH_DURATION,
+              MetricSpec.TypeCase.TYPE_NOT_SET -> {}
+            }
+          }
+        } to it.name
+      }
+  }
+
+  /**
+   * Builds a [Report]
+   *
+   * @param reportingInterval [ReportingInterval] from [BasicReport]
+   * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
+   * @param reportingSetToNameMap Map of [ReportingSet] without name to ReportingSet resource name
+   * @param reportingSetMetricCalculationSpecsMap Map of [ReportingSet] to List of  [MetricCalculationSpec]
+   */
+  private suspend fun buildReport(reportingInterval: ReportingInterval, campaignGroupKey: ReportingSetKey, reportingSetToNameMap: Map<ReportingSet, String>, reportingSetMetricCalculationSpecsMap: Map<ReportingSet, List<MetricCalculationSpec>>): Report {
+    val existingReportingSetsMap = reportingSetToNameMap.toMutableMap()
+    val existingMetricCalculationSpecsMap = buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
+
+    return report {
+      for (reportingSetMetricCalculationSpecsEntry in reportingSetMetricCalculationSpecsMap.entries) {
+        reportingMetricEntries += ReportKt.reportingMetricEntry {
+          // Reuse ReportingSet or create a new one if it doesn't exist
+          val existingReportingSetName: String? = existingReportingSetsMap[reportingSetMetricCalculationSpecsEntry.key.copy { clearName() }]
+          key =
+            if (existingReportingSetName != null) {
+              existingReportingSetName
+            } else {
+              val externalReportingSetId = "a${UUID.randomUUID()}"
+              val createdReportingSet = internalReportingSetsStub.createReportingSet(
+                createReportingSetRequest {
+                  reportingSet = reportingSetMetricCalculationSpecsEntry.key.toInternal(
+                    externalReportingSetId,
+                    campaignGroupKey.cmmsMeasurementConsumerId,
+                    internalReportingSetsStub
+                  )
+                  this.externalReportingSetId = externalReportingSetId
+                }
+              )
+              val createdReportingSetName = ReportingSetKey(
+                createdReportingSet.cmmsMeasurementConsumerId,
+                createdReportingSet.externalReportingSetId
+              ).toName()
+              existingReportingSetsMap[reportingSetMetricCalculationSpecsEntry.key] =
+                createdReportingSetName
+              createdReportingSetName
+            }
+
+          value = ReportKt.reportingMetricCalculationSpec {
+            // Reuse MetricCalculationSpec or create a new one if it doesn't exist
+            for (metricCalculationSpec in reportingSetMetricCalculationSpecsEntry.value) {
+              if (existingMetricCalculationSpecsMap.containsKey(metricCalculationSpec)) {
+                metricCalculationSpecs += existingMetricCalculationSpecsMap.getValue(metricCalculationSpec)
+              } else {
+                val createdMetricCalculationSpec = internalMetricCalculationSpecsStub.createMetricCalculationSpec(
+                  createMetricCalculationSpecRequest {
+                    this.metricCalculationSpec = metricCalculationSpec
+                      .toInternal(metricSpecConfig,
+                                  secureRandom,
+                                  cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId,
+                                  externalCampaignGroupId = campaignGroupKey.reportingSetId)
+                    externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
+                  }
+                )
+                val createdMetricCalculationSpecName = MetricCalculationSpecKey(createdMetricCalculationSpec.cmmsMeasurementConsumerId, createdMetricCalculationSpec.externalMetricCalculationSpecId).toName()
+
+                metricCalculationSpecs += createdMetricCalculationSpecName
+                existingMetricCalculationSpecsMap[metricCalculationSpec] =
+                  createdMetricCalculationSpecName
+              }
+            }
+          }
+        }
+      }
+
+      this.reportingInterval = ReportKt.reportingInterval {
+        reportStart = reportingInterval.reportStart
+        reportEnd =reportingInterval.reportEnd
+      }
+    }
   }
 
   object Permission {
@@ -531,5 +709,257 @@ class BasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
+    private const val SCALING_FACTOR = 10000
+
+    private data class ReportingSetMaps(
+      // Map of DataProvider resource name to Primitive ReportingSet
+      val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
+      // Map of ReportingSet without name to ReportingSet resource name
+      val reportingSetToNameMap: Map<ReportingSet, String>,
+    )
+
+    /** Converts a public [MetricCalculationSpec] to an internal [InternalMetricCalculationSpec]. */
+    private fun MetricCalculationSpec.toInternal(
+      metricSpecConfig: MetricSpecConfig,
+      secureRandom: Random,
+      cmmsMeasurementConsumerId: String,
+      externalCampaignGroupId: String,
+    ): InternalMetricCalculationSpec {
+      val source = this
+
+      val internalMetricSpecs =
+        source.metricSpecsList.map { metricSpec ->
+          metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
+        }
+
+      return internalMetricCalculationSpec {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        this.externalCampaignGroupId = externalCampaignGroupId
+        details =
+          InternalMetricCalculationSpecKt.details {
+            displayName = source.displayName
+            metricSpecs += internalMetricSpecs
+            filter = source.filter
+            groupings +=
+              source.groupingsList.map { grouping ->
+                InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
+              }
+            if (source.hasMetricFrequencySpec()) {
+              metricFrequencySpec = source.metricFrequencySpec.toInternal()
+            }
+            if (source.hasTrailingWindow()) {
+              trailingWindow = source.trailingWindow.toInternal()
+            }
+          }
+      }
+    }
+
+    /**
+     * Specifies default values using [MetricSpecConfig]
+     */
+    private fun MetricSpec.withDefaults(
+      metricSpecConfig: MetricSpecConfig,
+      secureRandom: Random,
+      allowSamplingIntervalWrapping: Boolean = false,
+    ): MetricSpec {
+      return copy {
+        when (typeCase) {
+          MetricSpec.TypeCase.REACH -> {
+            reach =
+              defaultReachParams(
+                metricSpecConfig,
+                secureRandom,
+                allowSamplingIntervalWrapping,
+              )
+          }
+          MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+            reachAndFrequency =
+              defaultReachAndFrequencyParams(
+                metricSpecConfig,
+                secureRandom,
+                allowSamplingIntervalWrapping,
+              )
+          }
+          MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+            impressionCount =
+              defaultImpressionCountParams(
+                metricSpecConfig,
+                secureRandom,
+              )
+          }
+          MetricSpec.TypeCase.POPULATION_COUNT,
+          MetricSpec.TypeCase.WATCH_DURATION,
+          MetricSpec.TypeCase.TYPE_NOT_SET -> { }
+        }
+      }
+    }
+
+    /**
+     * Specifies default values using [MetricSpecConfig]
+     */
+    private fun defaultReachParams(
+      metricSpecConfig: MetricSpecConfig,
+      secureRandom: Random,
+      allowSamplingIntervalWrapping: Boolean,
+    ): MetricSpec.ReachParams {
+      return MetricSpecKt.reachParams {
+        multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.epsilon,
+                defaultDelta =
+                metricSpecConfig.reachParams.multipleDataProviderParams.privacyParams.delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachParams.multipleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+          }
+
+        singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
+            privacyParams =
+              defaultDifferentialPrivacyParams(
+                defaultEpsilon =
+                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.epsilon,
+                defaultDelta =
+                metricSpecConfig.reachParams.singleDataProviderParams.privacyParams.delta,
+              )
+            vidSamplingInterval =
+              metricSpecConfig.reachParams.singleDataProviderParams.vidSamplingInterval
+                .toVidSamplingInterval(secureRandom)
+          }
+      }
+    }
+
+    /**
+     * Specifies default values using [MetricSpecConfig]
+     */
+    private fun defaultReachAndFrequencyParams(
+      metricSpecConfig: MetricSpecConfig,
+      secureRandom: Random,
+      allowSamplingIntervalWrapping: Boolean,
+    ): MetricSpec.ReachAndFrequencyParams {
+      return MetricSpecKt.reachAndFrequencyParams {
+        maximumFrequency = metricSpecConfig.reachAndFrequencyParams.maximumFrequency
+
+        multipleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+          reachPrivacyParams =
+            defaultDifferentialPrivacyParams(
+              defaultEpsilon =
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .reachPrivacyParams
+                .epsilon,
+              defaultDelta =
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .reachPrivacyParams
+                .delta,
+            )
+          frequencyPrivacyParams =
+            defaultDifferentialPrivacyParams(
+              defaultEpsilon =
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .frequencyPrivacyParams
+                .epsilon,
+              defaultDelta =
+              metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+                .frequencyPrivacyParams
+                .delta,
+            )
+          vidSamplingInterval =
+            metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+              .vidSamplingInterval
+              .toVidSamplingInterval(secureRandom, allowSamplingIntervalWrapping)
+        }
+
+        singleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+          reachPrivacyParams =
+            defaultDifferentialPrivacyParams(
+              defaultEpsilon =
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
+                .epsilon,
+              defaultDelta =
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams
+                .delta,
+            )
+          frequencyPrivacyParams =
+            defaultDifferentialPrivacyParams(
+              defaultEpsilon =
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                .frequencyPrivacyParams
+                .epsilon,
+              defaultDelta =
+              metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams
+                .frequencyPrivacyParams
+                .delta,
+            )
+          vidSamplingInterval =
+            metricSpecConfig.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval
+              .toVidSamplingInterval(secureRandom)
+        }
+      }
+    }
+
+    /**
+     * Specifies default values using [MetricSpecConfig]
+     */
+    private fun defaultImpressionCountParams(
+      metricSpecConfig: MetricSpecConfig,
+      secureRandom: Random,
+    ): MetricSpec.ImpressionCountParams {
+      return MetricSpecKt.impressionCountParams {
+        maximumFrequencyPerUser = metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
+
+        params = MetricSpecKt.samplingAndPrivacyParams {
+          privacyParams =
+            defaultDifferentialPrivacyParams(
+              defaultEpsilon = metricSpecConfig.impressionCountParams.params.privacyParams.epsilon,
+              defaultDelta = metricSpecConfig.impressionCountParams.params.privacyParams.delta,
+            )
+          vidSamplingInterval =
+            metricSpecConfig.impressionCountParams.params.vidSamplingInterval
+              .toVidSamplingInterval(secureRandom)
+        }
+      }
+    }
+
+    /**
+     * Specifies the values in the optional fields of [MetricSpec.DifferentialPrivacyParams]
+     */
+    private fun defaultDifferentialPrivacyParams(
+      defaultEpsilon: Double,
+      defaultDelta: Double,
+    ): MetricSpec.DifferentialPrivacyParams {
+      return MetricSpecKt.differentialPrivacyParams {
+        epsilon = defaultEpsilon
+        delta = defaultDelta
+      }
+    }
+
+    /** Converts an [MetricSpecConfig.VidSamplingInterval] to a [MetricSpec.VidSamplingInterval]. */
+    private fun MetricSpecConfig.VidSamplingInterval.toVidSamplingInterval(
+      secureRandom: Random,
+      allowSamplingIntervalWrapping: Boolean = false,
+    ): MetricSpec.VidSamplingInterval {
+      val source = this
+      if (source.hasFixedStart()) {
+        return MetricSpecKt.vidSamplingInterval {
+          start = source.fixedStart.start
+          width = source.fixedStart.width
+        }
+      } else {
+        // The SCALING_FACTOR is to help turn the float into an int without losing too much data.
+        val maxStart =
+          if (allowSamplingIntervalWrapping) {
+            SCALING_FACTOR
+          } else {
+            SCALING_FACTOR - (source.randomStart.width * SCALING_FACTOR).toInt()
+          }
+        val randomStart = secureRandom.nextInt(maxStart) % maxStart
+        return MetricSpecKt.vidSamplingInterval {
+          start = randomStart.toFloat() / SCALING_FACTOR
+          width = source.randomStart.width
+        }
+      }
+    }
   }
 }
