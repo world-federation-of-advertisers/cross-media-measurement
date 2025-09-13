@@ -106,8 +106,10 @@ class MetricCalculationSpecsService(
       when (request.metricCalculationSpec.metricFrequencySpec.frequencyCase) {
         MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY -> {
           grpcRequire(
-            request.metricCalculationSpec.metricFrequencySpec.weekly.dayOfWeek != DayOfWeek.DAY_OF_WEEK_UNSPECIFIED &&
-              request.metricCalculationSpec.metricFrequencySpec.weekly.dayOfWeek != DayOfWeek.UNRECOGNIZED
+            request.metricCalculationSpec.metricFrequencySpec.weekly.dayOfWeek !=
+              DayOfWeek.DAY_OF_WEEK_UNSPECIFIED &&
+              request.metricCalculationSpec.metricFrequencySpec.weekly.dayOfWeek !=
+                DayOfWeek.UNRECOGNIZED
           ) {
             "day_of_week in weekly frequency is unspecified or invalid."
           }
@@ -118,12 +120,14 @@ class MetricCalculationSpecsService(
           }
         }
         MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY,
-        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET, -> { }
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> {}
       }
     }
 
     if (request.metricCalculationSpec.hasTrailingWindow()) {
-      grpcRequire(request.metricCalculationSpec.trailingWindow.count >= 1) { "count in trailing_window must be greater than 0." }
+      grpcRequire(request.metricCalculationSpec.trailingWindow.count >= 1) {
+        "count in trailing_window must be greater than 0."
+      }
     }
 
     authorization.check(request.parent, Permission.CREATE)

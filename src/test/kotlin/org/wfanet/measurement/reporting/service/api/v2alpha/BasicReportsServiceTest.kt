@@ -28,9 +28,11 @@ import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
+import java.security.SecureRandom
 import java.time.Clock
 import java.util.UUID
 import kotlin.random.Random
+import kotlin.random.asKotlinRandom
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -41,7 +43,10 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.verify
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
 import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
@@ -75,9 +80,13 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as Inte
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
-import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt as InternalResultGroupKt
@@ -89,12 +98,15 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
+import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as internalMetricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
@@ -104,21 +116,9 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.ImpressionQuali
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
-import java.security.SecureRandom
-import kotlin.random.asKotlinRandom
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.verify
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
-import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -127,12 +127,16 @@ import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
+import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
@@ -140,18 +144,13 @@ import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.createReportRequest
-import org.wfanet.measurement.reporting.v2alpha.report
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportKt
 
 @RunWith(JUnit4::class)
 class BasicReportsServiceTest {
@@ -169,9 +168,7 @@ class BasicReportsServiceTest {
 
   private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
     onBlocking { createReport(any()) }
-      .thenReturn(report {
-        name = ReportKey("a1234", "a1234").toName()
-      })
+      .thenReturn(report { name = ReportKey("a1234", "a1234").toName() })
   }
 
   val grpcTestServerRule = GrpcTestServerRule {
@@ -214,7 +211,8 @@ class BasicReportsServiceTest {
     measurementConsumersService = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
     internalImpressionQualificationFiltersService =
       InternalImpressionQualificationFiltersCoroutineStub(grpcTestServerRule.channel)
-    internalMetricCalculationSpecsService = InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel)
+    internalMetricCalculationSpecsService =
+      InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel)
     internalReportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     reportsService = ReportsCoroutineStub(grpcTestServerRule.channel)
@@ -468,14 +466,8 @@ class BasicReportsServiceTest {
           populationSize = true
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                }
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                }
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
             }
         }
       }
@@ -504,10 +496,13 @@ class BasicReportsServiceTest {
 
     val createdMetricCalculationSpecs =
       internalMetricCalculationSpecsService
-        .listMetricCalculationSpecs(listMetricCalculationSpecsRequest {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          limit = 50
-        }).metricCalculationSpecsList
+        .listMetricCalculationSpecs(
+          listMetricCalculationSpecsRequest {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            limit = 50
+          }
+        )
+        .metricCalculationSpecsList
 
     val createReportRequest =
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
@@ -516,48 +511,88 @@ class BasicReportsServiceTest {
       .ignoringRepeatedFieldOrder()
       .ignoringFields(
         CreateReportRequest.REPORT_ID_FIELD_NUMBER,
-        CreateReportRequest.REQUEST_ID_FIELD_NUMBER,)
-      .isEqualTo(createReportRequest {
-        parent = request.parent
-        report = report {
-          reportingMetricEntries += ReportKt.reportingMetricEntry {
-            key = ReportingSetKey(measurementConsumerKey, createdReportingSets[0].externalReportingSetId).toName()
-            value = ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += MetricCalculationSpecKey(measurementConsumerKey, createdMetricCalculationSpecs[0].externalMetricCalculationSpecId).toName()
-              metricCalculationSpecs += MetricCalculationSpecKey(measurementConsumerKey, createdMetricCalculationSpecs[1].externalMetricCalculationSpecId).toName()
-            }
-          }
-          reportingMetricEntries += ReportKt.reportingMetricEntry {
-            key = ReportingSetKey(measurementConsumerKey, createdReportingSets[1].externalReportingSetId).toName()
-            value = ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += MetricCalculationSpecKey(measurementConsumerKey, createdMetricCalculationSpecs[0].externalMetricCalculationSpecId).toName()
-              metricCalculationSpecs += MetricCalculationSpecKey(measurementConsumerKey, createdMetricCalculationSpecs[1].externalMetricCalculationSpecId).toName()            }
-          }
-          reportingInterval = ReportKt.reportingInterval {
-            reportStart = dateTime {
-              year = 2025
-              month = 7
-              day = 3
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            }
-            reportEnd = date {
-              year = 2026
-              month = 1
-              day = 5
-            }
+        CreateReportRequest.REQUEST_ID_FIELD_NUMBER,
+      )
+      .isEqualTo(
+        createReportRequest {
+          parent = request.parent
+          report = report {
+            reportingMetricEntries +=
+              ReportKt.reportingMetricEntry {
+                key =
+                  ReportingSetKey(
+                      measurementConsumerKey,
+                      createdReportingSets[0].externalReportingSetId,
+                    )
+                    .toName()
+                value =
+                  ReportKt.reportingMetricCalculationSpec {
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
+                          measurementConsumerKey,
+                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
+                          measurementConsumerKey,
+                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                  }
+              }
+            reportingMetricEntries +=
+              ReportKt.reportingMetricEntry {
+                key =
+                  ReportingSetKey(
+                      measurementConsumerKey,
+                      createdReportingSets[1].externalReportingSetId,
+                    )
+                    .toName()
+                value =
+                  ReportKt.reportingMetricCalculationSpec {
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
+                          measurementConsumerKey,
+                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
+                          measurementConsumerKey,
+                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                  }
+              }
+            reportingInterval =
+              ReportKt.reportingInterval {
+                reportStart = dateTime {
+                  year = 2025
+                  month = 7
+                  day = 3
+                  timeZone = timeZone { id = "America/Los_Angeles" }
+                }
+                reportEnd = date {
+                  year = 2026
+                  month = 1
+                  day = 5
+                }
+              }
           }
         }
-      })
+      )
 
     assertThat(createReportRequest.reportId).isNotEmpty()
     assertThat(createReportRequest.requestId).isNotEmpty()
 
-    val internalBasicReport = internalBasicReportsService.getBasicReport(
-      internalGetBasicReportRequest {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        externalBasicReportId = request.basicReportId
-      }
-    )
+    val internalBasicReport =
+      internalBasicReportsService.getBasicReport(
+        internalGetBasicReportRequest {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalBasicReportId = request.basicReportId
+        }
+      )
 
     assertThat(internalBasicReport.externalReportId).isEqualTo(createReportRequest.reportId)
     assertThat(internalBasicReport.createReportRequestId).isEqualTo(createReportRequest.requestId)
@@ -664,15 +699,9 @@ class BasicReportsServiceTest {
       }
 
       val existingReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(
-            streamReportingSetsRequest
-          )
-          .toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
-      assertThat(existingReportingSets)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(campaignGroup)
+      assertThat(existingReportingSets).ignoringRepeatedFieldOrder().containsExactly(campaignGroup)
 
       val basicReport = basicReport {
         this.campaignGroup = campaignGroupKey.toName()
@@ -692,7 +721,8 @@ class BasicReportsServiceTest {
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           custom =
@@ -713,7 +743,8 @@ class BasicReportsServiceTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -753,7 +784,8 @@ class BasicReportsServiceTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() + "b" }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -799,11 +831,7 @@ class BasicReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       val updatedReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(
-            streamReportingSetsRequest
-          )
-          .toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
       assertThat(updatedReportingSets).hasSize(3)
       assertThat(
@@ -858,11 +886,7 @@ class BasicReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request2) }
 
       val identicalReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(
-            streamReportingSetsRequest
-          )
-          .toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
       assertThat(identicalReportingSets).hasSize(3)
       assertThat(updatedReportingSets)
@@ -922,13 +946,9 @@ class BasicReportsServiceTest {
       }
 
       val existingReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(streamReportingSetsRequest)
-          .toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
-      assertThat(existingReportingSets)
-        .ignoringRepeatedFieldOrder()
-        .containsExactly(campaignGroup)
+      assertThat(existingReportingSets).ignoringRepeatedFieldOrder().containsExactly(campaignGroup)
 
       val basicReport = basicReport {
         this.campaignGroup = campaignGroupKey.toName()
@@ -948,7 +968,8 @@ class BasicReportsServiceTest {
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           custom =
@@ -973,7 +994,8 @@ class BasicReportsServiceTest {
           }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1004,7 +1026,8 @@ class BasicReportsServiceTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { total = true }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
             filters += eventFilter {
               terms += eventTemplateField {
                 path = "person.age_group"
@@ -1041,8 +1064,7 @@ class BasicReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       val updatedReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(streamReportingSetsRequest).toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
       assertThat(updatedReportingSets).hasSize(6)
 
@@ -1053,43 +1075,50 @@ class BasicReportsServiceTest {
           .map { it.externalReportingSetId }
 
       assertThat(
-        updatedReportingSets
-          .filter { it.hasComposite() }
-          .map {
-            it.copy {
-              clearExternalReportingSetId()
-              weightedSubsetUnions.clear()
+          updatedReportingSets
+            .filter { it.hasComposite() }
+            .map {
+              it.copy {
+                clearExternalReportingSetId()
+                weightedSubsetUnions.clear()
+              }
             }
-          }
-      )
+        )
         .ignoringRepeatedFieldOrder()
         .containsExactly(
           internalReportingSet {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             composite =
-             ReportingSetKt.setExpression {
-               operation = ReportingSet.SetExpression.Operation.UNION
-               lhs = ReportingSetKt.SetExpressionKt.operand {
-                 externalReportingSetId = componentPrimitiveReportingSets[2]
-               }
-               rhs = ReportingSetKt.SetExpressionKt.operand {
-                 expression = ReportingSetKt.setExpression {
-                   operation = ReportingSet.SetExpression.Operation.UNION
-                   lhs = ReportingSetKt.SetExpressionKt.operand {
-                     externalReportingSetId = componentPrimitiveReportingSets[1]
-                   }
-                   rhs = ReportingSetKt.SetExpressionKt.operand {
-                     expression = ReportingSetKt.setExpression {
-                       operation = ReportingSet.SetExpression.Operation.UNION
-                       lhs = ReportingSetKt.SetExpressionKt.operand {
-                         externalReportingSetId = componentPrimitiveReportingSets[0]
-                       }
-                     }
-                   }
-                 }
-               }
-             }
+              ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    externalReportingSetId = componentPrimitiveReportingSets[2]
+                  }
+                rhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    expression =
+                      ReportingSetKt.setExpression {
+                        operation = ReportingSet.SetExpression.Operation.UNION
+                        lhs =
+                          ReportingSetKt.SetExpressionKt.operand {
+                            externalReportingSetId = componentPrimitiveReportingSets[1]
+                          }
+                        rhs =
+                          ReportingSetKt.SetExpressionKt.operand {
+                            expression =
+                              ReportingSetKt.setExpression {
+                                operation = ReportingSet.SetExpression.Operation.UNION
+                                lhs =
+                                  ReportingSetKt.SetExpressionKt.operand {
+                                    externalReportingSetId = componentPrimitiveReportingSets[0]
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
           },
           internalReportingSet {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
@@ -1097,17 +1126,21 @@ class BasicReportsServiceTest {
             composite =
               ReportingSetKt.setExpression {
                 operation = ReportingSet.SetExpression.Operation.UNION
-                lhs = ReportingSetKt.SetExpressionKt.operand {
-                  externalReportingSetId = componentPrimitiveReportingSets[1]
-                }
-                rhs = ReportingSetKt.SetExpressionKt.operand {
-                  expression = ReportingSetKt.setExpression {
-                    operation = ReportingSet.SetExpression.Operation.UNION
-                    lhs = ReportingSetKt.SetExpressionKt.operand {
-                      externalReportingSetId = componentPrimitiveReportingSets[0]
-                    }
+                lhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    externalReportingSetId = componentPrimitiveReportingSets[1]
                   }
-                }
+                rhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    expression =
+                      ReportingSetKt.setExpression {
+                        operation = ReportingSet.SetExpression.Operation.UNION
+                        lhs =
+                          ReportingSetKt.SetExpressionKt.operand {
+                            externalReportingSetId = componentPrimitiveReportingSets[0]
+                          }
+                      }
+                  }
               }
           },
         )
@@ -1121,9 +1154,7 @@ class BasicReportsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request2) }
 
       val identicalReportingSets =
-        internalReportingSetsService
-          .streamReportingSets(streamReportingSetsRequest)
-          .toList()
+        internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
       assertThat(identicalReportingSets).hasSize(6)
       assertThat(updatedReportingSets)
@@ -1171,15 +1202,17 @@ class BasicReportsServiceTest {
 
       val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        filter = ListMetricCalculationSpecsRequestKt.filter {
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-        }
+        filter =
+          ListMetricCalculationSpecsRequestKt.filter {
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
         limit = 50
       }
 
       val existingMetricCalculationSpecs =
         internalMetricCalculationSpecsService
-          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest).metricCalculationSpecsList
+          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+          .metricCalculationSpecsList
 
       assertThat(existingMetricCalculationSpecs).hasSize(0)
 
@@ -1201,7 +1234,8 @@ class BasicReportsServiceTest {
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
         }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           custom =
@@ -1222,20 +1256,15 @@ class BasicReportsServiceTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = false
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
-                nonCumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    impressions = true
-                  }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
               }
           }
         }
@@ -1244,7 +1273,8 @@ class BasicReportsServiceTest {
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = false
@@ -1282,14 +1312,8 @@ class BasicReportsServiceTest {
             populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    impressions = true
-                  }
-                nonCumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
           }
         }
@@ -1305,7 +1329,8 @@ class BasicReportsServiceTest {
 
       val updatedMetricCalculationSpecs =
         internalMetricCalculationSpecsService
-          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest).metricCalculationSpecsList
+          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+          .metricCalculationSpecsList
 
       assertThat(updatedMetricCalculationSpecs).hasSize(4)
       assertThat(updatedMetricCalculationSpecs)
@@ -1315,194 +1340,383 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            details = MetricCalculationSpecKt.details {
-              groupings += MetricCalculationSpecKt.grouping {
-                predicates += "person.social_grade_group == 0"
-                predicates += "person.social_grade_group == 1"
-                predicates += "person.social_grade_group == 2"
-              }
-              filter = "(banner_ad.viewable == true)"
-              metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-                weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
+            details =
+              MetricCalculationSpecKt.details {
+                groupings +=
+                  MetricCalculationSpecKt.grouping {
+                    predicates += "person.social_grade_group == 0"
+                    predicates += "person.social_grade_group == 1"
+                    predicates += "person.social_grade_group == 2"
+                  }
+                filter = "(banner_ad.viewable == true)"
+                metricFrequencySpec =
+                  MetricCalculationSpecKt.metricFrequencySpec {
+                    weekly =
+                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                        dayOfWeek = DayOfWeek.MONDAY
+                      }
+                  }
+                metricSpecs += metricSpec {
+                  reachAndFrequency =
+                    MetricSpecKt.reachAndFrequencyParams {
+                      multipleDataProviderParams =
+                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                          reachPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .reachPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .reachPrivacyParams
+                                  .delta
+                            }
+                          frequencyPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      singleDataProviderParams =
+                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                          reachPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .reachPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .reachPrivacyParams
+                                  .delta
+                            }
+                          frequencyPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
+                    }
                 }
               }
-              metricSpecs += metricSpec {
-                reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {
-                  multipleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                    reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams.delta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  singleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                    reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams.delta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
-                }
-              }
-            }
           },
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            details = MetricCalculationSpecKt.details {
-              groupings += MetricCalculationSpecKt.grouping {
-                predicates += "person.social_grade_group == 0"
-                predicates += "person.social_grade_group == 1"
-                predicates += "person.social_grade_group == 2"
-              }
-              filter = "(banner_ad.viewable == true)"
-              metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-                weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
+            details =
+              MetricCalculationSpecKt.details {
+                groupings +=
+                  MetricCalculationSpecKt.grouping {
+                    predicates += "person.social_grade_group == 0"
+                    predicates += "person.social_grade_group == 1"
+                    predicates += "person.social_grade_group == 2"
+                  }
+                filter = "(banner_ad.viewable == true)"
+                metricFrequencySpec =
+                  MetricCalculationSpecKt.metricFrequencySpec {
+                    weekly =
+                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                        dayOfWeek = DayOfWeek.MONDAY
+                      }
+                  }
+                trailingWindow =
+                  MetricCalculationSpecKt.trailingWindow {
+                    count = 1
+                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                  }
+                metricSpecs += metricSpec {
+                  reachAndFrequency =
+                    MetricSpecKt.reachAndFrequencyParams {
+                      multipleDataProviderParams =
+                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                          reachPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .reachPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .reachPrivacyParams
+                                  .delta
+                            }
+                          frequencyPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
+                                  .multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      singleDataProviderParams =
+                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
+                          reachPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .reachPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .reachPrivacyParams
+                                  .delta
+                            }
+                          frequencyPrivacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .frequencyPrivacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
+                    }
+                }
+                metricSpecs += metricSpec {
+                  impressionCount =
+                    MetricSpecKt.impressionCountParams {
+                      params =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      maximumFrequencyPerUser =
+                        METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
+                    }
                 }
               }
-              trailingWindow = MetricCalculationSpecKt.trailingWindow {
-                count = 1
-                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-              }
-              metricSpecs += metricSpec {
-                reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {
-                  multipleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                    reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.reachPrivacyParams.delta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.frequencyPrivacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  singleDataProviderParams = MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                    reachPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.reachPrivacyParams.delta
-                    }
-                    frequencyPrivacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.frequencyPrivacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
-                }
-              }
-              metricSpecs += metricSpec {
-                impressionCount = MetricSpecKt.impressionCountParams {
-                  params = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  maximumFrequencyPerUser = METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
-                }
-              }
-            }
           },
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            details = MetricCalculationSpecKt.details {
-              filter = "(banner_ad.viewable == true) && (person.age_group == 1)"
-              metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-                weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
-                }
-              }
-              metricSpecs += metricSpec {
-                impressionCount = MetricSpecKt.impressionCountParams {
-                  params = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval.fixedStart.width
-                    }
+            details =
+              MetricCalculationSpecKt.details {
+                filter = "(banner_ad.viewable == true) && (person.age_group == 1)"
+                metricFrequencySpec =
+                  MetricCalculationSpecKt.metricFrequencySpec {
+                    weekly =
+                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                        dayOfWeek = DayOfWeek.MONDAY
+                      }
                   }
-                  maximumFrequencyPerUser = METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
+                metricSpecs += metricSpec {
+                  impressionCount =
+                    MetricSpecKt.impressionCountParams {
+                      params =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      maximumFrequencyPerUser =
+                        METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
+                    }
+                }
+                metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
                 }
               }
-              metricSpecs += metricSpec {
-                populationCount = MetricSpecKt.populationCountParams {  }
-              }
-            }
           },
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            details = MetricCalculationSpecKt.details {
-              filter = "(banner_ad.viewable == true) && (person.age_group == 1)"
-              metricFrequencySpec = MetricCalculationSpecKt.metricFrequencySpec {
-                weekly = MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
+            details =
+              MetricCalculationSpecKt.details {
+                filter = "(banner_ad.viewable == true) && (person.age_group == 1)"
+                metricFrequencySpec =
+                  MetricCalculationSpecKt.metricFrequencySpec {
+                    weekly =
+                      MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
+                        dayOfWeek = DayOfWeek.MONDAY
+                      }
+                  }
+                trailingWindow =
+                  MetricCalculationSpecKt.trailingWindow {
+                    count = 1
+                    increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
+                  }
+                metricSpecs += metricSpec {
+                  reach =
+                    MetricSpecKt.reachParams {
+                      multipleDataProviderParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                      singleDataProviderParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
+                    }
+                }
+                metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
                 }
               }
-              trailingWindow = MetricCalculationSpecKt.trailingWindow {
-                count = 1
-                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-              }
-              metricSpecs += metricSpec {
-                reach = MetricSpecKt.reachParams {
-                  multipleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.privacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                  singleDataProviderParams = MetricSpecKt.samplingAndPrivacyParams {
-                    privacyParams = MetricSpecKt.differentialPrivacyParams {
-                      epsilon = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.epsilon
-                      delta = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.privacyParams.delta
-                    }
-                    vidSamplingInterval = MetricSpecKt.vidSamplingInterval {
-                      start = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.start
-                      width = METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams.vidSamplingInterval.fixedStart.width
-                    }
-                  }
-                }
-              }
-              metricSpecs += metricSpec {
-                populationCount = MetricSpecKt.populationCountParams {  }
-              }
-            }
           },
         )
 
@@ -1516,7 +1730,8 @@ class BasicReportsServiceTest {
 
       val identicalMetricCalculationSpecs =
         internalMetricCalculationSpecsService
-          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest).metricCalculationSpecsList
+          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+          .metricCalculationSpecsList
 
       assertThat(identicalMetricCalculationSpecs).hasSize(4)
       assertThat(updatedMetricCalculationSpecs)
