@@ -56,6 +56,8 @@ import org.wfanet.measurement.internal.reporting.v2.LiquidLegionsV2
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.NoiseMechanism as InternalNoiseMechanism
@@ -92,17 +94,15 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsNoiseMechanism
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.reporting.v2alpha.ListReportsPageToken
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
@@ -1756,7 +1756,10 @@ fun InternalMetricCalculationSpec.toPublic(): MetricCalculationSpec {
   return metricCalculationSpec {
     name = metricCalculationSpecKey.toName()
     displayName = source.details.displayName
-    metricSpecs += source.details.metricSpecsList.map(org.wfanet.measurement.internal.reporting.v2.MetricSpec::toMetricSpec)
+    metricSpecs +=
+      source.details.metricSpecsList.map(
+        org.wfanet.measurement.internal.reporting.v2.MetricSpec::toMetricSpec
+      )
     filter = source.details.filter
     groupings +=
       source.details.groupingsList.map { grouping ->
@@ -1807,8 +1810,7 @@ fun InternalMetricCalculationSpec.MetricFrequencySpec.toPublic():
  * Converts an internal [InternalMetricCalculationSpec.TrailingWindow] to a public
  * [MetricCalculationSpec.TrailingWindow].
  */
-fun InternalMetricCalculationSpec.TrailingWindow.toPublic():
-  MetricCalculationSpec.TrailingWindow {
+fun InternalMetricCalculationSpec.TrailingWindow.toPublic(): MetricCalculationSpec.TrailingWindow {
   val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return MetricCalculationSpecKt.trailingWindow {
@@ -1824,8 +1826,8 @@ fun InternalMetricCalculationSpec.TrailingWindow.toPublic():
         InternalMetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED,
         InternalMetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
           throw Status.FAILED_PRECONDITION.withDescription(
-            "MetricCalculationSpec trailing_window missing increment"
-          )
+              "MetricCalculationSpec trailing_window missing increment"
+            )
             .asRuntimeException()
       }
   }
@@ -1883,8 +1885,8 @@ fun MetricCalculationSpec.TrailingWindow.toInternal():
         MetricCalculationSpec.TrailingWindow.Increment.UNRECOGNIZED,
         MetricCalculationSpec.TrailingWindow.Increment.INCREMENT_UNSPECIFIED ->
           throw Status.INVALID_ARGUMENT.withDescription(
-            "increment in trailing_window is not specified."
-          )
+              "increment in trailing_window is not specified."
+            )
             .asRuntimeException()
       }
   }
