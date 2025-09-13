@@ -19,17 +19,15 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
-import org.wfanet.measurement.internal.reporting.v2.MetricSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
@@ -39,6 +37,8 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ComponentMetricSetSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ReportingUnitMetricSetSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
+import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
+import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 /** [MetricCalculationSpec] fields for equality check */
@@ -71,7 +71,7 @@ private data class MetricCalculationSpecInfo(
  *   info for the field. Used for parsing [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec]
  */
-fun buildReportingSetMetricCalculationSpecDetailsMap(
+fun buildReportingSetMetricCalculationSpecMap(
   campaignGroupName: String,
   impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
@@ -126,14 +126,9 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
       }
     }
 
-  val cmmsMeasurementConsumerId =
-    ReportingSetKey.fromName(campaignGroupName)!!.cmmsMeasurementConsumerId
-
   return reportingSetMetricCalculationSpecInfoMap.entries
     .filter { it.value.isNotEmpty() }
-    .associate { entry ->
-      entry.key to entry.value.entries.map { it.toMetricCalculationSpec(cmmsMeasurementConsumerId) }
-    }
+    .associate { entry -> entry.key to entry.value.entries.map { it.toMetricCalculationSpec() } }
 }
 
 /**
@@ -195,57 +190,41 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
     }
   }
 
-  return eventTemplateFieldsList
-    .fold(emptyList()) { groupings: List<List<String>>, field: String ->
-      val fieldInfo = eventTemplateFieldsMap.getValue(field)
-      val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
-      val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
-
-      if (groupings.isEmpty()) {
-        predicatesList.map { listOf(it) }
-      } else {
-        groupings.flatMap { grouping -> predicatesList.map { predicate -> grouping + predicate } }
-      }
-    }
-    .map { MetricCalculationSpecKt.grouping { predicates += it } }
+  return eventTemplateFieldsList.map { field ->
+    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
+    val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+    MetricCalculationSpecKt.grouping { predicates += predicatesList }
+  }
 }
 
-/**
- * Creates a [MetricCalculationSpec] from the given entry in the map
- *
- * @param cmmsMeasurementConsumerId For setting the cmmsMeasurementConsumerId
- */
+/** Creates a [MetricCalculationSpec] from the given entry in the map */
 private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>
-  .toMetricCalculationSpec(cmmsMeasurementConsumerId: String): MetricCalculationSpec {
+  .toMetricCalculationSpec(): MetricCalculationSpec {
   val source = this
   return metricCalculationSpec {
-    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-    details =
-      MetricCalculationSpecKt.details {
-        groupings += source.key.groupings
-        filter = source.key.filter
-        if (source.key.metricFrequencySpec != null) {
-          metricFrequencySpec = source.key.metricFrequencySpec!!
-        }
-        if (source.key.trailingWindow != null) {
-          trailingWindow = source.key.trailingWindow!!
-        }
+    groupings += source.key.groupings
+    filter = source.key.filter
+    if (source.key.metricFrequencySpec != null) {
+      metricFrequencySpec = source.key.metricFrequencySpec!!
+    }
+    if (source.key.trailingWindow != null) {
+      trailingWindow = source.key.trailingWindow!!
+    }
 
-        // TODO(tristanvuong2021): Add privacy params
-        if (source.value.includeFrequency) {
-          metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
-        } else if (source.value.includeReach) {
-          metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-        }
+    if (source.value.includeFrequency) {
+      metricSpecs += metricSpec { reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {} }
+    } else if (source.value.includeReach) {
+      metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+    }
 
-        if (source.value.includeImpressionCount) {
-          metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
-        }
+    if (source.value.includeImpressionCount) {
+      metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+    }
 
-        if (source.value.includePopulation) {
-          metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-        }
-      }
+    if (source.value.includePopulation) {
+      metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+    }
   }
 }
 
@@ -374,7 +353,7 @@ private fun MutableMap<
 }
 
 /**
- * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
+ * Helper method for [buildReportingSetMetricCalculationSpecMap]. Transforms
  * [ReportingUnitMetricSetSpec] into entries for the map
  *
  * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s
@@ -469,7 +448,7 @@ private fun MutableMap<
 }
 
 /**
- * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
+ * Helper method for [buildReportingSetMetricCalculationSpecMap]. Transforms
  * [ComponentMetricSetSpec] into entries for the map
  *
  * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s

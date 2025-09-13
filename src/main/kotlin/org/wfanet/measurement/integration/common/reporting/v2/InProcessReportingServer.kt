@@ -91,6 +91,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as PublicMetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub as PublicReportsCoroutineStub
 
 /** TestRule that starts and stops all Reporting Server gRPC services. */
 class InProcessReportingServer(
@@ -301,8 +302,11 @@ class InProcessReportingServer(
                 internalBasicReportsClient,
                 internalImpressionQualificationFiltersClient,
                 internalReportingSetsClient,
+                internalMetricCalculationSpecsClient,
+                PublicReportsCoroutineStub(this@GrpcTestServerRule.channel),
                 EventDescriptor(eventDescriptor),
                 METRIC_SPEC_CONFIG,
+                SecureRandom().asKotlinRandom(),
                 authorization,
               )
               .withTrustedPrincipalAuthentication(),
