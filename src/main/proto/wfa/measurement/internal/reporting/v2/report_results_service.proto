@@ -29,15 +29,20 @@ service ReportResults {
   // already exist existing rows will be reused. This method will only add
   // non-cumulative noisy results. If non-cumulative noisy results already exist
   // for the NoisyReportResultValue indicate then an error will be thrown.
-  rpc AddNonCumulativeNoisyResultValues(AddNoisyResultValuesRequest) returns (google.protobuf.Empty);
+  rpc AddNonCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
+      returns (google.protobuf.Empty);
   // Same as AddNonCumulativeNoisyResults but applies to cumulative results.
-  rpc AddCumulativeNoisyResultValues(AddNoisyResultValuesRequest) returns (google.protobuf.Empty);
-  // Add a batch of denoised result to a ReportResult. This method should not need to
-  // create any intermediate artifacts as noisy result values should already exist.
-  // Due to the difference in how we process noisy vs. denoised results, there is no method
-  // for working with cumulative and non-cumulative result values separately.
-  rpc AddDenoisedResults(AddDenoisedResultValuesRequest) returns (google.protobuf.Empty);
-  // Gets all of the noisy result values associated with a particular report result.
+  rpc AddCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
+      returns (google.protobuf.Empty);
+  // Add a batch of denoised result to a ReportResult. This method should not
+  // need to create any intermediate artifacts as noisy result values should
+  // already exist. Due to the difference in how we process noisy vs. denoised
+  // results, there is no method for working with cumulative and non-cumulative
+  // result values separately.
+  rpc AddDenoisedResults(AddDenoisedResultValuesRequest)
+      returns (google.protobuf.Empty);
+  // Gets all of the noisy result values associated with a particular report
+  // result.
   rpc GetNoisyResultValues(GetNoisyResultValuesRequest) returns (ReportResult);
 }
 
