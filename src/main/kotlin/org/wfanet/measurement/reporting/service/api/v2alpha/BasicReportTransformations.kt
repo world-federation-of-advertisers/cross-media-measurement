@@ -19,15 +19,16 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
@@ -37,8 +38,6 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ComponentMetricSetSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec.ReportingUnitMetricSetSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
-import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 /** [MetricCalculationSpec] fields for equality check */
@@ -69,15 +68,15 @@ private data class MetricCalculationSpecInfo(
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
  * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
- * @return Map of [ReportingSet] to [MetricCalculationSpec]
+ * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
  */
-fun buildReportingSetMetricCalculationSpecMap(
+fun buildReportingSetMetricCalculationSpecDetailsMap(
   campaignGroupName: String,
   impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-): Map<ReportingSet, List<MetricCalculationSpec>> {
+): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
     impressionQualificationFilterSpecsLists.map {
       createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsMap)
@@ -128,7 +127,9 @@ fun buildReportingSetMetricCalculationSpecMap(
 
   return reportingSetMetricCalculationSpecInfoMap.entries
     .filter { it.value.isNotEmpty() }
-    .associate { entry -> entry.key to entry.value.entries.map { it.toMetricCalculationSpec() } }
+    .associate { entry ->
+      entry.key to entry.value.entries.map { it.toMetricCalculationSpecDetails() }
+    }
 }
 
 /**
@@ -198,11 +199,11 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   }
 }
 
-/** Creates a [MetricCalculationSpec] from the given entry in the map */
+/** Creates a [MetricCalculationSpec.Details] from the given entry in the map */
 private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>
-  .toMetricCalculationSpec(): MetricCalculationSpec {
+  .toMetricCalculationSpecDetails(): MetricCalculationSpec.Details {
   val source = this
-  return metricCalculationSpec {
+  return MetricCalculationSpecKt.details {
     groupings += source.key.groupings
     filter = source.key.filter
     if (source.key.metricFrequencySpec != null) {
@@ -353,7 +354,7 @@ private fun MutableMap<
 }
 
 /**
- * Helper method for [buildReportingSetMetricCalculationSpecMap]. Transforms
+ * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
  * [ReportingUnitMetricSetSpec] into entries for the map
  *
  * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s
@@ -448,7 +449,7 @@ private fun MutableMap<
 }
 
 /**
- * Helper method for [buildReportingSetMetricCalculationSpecMap]. Transforms
+ * Helper method for [buildReportingSetMetricCalculationSpecDetailsMap]. Transforms
  * [ComponentMetricSetSpec] into entries for the map
  *
  * @param reportingUnitReportingSet [ReportingSet] that is union of all Primitive [ReportingSet]s

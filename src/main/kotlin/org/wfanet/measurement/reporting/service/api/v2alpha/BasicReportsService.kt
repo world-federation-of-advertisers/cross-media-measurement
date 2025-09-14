@@ -41,7 +41,6 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as I
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt as InternalMetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -54,7 +53,6 @@ import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFi
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec as internalMetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -67,6 +65,11 @@ import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundExceptio
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -75,9 +78,6 @@ import org.wfanet.measurement.reporting.v2alpha.GetBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
@@ -87,7 +87,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
-import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
@@ -238,8 +237,8 @@ class BasicReportsService(
 
     val reportingSetMaps: ReportingSetMaps = buildReportingSetsMap(campaignGroup, campaignGroupKey)
 
-    val reportingSetsMetricCalculationSpecsMap: Map<ReportingSet, List<MetricCalculationSpec>> =
-      buildReportingSetMetricCalculationSpecMap(
+    val reportingSetsMetricCalculationSpecDetailsMap: Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
+      buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
         impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecsLists,
         dataProviderPrimitiveReportingSetMap =
@@ -253,7 +252,7 @@ class BasicReportsService(
         request.basicReport.reportingInterval,
         campaignGroupKey,
         reportingSetMaps.reportingSetToNameMap,
-        reportingSetsMetricCalculationSpecsMap,
+        reportingSetsMetricCalculationSpecDetailsMap,
       )
 
     val createReportRequest = createReportRequest {
@@ -583,13 +582,13 @@ class BasicReportsService(
   }
 
   /**
-   * Build map of MetricCalculationSpec to MetricCalculationSpec resource name using CampaignGroup
+   * Build map of MetricCalculationSpec.Details to MetricCalculationSpec resource name using CampaignGroup
    * resource name as filter.
    */
-  private suspend fun buildMetricCalculationSpecToNameMap(
+  private suspend fun buildMetricCalculationSpecDetailsToNameMap(
     campaignGroupKey: ReportingSetKey
-  ): Map<MetricCalculationSpec, String> {
-    // Map of MetricCalculationSpec to MetricCalculationSpec resource name for
+  ): Map<InternalMetricCalculationSpec.Details, String> {
+    // Map of MetricCalculationSpec.Details to MetricCalculationSpec resource name for
     // MetricCalculationSpecs that already exist for the campaign group.
     return internalMetricCalculationSpecsStub
       .listMetricCalculationSpecs(
@@ -603,10 +602,8 @@ class BasicReportsService(
         }
       )
       .metricCalculationSpecsList
-      .map { it.toPublic() }
       .associate {
-        it.copy {
-          clearName()
+        it.details.copy {
           val realMetricSpecs = metricSpecs
           metricSpecs.clear()
           for (realMetricSpec in realMetricSpecs) {
@@ -634,7 +631,7 @@ class BasicReportsService(
               MetricSpec.TypeCase.TYPE_NOT_SET -> {}
             }
           }
-        } to it.name
+        } to MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId).toName()
       }
   }
 
@@ -644,28 +641,28 @@ class BasicReportsService(
    * @param reportingInterval [ReportingInterval] from [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
    * @param reportingSetToNameMap Map of [ReportingSet] without name to ReportingSet resource name
-   * @param reportingSetMetricCalculationSpecsMap Map of [ReportingSet] to List of
-   *   [MetricCalculationSpec]
+   * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
+   *   [InternalMetricCalculationSpec.Details]
    */
   private suspend fun buildReport(
     reportingInterval: ReportingInterval,
     campaignGroupKey: ReportingSetKey,
     reportingSetToNameMap: Map<ReportingSet, String>,
-    reportingSetMetricCalculationSpecsMap: Map<ReportingSet, List<MetricCalculationSpec>>,
+    reportingSetMetricCalculationSpecDetailsMap: Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
   ): Report {
     val existingReportingSetsMap = reportingSetToNameMap.toMutableMap()
     val existingMetricCalculationSpecsMap =
-      buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
+      buildMetricCalculationSpecDetailsToNameMap(campaignGroupKey).toMutableMap()
 
     return report {
-      for (reportingSetMetricCalculationSpecsEntry in
-        reportingSetMetricCalculationSpecsMap.entries) {
+      for (reportingSetMetricCalculationSpecDetailsEntry in
+        reportingSetMetricCalculationSpecDetailsMap.entries) {
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             // Reuse ReportingSet or create a new one if it doesn't exist
             val existingReportingSetName: String? =
               existingReportingSetsMap[
-                reportingSetMetricCalculationSpecsEntry.key.copy { clearName() }]
+                reportingSetMetricCalculationSpecDetailsEntry.key.copy { clearName() }]
             key =
               if (existingReportingSetName != null) {
                 existingReportingSetName
@@ -675,7 +672,7 @@ class BasicReportsService(
                   internalReportingSetsStub.createReportingSet(
                     createReportingSetRequest {
                       reportingSet =
-                        reportingSetMetricCalculationSpecsEntry.key.toInternal(
+                        reportingSetMetricCalculationSpecDetailsEntry.key.toInternal(
                           externalReportingSetId,
                           campaignGroupKey.cmmsMeasurementConsumerId,
                           internalReportingSetsStub,
@@ -689,7 +686,7 @@ class BasicReportsService(
                       createdReportingSet.externalReportingSetId,
                     )
                     .toName()
-                existingReportingSetsMap[reportingSetMetricCalculationSpecsEntry.key] =
+                existingReportingSetsMap[reportingSetMetricCalculationSpecDetailsEntry.key] =
                   createdReportingSetName
                 createdReportingSetName
               }
@@ -697,22 +694,27 @@ class BasicReportsService(
             value =
               ReportKt.reportingMetricCalculationSpec {
                 // Reuse MetricCalculationSpec or create a new one if it doesn't exist
-                for (metricCalculationSpec in reportingSetMetricCalculationSpecsEntry.value) {
-                  if (existingMetricCalculationSpecsMap.containsKey(metricCalculationSpec)) {
-                    metricCalculationSpecs +=
-                      existingMetricCalculationSpecsMap.getValue(metricCalculationSpec)
+                for (metricCalculationSpecDetails in reportingSetMetricCalculationSpecDetailsEntry.value) {
+                  val existingMetricCalculationSpecName: String? =
+                    existingMetricCalculationSpecsMap[metricCalculationSpecDetails]
+                  if (existingMetricCalculationSpecName != null) {
+                    metricCalculationSpecs += existingMetricCalculationSpecName
                   } else {
                     val createdMetricCalculationSpec =
                       internalMetricCalculationSpecsStub.createMetricCalculationSpec(
                         createMetricCalculationSpecRequest {
                           this.metricCalculationSpec =
-                            metricCalculationSpec.toInternal(
-                              metricSpecConfig,
-                              secureRandom,
-                              cmmsMeasurementConsumerId =
-                                campaignGroupKey.cmmsMeasurementConsumerId,
-                              externalCampaignGroupId = campaignGroupKey.reportingSetId,
-                            )
+                            metricCalculationSpec {
+                              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                              externalCampaignGroupId = campaignGroupKey.reportingSetId
+                              details = metricCalculationSpecDetails.copy {
+                                val metricSpecsWithDefault = metricSpecs.map {
+                                  it.withDefaults(metricSpecConfig, secureRandom)
+                                }
+                                metricSpecs.clear()
+                                metricSpecs += metricSpecsWithDefault
+                              }
+                            }
                           externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
                         }
                       )
@@ -724,7 +726,7 @@ class BasicReportsService(
                         .toName()
 
                     metricCalculationSpecs += createdMetricCalculationSpecName
-                    existingMetricCalculationSpecsMap[metricCalculationSpec] =
+                    existingMetricCalculationSpecsMap[metricCalculationSpecDetails] =
                       createdMetricCalculationSpecName
                   }
                 }
@@ -758,42 +760,6 @@ class BasicReportsService(
       // Map of ReportingSet without name to ReportingSet resource name
       val reportingSetToNameMap: Map<ReportingSet, String>,
     )
-
-    /** Converts a public [MetricCalculationSpec] to an internal [InternalMetricCalculationSpec]. */
-    private fun MetricCalculationSpec.toInternal(
-      metricSpecConfig: MetricSpecConfig,
-      secureRandom: Random,
-      cmmsMeasurementConsumerId: String,
-      externalCampaignGroupId: String,
-    ): InternalMetricCalculationSpec {
-      val source = this
-
-      val internalMetricSpecs =
-        source.metricSpecsList.map { metricSpec ->
-          metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
-        }
-
-      return internalMetricCalculationSpec {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        this.externalCampaignGroupId = externalCampaignGroupId
-        details =
-          InternalMetricCalculationSpecKt.details {
-            displayName = source.displayName
-            metricSpecs += internalMetricSpecs
-            filter = source.filter
-            groupings +=
-              source.groupingsList.map { grouping ->
-                InternalMetricCalculationSpecKt.grouping { predicates += grouping.predicatesList }
-              }
-            if (source.hasMetricFrequencySpec()) {
-              metricFrequencySpec = source.metricFrequencySpec.toInternal()
-            }
-            if (source.hasTrailingWindow()) {
-              trailingWindow = source.trailingWindow.toInternal()
-            }
-          }
-      }
-    }
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(
