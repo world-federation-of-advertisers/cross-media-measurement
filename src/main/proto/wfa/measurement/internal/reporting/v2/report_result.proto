@@ -42,8 +42,12 @@ message ReportResult {
     PRIMITIVE = 2;
   }  // `MeasurementConsumer` ID from the CMMS public API.
 
+  // The CMMS Measurement Consumer ID
   string cmms_measurement_consumer_id = 1;
+  // The external ID of this result.
   fixed64 external_report_result_id = 2;
+  // The report start time. The end dates below are aligned with the time
+  // in this field.
   google.type.DateTime report_start = 3;
 
   message ReportingSetResult {

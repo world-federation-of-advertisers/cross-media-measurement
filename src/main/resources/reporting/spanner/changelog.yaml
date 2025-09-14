@@ -30,8 +30,7 @@ databaseChangeLog:
 - include:
     file: add-create-request-id-to-basic-report.sql
     relativeToChangeLogFile: true
-# DO_NOT_SUBMIT - remove processing of report-results schema and make the version
-# on the SQL file TBD
-- include:
-    file: create-report-results-schema.sql
-    relativeToChangeLogFile: true
+# TODO(@sanjayvas): Reinstate this when implementing the service.
+#- include:
+#    file: create-report-results-schema.sql
+#    relativeToChangeLogFile: true
