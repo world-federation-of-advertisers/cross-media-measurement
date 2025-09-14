@@ -14,7 +14,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
---changeset kungfucraig:6 dbms:cloudspanner
+-- This changeset has not been integrated into the change log yet.
+--changeset kungfucraig:TBD dbms:cloudspanner
 -- comment: Create ReportResults tables and make them usable for BasicReport results
 
 START BATCH DDL;
