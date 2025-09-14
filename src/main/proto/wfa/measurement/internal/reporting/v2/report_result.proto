@@ -94,4 +94,3 @@ message ReportResult {
   }
   repeated ReportingSetResult reporting_set_result = 4;
 }
-
