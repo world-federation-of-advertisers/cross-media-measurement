@@ -281,7 +281,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
 					"mc-config": {
@@ -305,7 +305,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
 					"mc-config": {
