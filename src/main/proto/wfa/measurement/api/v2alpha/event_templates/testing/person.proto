@@ -42,6 +42,7 @@ message Person {
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
+    version_added: 1
   }];
 
   enum AgeGroup {
@@ -55,6 +56,7 @@ message Person {
     population_attribute: true
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
+    version_added: 1
   }];
 
   enum SocialGradeGroup {
@@ -68,5 +70,6 @@ message Person {
         population_attribute: true
         reporting_features: FILTERABLE
         reporting_features: GROUPABLE
+        version_added: 1
       }];
 }
