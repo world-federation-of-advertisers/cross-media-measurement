@@ -31,7 +31,7 @@ class SpannerRequisitionMetadataServiceTest : RequisitionMetadataServiceTest() {
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
-  override fun initService(
+  override fun newService(
     idGenerator: IdGenerator
   ): RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient

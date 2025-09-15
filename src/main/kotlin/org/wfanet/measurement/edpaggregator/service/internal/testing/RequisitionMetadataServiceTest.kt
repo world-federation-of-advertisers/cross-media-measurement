@@ -26,6 +26,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -47,14 +48,20 @@ import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionM
 
 @RunWith(JUnit4::class)
 abstract class RequisitionMetadataServiceTest {
-  protected abstract fun initService(
+  private lateinit var service: RequisitionMetadataServiceCoroutineImplBase
+
+  protected abstract fun newService(
     idGenerator: IdGenerator = IdGenerator.Default
   ): RequisitionMetadataServiceCoroutineImplBase
+
+  @Before
+  fun initService() {
+    service = newService()
+  }
 
   @Test
   fun `createRequisitionMetadata without request_id returns created requisition metadata`() =
     runBlocking {
-      val service = initService()
       val startTime = Instant.now()
 
       val request = createRequisitionMetadataRequest {
@@ -78,7 +85,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `createRequisitionMetadata with request_id returns created requisition metadata`() =
     runBlocking {
-      val service = initService()
       val startTime = Instant.now()
 
       val request = createRequisitionMetadataRequest {
@@ -102,7 +108,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `createRequisitionMetadata with refusal message returns a REFUSED requisition metadata`() =
     runBlocking {
-      val service = initService()
       val startTime = Instant.now()
 
       val request = createRequisitionMetadataRequest {
@@ -134,8 +139,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `createRequisitionMetadata with existing request_id returns existing requisition metadata`() =
     runBlocking {
-      val service = initService()
-
       val request = createRequisitionMetadataRequest {
         requisitionMetadata = REQUISITION_METADATA
         requestId = CREATE_REQUEST_ID
@@ -149,8 +152,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when dataProviderResourceName is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearDataProviderResourceId() }
     }
@@ -162,8 +163,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when cmmsRequisition is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearCmmsRequisition() }
     }
@@ -175,8 +174,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when cmmsRequisition is duplicated`() = runBlocking {
-    val service = initService()
-
     service.createRequisitionMetadata(
       createRequisitionMetadataRequest {
         requisitionMetadata = REQUISITION_METADATA.copy { blobUri = "uri_1" }
@@ -201,8 +198,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when blobUri is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearBlobUri() }
     }
@@ -214,8 +209,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when blobUri is duplicated`() = runBlocking {
-    val service = initService()
-
     service.createRequisitionMetadata(
       createRequisitionMetadataRequest {
         requisitionMetadata =
@@ -243,8 +236,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when blobTypeUrl is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearBlobTypeUrl() }
     }
@@ -256,8 +247,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when groupId is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearGroupId() }
     }
@@ -269,8 +258,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `createRequisitionMetadata fails when report is missing`() = runBlocking {
-    val service = initService()
-
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearReport() }
     }
@@ -282,7 +269,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `getRequisitionMetadata returns a requisition metadata`() = runBlocking {
-    val service = initService()
     val startTime = Instant.now()
     service.createRequisitionMetadata(
       createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -310,8 +296,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `getRequisitionMetadata fails when the requisition metadata does not exist`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.getRequisitionMetadata(
@@ -327,8 +311,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `getRequisitionMetadata fails when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.getRequisitionMetadata(
@@ -344,8 +326,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `getRequisitionMetadata fails when requisitionMetadataResourceId is missing`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.getRequisitionMetadata(
@@ -362,7 +342,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `lookupRequisitionMetadata by cmms requisition returns a requisition metadata`() =
     runBlocking {
-      val service = initService()
       val startTime = Instant.now()
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -390,7 +369,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `lookupRequisitionMetadata by blob uri returns a requisition metadata`() = runBlocking {
-    val service = initService()
     val startTime = Instant.now()
     service.createRequisitionMetadata(
       createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -418,8 +396,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `lookupRequisitionMetadata fails when requisition metadata does not exist`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.lookupRequisitionMetadata(
@@ -435,8 +411,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `lookupRequisitionMetadata fails when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.lookupRequisitionMetadata(
@@ -452,8 +426,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `lookupRequisitionMetadata fails when lookup key is missing`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.lookupRequisitionMetadata(
@@ -469,7 +441,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `fetchLatestCmmsCreateTime returns the latest timestamp`() = runBlocking {
-    val service = initService()
     service.createRequisitionMetadata(
       createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
     )
@@ -485,8 +456,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `fetchLatestCmmsCreateTime returns the default timestamp with none requisition metadata`() =
     runBlocking {
-      val service = initService()
-
       val latestTimestamp =
         service.fetchLatestCmmsCreateTime(
           fetchLatestCmmsCreateTimeRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
@@ -497,8 +466,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `fetchLatestCmmsCreateTime failes when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.fetchLatestCmmsCreateTime(
@@ -513,13 +480,12 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `queueRequisitionMetadata returns an updated requisition metadata`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
       )
 
-    val updatedRequisitionMetadata =
+    val response =
       service.queueRequisitionMetadata(
         queueRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -529,26 +495,21 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
 
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
+    assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_QUEUED)
+    assertThat(response.workItem).isEqualTo(WORK_ITEM)
+    assertThat(response)
       .isEqualTo(
-        requisitionMetadata.copy {
-          state = State.REQUISITION_METADATA_STATE_QUEUED
-          workItem = WORK_ITEM
-        }
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
   fun `queueRequisitionMetadata fails when requisition metadata does not exist`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.queueRequisitionMetadata(
@@ -566,7 +527,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `queueRequisitionMetadata fails when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -590,7 +550,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `queueRequisitionMetadata fails when requisitionMetadataResourceId is missing`() =
     runBlocking {
-      val service = initService()
       val requisitionMetadata =
         service.createRequisitionMetadata(
           createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -613,7 +572,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `queueRequisitionMetadata fails when workItem is missing`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -636,7 +594,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `queueRequisitionMetadata fails when etags mismatch`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -659,13 +616,12 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `startProcessingRequisitionMetadata returns an updated requisition metadata`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
       )
 
-    val updatedRequisitionMetadata =
+    val response =
       service.startProcessingRequisitionMetadata(
         startProcessingRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -674,22 +630,21 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
 
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
+    assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_PROCESSING)
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-      .isEqualTo(requisitionMetadata.copy { state = State.REQUISITION_METADATA_STATE_PROCESSING })
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
   fun `startProcessingRequisitionMetadata fails when requisition metadata does not exist`() =
     runBlocking {
-      val service = initService()
-
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.startProcessingRequisitionMetadata(
@@ -706,7 +661,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `startProcessingRequisitionMetadata fails when dataProviderResourceId is missing`() =
     runBlocking {
-      val service = initService()
       val requisitionMetadata =
         service.createRequisitionMetadata(
           createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -729,7 +683,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `startProcessingRequisitionMetadata fails when requisitionMetadataResourceId is missing`() =
     runBlocking {
-      val service = initService()
       val requisitionMetadata =
         service.createRequisitionMetadata(
           createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -751,7 +704,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `startProcessingRequisitionMetadata fails when etags mismatch`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -773,13 +725,12 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `fulfillRequisitionMetadata returns an updated requisition metadata`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
       )
 
-    val updatedRequisitionMetadata =
+    val response =
       service.fulfillRequisitionMetadata(
         fulfillRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -788,21 +739,20 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
 
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
+    assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_FULFILLED)
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-      .isEqualTo(requisitionMetadata.copy { state = State.REQUISITION_METADATA_STATE_FULFILLED })
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
   fun `fulfillRequisitionMetadata fails when requisition metadata does not exist`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.fulfillRequisitionMetadata(
@@ -818,7 +768,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `fulfillRequisitionMetadata fails when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -841,7 +790,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `fulfillRequisitionMetadata fails when requisitionMetadataResourceId is missing`() =
     runBlocking {
-      val service = initService()
       val requisitionMetadata =
         service.createRequisitionMetadata(
           createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -863,7 +811,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `fulfillRequisitionMetadata fails when etags mismatch`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -885,13 +832,12 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `refuseRequisitionMetadata returns an updated requisition metadata`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
       )
 
-    val updatedRequisitionMetadata =
+    val response =
       service.refuseRequisitionMetadata(
         refuseRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -901,26 +847,21 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
 
-    assertThat(updatedRequisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
+    assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_REFUSED)
+    assertThat(response.refusalMessage).isEqualTo(REFUSAL_MESSAGE)
+    assertThat(response)
       .isEqualTo(
-        requisitionMetadata.copy {
-          state = State.REQUISITION_METADATA_STATE_REFUSED
-          refusalMessage = REFUSAL_MESSAGE
-        }
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
       )
-    assertThat(requisitionMetadata.updateTime.toInstant())
-      .isLessThan(updatedRequisitionMetadata.updateTime.toInstant())
-    assertThat(requisitionMetadata.etag).isNotEqualTo(updatedRequisitionMetadata.etag)
   }
 
   @Test
   fun `refuseRequisitionMetadata fails when requisition metadata does not exist`() = runBlocking {
-    val service = initService()
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.refuseRequisitionMetadata(
@@ -938,7 +879,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `refuseRequisitionMetadata fails when dataProviderResourceId is missing`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -962,7 +902,6 @@ abstract class RequisitionMetadataServiceTest {
   @Test
   fun `refuseRequisitionMetadata fails when requisitionMetadataResourceId is missing`() =
     runBlocking {
-      val service = initService()
       val requisitionMetadata =
         service.createRequisitionMetadata(
           createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -985,7 +924,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `refuseRequisitionMetadata fails when workItem is missing`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
@@ -1008,7 +946,6 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `refuseRequisitionMetadata fails when etags mismatch`() = runBlocking {
-    val service = initService()
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }

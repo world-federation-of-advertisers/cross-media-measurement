@@ -16,13 +16,17 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Timestamp
 import kotlin.text.trimIndent
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByBlobUriException
+import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -37,6 +41,21 @@ data class RequisitionMetadataResult(
   val requisitionMetadata: RequisitionMetadata,
   val requisitionMetadataId: Long,
 )
+
+/**
+ * Returns whether the [RequisitionMetadata] with the specified [dataProviderResourceId] and
+ * [requisitionMetadataId] exists.
+ */
+suspend fun AsyncDatabaseClient.ReadContext.requisitionMetadataExists(
+  dataProviderResourceId: String,
+  requisitionMetadataId: Long,
+): Boolean {
+  return readRow(
+    "RequisitionMetadata",
+    Key.of(dataProviderResourceId, requisitionMetadataId),
+    listOf("RequisitionMetadataId"),
+  ) != null
+}
 
 /**
  * Reads a [RequisitionMetadata] by its public resource ID.
@@ -67,11 +86,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByResourceId(
         }
       )
       .singleOrNullIfEmpty()
-      ?: throw RequisitionMetadataNotFoundException.byResourceId(
+      ?: throw RequisitionMetadataNotFoundException(
         dataProviderResourceId,
         requisitionMetadataResourceId,
       )
-
   return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
@@ -98,7 +116,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisit
         }
       )
       .singleOrNullIfEmpty()
-      ?: throw RequisitionMetadataNotFoundException.byCmmsRequisition(
+      ?: throw RequisitionMetadataNotFoundByCmmsRequisitionException(
         dataProviderResourceId,
         cmmsRequisition,
       )
@@ -129,7 +147,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
         }
       )
       .singleOrNullIfEmpty()
-      ?: throw RequisitionMetadataNotFoundException.byBlobUri(dataProviderResourceId, blobUri)
+      ?: throw RequisitionMetadataNotFoundByBlobUriException(dataProviderResourceId, blobUri)
 
   return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
@@ -210,6 +228,26 @@ fun AsyncDatabaseClient.TransactionContext.updateRequisitionMetadataState(
       block()
     }
   }
+}
+
+/** Returns the latest cmms create time for a given [dataProviderResourceId] */
+suspend fun AsyncDatabaseClient.ReadContext.fetchLatestCmmsCreateTime(
+  dataProviderResourceId: String
+): Timestamp {
+  val sql =
+    """
+      SELECT CmmsCreateTime FROM RequisitionMetadata
+      WHERE DataProviderResourceId = @dataProviderResourceId
+      ORDER BY CmmsCreateTime DESC
+      LIMIT 1
+      """
+      .trimIndent()
+
+  val row: Struct =
+    executeQuery(statement(sql) { bind("dataProviderResourceId").to(dataProviderResourceId) })
+      .singleOrNullIfEmpty() ?: return Timestamp.getDefaultInstance()
+
+  return row.getTimestamp("CmmsCreateTime").toProto()
 }
 
 private object RequisitionMetadataEntity {
