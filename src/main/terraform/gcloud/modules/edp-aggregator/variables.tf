@@ -237,3 +237,8 @@ variable "results_fulfiller_disk_image_family" {
   type        = string
   default     = "confidential-space"
 }
+
+variable "edpa_tee_signed_image_repo" {
+  description = "Trusted container image repository for Confidential Space attestation."
+  type        = string
+}

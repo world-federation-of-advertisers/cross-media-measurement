@@ -197,6 +197,7 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        EDPA_TEE_SIGNED_IMAGE_REPO: ${{ vars.EDPA_TEE_SIGNED_IMAGE_REPO }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -238,6 +239,7 @@ jobs:
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
+        -var="edpa_tee_signed_image_repo=$EDPA_TEE_SIGNED_IMAGE_REPO"
         -out=tfplan
 
     - name: terraform apply
