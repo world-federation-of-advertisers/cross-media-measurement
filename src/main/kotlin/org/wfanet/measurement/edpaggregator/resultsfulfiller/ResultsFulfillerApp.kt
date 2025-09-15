@@ -163,21 +163,25 @@ class ResultsFulfillerApp(
         null
       }
 
+    val fulfillerSelector = DefaultFulfillerSelector(
+      requisitionsStub = requisitionsStub,
+      requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+      dataProviderCertificateKey = dataProviderCertificateKey,
+      dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
+      noiserSelector = noiseSelector,
+      kAnonymityParams = kAnonymityParams,
+    )
+
     ResultsFulfiller(
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey = dataProviderCertificateKey,
-        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
         requisitionsStorageConfig = requisitionsStorageConfig,
-        noiserSelector = noiseSelector,
         modelLineInfoMap = modelLineInfoMap,
-        kAnonymityParams = kAnonymityParams,
         pipelineConfiguration = pipelineConfiguration,
         impressionMetadataService = impressionsMetadataService,
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
       )
       .fulfillRequisitions()
   }

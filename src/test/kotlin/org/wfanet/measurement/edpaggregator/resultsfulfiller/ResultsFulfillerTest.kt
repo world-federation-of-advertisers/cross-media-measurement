@@ -218,22 +218,26 @@ class ResultsFulfillerTest {
         zoneIdForDates = ZoneOffset.UTC,
       )
 
+    val fulfillerSelector = DefaultFulfillerSelector(
+      requisitionsStub = requisitionsStub,
+      requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+      dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+      dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+      noiserSelector = ContinuousGaussianNoiseSelector(),
+      kAnonymityParams = null,
+    )
+
     val resultsFulfiller =
       ResultsFulfiller(
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap = emptyMap(),
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         requisitionsBlobUri = REQUISITIONS_FILE_URI,
         requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
-        noiserSelector = ContinuousGaussianNoiseSelector(),
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
-        kAnonymityParams = null,
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionMetadataService = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -307,26 +311,30 @@ class ResultsFulfillerTest {
         zoneIdForDates = ZoneOffset.UTC,
       )
 
+    val fulfillerSelector = DefaultFulfillerSelector(
+      requisitionsStub = requisitionsStub,
+      requisitionFulfillmentStubMap =
+        mapOf(
+          DUCHY_ONE_NAME to requisitionFulfillmentStub,
+          DUCHY_TWO_NAME to requisitionFulfillmentStub,
+        ),
+      dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+      dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+      noiserSelector = ContinuousGaussianNoiseSelector(),
+      kAnonymityParams = null,
+    )
+
     val resultsFulfiller =
       ResultsFulfiller(
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-        requisitionsStub = requisitionsStub,
-        requisitionFulfillmentStubMap =
-          mapOf(
-            DUCHY_ONE_NAME to requisitionFulfillmentStub,
-            DUCHY_TWO_NAME to requisitionFulfillmentStub,
-          ),
-        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         requisitionsBlobUri = REQUISITIONS_FILE_URI,
         requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
-        noiserSelector = ContinuousGaussianNoiseSelector(),
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
-        kAnonymityParams = null,
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionMetadataService = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
       )
 
     resultsFulfiller.fulfillRequisitions()

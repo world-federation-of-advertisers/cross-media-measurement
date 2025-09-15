@@ -36,18 +36,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
@@ -55,45 +48,34 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * This orchestrates the lifecycle for a batch of requisitions: it loads grouped requisitions from
  * blob storage, calculates frequency vectors via the event processing pipeline, and dispatches
- * fulfillment using either the Direct or Honest-Majority Shuffle protocol implementation.
+ * fulfillment using a FulfillerSelector to choose the appropriate protocol implementation.
  *
  * Concurrency: supports concurrent fulfillment per batch via Kotlin coroutines. Long-running or
  * blocking operations (storage access, crypto, and RPC) execute on the IO dispatcher as
  * appropriate.
  *
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
- * @param requisitionsStub gRPC stub for the Requisitions service.
- * @param requisitionFulfillmentStubMap Map from EDP hostname to fulfillment stubs.
- * @param dataProviderCertificateKey Certificate/key pair identifying the data provider.
- * @param dataProviderSigningKeyHandle Signing key used to authenticate fulfillment.
  * @param requisitionsBlobUri Blob URI where grouped requisitions are stored.
  * @param requisitionsStorageConfig Storage configuration for reading grouped requisitions.
- * @param noiserSelector Selector used to choose the noise mechanism for Direct measurements.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
- * @param kAnonymityParams Optional k-anonymity parameters to apply, when supported.
  * @param pipelineConfiguration Configuration for the event processing pipeline.
  * @param impressionMetadataService Service to resolve impression metadata and sources.
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
+ * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  *
  * TODO(2347): Support additional differential privacy and k-anonymization strategies.
  */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStubMap:
-    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
-  private val dataProviderCertificateKey: DataProviderCertificateKey,
-  private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val requisitionsBlobUri: String,
   private val requisitionsStorageConfig: StorageConfig,
-  private val noiserSelector: NoiserSelector,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val kAnonymityParams: KAnonymityParams?,
   private val pipelineConfiguration: PipelineConfiguration,
   private val impressionMetadataService: ImpressionMetadataService,
   private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
+  private val fulfillerSelector: FulfillerSelector,
 ) {
 
   private val totalRequisitions = AtomicInteger(0)
@@ -237,10 +219,8 @@ class ResultsFulfiller(
   }
 
   /**
-   * Chooses the appropriate `MeasurementFulfiller` based on the requisition protocol.
-   * - Direct: builds a [DirectMeasurementFulfiller].
-   * - Honest-Majority Share Shuffle: builds an [HMShuffleMeasurementFulfiller], optionally applying
-   *   k-anonymity.
+   * Delegates to the FulfillerSelector to choose the appropriate `MeasurementFulfiller`
+   * based on the requisition protocol.
    *
    * @throws IllegalArgumentException If the protocol is unsupported.
    */
@@ -251,73 +231,15 @@ class ResultsFulfiller(
     frequencyData: IntArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-    val vec = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
-    return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
-      // TODO: Calculate the maximum population for a given cel filter
-      buildDirectMeasurementFulfiller(
-        requisition = requisition,
-        measurementSpec = measurementSpec,
-        requisitionSpec = requisitionSpec,
-        maxPopulation = null,
-        frequencyData = vec.frequencyDataArray,
-        kAnonymityParams = kAnonymityParams,
-      )
-    } else if (
-      requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
-    ) {
-      if (kAnonymityParams == null) {
-        HMShuffleMeasurementFulfiller(
-          requisition,
-          requisitionSpec.nonce,
-          vec.build(),
-          dataProviderSigningKeyHandle,
-          dataProviderCertificateKey,
-          requisitionFulfillmentStubMap,
-        )
-      } else {
-        HMShuffleMeasurementFulfiller.buildKAnonymized(
-          requisition,
-          requisitionSpec.nonce,
-          measurementSpec,
-          populationSpec,
-          vec,
-          dataProviderSigningKeyHandle,
-          dataProviderCertificateKey,
-          requisitionFulfillmentStubMap,
-          kAnonymityParams,
-          maxPopulation = null,
-        )
-      }
-    } else {
-      throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
-    }
+    return fulfillerSelector.selectFulfiller(
+      requisition = requisition,
+      measurementSpec = measurementSpec,
+      requisitionSpec = requisitionSpec,
+      frequencyData = frequencyData,
+      populationSpec = populationSpec,
+    )
   }
 
-  /**
-   * Creates a [FrequencyVectorBuilder] and populates it from a raw frequency array.
-   *
-   * @param measurementSpec The measurement specification describing the sketch layout.
-   * @param populationSpec The population specification used when building the sketch.
-   * @param frequencyData Raw frequency counts per index (byte-expanded to `Int`).
-   * @return A builder pre-populated with the provided frequencies.
-   */
-  private fun createFrequencyVectorBuilderFromArray(
-    measurementSpec: MeasurementSpec,
-    populationSpec: PopulationSpec,
-    frequencyData: IntArray,
-  ): FrequencyVectorBuilder {
-    val builder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
-
-    // Populate the builder with the frequency data
-    for (index in frequencyData.indices) {
-      val frequency = frequencyData[index]
-      if (frequency > 0) {
-        builder.incrementBy(index, frequency)
-      }
-    }
-
-    return builder
-  }
 
   /**
    * Loads [GroupedRequisitions] from blob storage using the configured URI.
@@ -353,56 +275,6 @@ class ResultsFulfiller(
     }
   }
 
-  /**
-   * Builds a [DirectMeasurementFulfiller] and an encrypted measurement result for Direct protocol.
-   *
-   * Uses the configured [NoiserSelector] to choose a noise mechanism and
-   * [DirectMeasurementResultFactory] to construct the encrypted result.
-   *
-   * @param requisition The requisition being fulfilled.
-   * @param measurementSpec The measurement spec containing the public encryption key.
-   * @param requisitionSpec The decrypted requisition spec, including the nonce.
-   * @param maxPopulation Optional upper bound on eligible population (when available).
-   * @param frequencyData Raw frequency counts used to compute the result.
-   * @param kAnonymityParams Optional k-anonymity parameters to apply.
-   * @return A fully configured [DirectMeasurementFulfiller].
-   */
-  private suspend fun buildDirectMeasurementFulfiller(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec,
-    maxPopulation: Int?,
-    frequencyData: IntArray,
-    kAnonymityParams: KAnonymityParams?,
-  ): DirectMeasurementFulfiller {
-    val measurementEncryptionPublicKey: EncryptionPublicKey =
-      measurementSpec.measurementPublicKey.unpack()
-    val directProtocolConfig =
-      requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
-    val noiseMechanism =
-      noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
-    val result =
-      DirectMeasurementResultFactory.buildMeasurementResult(
-        directProtocolConfig,
-        noiseMechanism,
-        measurementSpec,
-        frequencyData,
-        maxPopulation,
-        kAnonymityParams = kAnonymityParams,
-      )
-    return DirectMeasurementFulfiller(
-      requisition.name,
-      requisition.dataProviderCertificate,
-      result,
-      requisitionSpec.nonce,
-      measurementEncryptionPublicKey,
-      directProtocolConfig,
-      noiseMechanism,
-      dataProviderSigningKeyHandle,
-      dataProviderCertificateKey,
-      requisitionsStub,
-    )
-  }
 
   /**
    * Logs aggregate counters and timings for the current process lifetime.
