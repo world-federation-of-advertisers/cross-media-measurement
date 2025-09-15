@@ -73,7 +73,10 @@ class InconsistentIndexMapAndPopulationSpecException(
 /**
  * An implementation of [VidIndexMap] that holds the Map in memory.
  *
- * See build methods in the companion object.
+ * This constructor is private. See build methods in the companion object.
+ *
+ * Note that this class takes ownership of the `indexMap` and that the caller must
+ * not modify it after calling this constructor.
  *
  * @param[populationSpec] The [PopulationSpec] represented by this map
  * @param[indexMap] The map of VIDs to indexes
