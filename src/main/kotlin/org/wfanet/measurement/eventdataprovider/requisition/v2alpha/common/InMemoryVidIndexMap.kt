@@ -75,8 +75,8 @@ class InconsistentIndexMapAndPopulationSpecException(
  *
  * This constructor is private. See build methods in the companion object.
  *
- * Note that this class takes ownership of the `indexMap` and that the caller must
- * not modify it after calling this constructor.
+ * Note that this class takes ownership of the `indexMap` and that the caller must not modify it
+ * after calling this constructor.
  *
  * @param[populationSpec] The [PopulationSpec] represented by this map
  * @param[indexMap] The map of VIDs to indexes
@@ -159,7 +159,9 @@ private constructor(
       val vidsNotInPopulationSpec = mutableListOf<Long>()
       indexMapEntries.collect { vidEntry ->
         val vid = vidEntry.key
-        require(vid < Integer.MAX_VALUE) { "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}" }
+        require(vid < Integer.MAX_VALUE) {
+          "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+        }
         indexMap[vid.toInt()] = vidEntry.value.index
         var vidFound = false
         for (range in populationRanges) {
@@ -182,7 +184,9 @@ private constructor(
       val vidsNotInIndexMap: List<Long> =
         populationRanges.flatMap { range ->
           range.filter { vid ->
-            require(vid < Integer.MAX_VALUE) { "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}" }
+            require(vid < Integer.MAX_VALUE) {
+              "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+            }
             !indexMap.containsKey(vid.toInt()) &&
               vidsNotInPopulationSpec.size <
                 InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
@@ -233,7 +237,9 @@ private constructor(
       for (subPop in populationSpec.subpopulationsList) {
         for (range in subPop.vidRangesList) {
           for (vid in range.startVid..range.endVidInclusive) {
-            require(vid < Integer.MAX_VALUE) { "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}" }
+            require(vid < Integer.MAX_VALUE) {
+              "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+            }
             hashes.add(VidAndHash(vid.toInt(), hashFunction(vid, SALT)))
           }
         }
