@@ -1,0 +1,8 @@
+
+Ÿ
+Dwfa/measurement/api/v2alpha/event_templates/testing/test_event.proto3wfa.measurement.api.v2alpha.event_templates.testingCwfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto@wfa/measurement/api/v2alpha/event_templates/testing/person.proto?wfa/measurement/api/v2alpha/event_templates/testing/video.proto"‘
+	TestEventS
+person (2;.wfa.measurement.api.v2alpha.event_templates.testing.PersonRpersonU
+video_ad (2:.wfa.measurement.api.v2alpha.event_templates.testing.VideoRvideoAdX
+	banner_ad (2;.wfa.measurement.api.v2alpha.event_templates.testing.BannerRbannerAdB>
+:org.wfanet.measurement.api.v2alpha.event_templates.testingPbproto3

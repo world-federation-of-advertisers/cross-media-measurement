@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2025 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-configMapGenerator:
-- name: config-files
-  files:
-  - authority_key_identifier_to_principal_map.textproto
-  - open_id_providers_config.json
-  - encryption_key_pair_config.textproto
-  - metric_spec_config.textproto
-  - basic_report_metric_spec_config.textproto
-  - known_event_group_metadata_type_set.pb
-  - impression_qualification_filter_config.textproto
-  - event_proto-descriptor-set.proto.bin
+name: Deploy Kingdom
+
+on:
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform-cmms.yml
+    secrets: inherit
+    with:
+      image-tag: bigquery-requisition-fulfillment-context
+      environment: dev
+      apply: true
+  update-kingdom:
+    needs: [ terraform ]
+    uses: ./.github/workflows/configure-kingdom.yml
+    secrets: inherit
+    with:
+      image-tag: bigquery-requisition-fulfillment-context
+      environment: dev
+      apply: true
