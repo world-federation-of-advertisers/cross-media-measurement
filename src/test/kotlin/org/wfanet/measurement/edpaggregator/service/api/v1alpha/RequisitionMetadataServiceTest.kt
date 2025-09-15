@@ -31,7 +31,6 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -48,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase as InternalRequisitionMetadataService
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceStub
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
@@ -107,15 +107,15 @@ private val REQUISITION_METADATA =
 
 private val INTERNAL_REQUISITION_METADATA: InternalRequisitionMetadata =
   internalRequisitionMetadata {
-    externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-    externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+    dataProviderResourceId = DATA_PROVIDER_ID
+    requisitionMetadataResourceId = REQUISITION_METADATA_ID
     cmmsRequisition = CMMS_REQUISITION_KEY.toName()
     report = REPORT_KEY.toName()
     blobUri = BLOB_URI
     blobTypeUrl = BLOB_TYPE
     groupId = GROUP_ID
     cmmsCreateTime = CMMS_CREATE_TIME
-    state = InternalRequisitionMetadata.State.STORED
+    state = InternalState.REQUISITION_METADATA_STATE_STORED
     // work_item not set
     createTime = CREATE_TIME
     updateTime = UPDATE_TIME_1
@@ -133,7 +133,7 @@ class RequisitionMetadataServiceTest {
     onBlocking { queueRequisitionMetadata(any()) }
       .thenReturn(
         INTERNAL_REQUISITION_METADATA.copy {
-          state = InternalRequisitionMetadata.State.QUEUED
+          state = InternalState.REQUISITION_METADATA_STATE_QUEUED
           updateTime = UPDATE_TIME_2
           etag = ETAG_2
           workItem = WORK_ITEM
@@ -142,7 +142,7 @@ class RequisitionMetadataServiceTest {
     onBlocking { startProcessingRequisitionMetadata(any()) }
       .thenReturn(
         INTERNAL_REQUISITION_METADATA.copy {
-          state = InternalRequisitionMetadata.State.PROCESSING
+          state = InternalState.REQUISITION_METADATA_STATE_PROCESSING
           updateTime = UPDATE_TIME_2
           etag = ETAG_2
         }
@@ -150,7 +150,7 @@ class RequisitionMetadataServiceTest {
     onBlocking { fulfillRequisitionMetadata(any()) }
       .thenReturn(
         INTERNAL_REQUISITION_METADATA.copy {
-          state = InternalRequisitionMetadata.State.FULFILLED
+          state = InternalState.REQUISITION_METADATA_STATE_FULFILLED
           updateTime = UPDATE_TIME_2
           etag = ETAG_2
         }
@@ -158,7 +158,7 @@ class RequisitionMetadataServiceTest {
     onBlocking { refuseRequisitionMetadata(any()) }
       .thenReturn(
         INTERNAL_REQUISITION_METADATA.copy {
-          state = InternalRequisitionMetadata.State.REFUSED
+          state = InternalState.REQUISITION_METADATA_STATE_REFUSED
           updateTime = UPDATE_TIME_2
           etag = ETAG_2
           refusalMessage = REFUSAL_MESSAGE
@@ -206,7 +206,7 @@ class RequisitionMetadataServiceTest {
           requestId = REQUEST_ID
           this.requisitionMetadata =
             INTERNAL_REQUISITION_METADATA.copy {
-              clearExternalRequisitionMetadataId()
+              clearRequisitionMetadataResourceId()
               clearState()
               clearCreateTime()
               clearUpdateTime()
@@ -298,8 +298,8 @@ class RequisitionMetadataServiceTest {
     verifyProtoArgument(internalService, InternalRequisitionMetadataService::getRequisitionMetadata)
       .isEqualTo(
         internalGetRequisitionMetadataRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          dataProviderResourceId = DATA_PROVIDER_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_ID
         }
       )
   }
@@ -329,7 +329,7 @@ class RequisitionMetadataServiceTest {
         )
         .isEqualTo(
           internalLookupRequisitionMetadataRequest {
-            externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+            dataProviderResourceId = DATA_PROVIDER_ID
             cmmsRequisition = CMMS_REQUISITION_KEY.toName()
           }
         )
@@ -352,7 +352,7 @@ class RequisitionMetadataServiceTest {
         )
         .isEqualTo(
           internalLookupRequisitionMetadataRequest {
-            externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
+            dataProviderResourceId = DATA_PROVIDER_ID
             blobUri = BLOB_URI
           }
         )
@@ -392,9 +392,7 @@ class RequisitionMetadataServiceTest {
         InternalRequisitionMetadataService::fetchLatestCmmsCreateTime,
       )
       .isEqualTo(
-        internalFetchLatestCmmsCreateTimeRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-        }
+        internalFetchLatestCmmsCreateTimeRequest { dataProviderResourceId = DATA_PROVIDER_ID }
       )
   }
 
@@ -433,8 +431,8 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalQueueRequisitionMetadataRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          dataProviderResourceId = DATA_PROVIDER_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_ID
           this.etag = ETAG_1
           this.workItem = WORK_ITEM
         }
@@ -500,8 +498,8 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalStartProcessingRequisitionMetadataRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          dataProviderResourceId = DATA_PROVIDER_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_ID
           this.etag = ETAG_1
         }
       )
@@ -548,8 +546,8 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalFulfillRequisitionMetadataRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          dataProviderResourceId = DATA_PROVIDER_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_ID
           this.etag = ETAG_1
         }
       )
@@ -599,8 +597,8 @@ class RequisitionMetadataServiceTest {
       )
       .isEqualTo(
         internalRefuseRequisitionMetadataRequest {
-          externalDataProviderId = apiIdToExternalId(DATA_PROVIDER_ID)
-          externalRequisitionMetadataId = apiIdToExternalId(REQUISITION_METADATA_ID)
+          dataProviderResourceId = DATA_PROVIDER_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_ID
           this.refusalMessage = REFUSAL_MESSAGE
           etag = ETAG_1
         }
