@@ -14,33 +14,21 @@
 
 package k8s
 
-_pdpName:                string @tag("pdp_name")
-_pdpCertName:            string @tag("pdp_cert_name")
-_populationResourceName: string @tag("population_resource_name")
-_secretName:             string @tag("secret_name")
+_pdpName:     string @tag("pdp_name")
+_pdpCertName: string @tag("pdp_cert_name")
 
-_populationSpec:                       "/etc/\(#AppName)/config-files/population_spec_small.textproto"
 _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
-	dataProviderDisplayName:      "pdp1"
 	dataProviderResourceName:     _pdpName
 	dataProviderCertResourceName: _pdpCertName
-	populationKeyAndInfoList: [
-		{
-			populationResourceName: _populationResourceName
-			populationSpecFile:     _populationSpec
-			eventMessageTypeUrl:    "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
-		},
-	]
-	eventMessageDescriptor: "/etc/\(#AppName)/config-files/test_event_message_descriptor_set.pb"
+	eventMessageTypeUrl:          "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 }
 
 objectSets: [
-	populationRequisitionFulfiller.deployment,
+	[populationRequisitionFulfiller.deployment],
 	populationRequisitionFulfiller.networkPolicies,
 ]
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
 	_imageConfig: repoSuffix: "data-provider/population-requisition-fulfiller"
-	_populationRequisitionFulfillerSecretName: _secretName
-	_config:                                   _populationRequisitionFulfillerConfig
+	_config: _populationRequisitionFulfillerConfig
 }
