@@ -163,7 +163,7 @@ class ResultsFulfiller(
       )
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
 
-    logger.info("Frequency vector calculation completed, processing individual requisitions")
+    logger.info("Frequency vector calculation completed, processing individual requisitions.")
 
     requisitions
       .asFlow()

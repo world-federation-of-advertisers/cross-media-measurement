@@ -18,6 +18,7 @@ locals {
 
   metadata_map = merge(
       {
+        "tee-container-log-redirect" = "true"
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
       },
