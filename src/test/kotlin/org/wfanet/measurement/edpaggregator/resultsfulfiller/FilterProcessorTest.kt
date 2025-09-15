@@ -81,7 +81,7 @@ class FilterProcessorTest {
     val timestamps = events.map { it.timestamp }
     val minTime = timestamps.minOrNull() ?: Instant.now()
     val maxTime = timestamps.maxOrNull() ?: Instant.now()
-    return EventBatch(events, minTime, maxTime)
+    return EventBatch(events, minTime, maxTime, eventGroupReferenceId = "test-group")
   }
 
   /** Helper function to create a default interval that covers a wide time range. */

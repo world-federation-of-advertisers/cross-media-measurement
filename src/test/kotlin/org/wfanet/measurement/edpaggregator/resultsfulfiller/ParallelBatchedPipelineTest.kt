@@ -73,7 +73,7 @@ class ParallelBatchedPipelineTest {
           } else {
             Instant.now().plusSeconds(1)
           }
-        EventBatch<TestEvent>(events = events, minTime = minTime, maxTime = maxTime)
+        EventBatch<TestEvent>(events = events, minTime = minTime, maxTime = maxTime, eventGroupReferenceId = "test-group")
       }
     }
   }
@@ -468,7 +468,7 @@ class ParallelBatchedPipelineTest {
                 eventGroupReferenceId = "reference-id-1",
               )
             emit(
-              EventBatch<TestEvent>(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1))
+              EventBatch<TestEvent>(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1")
             )
           }
         }
@@ -606,7 +606,7 @@ class ParallelBatchedPipelineTest {
                 message = TestEvent.getDefaultInstance(),
                 eventGroupReferenceId = "reference-id-1",
               )
-            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1)))
+            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
           }
         }
       }
@@ -670,7 +670,7 @@ class ParallelBatchedPipelineTest {
                 message = TestEvent.getDefaultInstance(),
                 eventGroupReferenceId = "reference-id-1",
               )
-            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1)))
+            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
             kotlinx.coroutines.yield() // Allow cancellation
           }
         }

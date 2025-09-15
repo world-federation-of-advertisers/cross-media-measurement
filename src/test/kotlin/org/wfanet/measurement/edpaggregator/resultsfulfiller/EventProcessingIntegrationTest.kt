@@ -1117,7 +1117,7 @@ class EventProcessingIntegrationTest {
             val minTime = eventTimes.minOrNull() ?: Instant.now()
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
-            emit(EventBatch(eventList, minTime, maxTime))
+            emit(EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = "test-group"))
           }
         }
       }

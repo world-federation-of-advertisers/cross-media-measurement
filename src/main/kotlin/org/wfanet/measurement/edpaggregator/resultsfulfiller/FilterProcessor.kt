@@ -91,7 +91,7 @@ class FilterProcessor<T : Message>(
 
     // Fast batch-level time range check: skip entire batch if no overlap
     if (!batchTimeRangeOverlaps(batch)) {
-      return EventBatch(emptyList(), minTime = batch.minTime, maxTime = batch.maxTime)
+      return EventBatch(emptyList(), minTime = batch.minTime, maxTime = batch.maxTime, eventGroupReferenceId = batch.eventGroupReferenceId)
     }
 
     val filteredEvents =
@@ -107,7 +107,7 @@ class FilterProcessor<T : Message>(
         EventFilters.matches(event.message, program)
       }
 
-    return EventBatch(filteredEvents, minTime = batch.minTime, maxTime = batch.maxTime)
+    return EventBatch(filteredEvents, minTime = batch.minTime, maxTime = batch.maxTime, eventGroupReferenceId = batch.eventGroupReferenceId)
   }
 
   /**
