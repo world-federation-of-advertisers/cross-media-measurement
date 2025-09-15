@@ -25,7 +25,7 @@ message ImpressionQualificationFilterConfig {
   message ImpressionQualificationFilter {
     // External IQF id
     string external_impression_qualification_filter_id = 1;
-    // Internal IQF id used for all references from the DB
+    // Internal IQF id used for all references from the DB. Must be positive.
     int64 impression_qualification_filter_id = 2;
     // Specifies the filter criteria for each MediaType.
     //

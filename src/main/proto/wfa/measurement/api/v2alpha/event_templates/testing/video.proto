@@ -35,11 +35,13 @@ message Video {
       [(.wfa.measurement.api.v2alpha.template_field) = {
         display_name: "Video Length"
         reporting_features: FILTERABLE
+        version_added: 1
       }];
 
   double viewed_fraction = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Viewed Fraction"
     description: "Fraction of the video that was viewed in the range [0, 1]"
     reporting_features: IMPRESSION_QUALIFICATION
+    version_added: 1
   }];
 }
