@@ -56,7 +56,7 @@ service ImpressionMetadataService {
 
   // Computes the availability intervals for the given ModelLines.
   rpc ComputeModelLinesAvailability(ComputeModelLinesAvailabilityRequest)
-      returns (ComputeModelLineAvailabilityResponse) {}
+      returns (ComputeModelLinesAvailabilityResponse) {}
 }
 
 // Request message for the `CreateImpressionMetadata` method.
