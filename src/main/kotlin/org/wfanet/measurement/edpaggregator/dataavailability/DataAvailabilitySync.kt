@@ -43,6 +43,7 @@ import java.util.UUID
 import kotlin.text.Charsets.UTF_8
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import java.security.MessageDigest
 
 
 class DataAvailabilitySync(
@@ -62,13 +63,13 @@ class DataAvailabilitySync(
    * is used to determine which folder to crawl when collecting and processing
    * metadata for that day.
    *
-   * @param path the full Cloud Storage object path of the "done" blob.
+   * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
-  suspend fun sync(path: String) {
+  suspend fun sync(doneBlobPath: String) {
 
     // 1. Crawl for metadata files
     val doneBlobUri: BlobUri =
-      SelectedStorageClient.parseBlobUri(path)
+      SelectedStorageClient.parseBlobUri(doneBlobPath)
     val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
     val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
@@ -110,14 +111,14 @@ class DataAvailabilitySync(
 
   }
 
-  suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  suspend private fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> = mutableListOf()
     impressionMetadataList.forEach {
       createImpressionMetadataRequests.add(
         createImpressionMetadataRequest {
           parent = dataProviderName
           this.impressionMetadata = it
-          requestId = UUID.randomUUID().toString()
+          requestId = uuidV4FromPath(it.blobUri)
         }
       )
     }
@@ -156,7 +157,7 @@ class DataAvailabilitySync(
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *         `BlobDetails`.
    */
-  suspend fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, bucket: String) : Map<String, List<ImpressionMetadata>> {
+  suspend private fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, bucket: String) : Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
         val fileName = blob.blobKey.substringAfterLast("/").lowercase()
@@ -200,6 +201,21 @@ class DataAvailabilitySync(
       }
     }
     return impressionMetadataMap
+  }
+
+  /**
+   * Generates a deterministic UUIDv4 string from a blob path.
+   *
+   * This function ensures idempotency when the same path is used repeatedly:
+   * @param metadataBlobUri The input path (e.g., a Google Cloud Storage blob URI).
+   * @return A UUIDv4-compliant string that is stable for the given path.
+   */
+  private fun uuidV4FromPath(metadataBlobUri: String): String {
+    val hash = MessageDigest.getInstance("SHA-256").digest(metadataBlobUri.toByteArray())
+    val bytes = hash.copyOf(16)
+    bytes[6] = (bytes[6].toInt() and 0x0F or 0x40).toByte()
+    bytes[8] = (bytes[8].toInt() and 0x3F or 0x80).toByte()
+    return UUID.nameUUIDFromBytes(bytes).toString()
   }
 
   companion object {

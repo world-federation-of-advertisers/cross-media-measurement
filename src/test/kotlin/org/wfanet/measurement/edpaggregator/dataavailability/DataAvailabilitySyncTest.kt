@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import java.time.Clock
 import java.time.Duration
@@ -50,7 +51,9 @@ import org.wfanet.measurement.storage.StorageClient
 import java.io.File
 import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.emptyFlow
+import org.mockito.kotlin.argumentCaptor
 import kotlin.test.assertFailsWith
+import com.google.common.truth.Truth.assertThat
 
 enum class BlobEncoding { PROTO, JSON }
 
@@ -343,6 +346,34 @@ class DataAvailabilitySyncTest {
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineAvailability(any()) }
+    }
+
+    @Test
+    fun `saveImpressionMetadata generates deterministic UUIDs`() = runBlocking {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(300L to 400L)
+            )
+        }
+
+        val dataAvailabilitySync = DataAvailabilitySync(storageClient, dataProvidersStub, impressionMetadataStub, "dataProviders/123", MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)))
+
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+        runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+        // Capture both requests
+        val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+        verifyBlocking(impressionMetadataServiceMock, times(2)) {
+            batchCreateImpressionMetadata(captor.capture())
+        }
+
+        val requestIds = captor.allValues.flatMap { it.requestsList.map { req -> req.requestId } }
+        assertThat(requestIds.distinct().size).isEqualTo(1)
     }
 
     /**
