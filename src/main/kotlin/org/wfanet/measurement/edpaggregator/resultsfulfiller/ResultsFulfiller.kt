@@ -219,8 +219,8 @@ class ResultsFulfiller(
   }
 
   /**
-   * Delegates to the FulfillerSelector to choose the appropriate `MeasurementFulfiller`
-   * based on the requisition protocol.
+   * Delegates to the FulfillerSelector to choose the appropriate `MeasurementFulfiller` based on
+   * the requisition protocol.
    *
    * @throws IllegalArgumentException If the protocol is unsupported.
    */
@@ -239,7 +239,6 @@ class ResultsFulfiller(
       populationSpec = populationSpec,
     )
   }
-
 
   /**
    * Loads [GroupedRequisitions] from blob storage using the configured URI.
@@ -274,7 +273,6 @@ class ResultsFulfiller(
       )
     }
   }
-
 
   /**
    * Logs aggregate counters and timings for the current process lifetime.

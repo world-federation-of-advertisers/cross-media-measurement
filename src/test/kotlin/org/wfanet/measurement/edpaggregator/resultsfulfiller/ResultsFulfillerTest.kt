@@ -218,14 +218,15 @@ class ResultsFulfillerTest {
         zoneIdForDates = ZoneOffset.UTC,
       )
 
-    val fulfillerSelector = DefaultFulfillerSelector(
-      requisitionsStub = requisitionsStub,
-      requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
-      dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-      dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-      noiserSelector = ContinuousGaussianNoiseSelector(),
-      kAnonymityParams = null,
-    )
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+      )
 
     val resultsFulfiller =
       ResultsFulfiller(
@@ -311,18 +312,19 @@ class ResultsFulfillerTest {
         zoneIdForDates = ZoneOffset.UTC,
       )
 
-    val fulfillerSelector = DefaultFulfillerSelector(
-      requisitionsStub = requisitionsStub,
-      requisitionFulfillmentStubMap =
-        mapOf(
-          DUCHY_ONE_NAME to requisitionFulfillmentStub,
-          DUCHY_TWO_NAME to requisitionFulfillmentStub,
-        ),
-      dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-      dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-      noiserSelector = ContinuousGaussianNoiseSelector(),
-      kAnonymityParams = null,
-    )
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap =
+          mapOf(
+            DUCHY_ONE_NAME to requisitionFulfillmentStub,
+            DUCHY_TWO_NAME to requisitionFulfillmentStub,
+          ),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+      )
 
     val resultsFulfiller =
       ResultsFulfiller(
@@ -421,13 +423,9 @@ class ResultsFulfillerTest {
 
     // Create the impressions metadata store
     Files.createDirectories(metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
-    // Create symlink so both impression-metadata-bucket/ds and impression-metadata-bucketds paths
-    // work
-    val bucketDsPath = metadataTmpPath.resolve("${IMPRESSIONS_METADATA_BUCKET}ds").toPath()
     val bucketWithDsPath =
       metadataTmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).resolve("ds").toPath()
     Files.createDirectories(bucketWithDsPath.parent)
-    Files.createSymbolicLink(bucketDsPath, bucketWithDsPath)
 
     // Create metadata only for the days in the actual time range
     val dates =
