@@ -29,13 +29,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineAvailabilityResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
 import com.google.type.interval
+import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
@@ -75,37 +75,52 @@ class DataAvailabilitySync(
     val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
     // 1. Retrieve blob details from storage and build a map and validate them
-    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri.bucket)
+    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+
+    if (impressionMetadataMap.isEmpty()){
+      logger.info("There were no valid impressions metadata.")
+      return
+    }
 
     // 2. Save ImpressionMetadata using ImpressionMetadataStorage
     impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
     // 3. Retrieve model line availability from ImpressionMetadataStorage for all model line
     // found in the storage folder and update kingdom availability
-    val availabilityEntries = mutableListOf<DataProvider.DataAvailabilityMapEntry>()
-    impressionMetadataMap.keys.forEach {
+    // Collect all model lines
+    val modelLines = impressionMetadataMap.keys.toList()
 
-      val modelLineAvailabilityInterval : ComputeModelLineAvailabilityResponse =
-        impressionMetadataServiceStub.computeModelLineAvailability(computeModelLineAvailabilityRequest {
-          modelLine = it
-        })
+    val modelLinesAvailabilityInterval: ComputeModelLinesAvailabilityResponse =
+      impressionMetadataServiceStub.computeModelLinesAvailability(
+        computeModelLinesAvailabilityRequest {
+          parent = dataProviderName
+          this.modelLines += modelLines
+        }
+      )
 
-      availabilityEntries += dataAvailabilityMapEntry {
-        key = it
+    // Build availability entries from the response
+    val availabilityEntries = modelLinesAvailabilityInterval.modelLineAvailabilitiesList.map { availability ->
+      dataAvailabilityMapEntry {
+        key = availability.modelLine
         value = interval {
-          startTime = modelLineAvailabilityInterval.modelLineAvailability.startTime
-          endTime = modelLineAvailabilityInterval.modelLineAvailability.endTime
+          startTime = availability.availability.startTime
+          endTime = availability.availability.endTime
         }
       }
     }
-    if(!availabilityEntries.isEmpty()) {
+
+    if (availabilityEntries.isNotEmpty()) {
       throttler.onReady {
-        dataProvidersStub.replaceDataAvailabilityIntervals(
-          replaceDataAvailabilityIntervalsRequest {
-            name = dataProviderName
-            dataAvailabilityIntervals += availabilityEntries
-          }
-        )
+        try {
+          dataProvidersStub.replaceDataAvailabilityIntervals(
+            replaceDataAvailabilityIntervalsRequest {
+              name = dataProviderName
+              dataAvailabilityIntervals += availabilityEntries
+            }
+          )
+        } catch (e: StatusException) {
+          throw Exception("Error replacing DataAvailability intervals", e)
+        }
       }
     }
 
@@ -122,10 +137,16 @@ class DataAvailabilitySync(
         }
       )
     }
-    impressionMetadataServiceStub.batchCreateImpressionMetadata(batchCreateImpressionMetadataRequest {
-      parent = dataProviderName
-      requests += createImpressionMetadataRequests
-    })
+    try {
+      throttler.onReady {
+        impressionMetadataServiceStub.batchCreateImpressionMetadata(batchCreateImpressionMetadataRequest {
+          parent = dataProviderName
+          requests += createImpressionMetadataRequests
+        })
+      }
+    } catch (e: StatusException) {
+      throw Exception("Error creating Impressions Metadata", e)
+    }
   }
 
   /**
@@ -150,14 +171,14 @@ class DataAvailabilitySync(
    * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param bucket the GCS bucket name to use when constructing URIs for blobs.
+   * @param blobUri the blob uri.
    * @return a map where each key is a `modelLine` string and each value is the list of
    *         [ImpressionMetadata] objects associated with that model line.
    *
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *         `BlobDetails`.
    */
-  suspend private fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, bucket: String) : Map<String, List<ImpressionMetadata>> {
+  suspend private fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, blobUri: BlobUri) : Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
         val fileName = blob.blobKey.substringAfterLast("/").lowercase()
@@ -184,13 +205,13 @@ class DataAvailabilitySync(
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
       }
 
-      val metadata_blob_uri = "gs://$bucket/${blob.blobKey}"
+      val metadata_blob_uri = "${blobUri.asUriString()}${blobUri.bucket}/${blob.blobKey}"
       val impressionBlob = storageClient.getBlob(blobDetails.blobUri)
       if (impressionBlob == null) {
         logger.info("Encrypted impressions blob non found for metadata: $metadata_blob_uri.")
       } else {
         val impressionMetadata = impressionMetadata {
-          blobUri = metadata_blob_uri
+          this.blobUri = metadata_blob_uri
           eventGroupReferenceId = blobDetails.eventGroupReferenceId
           modelLine = blobDetails.modelLine
           interval = blobDetails.interval
@@ -217,6 +238,13 @@ class DataAvailabilitySync(
     bytes[8] = (bytes[8].toInt() and 0x3F or 0x80).toByte()
     return UUID.nameUUIDFromBytes(bytes).toString()
   }
+
+  fun BlobUri.asUriString(): String =
+    if (scheme == "file") {
+      "file:///$bucket/$key"
+    } else {
+      "$scheme://$bucket/$key"
+    }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

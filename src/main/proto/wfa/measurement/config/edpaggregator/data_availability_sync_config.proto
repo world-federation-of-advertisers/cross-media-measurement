@@ -30,9 +30,12 @@ message DataProviderDataAvailabilitySyncConfig {
   string data_provider = 1
   [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // A regular expression pattern that defines the valid storage blob key prefix
-  // for the EDP’s impressions. All impressions must be stored under a prefix
-  // matching this pattern, and the EDP may create any additional subfolders
-  // within that prefix.
+  // for the EDP’s impressions. The prefix must begin with
+  // `ds/<date>/edp/<edp_name>` where `<date>` is the upload date in ISO-8601
+  // format (`YYYY-MM-DD`, e.g. `2025-09-15`) and `<edp_name>` is a unique name
+  // identifying the Event Data Provider. All impressions must be stored under a
+  // prefix matching this pattern, and the EDP may create any additional
+  // subfolders within that prefix.
   string impressions_blob_key_prefix_pattern = 2 [(google.api.field_behavior) = REQUIRED];
 }
 

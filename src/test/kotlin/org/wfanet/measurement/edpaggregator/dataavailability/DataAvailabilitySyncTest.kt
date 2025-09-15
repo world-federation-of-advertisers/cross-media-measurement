@@ -37,6 +37,9 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse.ModelLineAvailability
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -102,6 +105,22 @@ class DataAvailabilitySyncTest {
 
                 }
             }
+         onBlocking { computeModelLinesAvailability(any<ComputeModelLinesAvailabilityRequest>()) }
+             .thenAnswer { invocation ->
+                 val request = invocation.getArgument<ComputeModelLinesAvailabilityRequest>(0)
+                 // Build some fake proto data for the response
+                 computeModelLinesAvailabilityResponse {
+                     modelLineAvailabilities += ModelLineAvailability.newBuilder()
+                         .setModelLine("${request.parent}/modelLines/modelLineA")
+                         .setAvailability(
+                             interval {
+                                 startTime = timestamp { seconds = 100 }
+                                 endTime = timestamp { seconds = 200 }
+                            }
+                         )
+                        .build()
+                     }
+             }
       }
 
     private val dataProvidersStub: DataProvidersCoroutineStub by lazy {
@@ -143,7 +162,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -171,7 +190,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -199,7 +218,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -227,7 +246,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -259,7 +278,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -317,7 +336,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
@@ -345,7 +364,7 @@ class DataAvailabilitySyncTest {
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
         verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineAvailability(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLinesAvailability(any()) }
     }
 
     @Test
