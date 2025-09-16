@@ -18,9 +18,6 @@ locals {
 
   metadata_map = merge(
       {
-        "tee-signed-image-repos"     = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
-        # DO_NOT_SUBMIT (Remove tee-container-log-redirect flag)
-        "tee-container-log-redirect" = "true"
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
       },
