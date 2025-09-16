@@ -28,7 +28,16 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.math.max
 import kotlin.math.min
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
@@ -67,34 +76,91 @@ object SyntheticDataGeneration {
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneOffset.UTC,
   ): Sequence<LabeledEventDateShard<T>> {
-    return sequence {
-      for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
-        val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+    return generateEventsParallel(
+      messageInstance,
+      populationSpec,
+      syntheticEventGroupSpec,
+      timeRange,
+      zoneId
+    )
+  }
 
-        // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
-        val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
-        if (!dateSpecTimeRange.overlaps(timeRange)) {
-          continue
-        }
-        val numDays =
-          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
-        logger.info("Writing $numDays days of data")
-        for (date in dateProgression) {
-          val events: Sequence<LabeledEvent<T>> =
-            generateDayEvents(
-              dateProgression,
-              date,
-              zoneId,
-              messageInstance,
-              syntheticEventGroupSpec,
-              dateSpec,
-              populationSpec,
-              numDays.toInt(),
-              timeRange,
-            )
-          yield(LabeledEventDateShard(date, events))
-        }
+  fun <T : Message> generateEventsParallel(
+    messageInstance: T,
+    populationSpec: SyntheticPopulationSpec,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
+    zoneId: ZoneId = ZoneOffset.UTC,
+  ): Sequence<LabeledEventDateShard<T>> {
+    val numCores = Runtime.getRuntime().availableProcessors()
+    
+    return sequence {
+      val allShards = runBlocking {
+        createDateShardFlow(
+          messageInstance,
+          populationSpec, 
+          syntheticEventGroupSpec,
+          timeRange,
+          zoneId,
+          numCores
+        ).toList()
       }
+      
+      // Sort by date to maintain chronological order
+      allShards.sortedBy { it.localDate }.forEach { yield(it) }
+    }
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun <T : Message> createDateShardFlow(
+    messageInstance: T,
+    populationSpec: SyntheticPopulationSpec,
+    syntheticEventGroupSpec: SyntheticEventGroupSpec,
+    timeRange: OpenEndTimeRange,
+    zoneId: ZoneId,
+    numCores: Int
+  ): Flow<LabeledEventDateShard<T>> = flow {
+    for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
+      val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
+
+      // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
+      val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
+      if (!dateSpecTimeRange.overlaps(timeRange)) {
+        continue
+      }
+      
+      val numDays =
+        ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
+      logger.info("Writing $numDays days of data using $numCores cores")
+      
+      val dateList = dateProgression.toList()
+      val datesPerCore = maxOf(1, dateList.size / numCores)
+      
+      // Process dates in parallel using Flow with work-stealing dispatcher
+      val dateChunks = dateList.chunked(datesPerCore)
+      
+      dateChunks.asFlow()
+        .flatMapMerge(concurrency = numCores) { chunk ->
+          flow {
+            chunk.forEach { date ->
+              val eventsFlow: Flow<LabeledEvent<T>> =
+                generateDayEvents(
+                  dateProgression,
+                  date,
+                  zoneId,
+                  messageInstance,
+                  syntheticEventGroupSpec,
+                  dateSpec,
+                  populationSpec,
+                  numDays.toInt(),
+                  timeRange,
+                )
+              val events = eventsFlow.toList().asSequence()
+              emit(LabeledEventDateShard(date, events))
+            }
+          }.flowOn(Dispatchers.Default)
+        }
+        .collect { emit(it) }
     }
   }
 
@@ -108,7 +174,7 @@ object SyntheticDataGeneration {
     populationSpec: SyntheticPopulationSpec,
     numDays: Int,
     timeRange: OpenEndTimeRange,
-  ): Sequence<LabeledEvent<T>> = sequence {
+  ): Flow<LabeledEvent<T>> = flow {
     val subPopulations = populationSpec.subPopulationsList
     val dayNumber = ChronoUnit.DAYS.between(dateProgression.start, date)
     logger.info("Generating data for day: $dayNumber date: $date")
@@ -168,7 +234,7 @@ object SyntheticDataGeneration {
               val impressionTime =
                 date.atStartOfDay(zoneId).plusSeconds(hashValue % SECONDS_PER_DAY)
               if (impressionTime.toInstant() in timeRange) {
-                yield(LabeledEvent(impressionTime.toInstant(), vid, message))
+                emit(LabeledEvent(impressionTime.toInstant(), vid, message))
               }
             }
           }
