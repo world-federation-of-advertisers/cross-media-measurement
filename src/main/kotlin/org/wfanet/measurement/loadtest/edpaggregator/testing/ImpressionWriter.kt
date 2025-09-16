@@ -82,7 +82,6 @@ class ImpressionsWriter(
             vid = it.vid
             event = Any.pack(it.message)
             eventTime = it.timestamp.toProtoTime()
-            eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
           }
         }
       val ds = localDate.toString()
@@ -118,6 +117,7 @@ class ImpressionsWriter(
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
+        this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
