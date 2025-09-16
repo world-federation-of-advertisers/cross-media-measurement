@@ -23,6 +23,7 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.impressions;
 
 import "google/api/field_behavior.proto";
+import "wfa/measurement/common/crypto/aes_gcm_hkdf_streaming_key.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -33,15 +34,11 @@ message EncryptedDek {
   // The URI for the key encryption key used with KMS
   string kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // The encrypted data encryption key
-  bytes encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
-
-  // The format of `encrypted_dek`.
-  enum Format {
-    FORMAT_UNSPECIFIED = 0;
-    RAW_BYTES = 1;
-    BASE64_ENCODED = 2;
+  oneof dek_format {
+    // The serialized Tink encrypted data encryption key
+    bytes encrypted_dek = 2;
+    // A AesGcmHkdfStreamingKey used to reconstruct the Tink encrypted DEK.
+    wfa.measurement.common.crypto.AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 3;
   }
-  Format format = 3 [(google.api.field_behavior) = REQUIRED];
 
 }

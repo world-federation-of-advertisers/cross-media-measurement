@@ -16,6 +16,11 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.CleartextKeysetHandle
+import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.ByteString
+import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import com.google.type.interval
 import java.time.LocalDate
@@ -73,7 +78,7 @@ class StorageImpressionMetadataService(
 
     return dates.map { date ->
       val path = resolvePath(modelLine, date, eventGroupReferenceId)
-      val blobDetails = readBlobDetails(path)
+      val blobDetails = readBlobDetails(path).normalizeDek(kmsClient)
 
       val dayStartUtc = date.atStartOfDay(ZoneOffset.UTC).toInstant()
       val dayEndUtc = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -131,10 +136,96 @@ class StorageImpressionMetadataService(
           ImpressionReadException.Code.BLOB_NOT_FOUND,
           "BlobDetails metadata not found",
         )
-    return BlobDetails.parseFrom(blob.read().flatten())
+
+    val bytes: ByteString = blob.read().flatten()
+    return if (metadataPath.endsWith(JSON_SUFFIX, ignoreCase = true)) {
+      val json = bytes.toStringUtf8()
+      val builder = BlobDetails.newBuilder()
+      JsonFormat.parser().ignoringUnknownFields().merge(json, builder)
+      builder.build()
+    } else {
+      BlobDetails.parseFrom(bytes)
+    }
+
   }
+
+  private fun mapHashTypeCloneToTink(t: wfa.measurement.common.crypto.AesGcmHkdfStreamingParams.HashTypeClone): HashType =
+    when (t) {
+      wfa.measurement.common.crypto.AesGcmHkdfStreamingParams.HashTypeClone.SHA1 -> HashType.SHA1
+      wfa.measurement.common.crypto.AesGcmHkdfStreamingParams.HashTypeClone.SHA256 -> HashType.SHA256
+      wfa.measurement.common.crypto.AesGcmHkdfStreamingParams.HashTypeClone.SHA512 -> HashType.SHA512
+      else -> throw IllegalArgumentException("Unsupported hkdf_hash_type: $t")
+    }
+
+  private fun synthesizeEncryptedKeyset(
+    clone: wfa.measurement.common.crypto.AesGcmHkdfStreamingKey,
+    kekUri: String,
+    kmsClient: KmsClient
+  ): ByteString {
+    val kmsAead = kmsClient.getAead(kekUri)
+
+    // Assume client sends KMS-encrypted keyValue (preferred). If yours must support plaintext, add a flag and branch.
+    val rawKeyBytes = kmsAead.decrypt(clone.keyValue.toByteArray(), /* aad = */ byteArrayOf())
+
+    val params = AesGcmHkdfStreamingParams.newBuilder()
+      .setDerivedKeySize(clone.params.derivedKeySize)
+      .setHkdfHashType(mapHashTypeCloneToTink(clone.params.hkdfHashType))
+      .setCiphertextSegmentSize(clone.params.ciphertextSegmentSize)
+      .setFirstSegmentOffset(clone.params.firstSegmentOffset) // or map your ciphertextOffset -> firstSegmentOffset
+      .build()
+
+    val tinkKey = AesGcmHkdfStreamingKey.newBuilder()
+      .setParams(params)
+      .setKeyValue(ByteString.copyFrom(rawKeyBytes))
+      .setVersion(clone.version)
+      .build()
+
+    val keyData = KeyData.newBuilder()
+      .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey")
+      .setKeyMaterialType(KeyMaterialType.SYMMETRIC)
+      .setValue(tinkKey.toByteString())
+      .build()
+
+    val keyId = SecureRandom().nextInt().absoluteValue
+    val ks = Keyset.newBuilder()
+      .setPrimaryKeyId(keyId)
+      .addKey(
+        Key.newBuilder()
+          .setKeyId(keyId)
+          .setStatus(KeyStatusType.ENABLED)
+          .setOutputPrefixType(OutputPrefixType.RAW)
+          .setKeyData(keyData)
+      )
+      .build()
+
+    val handle = CleartextKeysetHandle.read(
+      com.google.crypto.tink.BinaryKeysetReader.withBytes(ks.toByteArray())
+    )
+    val enc = TinkProtoKeysetFormat.serializeEncryptedKeyset(handle, kmsAead, /* aad = */ byteArrayOf())
+    return ByteString.copyFrom(enc)
+  }
+
+  private fun BlobDetails.normalizeDek(kmsClient: KmsClient): BlobDetails {
+    val ed = this.encryptedDek
+    return when {
+      ed.hasEncryptedDek() -> this
+      ed.hasAesGcmHkdfStreamingKey() -> {
+        val encKs = synthesizeEncryptedKeyset(ed.aesGcmHkdfStreamingKey, ed.kekUri, kmsClient)
+        this.toBuilder()
+          .setEncryptedDek(ed.toBuilder()
+            .clearAesGcmHkdfStreamingKey()
+            .setEncryptedDek(encKs)
+            .build()
+          )
+          .build()
+      }
+      else -> throw IllegalArgumentException("EncryptedDek is missing both encrypted_dek and aes_gcm_hkdf_streaming_key")
+    }
+  }
+
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val JSON_SUFFIX: String  = ".json"
   }
 }
