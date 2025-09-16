@@ -195,7 +195,6 @@ class ResultsFulfillerTest {
         LABELED_IMPRESSION.copy {
           vid = it.toLong() + 1
           eventTime = TIME_RANGE.start.toProtoTime()
-          eventGroupReferenceId = EVENT_GROUP_NAME
         }
       }
     // Set up KMS
@@ -290,7 +289,6 @@ class ResultsFulfillerTest {
         LABELED_IMPRESSION.copy {
           vid = it.toLong() + 1
           eventTime = TIME_RANGE.start.toProtoTime()
-          eventGroupReferenceId = EVENT_GROUP_NAME
         }
       }
     // Set up KMS
