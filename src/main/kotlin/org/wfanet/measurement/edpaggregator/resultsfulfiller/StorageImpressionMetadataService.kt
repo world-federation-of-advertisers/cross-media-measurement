@@ -164,14 +164,13 @@ class StorageImpressionMetadataService(
   ): ByteString {
     val kmsAead = kmsClient.getAead(kekUri)
 
-    // Assume client sends KMS-encrypted keyValue (preferred). If yours must support plaintext, add a flag and branch.
-    val rawKeyBytes = kmsAead.decrypt(clone.keyValue.toByteArray(), /* aad = */ byteArrayOf())
+    val rawKeyBytes = kmsAead.decrypt(clone.keyValue.toByteArray(), byteArrayOf())
 
     val params = AesGcmHkdfStreamingParams.newBuilder()
       .setDerivedKeySize(clone.params.derivedKeySize)
       .setHkdfHashType(mapHashTypeCloneToTink(clone.params.hkdfHashType))
       .setCiphertextSegmentSize(clone.params.ciphertextSegmentSize)
-      .setFirstSegmentOffset(clone.params.firstSegmentOffset) // or map your ciphertextOffset -> firstSegmentOffset
+      .setFirstSegmentOffset(clone.params.firstSegmentOffset) 
       .build()
 
     val tinkKey = AesGcmHkdfStreamingKey.newBuilder()
