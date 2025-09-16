@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -27,10 +28,12 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
@@ -40,6 +43,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -96,6 +100,9 @@ class ResultsFulfillerApp(
     val requisitionsStorageConfig = getRequisitionsStorageConfig(storageParams)
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
+    
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
 
     val requisitionFulfillmentStubsMap =
@@ -174,8 +181,7 @@ class ResultsFulfillerApp(
 
     ResultsFulfiller(
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsBlobUri = requisitionsBlobUri,
-        requisitionsStorageConfig = requisitionsStorageConfig,
+        groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
         pipelineConfiguration = pipelineConfiguration,
         impressionMetadataService = impressionsMetadataService,
@@ -184,6 +190,45 @@ class ResultsFulfillerApp(
         fulfillerSelector = fulfillerSelector,
       )
       .fulfillRequisitions()
+  }
+  
+  /**
+   * Loads [GroupedRequisitions] from blob storage using the provided URI.
+   *
+   * Validates that the blob exists and is in the expected serialized `Any` format.
+   *
+   * @param requisitionsBlobUri The URI of the blob containing grouped requisitions.
+   * @param requisitionsStorageConfig Storage configuration for reading grouped requisitions.
+   * @return The parsed [GroupedRequisitions] payload.
+   * @throws ImpressionReadException If the blob is missing or has an invalid format.
+   */
+  private suspend fun loadGroupedRequisitions(
+    requisitionsBlobUri: String,
+    requisitionsStorageConfig: StorageConfig
+  ): GroupedRequisitions {
+    val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
+    val requisitionsStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        requisitionsStorageConfig.rootDirectory,
+        requisitionsStorageConfig.projectId,
+      )
+
+    val requisitionBytes: ByteString =
+      requisitionsStorageClient.getBlob(storageClientUri.key)?.read()?.flatten()
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
+        )
+
+    return try {
+      Any.parseFrom(requisitionBytes).unpack(GroupedRequisitions::class.java)
+    } catch (e: Exception) {
+      throw ImpressionReadException(
+        storageClientUri.key,
+        ImpressionReadException.Code.INVALID_FORMAT,
+      )
+    }
   }
 
   companion object {

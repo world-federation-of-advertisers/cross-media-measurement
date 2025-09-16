@@ -100,6 +100,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -228,11 +229,13 @@ class ResultsFulfillerTest {
         kAnonymityParams = null,
       )
 
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
     val resultsFulfiller =
       ResultsFulfiller(
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-        requisitionsBlobUri = REQUISITIONS_FILE_URI,
-        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionMetadataService = impressionsMetadataService,
@@ -326,11 +329,13 @@ class ResultsFulfillerTest {
         kAnonymityParams = null,
       )
 
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
     val resultsFulfiller =
       ResultsFulfiller(
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-        requisitionsBlobUri = REQUISITIONS_FILE_URI,
-        requisitionsStorageConfig = StorageConfig(rootDirectory = requisitionsTmpPath),
+        groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionMetadataService = impressionsMetadataService,
@@ -520,6 +525,16 @@ class ResultsFulfillerTest {
   private fun getNoiseTolerance(dpParams: DifferentialPrivacyParams, l2Sensitivity: Double): Long {
     val stddev = sqrt(2 * ln(1.25 / dpParams.delta)) * l2Sensitivity / dpParams.epsilon
     return (6 * stddev).toLong()
+  }
+
+  /**
+   * Loads grouped requisitions from the test storage.
+   */
+  private suspend fun loadGroupedRequisitions(requisitionsTmpPath: File): org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions {
+    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+    val requisitionBytes = requisitionsStorageClient.getBlob(REQUISITIONS_BLOB_KEY)?.read()?.flatten()
+      ?: throw Exception("Requisitions blob not found")
+    return Any.parseFrom(requisitionBytes).unpack(org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions::class.java)
   }
 
   init {

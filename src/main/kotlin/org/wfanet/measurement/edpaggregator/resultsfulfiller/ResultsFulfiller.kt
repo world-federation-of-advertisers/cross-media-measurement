@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
-import com.google.protobuf.Any
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
 import java.security.GeneralSecurityException
@@ -36,40 +34,33 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
  *
- * This orchestrates the lifecycle for a batch of requisitions: it loads grouped requisitions from
- * blob storage, calculates frequency vectors via the event processing pipeline, and dispatches
- * fulfillment using a FulfillerSelector to choose the appropriate protocol implementation.
+ * This orchestrates the lifecycle for a batch of requisitions: it processes grouped requisitions,
+ * calculates frequency vectors via the event processing pipeline, and dispatches fulfillment using
+ * a FulfillerSelector to choose the appropriate protocol implementation.
  *
  * Concurrency: supports concurrent fulfillment per batch via Kotlin coroutines. Long-running or
  * blocking operations (storage access, crypto, and RPC) execute on the IO dispatcher as
  * appropriate.
  *
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
- * @param requisitionsBlobUri Blob URI where grouped requisitions are stored.
- * @param requisitionsStorageConfig Storage configuration for reading grouped requisitions.
+ * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
  * @param pipelineConfiguration Configuration for the event processing pipeline.
  * @param impressionMetadataService Service to resolve impression metadata and sources.
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
- *
- * TODO(2347): Support additional differential privacy and k-anonymization strategies.
  */
 class ResultsFulfiller(
   private val privateEncryptionKey: PrivateKeyHandle,
-  private val requisitionsBlobUri: String,
-  private val requisitionsStorageConfig: StorageConfig,
+  private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration,
   private val impressionMetadataService: ImpressionMetadataService,
@@ -90,20 +81,18 @@ class ResultsFulfiller(
   }
 
   /**
-   * Loads, processes, and fulfills all requisitions in the configured blob.
+   * Processes and fulfills all requisitions in the grouped requisitions.
    *
    * Steps:
-   * - Reads [GroupedRequisitions] from `requisitionsBlobUri` using `requisitionsStorageConfig`.
    * - Builds frequency vectors via the event-processing pipeline.
    * - Selects a protocol-specific fulfiller for each requisition and submits results.
    *
    * @param parallelism Maximum number of requisitions to fulfill concurrently.
    * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
-   * @throws Exception If decryption, storage access, or RPC fulfillment fails.
+   * @throws Exception If decryption or RPC fulfillment fails.
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
-    val groupedRequisitions = getRequisitions()
     val requisitions =
       groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
     val eventGroupReferenceIdMap =
@@ -198,12 +187,12 @@ class ResultsFulfiller(
 
     val buildStart = TimeSource.Monotonic.markNow()
     val fulfiller =
-      selectFulfiller(
-        requisition = requisition,
-        measurementSpec = measurementSpec,
-        requisitionSpec = requisitionSpec,
-        frequencyData = frequencyData,
-        populationSpec = populationSpec,
+      fulfillerSelector.selectFulfiller(
+        requisition,
+        measurementSpec,
+        requisitionSpec,
+        frequencyData,
+        populationSpec,
       )
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
 
@@ -216,62 +205,6 @@ class ResultsFulfiller(
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
-  }
-
-  /**
-   * Delegates to the FulfillerSelector to choose the appropriate `MeasurementFulfiller` based on
-   * the requisition protocol.
-   *
-   * @throws IllegalArgumentException If the protocol is unsupported.
-   */
-  private suspend fun selectFulfiller(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
-    populationSpec: PopulationSpec,
-  ): MeasurementFulfiller {
-    return fulfillerSelector.selectFulfiller(
-      requisition = requisition,
-      measurementSpec = measurementSpec,
-      requisitionSpec = requisitionSpec,
-      frequencyData = frequencyData,
-      populationSpec = populationSpec,
-    )
-  }
-
-  /**
-   * Loads [GroupedRequisitions] from blob storage using the configured URI.
-   *
-   * Validates that the blob exists and is in the expected serialized `Any` format.
-   *
-   * @return The parsed [GroupedRequisitions] payload.
-   * @throws ImpressionReadException If the blob is missing or has an invalid format.
-   */
-  private suspend fun getRequisitions(): GroupedRequisitions {
-    val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
-    val requisitionsStorageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        requisitionsStorageConfig.rootDirectory,
-        requisitionsStorageConfig.projectId,
-      )
-
-    val requisitionBytes: ByteString =
-      requisitionsStorageClient.getBlob(storageClientUri.key)?.read()?.flatten()
-        ?: throw ImpressionReadException(
-          storageClientUri.key,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
-        )
-
-    return try {
-      Any.parseFrom(requisitionBytes).unpack(GroupedRequisitions::class.java)
-    } catch (e: Exception) {
-      throw ImpressionReadException(
-        storageClientUri.key,
-        ImpressionReadException.Code.INVALID_FORMAT,
-      )
-    }
   }
 
   /**

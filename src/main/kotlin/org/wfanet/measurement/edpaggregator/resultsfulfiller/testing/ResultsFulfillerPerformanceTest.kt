@@ -21,35 +21,69 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.File
+import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.SecureRandom
+import java.time.Clock
+import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.PipelineConfiguration
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageImpressionMetadataService
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfillerSelector
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.storage.SelectedStorageClient
+import com.google.type.interval
 import picocli.CommandLine
 
 /**
@@ -133,12 +167,6 @@ class ResultsFulfillerPerformanceTest : Runnable {
   )
   private var numRequisitions: Int = 10
 
-  @CommandLine.Option(
-    names = ["--temp-storage-root"],
-    description = ["Temporary directory for test requisitions storage"],
-    defaultValue = "/tmp/results_fulfiller_perf_test",
-  )
-  private var tempStorageRoot: String = "/tmp/results_fulfiller_perf_test"
 
   override fun run() {
     runBlocking {
@@ -156,13 +184,11 @@ class ResultsFulfillerPerformanceTest : Runnable {
     logger.info("  Model line: $modelLine")
     logger.info("  Number of requisitions: $numRequisitions")
     logger.info("  Pipeline config: batchSize=$batchSize, workers=$workers, threadPoolSize=$threadPoolSize")
-    logger.info("  Temp storage: $tempStorageRoot")
 
     // Load private key
     val privateKey = loadPrivateKey(File(privateKeyPath))
 
     // Create storage configurations
-    val requisitionsStorageConfig = StorageConfig(rootDirectory = File(tempStorageRoot))
     val impressionsStorageConfig = StorageConfig(rootDirectory = File(impressionsStorageRoot))
     val impressionsMetadataStorageConfig = StorageConfig(rootDirectory = File(impressionsMetadataStorageRoot))
 
@@ -187,16 +213,13 @@ class ResultsFulfillerPerformanceTest : Runnable {
     // Use NoOpFulfillerSelector to avoid actual fulfillment
     val fulfillerSelector = NoOpFulfillerSelector()
 
-    // Generate test requisitions and write to temporary storage
-    val requisitionsBlobUri = generateTestRequisitions()
-
-    logger.info("Generated requisitions blob: $requisitionsBlobUri")
+    // Generate test requisitions directly
+    val groupedRequisitions = generateTestRequisitions()
 
     // Create ResultsFulfiller
     val resultsFulfiller = ResultsFulfiller(
       privateEncryptionKey = privateKey,
-      requisitionsBlobUri = requisitionsBlobUri,
-      requisitionsStorageConfig = requisitionsStorageConfig,
+      groupedRequisitions = groupedRequisitions,
       modelLineInfoMap = modelLineInfoMap,
       pipelineConfiguration = pipelineConfiguration,
       impressionMetadataService = impressionMetadataService,
@@ -250,87 +273,65 @@ class ResultsFulfillerPerformanceTest : Runnable {
     )
   }
 
-  private suspend fun generateTestRequisitions(): String {
-    // Ensure temp directory exists
-    File(tempStorageRoot).mkdirs()
-    
-    val blobUri = "file://$tempStorageRoot/test-requisitions-${System.currentTimeMillis()}.pb"
-    
+  private suspend fun generateTestRequisitions(): GroupedRequisitions {
     logger.info("Generating $numRequisitions test requisitions...")
     
-    // Generate test requisitions using simplified approach
-    val testRequisitions = (1..numRequisitions).map { index ->
-      GroupedRequisitions.Requisition.newBuilder()
-        .setRequisition(
-          Any.pack(
-            Requisition.newBuilder()
-              .setName("requisitions/perf-test-requisition-$index")
-              .setDataProvider("dataProviders/perf-test-dp-$index")
-              .setMeasurementSpec(
-                Any.pack(
-                  MeasurementSpec.newBuilder()
-                    .setImpressionCount(MeasurementSpec.ImpressionCount.getDefaultInstance())
-                    .build()
-                )
-              )
-              .setProtocolConfig(
-                ProtocolConfig.newBuilder()
-                  .addProtocols(
-                    ProtocolConfig.Protocol.newBuilder()
-                      .setDirect(
-                        ProtocolConfig.Direct.newBuilder()
-                          .addNoiseMechanisms(
-                            ProtocolConfig.NoiseMechanism.newBuilder()
-                              .setContinuousGaussian(
-                                ProtocolConfig.NoiseMechanism.ContinuousGaussianMechanism.getDefaultInstance()
-                              )
-                              .build()
-                          )
-                          .build()
-                      )
-                      .build()
-                  )
-                  .build()
-              )
-              .setDataProviderCertificate("dataProviderCertificates/perf-test-cert-$index")
-              .setEncryptedRequisitionSpec(ByteString.copyFromUtf8("dummy-encrypted-spec-$index"))
-              .build()
-          )
-        )
+    // Generate test requisitions similar to ResultsFulfillerTest
+    val requisitions = (1..numRequisitions).map { index ->
+      createTestRequisition(index)
+    }
+
+    // Create grouped requisitions directly without using external groupers
+    val requisitionEntries = requisitions.map { requisition ->
+      GroupedRequisitions.RequisitionEntry.newBuilder()
+        .setRequisition(Any.pack(requisition))
         .build()
     }
 
-    // Generate event group maps using the same pattern as EdpAggregatorCorrectnessTest
-    val eventGroupMaps = listOf(
-      createEventGroupMap(GROUP_REFERENCE_ID_EDPA_EDP1, "eventGroups/edpa-event-group-1"),
-      createEventGroupMap(GROUP_REFERENCE_ID_EDPA_EDP2, "eventGroups/edpa-event-group-2"),
-    )
-
     val groupedRequisitions = GroupedRequisitions.newBuilder()
       .setModelLine(modelLine)
-      .addAllRequisitions(testRequisitions)
-      .addAllEventGroupMap(eventGroupMaps)
+      .addAllRequisitions(requisitionEntries)
+      .addEventGroupMap(createEventGroupMap(
+        GROUP_REFERENCE_ID_EDPA_EDP1,
+        EVENT_GROUP_NAME
+      ))
       .build()
-
-    val storageClientUri = SelectedStorageClient.parseBlobUri(blobUri)
-    val storageClient = SelectedStorageClient(
-      storageClientUri,
-      File(tempStorageRoot),
-      projectId = null
-    )
-
-    val serializedData = Any.pack(groupedRequisitions).toByteString()
-    storageClient.writeBlob(storageClientUri.key, serializedData)
     
-    logger.info("Generated test requisitions blob with $numRequisitions requisitions and ${eventGroupMaps.size} event groups")
-    return blobUri
+    logger.info("Generated grouped requisitions with $numRequisitions requisitions")
+    return groupedRequisitions
+  }
+
+  private fun createTestRequisition(index: Int): Requisition {
+    // Create requisition similar to ResultsFulfillerTest
+    return requisition {
+      name = "$DATA_PROVIDER_NAME/requisitions/perf-test-requisition-$index"
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/perf-test-measurement-$index"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols += ProtocolConfigKt.protocol {
+          direct = ProtocolConfigKt.direct {
+            noiseMechanisms += listOf(
+              ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+              ProtocolConfig.NoiseMechanism.NONE,
+            )
+            deterministicCountDistinct = ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+            deterministicDistribution = ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+          }
+        }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    }
   }
 
   private fun createEventGroupMap(
     eventGroupReferenceId: String,
     eventGroupName: String
-  ): GroupedRequisitions.EventGroupMap {
-    return GroupedRequisitions.EventGroupMap.newBuilder()
+  ): GroupedRequisitions.EventGroupMapEntry {
+    return GroupedRequisitions.EventGroupMapEntry.newBuilder()
       .setEventGroup(eventGroupName)
       .setDetails(
         GroupedRequisitions.EventGroupDetails.newBuilder()
@@ -372,6 +373,119 @@ class ResultsFulfillerPerformanceTest : Runnable {
     // Same group reference IDs as EdpAggregatorCorrectnessTest
     private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
     private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
+
+    // Constants from ResultsFulfillerTest
+    private val LAST_EVENT_DATE = LocalDate.now(ZoneId.of("America/New_York")).minusDays(1)
+    private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+
+    private const val EDP_ID = "someDataProvider"
+    private const val EDP_NAME = "dataProviders/$EDP_ID"
+    private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    private const val EDP_DISPLAY_NAME = "edp1"
+    
+    private val SECRET_FILES_PATH: Path = checkNotNull(
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+      )
+    )
+
+    private const val MEASUREMENT_CONSUMER_ID = "mc"
+    private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+    private const val DATA_PROVIDER_NAME = "dataProviders/$EDP_ID"
+    private const val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAAg"
+
+    private val MC_SIGNING_KEY = loadSigningKey(
+      "${MEASUREMENT_CONSUMER_ID}_cs_cert.der",
+      "${MEASUREMENT_CONSUMER_ID}_cs_private.der",
+    )
+
+    private val DATA_PROVIDER_PUBLIC_KEY: EncryptionPublicKey =
+      loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
+        .toEncryptionPublicKey()
+
+    private val MC_PUBLIC_KEY: EncryptionPublicKey =
+      loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
+        .toEncryptionPublicKey()
+
+    private val MC_PRIVATE_KEY: TinkPrivateKeyHandle =
+      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
+
+    private val PERSON = person {
+      ageGroup = Person.AgeGroup.YEARS_18_TO_34
+      gender = Person.Gender.MALE
+      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+    }
+
+    private val TEST_EVENT = testEvent { person = PERSON }
+
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 1000
+        }
+      }
+    }
+
+    private val REQUISITION_SPEC = requisitionSpec {
+      events = events {
+        eventGroups += eventGroupEntry {
+          key = EVENT_GROUP_NAME
+          value = RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = interval {
+              startTime = TIME_RANGE.start.toProtoTime()
+              endTime = TIME_RANGE.endExclusive.toProtoTime()
+            }
+            filter = eventFilter { expression = "person.gender==1" }
+          }
+        }
+      }
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      nonce = SecureRandom.getInstance("SHA1PRNG").nextLong()
+    }
+
+    private val ENCRYPTED_REQUISITION_SPEC = encryptRequisitionSpec(
+      signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
+      DATA_PROVIDER_PUBLIC_KEY,
+    )
+
+    private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 1E-12
+    }
+
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = OUTPUT_DP_PARAMS
+        frequencyPrivacyParams = OUTPUT_DP_PARAMS
+        maximumFrequency = 10
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
+    }
+
+    private val EDP_RESULT_SIGNING_KEY = loadSigningKey(
+      "${EDP_DISPLAY_NAME}_result_cs_cert.der",
+      "${EDP_DISPLAY_NAME}_result_cs_private.der",
+    )
+
+    private val DATA_PROVIDER_CERTIFICATE_KEY = DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
+
+    private fun loadSigningKey(
+      certDerFileName: String,
+      privateKeyDerFileName: String,
+    ): SigningKeyHandle {
+      return org.wfanet.measurement.common.crypto.testing.loadSigningKey(
+        SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
+        SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile(),
+      )
+    }
 
     @JvmStatic 
     fun main(args: Array<String>) = commandLineMain(ResultsFulfillerPerformanceTest(), args)

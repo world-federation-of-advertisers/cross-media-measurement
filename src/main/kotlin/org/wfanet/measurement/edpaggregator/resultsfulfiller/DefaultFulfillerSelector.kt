@@ -16,26 +16,33 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.google.protobuf.kotlin.unpack
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
 
-/** Default implementation of [FulfillerSelector] mirroring prior selection logic. */
+/**
+ * Default implementation that routes requisitions to protocol-specific fulfillers.
+ *
+ * @param requisitionsStub gRPC stub for Direct protocol requisitions
+ * @param requisitionFulfillmentStubMap duchy name → gRPC stub mapping for HM Shuffle
+ * @param dataProviderCertificateKey EDP certificate identifier for result signing
+ * @param dataProviderSigningKeyHandle cryptographic key for result authentication
+ * @param noiserSelector strategy for selecting differential privacy mechanisms
+ * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
+ */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubMap:
@@ -46,6 +53,17 @@ class DefaultFulfillerSelector(
   private val kAnonymityParams: KAnonymityParams?,
 ) : FulfillerSelector {
 
+  /**
+   * Selects the appropriate fulfiller based on requisition protocol configuration.
+   *
+   * @param requisition requisition containing protocol configuration
+   * @param measurementSpec measurement specification including DP parameters
+   * @param requisitionSpec decrypted requisition details including nonce
+   * @param frequencyData frequency histogram as integer array
+   * @param populationSpec population definition for VID range validation
+   * @return protocol-specific fulfiller ready for execution
+   * @throws IllegalArgumentException if no supported protocol is found
+   */
   override suspend fun selectFulfiller(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
@@ -64,7 +82,9 @@ class DefaultFulfillerSelector(
         frequencyData = vec.frequencyDataArray,
         kAnonymityParams = kAnonymityParams,
       )
-    } else if (requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }) {
+    } else if (
+      requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
+    ) {
       if (kAnonymityParams == null) {
         HMShuffleMeasurementFulfiller(
           requisition,
@@ -93,12 +113,21 @@ class DefaultFulfillerSelector(
     }
   }
 
+  /**
+   * Converts raw frequency data to a frequency vector builder.
+   *
+   * @param measurementSpec measurement configuration for vector validation
+   * @param populationSpec population bounds for index range checking
+   * @param frequencyData array where frequencyData[i] = frequency for VID i
+   * @return builder ready for protocol-specific finalization
+   */
   private fun createFrequencyVectorBuilderFromArray(
     measurementSpec: MeasurementSpec,
     populationSpec: PopulationSpec,
     frequencyData: IntArray,
   ): FrequencyVectorBuilder {
     val builder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
+
     for (index in frequencyData.indices) {
       val frequency = frequencyData[index]
       if (frequency > 0) {
@@ -108,6 +137,7 @@ class DefaultFulfillerSelector(
     return builder
   }
 
+  /** Builds a Direct protocol fulfiller. */
   private suspend fun buildDirectMeasurementFulfiller(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
@@ -122,17 +152,16 @@ class DefaultFulfillerSelector(
       requisition.protocolConfig.protocolsList.first { it.hasDirect() }.direct
     val noiseMechanism =
       noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
+
     val result =
-      withContext(Dispatchers.Default) {
-        DirectMeasurementResultFactory.buildMeasurementResult(
-          directProtocolConfig,
-          noiseMechanism,
-          measurementSpec,
-          frequencyData,
-          maxPopulation,
-          kAnonymityParams = kAnonymityParams,
-        )
-      }
+      DirectMeasurementResultFactory.buildMeasurementResult(
+        directProtocolConfig,
+        noiseMechanism,
+        measurementSpec,
+        frequencyData,
+        maxPopulation,
+        kAnonymityParams = kAnonymityParams,
+      )
     return DirectMeasurementFulfiller(
       requisition.name,
       requisition.dataProviderCertificate,
