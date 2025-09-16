@@ -667,7 +667,9 @@ class BasicReportsService(
               if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
                 reportingSetMetricCalculationSpecDetailsEntry.key.name
               } else {
-                existingReportingSetCompositesMap.getOrPut(reportingSetMetricCalculationSpecDetailsEntry.key.composite) {
+                existingReportingSetCompositesMap.getOrPut(
+                  reportingSetMetricCalculationSpecDetailsEntry.key.composite
+                ) {
                   val externalReportingSetId = "a${UUID.randomUUID()}"
                   val createdReportingSet =
                     internalReportingSetsStub.createReportingSet(
@@ -682,11 +684,11 @@ class BasicReportsService(
                       }
                     )
 
-                    ReportingSetKey(
+                  ReportingSetKey(
                       createdReportingSet.cmmsMeasurementConsumerId,
                       createdReportingSet.externalReportingSetId,
                     )
-                      .toName()
+                    .toName()
                 }
               }
 
@@ -695,33 +697,34 @@ class BasicReportsService(
                 // Reuse MetricCalculationSpec or create a new one if it doesn't exist
                 for (metricCalculationSpecDetails in
                   reportingSetMetricCalculationSpecDetailsEntry.value) {
-                  metricCalculationSpecs += existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpecDetails) {
-                    val createdMetricCalculationSpec =
-                      internalMetricCalculationSpecsStub.createMetricCalculationSpec(
-                        createMetricCalculationSpecRequest {
-                          this.metricCalculationSpec = metricCalculationSpec {
-                            cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-                            externalCampaignGroupId = campaignGroupKey.reportingSetId
-                            details =
-                              metricCalculationSpecDetails.copy {
-                                val metricSpecsWithDefault =
-                                  metricSpecs.map {
-                                    it.withDefaults(metricSpecConfig, secureRandom)
-                                  }
-                                metricSpecs.clear()
-                                metricSpecs += metricSpecsWithDefault
-                              }
+                  metricCalculationSpecs +=
+                    existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpecDetails) {
+                      val createdMetricCalculationSpec =
+                        internalMetricCalculationSpecsStub.createMetricCalculationSpec(
+                          createMetricCalculationSpecRequest {
+                            this.metricCalculationSpec = metricCalculationSpec {
+                              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                              externalCampaignGroupId = campaignGroupKey.reportingSetId
+                              details =
+                                metricCalculationSpecDetails.copy {
+                                  val metricSpecsWithDefault =
+                                    metricSpecs.map {
+                                      it.withDefaults(metricSpecConfig, secureRandom)
+                                    }
+                                  metricSpecs.clear()
+                                  metricSpecs += metricSpecsWithDefault
+                                }
+                            }
+                            externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
                           }
-                          externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
-                        }
-                      )
+                        )
 
                       MetricCalculationSpecKey(
-                        createdMetricCalculationSpec.cmmsMeasurementConsumerId,
-                        createdMetricCalculationSpec.externalMetricCalculationSpecId,
-                      )
+                          createdMetricCalculationSpec.cmmsMeasurementConsumerId,
+                          createdMetricCalculationSpec.externalMetricCalculationSpecId,
+                        )
                         .toName()
-                  }
+                    }
                 }
               }
           }
