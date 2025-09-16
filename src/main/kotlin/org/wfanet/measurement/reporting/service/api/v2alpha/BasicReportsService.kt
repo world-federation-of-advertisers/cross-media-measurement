@@ -89,6 +89,8 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -670,19 +672,8 @@ class BasicReportsService(
                 existingReportingSetCompositesMap.getOrPut(
                   reportingSetMetricCalculationSpecDetailsEntry.key.composite
                 ) {
-                  val externalReportingSetId = "a${UUID.randomUUID()}"
                   val createdReportingSet =
-                    internalReportingSetsStub.createReportingSet(
-                      createReportingSetRequest {
-                        reportingSet =
-                          reportingSetMetricCalculationSpecDetailsEntry.key.toInternal(
-                            externalReportingSetId,
-                            campaignGroupKey.cmmsMeasurementConsumerId,
-                            internalReportingSetsStub,
-                          )
-                        this.externalReportingSetId = externalReportingSetId
-                      }
-                    )
+                    createCompositeReportingSet(reportingSetMetricCalculationSpecDetailsEntry.key, campaignGroupKey.cmmsMeasurementConsumerId)
 
                   ReportingSetKey(
                       createdReportingSet.cmmsMeasurementConsumerId,
@@ -700,24 +691,7 @@ class BasicReportsService(
                   metricCalculationSpecs +=
                     existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpecDetails) {
                       val createdMetricCalculationSpec =
-                        internalMetricCalculationSpecsStub.createMetricCalculationSpec(
-                          createMetricCalculationSpecRequest {
-                            this.metricCalculationSpec = metricCalculationSpec {
-                              cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-                              externalCampaignGroupId = campaignGroupKey.reportingSetId
-                              details =
-                                metricCalculationSpecDetails.copy {
-                                  val metricSpecsWithDefault =
-                                    metricSpecs.map {
-                                      it.withDefaults(metricSpecConfig, secureRandom)
-                                    }
-                                  metricSpecs.clear()
-                                  metricSpecs += metricSpecsWithDefault
-                                }
-                            }
-                            externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
-                          }
-                        )
+                        createMetricCalculationSpec(metricCalculationSpecDetails, campaignGroupKey)
 
                       MetricCalculationSpecKey(
                           createdMetricCalculationSpec.cmmsMeasurementConsumerId,
@@ -736,6 +710,41 @@ class BasicReportsService(
           reportEnd = reportingInterval.reportEnd
         }
     }
+  }
+
+  private suspend fun createCompositeReportingSet(reportingSet: ReportingSet, cmmsMeasurementConsumerId: String): InternalReportingSet {
+    return internalReportingSetsStub.createReportingSet(
+      createReportingSetRequest {
+        this.reportingSet =
+          reportingSet.toInternal(
+            externalReportingSetId,
+            cmmsMeasurementConsumerId,
+            internalReportingSetsStub,
+          )
+        externalReportingSetId = "a${UUID.randomUUID()}"
+      }
+    )
+  }
+
+  private suspend fun createMetricCalculationSpec(metricCalculationSpecDetails: MetricCalculationSpec.Details, campaignGroupKey: ReportingSetKey): MetricCalculationSpec {
+    return internalMetricCalculationSpecsStub.createMetricCalculationSpec(
+      createMetricCalculationSpecRequest {
+        this.metricCalculationSpec = metricCalculationSpec {
+          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          details =
+            metricCalculationSpecDetails.copy {
+              val metricSpecsWithDefault =
+                metricSpecs.map {
+                  it.withDefaults(metricSpecConfig, secureRandom)
+                }
+              metricSpecs.clear()
+              metricSpecs += metricSpecsWithDefault
+            }
+        }
+        externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
+      }
+    )
   }
 
   object Permission {
