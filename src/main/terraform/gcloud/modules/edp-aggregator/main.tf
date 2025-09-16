@@ -274,6 +274,8 @@ module "result_fulfiller_tee_app" {
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   edpa_tee_signed_image_repo    = var.results_fulfiller_signed_image_repo
+  network_name                  = google_compute_network.private_network.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
@@ -321,3 +323,104 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
+
+resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}"
+}
+
+# Network configuration for private VPC with internet and Google API access
+resource "google_compute_network" "private_network" {
+  name                    = var.private_network_name
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "private_subnetwork" {
+  name                     = var.private_subnetwork_name
+  region                   = var.private_network_location
+  network                  = google_compute_network.private_network.id
+  ip_cidr_range            = "10.0.0.0/24"
+  private_ip_google_access = true
+}
+
+
+# Cloud Router for NAT gateway
+resource "google_compute_router" "router" {
+  name    = var.private_router_name
+  region  = var.private_network_location
+  network = google_compute_network.private_network.id
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "nat_gateway" {
+  name                               = var.nat_name
+  router                             = google_compute_router.router.name
+  region                             = google_compute_router.router.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private_subnetwork.self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+# Private Service Connect for Google Cloud Storage
+# This configuration enables private connectivity to GCS, providing:
+# - GCS traffic stays within Google's network backbone (no public internet traversal)
+# - Lower latency and better performance for bucket access
+# - Enhanced security through private endpoints
+# - Reduced egress costs for same-region traffic
+resource "google_compute_address" "gcs_psc_address" {
+  name         = "${var.private_network_name}-gcs-psc"
+  region       = var.private_network_location
+  subnetwork   = google_compute_subnetwork.private_subnetwork.id
+  address_type = "INTERNAL"
+  address      = "10.0.0.100"  # Static IP within the subnet range for PSC endpoint
+  purpose      = "GCE_ENDPOINT"
+}
+
+# Forwarding rule creates the actual PSC endpoint
+# Routes GCS traffic through the private endpoint instead of public internet
+resource "google_compute_forwarding_rule" "gcs_psc_endpoint" {
+  name                  = "${var.private_network_name}-gcs-endpoint"
+  region                = var.private_network_location
+  network               = google_compute_network.private_network.id
+  ip_address            = google_compute_address.gcs_psc_address.id
+  target                = "all-apis"  # This includes GCS access
+  load_balancing_scheme = ""
+}
+
+# DNS configuration for storage.googleapis.com
+# Configures DNS so storage.googleapis.com resolves to the private endpoint
+# All GCS bucket access will automatically use this private path
+resource "google_dns_managed_zone" "private_gcs" {
+  name        = "${var.private_network_name}-gcs-zone"
+  dns_name    = "storage.googleapis.com."
+  description = "Private DNS zone for GCS via PSC"
+
+  visibility = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = google_compute_network.private_network.id
+    }
+  }
+}
+
+# A record points storage.googleapis.com to our PSC endpoint IP
+# Instances in this VPC will resolve GCS to 10.0.0.100 instead of public IPs
+resource "google_dns_record_set" "gcs_a_record" {
+  name         = "storage.googleapis.com."
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.private_gcs.name
+  rrdatas      = [google_compute_address.gcs_psc_address.address]
+}
+

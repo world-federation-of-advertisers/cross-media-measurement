@@ -242,3 +242,33 @@ variable "results_fulfiller_signed_image_repo" {
   description = "Trusted container image repository for Results Fulfiller confidential attestation."
   type        = string
 }
+
+variable "private_network_location" {
+  description = "The region used for the private network"
+  type        = string
+  nullable    = false
+}
+
+variable "private_network_name" {
+  description = "The name of the VPC network for the MIG instances."
+  type        = string
+  default     = "private-network"
+}
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
