@@ -14,69 +14,56 @@
 
 package k8s
 
-import "list"
-
-// TODO: Update target reference to allow for deployment outside same cluster as Kingdom
-#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
+let KingdomPublicApiTarget = (#Target & {name: "v2alpha-public-api-server"}).target
+let MountRoot = "/etc/\(#AppName)/pdp"
 
 #PopulationRequisitionFulfillerConfig: {
-	dataProviderDisplayName:      string
 	dataProviderResourceName:     string
 	dataProviderCertResourceName: string
 	throttlerMinimumInterval:     string | *"2s"
-	eventMessageDescriptor:       string
-	populationKeyAndInfoList: [...#PopulationKeyAndInfo]
-}
-
-#PopulationKeyAndInfo: {
-	populationResourceName: string
-	populationSpecFile:     string
-	eventMessageTypeUrl:    string
+	eventMessageTypeUrl:          string
 }
 
 #PopulationRequisitionFulfiller: {
-	_config:                                   #PopulationRequisitionFulfillerConfig
-	_imageConfig:                              #ImageConfig
-	_populationRequisitionFulfillerSecretName: string
-
-	let DisplayName = _config.dataProviderDisplayName
-
-	_populationFlags: {
-		let flagLists = [ for config in _config.populationKeyAndInfoList {[
-			"--population-resource-name=\(config.populationResourceName)",
-			"--population-spec=\(config.populationSpecFile)",
-			"--event-message-type-url=\(config.eventMessageTypeUrl)",
-		]}]
-		list.FlattenN(flagLists, 2)
-	}
+	_config:      #PopulationRequisitionFulfillerConfig
+	_imageConfig: #ImageConfig
 
 	deployment: #Deployment & {
-		_name:       DisplayName + "-requisition-fulfiller"
-		_secretName: _populationRequisitionFulfillerSecretName
-		_system:     "population"
+		_name:   "population-requisition-fulfiller"
+		_system: "population"
 		_container: {
 			image: _imageConfig.image
-			args:  [
-				"--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
+			args: [
+				"--kingdom-public-api-target=\(KingdomPublicApiTarget)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--data-provider-resource-name=\(_config.dataProviderResourceName)",
-				"--data-provider-display-name=\(DisplayName)",
 				"--data-provider-certificate-resource-name=\(_config.dataProviderCertResourceName)",
-				"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
-				"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
-				"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
+				"--data-provider-encryption-private-keyset=\(MountRoot)/consent-signaling/pdp_enc_private.tink",
+				"--data-provider-consent-signaling-private-key-der-file=\(MountRoot)/consent-signaling/pdp_cs_private.der",
+				"--data-provider-consent-signaling-certificate-der-file=\(MountRoot)/consent-signaling/pdp_cs_cert.der",
 				"--throttler-minimum-interval=\(_config.throttlerMinimumInterval)",
-				"--tls-cert-file=/var/run/secrets/files/\(DisplayName)_root.pem",
-				"--tls-key-file=/var/run/secrets/files/\(DisplayName)_root.key",
-				"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
-				"--event-message-descriptor-set=\(_config.eventMessageDescriptor)",
-			] + _populationFlags
+				"--tls-cert-file=\(MountRoot)/tls/tls.crt",
+				"--tls-key-file=\(MountRoot)/tls/tls.key",
+				"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
+				"--event-message-descriptor-set=\(MountRoot)/config/event_message_descriptor_set.pb",
+				"--event-message-type-url=\(_config.eventMessageTypeUrl)",
+			]
 		}
 		spec: template: spec: {
 			_dependencies: [
 				"v2alpha-public-api-server",
 			]
-			_mounts: "config-files": #ConfigMapMount
+			_mounts: {
+				"pdp-config": #ConfigMapMount & {
+					volumeMount: mountPath: "\(MountRoot)/config"
+				}
+				"pdp-consent-signaling": #SecretMount & {
+					volumeMount: mountPath: "\(MountRoot)/consent-signaling"
+				}
+				"pdp-tls": #SecretMount & {
+					volumeMount: mountPath: "\(MountRoot)/tls"
+				}
+			}
 		}
 	}
 

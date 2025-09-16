@@ -40,7 +40,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -63,8 +63,10 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
 /** [AbstractEdpSimulator] which sets legacy encrypted metadata on created EventGroups. */
 class LegacyMetadataEdpSimulator(
   edpData: DataProviderData,
+  edpDisplayName: String,
   measurementConsumerName: String,
-  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val measurementConsumersStub:
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
   dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
@@ -94,6 +96,7 @@ class LegacyMetadataEdpSimulator(
 ) :
   AbstractEdpSimulator(
     edpData,
+    edpDisplayName,
     measurementConsumerName,
     certificatesStub,
     dataProvidersStub,
