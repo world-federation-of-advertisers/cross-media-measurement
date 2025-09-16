@@ -248,11 +248,11 @@ class BasicReportsService(
         eventTemplateFieldsMap = eventTemplateFieldsMap,
       )
 
-    val report =
+    val report: Report =
       buildReport(
         request.basicReport.reportingInterval,
         campaignGroupKey,
-        reportingSetMaps.reportingSetToNameMap,
+        reportingSetMaps.reportingSetCompositeToNameMap,
         reportingSetsMetricCalculationSpecDetailsMap,
       )
 
@@ -481,8 +481,8 @@ class BasicReportsService(
 
   /**
    * Builds two different maps from ReportingSets for the specified CampaignGroup: one for
-   * DataProvider resource name to Primitive ReportingSet and the other for ReportingSet without
-   * name to ReportingSet resource name.
+   * DataProvider resource name to Primitive ReportingSet and the other for ReportingSet composite
+   * to ReportingSet resource name.
    */
   private suspend fun buildReportingSetsMap(
     campaignGroup: ReportingSet,
@@ -568,18 +568,17 @@ class BasicReportsService(
       }
     }
 
-    // Map of ReportingSet without name to ReportingSet resource name.
-    val reportingSetToNameMap: Map<ReportingSet, String> = buildMap {
-      for (entry in campaignGroupReportingSetMap) {
-        put(entry.key, entry.value.name)
+    // Map of ReportingSet Composite to ReportingSet resource name.
+    val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
+      campaignGroupReportingSetMap.filter {
+        it.key.hasComposite()
       }
-
-      for (entry in dataProviderPrimitiveReportingSetMap) {
-        put(entry.value.copy { clearName() }, entry.value.name)
+      for (entry in campaignGroupReportingSetMap) {
+        put(entry.key.composite, entry.value.name)
       }
     }
 
-    return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetToNameMap)
+    return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)
   }
 
   /**
@@ -643,18 +642,18 @@ class BasicReportsService(
    *
    * @param reportingInterval [ReportingInterval] from [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
-   * @param reportingSetToNameMap Map of [ReportingSet] without name to ReportingSet resource name
+   * @param reportingSetCompositeToNameMap Map of [ReportingSet.Composite] to ReportingSet resource name
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    */
   private suspend fun buildReport(
     reportingInterval: ReportingInterval,
     campaignGroupKey: ReportingSetKey,
-    reportingSetToNameMap: Map<ReportingSet, String>,
+    reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
   ): Report {
-    val existingReportingSetsMap = reportingSetToNameMap.toMutableMap()
+    val existingReportingSetCompositesMap = reportingSetCompositeToNameMap.toMutableMap()
     val existingMetricCalculationSpecsMap =
       buildMetricCalculationSpecDetailsToNameMap(campaignGroupKey).toMutableMap()
 
@@ -665,8 +664,13 @@ class BasicReportsService(
           ReportKt.reportingMetricEntry {
             // Reuse ReportingSet or create a new one if it doesn't exist
             val existingReportingSetName: String? =
-              existingReportingSetsMap[
-                reportingSetMetricCalculationSpecDetailsEntry.key.copy { clearName() }]
+              // All required Primitive ReportingSets have already been created so the name exists
+              if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
+                reportingSetMetricCalculationSpecDetailsEntry.key.name
+              } else {
+                existingReportingSetCompositesMap[reportingSetMetricCalculationSpecDetailsEntry.key.composite]
+              }
+
             key =
               if (existingReportingSetName != null) {
                 existingReportingSetName
@@ -684,14 +688,17 @@ class BasicReportsService(
                       this.externalReportingSetId = externalReportingSetId
                     }
                   )
+
                 val createdReportingSetName =
                   ReportingSetKey(
                       createdReportingSet.cmmsMeasurementConsumerId,
                       createdReportingSet.externalReportingSetId,
                     )
                     .toName()
-                existingReportingSetsMap[reportingSetMetricCalculationSpecDetailsEntry.key] =
+
+                existingReportingSetCompositesMap[reportingSetMetricCalculationSpecDetailsEntry.key.composite] =
                   createdReportingSetName
+
                 createdReportingSetName
               }
 
@@ -724,6 +731,7 @@ class BasicReportsService(
                           externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
                         }
                       )
+
                     val createdMetricCalculationSpecName =
                       MetricCalculationSpecKey(
                           createdMetricCalculationSpec.cmmsMeasurementConsumerId,
@@ -732,6 +740,7 @@ class BasicReportsService(
                         .toName()
 
                     metricCalculationSpecs += createdMetricCalculationSpecName
+
                     existingMetricCalculationSpecsMap[metricCalculationSpecDetails] =
                       createdMetricCalculationSpecName
                   }
@@ -763,8 +772,8 @@ class BasicReportsService(
     private data class ReportingSetMaps(
       // Map of DataProvider resource name to Primitive ReportingSet
       val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
-      // Map of ReportingSet without name to ReportingSet resource name
-      val reportingSetToNameMap: Map<ReportingSet, String>,
+      // Map of ReportingSet composite to ReportingSet resource name
+      val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String>,
     )
 
     /** Specifies default values using [MetricSpecConfig] */
