@@ -42,7 +42,10 @@ kt_jvm_library(
 kt_jvm_library(
     name = "labeled_event",
     srcs = ["LabeledEvent.kt"],
-    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
 )
 
 kt_jvm_library(
@@ -54,6 +57,7 @@ kt_jvm_library(
         ":labeled_event",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
