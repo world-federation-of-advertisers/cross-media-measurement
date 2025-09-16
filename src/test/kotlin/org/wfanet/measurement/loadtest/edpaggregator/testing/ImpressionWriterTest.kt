@@ -25,6 +25,8 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -41,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShardFlow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -72,49 +75,48 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
-      sequenceOf(
-        LabeledEventDateShard(
-          LocalDate.parse("2020-01-01"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+    val events = flowOf(
+      LabeledEventDateShardFlow(
+        LocalDate.parse("2020-01-01"),
+        flowOf(
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          ),
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          ),
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-01").atStartOfDay(ZoneId.of("UTC")).toInstant(),
           ),
         ),
-        LabeledEventDateShard(
-          LocalDate.parse("2020-01-02"),
-          sequenceOf(
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
-            LabeledEvent(
-              vid = 1,
-              message = TestEvent.getDefaultInstance(),
-              timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
-            ),
+      ),
+      LabeledEventDateShardFlow(
+        LocalDate.parse("2020-01-02"),
+        flowOf(
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          ),
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          ),
+          LabeledEvent(
+            vid = 1,
+            message = TestEvent.getDefaultInstance(),
+            timestamp = LocalDate.parse("2020-01-02").atStartOfDay(ZoneId.of("UTC")).toInstant(),
           ),
         ),
-      )
+      ),
+    )
     runBlocking { impressionWriter.writeLabeledImpressionData(events) }
     val storageClient = FileSystemStorageClient(tempFolder.root)
     runBlocking {
