@@ -324,12 +324,6 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
-resource "google_storage_bucket_iam_member" "requisition_fetcher_storage_creator" {
-  bucket = module.edp_aggregator_bucket.storage_bucket.name
-  role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.requisition_fetcher_cloud_function.cloud_function_service_account.email}"
-}
-
 # Network configuration for private VPC with internet and Google API access
 resource "google_compute_network" "private_network" {
   name                    = var.private_network_name
