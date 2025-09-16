@@ -25,6 +25,7 @@ import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -40,7 +41,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShardFlow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -63,7 +64,7 @@ class ImpressionWriterTest {
     tempFolder.root.resolve("some-metadata-bucket").mkdirs()
     val impressionWriter =
       ImpressionsWriter(
-        "some-event-group-path",
+        "some-event-group-reference-id",
         "some-event-group-path",
         kekUri,
         kmsClient,
@@ -72,11 +73,11 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
       )
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
-      sequenceOf(
-        LabeledEventDateShard(
+    val events =
+      flowOf(
+        LabeledEventDateShardFlow(
           LocalDate.parse("2020-01-01"),
-          sequenceOf(
+          flowOf(
             LabeledEvent(
               vid = 1,
               message = TestEvent.getDefaultInstance(),
@@ -94,9 +95,9 @@ class ImpressionWriterTest {
             ),
           ),
         ),
-        LabeledEventDateShard(
+        LabeledEventDateShardFlow(
           LocalDate.parse("2020-01-02"),
-          sequenceOf(
+          flowOf(
             LabeledEvent(
               vid = 1,
               message = TestEvent.getDefaultInstance(),
