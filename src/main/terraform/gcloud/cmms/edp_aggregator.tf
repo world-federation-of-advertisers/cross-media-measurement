@@ -199,5 +199,5 @@ module "edp_aggregator" {
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
   results_fulfiller_disk_image_family       = "confidential-space"
-  edpa_tee_signed_image_repo                = var.edpa_tee_signed_image_repo
+  results_fulfiller_signed_image_repo       = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }

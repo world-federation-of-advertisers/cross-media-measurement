@@ -273,7 +273,7 @@ module "result_fulfiller_tee_app" {
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
-  edpa_tee_signed_image_repo    = var.edpa_tee_signed_image_repo
+  edpa_tee_signed_image_repo    = var.results_fulfiller_signed_image_repo
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {
