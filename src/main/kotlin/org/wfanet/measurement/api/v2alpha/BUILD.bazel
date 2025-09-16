@@ -91,10 +91,19 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_templates",
+    srcs = ["EventTemplates.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+kt_jvm_library(
     name = "population_spec_validator",
     srcs = ["PopulationSpecValidator.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        ":event_templates",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
 )
