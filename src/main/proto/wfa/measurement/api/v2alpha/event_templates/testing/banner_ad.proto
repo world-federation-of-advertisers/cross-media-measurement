@@ -36,5 +36,6 @@ message Banner {
                  "least 50% of the pixels on the screen. If not specified, "
                  "viewability was not determined."
     reporting_features: IMPRESSION_QUALIFICATION
+    version_added: 1
   }];
 }
