@@ -28,18 +28,19 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.logging.Logger
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flatMapMerge
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import kotlin.jvm.java
 import kotlin.math.abs
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.FieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec
@@ -51,6 +52,19 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toLocalDate
+
+fun <T> Flow<T>.batch(size: Int): Flow<List<T>> = flow {
+  require(size > 0) { "Batch size must be > 0" }
+  val buffer = ArrayList<T>(size)
+  collect { value ->
+    buffer += value
+    if (buffer.size == size) {
+      emit(buffer.toList())
+      buffer.clear()
+    }
+  }
+  if (buffer.isNotEmpty()) emit(buffer.toList())
+}
 
 object SyntheticDataGeneration {
   private val VID_SAMPLING_FINGERPRINT_FUNCTION = Hashing.farmHashFingerprint64()
@@ -76,39 +90,53 @@ object SyntheticDataGeneration {
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneOffset.UTC,
   ): Sequence<LabeledEventDateShard<T>> {
-    return generateEventsParallel(
-      messageInstance,
-      populationSpec,
-      syntheticEventGroupSpec,
-      timeRange,
-      zoneId
-    )
+    val numCores = Runtime.getRuntime().availableProcessors()
+
+    return runBlocking {
+      createDateShardFlow(
+          messageInstance,
+          populationSpec,
+          syntheticEventGroupSpec,
+          timeRange,
+          zoneId,
+          numCores,
+        )
+        .toList()
+        .sortedBy { it.localDate }
+        .map { LabeledEventDateShard(it.localDate, it.labeledEvents.toList().asSequence()) }
+        .asSequence()
+    }
   }
 
-  fun <T : Message> generateEventsParallel(
+  /**
+   * Generates events deterministically. Given a total frequency across a date period, it will
+   * generate events across that time period based on a hash function. For example, for a user with
+   * frequency of 5, over a 10-day period, that user will have exactly 5 events with their VID in
+   * the output over the 10-day period.
+   *
+   * @param messageInstance an instance of the event message type [T]
+   * @param populationSpec specification of the synthetic population
+   * @param syntheticEventGroupSpec specification of the synthetic event group
+   * @param timeRange range in which to generate events
+   * @param zoneId timezone for date shards
+   */
+  fun <T : Message> generateEventsFlow(
     messageInstance: T,
     populationSpec: SyntheticPopulationSpec,
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
     timeRange: OpenEndTimeRange = OpenEndTimeRange(Instant.MIN, Instant.MAX),
     zoneId: ZoneId = ZoneOffset.UTC,
-  ): Sequence<LabeledEventDateShard<T>> {
+  ): Flow<LabeledEventDateShardFlow<T>> {
     val numCores = Runtime.getRuntime().availableProcessors()
-    
-    return sequence {
-      val allShards = runBlocking {
-        createDateShardFlow(
-          messageInstance,
-          populationSpec, 
-          syntheticEventGroupSpec,
-          timeRange,
-          zoneId,
-          numCores
-        ).toList()
-      }
-      
-      // Sort by date to maintain chronological order
-      allShards.sortedBy { it.localDate }.forEach { yield(it) }
-    }
+
+    return createDateShardFlow(
+      messageInstance,
+      populationSpec,
+      syntheticEventGroupSpec,
+      timeRange,
+      zoneId,
+      numCores,
+    )
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
@@ -118,51 +146,39 @@ object SyntheticDataGeneration {
     syntheticEventGroupSpec: SyntheticEventGroupSpec,
     timeRange: OpenEndTimeRange,
     zoneId: ZoneId,
-    numCores: Int
-  ): Flow<LabeledEventDateShard<T>> = flow {
-    for (dateSpec: SyntheticEventGroupSpec.DateSpec in syntheticEventGroupSpec.dateSpecsList) {
+    numCores: Int,
+  ): Flow<LabeledEventDateShardFlow<T>> =
+    syntheticEventGroupSpec.dateSpecsList.asFlow().flatMapConcat { dateSpec ->
       val dateProgression: LocalDateProgression = dateSpec.dateRange.toProgression()
 
       // Optimization: Skip the entire DateSpec if it does not overlap the specified time range.
       val dateSpecTimeRange = OpenEndTimeRange.fromClosedDateRange(dateProgression)
       if (!dateSpecTimeRange.overlaps(timeRange)) {
-        continue
-      }
-      
-      val numDays =
-        ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
-      logger.info("Writing $numDays days of data using $numCores cores")
-      
-      val dateList = dateProgression.toList()
-      val datesPerCore = maxOf(1, dateList.size / numCores)
-      
-      // Process dates in parallel using Flow with work-stealing dispatcher
-      val dateChunks = dateList.chunked(datesPerCore)
-      
-      dateChunks.asFlow()
-        .flatMapMerge(concurrency = numCores) { chunk ->
+        emptyFlow()
+      } else {
+        val numDays =
+          ChronoUnit.DAYS.between(dateProgression.start, dateProgression.endInclusive) + 1
+        logger.info("Writing $numDays days of data using $numCores cores")
+
+        dateProgression.asFlow().flatMapMerge(concurrency = numCores) { date ->
           flow {
-            chunk.forEach { date ->
-              val eventsFlow: Flow<LabeledEvent<T>> =
-                generateDayEvents(
-                  dateProgression,
-                  date,
-                  zoneId,
-                  messageInstance,
-                  syntheticEventGroupSpec,
-                  dateSpec,
-                  populationSpec,
-                  numDays.toInt(),
-                  timeRange,
-                )
-              val events = eventsFlow.toList().asSequence()
-              emit(LabeledEventDateShard(date, events))
-            }
-          }.flowOn(Dispatchers.Default)
+            val eventsFlow: Flow<LabeledEvent<T>> =
+              generateDayEvents(
+                dateProgression,
+                date,
+                zoneId,
+                messageInstance,
+                syntheticEventGroupSpec,
+                dateSpec,
+                populationSpec,
+                numDays.toInt(),
+                timeRange,
+              )
+            emit(LabeledEventDateShardFlow(date, eventsFlow))
+          }
         }
-        .collect { emit(it) }
+      }
     }
-  }
 
   private fun <T : Message> generateDayEvents(
     dateProgression: LocalDateProgression,

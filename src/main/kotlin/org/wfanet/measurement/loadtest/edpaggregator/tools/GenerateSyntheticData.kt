@@ -28,6 +28,7 @@ import java.io.FileOutputStream
 import java.nio.file.Paths
 import java.time.ZoneId
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
@@ -36,7 +37,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShardFlow
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import picocli.CommandLine.Command
@@ -160,8 +161,8 @@ class GenerateSyntheticData : Runnable {
       )
     // TODO(world-federation-of-advertisers/cross-media-measurement#2360): Consider supporting other
     // event types.
-    val events: Sequence<LabeledEventDateShard<TestEvent>> =
-      SyntheticDataGeneration.generateEvents(
+    val events: Flow<LabeledEventDateShardFlow<TestEvent>> =
+      SyntheticDataGeneration.generateEventsFlow(
         messageInstance = TestEvent.getDefaultInstance(),
         populationSpec = syntheticPopulationSpec,
         syntheticEventGroupSpec = syntheticEventGroupSpec,
