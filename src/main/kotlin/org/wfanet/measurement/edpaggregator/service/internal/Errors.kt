@@ -129,26 +129,6 @@ class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
     cause,
   )
 
-class RequisitionMetadataNotFoundException
-private constructor(
-  message: String,
-  metadata: Map<Errors.Metadata, String>,
-  cause: Throwable? = null,
-) : ServiceException(Errors.Reason.REQUISITION_METADATA_NOT_FOUND, message, metadata, cause) {
-  companion object {
-    fun byResourceId(
-      dataProviderResourceId: String,
-      requisitionMetadataResourceId: String,
-      cause: Throwable? = null,
-    ): RequisitionMetadataNotFoundException =
-      RequisitionMetadataNotFoundException(
-        "RequisitionMetadata with resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
-        mapOf(
-          Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-          Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
-        ),
-        cause,
-      )
 class RequisitionMetadataNotFoundException(
   dataProviderResourceId: String,
   requisitionMetadataResourceId: String,
