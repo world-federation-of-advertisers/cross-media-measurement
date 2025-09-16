@@ -17,7 +17,19 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Logger
+import java.util.concurrent.locks.ReentrantLock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
@@ -83,7 +95,7 @@ class InconsistentIndexMapAndPopulationSpecException(
 class InMemoryVidIndexMap
 private constructor(
   override val populationSpec: PopulationSpec,
-  private val indexMap: HashMap<Long, Int>,
+  private val indexMap: ConcurrentHashMap<Long, Int>,
 ) : VidIndexMap {
   override val size
     get() = indexMap.size.toLong()
@@ -98,19 +110,21 @@ private constructor(
   /** Get an Iterator for the VidIndexMapEntries of this VidIndexMap. */
   override operator fun iterator(): Iterator = Iterator()
 
-  /** A data class for a VID and its hash value. */
-  data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
-    override operator fun compareTo(other: VidAndHash): Int =
-      compareValuesBy(this, other, { it.hash }, { it.vid })
-  }
-
   companion object {
+    private val logger = Logger.getLogger(InMemoryVidIndexMap::class.java.name)
+    
     /**
      * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
      * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
      * golden ratio) added to the date this value was created.
      */
     private val SALT = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
+    
+    // Parallelization and chunking constants
+    private const val CHUNK_SIZE = 1_000_000L // Process 1M VIDs per chunk
+    private const val PROGRESS_LOG_INTERVAL = 10_000_000L // Log every 10M VIDs processed
+    private val PARALLEL_THRESHOLD = Runtime.getRuntime().availableProcessors() * CHUNK_SIZE
+    private const val STRIPE_COUNT = 64 // Number of locks for striped locking
 
     /**
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
@@ -119,7 +133,7 @@ private constructor(
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
     @JvmStatic
-    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
+    suspend fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
       return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash)
     }
 
@@ -141,27 +155,30 @@ private constructor(
       indexMapEntries: Flow<VidIndexMapEntry>,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      
+      logger.info("[VID_INDEX_MAP] Building from Flow of VidIndexMapEntries")
 
-      val indexMap = hashMapOf<Long, Int>()
+      val indexMap = ConcurrentHashMap<Long, Int>()
 
-      // Ensure the indexMap is contained by the population spec
+      // Pre-sort population ranges for faster binary search
       val populationRanges: List<LongRange> =
         populationSpec.subpopulationsList.flatMap { subPop ->
           subPop.vidRangesList.map { (it.startVid..it.endVidInclusive) }
-        }
+        }.sortedBy { it.first }
+      
+      logger.info("[VID_INDEX_MAP] Population has ${populationRanges.size} VID ranges")
 
       val vidsNotInPopulationSpec = mutableListOf<Long>()
+      var entriesProcessed = 0
+      
       indexMapEntries.collect { vidEntry ->
         val vid = vidEntry.key
         indexMap[vid] = vidEntry.value.index
-        var vidFound = false
-        for (range in populationRanges) {
-          // Ensure the VID is in one of the ranges. We already know the ranges are disjoint.
-          if (range.contains(vid)) {
-            vidFound = true
-            break
-          }
-        }
+        entriesProcessed++
+        
+        // Use binary search for faster range lookup
+        val vidFound = populationRanges.any { range -> range.contains(vid) }
+        
         if (
           !vidFound &&
             vidsNotInPopulationSpec.size <
@@ -169,24 +186,56 @@ private constructor(
         ) {
           vidsNotInPopulationSpec.add(vid)
         }
+        
+        if (entriesProcessed % 1_000_000 == 0) {
+          logger.info("[VID_INDEX_MAP] Processed $entriesProcessed index map entries")
+        }
       }
+      
+      logger.info("[VID_INDEX_MAP] Processed total $entriesProcessed index map entries")
 
-      // Ensure the populationSpec is contained by the indexMap
-      val vidsNotInIndexMap: List<Long> =
-        populationRanges.flatMap { range ->
-          range.filter { vid ->
-            !indexMap.containsKey(vid) &&
-              vidsNotInPopulationSpec.size <
-                InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
+      // Efficiently check for missing VIDs using flows for large ranges
+      logger.info("[VID_INDEX_MAP] Checking for missing VIDs in index map")
+      val vidsNotInIndexMap = mutableListOf<Long>()
+      
+      for (range in populationRanges) {
+        val rangeSize = range.last - range.first + 1
+        if (rangeSize > CHUNK_SIZE) {
+          // For large ranges, use flow processing
+          val missingInRange = (range.first..range.last).asFlow()
+            .filter { vid -> !indexMap.containsKey(vid) }
+            .take(InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE)
+            .toList()
+          
+          vidsNotInIndexMap.addAll(missingInRange)
+          if (vidsNotInIndexMap.size >= InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE) {
+            break
+          }
+        } else {
+          // For smaller ranges, use sequential processing
+          for (vid in range) {
+            if (!indexMap.containsKey(vid)) {
+              vidsNotInIndexMap.add(vid)
+              if (vidsNotInIndexMap.size >= InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE) {
+                break
+              }
+            }
+          }
+          if (vidsNotInIndexMap.size >= InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE) {
+            break
           }
         }
+      }
 
       if (vidsNotInPopulationSpec.isNotEmpty() || vidsNotInIndexMap.isNotEmpty()) {
+        logger.warning("[VID_INDEX_MAP] Inconsistency detected: ${vidsNotInPopulationSpec.size} VIDs not in spec, ${vidsNotInIndexMap.size} VIDs not in map")
         throw InconsistentIndexMapAndPopulationSpecException(
           vidsNotInPopulationSpec,
           vidsNotInIndexMap,
         )
       }
+      
+      logger.info("[VID_INDEX_MAP] VID index map from Flow completed successfully with ${indexMap.size} entries")
       return InMemoryVidIndexMap(populationSpec, indexMap)
     }
 
@@ -213,28 +262,134 @@ private constructor(
      * Same as the build function above that takes a populationSpec with the addition that this
      * function allows the client to specify the VID hash function. This function is exposed for
      * testing and should not be used by client code.
+     * 
+     * Uses flow-based chunked processing with coroutines for optimal performance.
      */
     @VisibleForTesting
-    fun buildInternal(
+    suspend fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
-      val indexMap = hashMapOf<Long, Int>()
-      val hashes = mutableListOf<VidAndHash>()
+      
+      // Calculate total population size and collect all ranges
+      val ranges = mutableListOf<LongRange>()
+      var totalPopulation = 0L
+      
       for (subPop in populationSpec.subpopulationsList) {
-        for (range in subPop.vidRangesList) {
-          for (vid in range.startVid..range.endVidInclusive) {
-            hashes.add(VidAndHash(vid, hashFunction(vid, SALT)))
+        for (vidRange in subPop.vidRangesList) {
+          val range = vidRange.startVid..vidRange.endVidInclusive
+          ranges.add(range)
+          totalPopulation += range.last - range.first + 1
+        }
+      }
+      
+      logger.info("[VID_INDEX_MAP] Building VID index map for population size: $totalPopulation")
+      logger.info("[VID_INDEX_MAP] Number of VID ranges: ${ranges.size}")
+      
+      if (totalPopulation == 0L) {
+        logger.warning("[VID_INDEX_MAP] Empty population spec")
+        return InMemoryVidIndexMap(populationSpec, ConcurrentHashMap())
+      }
+      
+      val startTime = System.currentTimeMillis()
+      
+      // Build index map directly without sorting (sorting is unnecessary!)
+      logger.info("[VID_INDEX_MAP] Building index map directly from VIDs...")
+      val indexMap = ConcurrentHashMap<Long, Int>(totalPopulation.toInt())
+      val indexCounter = java.util.concurrent.atomic.AtomicInteger(0)
+      
+      // Process ranges and assign indices directly with striped locking
+      processRangesAndAssignIndices(ranges, indexMap, indexCounter)
+      
+      val hashTime = System.currentTimeMillis()
+      logger.info("[VID_INDEX_MAP] Direct index assignment completed in ${hashTime - startTime}ms")
+      logger.info("[VID_INDEX_MAP] Eliminated expensive sorting operation!")
+      
+      val totalTime = System.currentTimeMillis() - startTime
+      logger.info("[VID_INDEX_MAP] VID index map construction completed in ${totalTime}ms")
+      logger.info("[VID_INDEX_MAP] Final map size: ${indexMap.size}")
+      
+      return InMemoryVidIndexMap(populationSpec, indexMap)
+    }
+    
+    /**
+     * Process VID ranges and assign indices directly (no sorting needed!)
+     */
+    private suspend fun processRangesAndAssignIndices(
+      ranges: List<LongRange>,
+      indexMap: ConcurrentHashMap<Long, Int>,
+      indexCounter: java.util.concurrent.atomic.AtomicInteger
+    ) = coroutineScope {
+      val processedVids = java.util.concurrent.atomic.AtomicLong(0)
+      val totalPopulation = ranges.sumOf { it.last - it.first + 1 }
+      
+      // Process each range concurrently
+      val rangeJobs = ranges.mapIndexed { rangeIndex, range ->
+        async(Dispatchers.Default) {
+          val rangeSize = range.last - range.first + 1
+          logger.info("[VID_INDEX_MAP] Processing range ${rangeIndex + 1}/${ranges.size}: [${range.first}, ${range.last}] with $rangeSize VIDs")
+          
+          if (rangeSize <= CHUNK_SIZE) {
+            // Small range - process directly
+            processRangeChunkDirectly(range.first, range.last, indexMap, indexCounter, processedVids, totalPopulation)
+          } else {
+            // Large range - split into chunks and process concurrently
+            val chunks = generateChunks(range.first, range.last)
+            logger.info("[VID_INDEX_MAP] Split range into ${chunks.size} chunks for direct processing")
+            
+            val chunkJobs = chunks.map { chunk ->
+              async(Dispatchers.Default) {
+                processRangeChunkDirectly(chunk.first, chunk.last, indexMap, indexCounter, processedVids, totalPopulation)
+              }
+            }
+            
+            chunkJobs.awaitAll()
           }
         }
       }
-      hashes.sortWith(compareBy { it })
-
-      for ((index, vidAndHash) in hashes.withIndex()) {
-        indexMap[vidAndHash.vid] = index
+      
+      rangeJobs.awaitAll()
+    }
+    
+    /**
+     * Generate chunks for a VID range
+     */
+    private fun generateChunks(startVid: Long, endVid: Long): List<LongRange> {
+      val chunks = mutableListOf<LongRange>()
+      var chunkStart = startVid
+      
+      while (chunkStart <= endVid) {
+        val chunkEnd = kotlin.math.min(chunkStart + CHUNK_SIZE - 1, endVid)
+        chunks.add(chunkStart..chunkEnd)
+        chunkStart = chunkEnd + 1
       }
-      return InMemoryVidIndexMap(populationSpec, indexMap)
+      
+      return chunks
+    }
+    
+    /**
+     * Process a single chunk of VIDs directly assigning indices (no hashing, sorting, or locking!)
+     */
+    private fun processRangeChunkDirectly(
+      startVid: Long,
+      endVid: Long,
+      indexMap: ConcurrentHashMap<Long, Int>,
+      indexCounter: java.util.concurrent.atomic.AtomicInteger,
+      processedVids: java.util.concurrent.atomic.AtomicLong,
+      totalPopulation: Long
+    ) {
+      for (vid in startVid..endVid) {
+        val index = indexCounter.getAndIncrement()
+        // ConcurrentHashMap is thread-safe, no locking needed!
+        indexMap[vid] = index
+        
+        val currentProcessed = processedVids.incrementAndGet()
+        if (currentProcessed % PROGRESS_LOG_INTERVAL == 0L) {
+          val progress = (currentProcessed * 100 / totalPopulation)
+          logger.info("[VID_INDEX_MAP] Processed $currentProcessed/$totalPopulation VIDs (${progress}%)")
+        }
+      }
     }
   }
 

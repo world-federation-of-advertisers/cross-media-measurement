@@ -46,6 +46,7 @@ import picocli.CommandLine.Option
 enum class KmsType {
   FAKE,
   GCP,
+  NONE,
 }
 
 @Command(
@@ -168,7 +169,7 @@ class GenerateSyntheticData : Runnable {
         syntheticEventGroupSpec = syntheticEventGroupSpec,
         zoneId = ZoneId.of(zoneId),
       )
-    val kmsClient: KmsClient = run {
+    val kmsClient: KmsClient? = run {
       when (kmsType) {
         KmsType.FAKE -> {
           val client = FakeKmsClient()
@@ -196,6 +197,10 @@ class GenerateSyntheticData : Runnable {
         }
         KmsType.GCP -> {
           GcpKmsClient().withDefaultCredentials()
+        }
+
+        KmsType.NONE -> {
+          null
         }
       }
     }

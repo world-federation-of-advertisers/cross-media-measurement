@@ -64,7 +64,7 @@ class ResultsFulfiller(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration,
   private val impressionMetadataService: ImpressionMetadataService,
-  private val kmsClient: KmsClient,
+  private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
 ) {
@@ -93,23 +93,47 @@ class ResultsFulfiller(
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    logger.info("[FULFILLER] Starting fulfillRequisitions with parallelism=$parallelism")
+    logger.info("[FULFILLER] Unpacking ${groupedRequisitions.requisitionsCount} requisitions...")
     val requisitions =
-      groupedRequisitions.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+      groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
+        if (index % 100 == 0 || index < 10) {
+          logger.info(
+            "[FULFILLER]   - Unpacking requisition ${index + 1}/${groupedRequisitions.requisitionsCount}"
+          )
+        }
+        entry.requisition.unpack(Requisition::class.java)
+      }
+    logger.info("[FULFILLER] Building event group reference ID map...")
     val eventGroupReferenceIdMap =
       groupedRequisitions.eventGroupMapList.associate {
         it.eventGroup to it.details.eventGroupReferenceId
       }
+    logger.info("[FULFILLER] Event group map built with ${eventGroupReferenceIdMap.size} entries")
 
-    logger.info("Processing ${requisitions.size} Requisitions")
+    logger.info("[FULFILLER] Processing ${requisitions.size} Requisitions")
     totalRequisitions.addAndGet(requisitions.size)
 
     val modelLine = groupedRequisitions.modelLine
+    logger.info("[FULFILLER] Model line: $modelLine")
+    logger.info("[FULFILLER] Getting model info from map...")
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val eventDescriptor = modelInfo.eventDescriptor
+    logger.info("[FULFILLER] Event descriptor: ${eventDescriptor.name}")
 
     val populationSpec = modelInfo.populationSpec
+    logger.info(
+      "[FULFILLER] Population spec has ${populationSpec.subpopulationsCount} subpopulations"
+    )
     val vidIndexMap = modelInfo.vidIndexMap
+    logger.info("[FULFILLER] VID index map ready")
 
+    logger.info("[FULFILLER] Creating StorageEventSource...")
+    logger.info(
+      "[FULFILLER]   - Event group details count: ${groupedRequisitions.eventGroupMapCount}"
+    )
+    logger.info("[FULFILLER]   - Model line: $modelLine")
+    logger.info("[FULFILLER]   - Batch size: ${pipelineConfiguration.batchSize}")
     val eventSource =
       StorageEventSource(
         impressionMetadataService = impressionMetadataService,
@@ -120,42 +144,83 @@ class ResultsFulfiller(
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
       )
+    logger.info("[FULFILLER] StorageEventSource created successfully")
+
+    logger.info("[FULFILLER] === STARTING FREQUENCY VECTOR CALCULATION ===")
+    logger.info("[FULFILLER] Calling orchestrator.run() with:")
+    logger.info("[FULFILLER]   - ${requisitions.size} requisitions")
+    logger.info(
+      "[FULFILLER]   - Pipeline config: batchSize=${pipelineConfiguration.batchSize}, workers=${pipelineConfiguration.workers}"
+    )
+    logger.info("[FULFILLER]   - Thread pool size: ${pipelineConfiguration.threadPoolSize}")
+    logger.info("[FULFILLER]   - Channel capacity: ${pipelineConfiguration.channelCapacity}")
 
     val frequencyVectorStart = TimeSource.Monotonic.markNow()
     val frequencyVectorMap =
-      orchestrator.run(
-        eventSource = eventSource,
-        vidIndexMap = vidIndexMap,
-        populationSpec = populationSpec,
-        requisitions = requisitions,
-        eventGroupReferenceIdMap = eventGroupReferenceIdMap,
-        config = pipelineConfiguration,
-        eventDescriptor = eventDescriptor,
-      )
+      try {
+        logger.info("[FULFILLER] Entering orchestrator.run()...")
+        orchestrator.run(
+          eventSource = eventSource,
+          vidIndexMap = vidIndexMap,
+          populationSpec = populationSpec,
+          requisitions = requisitions,
+          eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+          config = pipelineConfiguration,
+          eventDescriptor = eventDescriptor,
+        )
+      } catch (e: Exception) {
+        logger.severe("[FULFILLER] ERROR in orchestrator.run(): ${e.message}")
+        logger.severe("[FULFILLER] Stack trace:")
+        e.printStackTrace()
+        throw e
+      }
+    val elapsedMs = frequencyVectorStart.elapsedNow().inWholeMilliseconds
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[FULFILLER] === FREQUENCY VECTOR CALCULATION COMPLETED in ${elapsedMs}ms ===")
+    logger.info("[FULFILLER] Frequency vector map has ${frequencyVectorMap.size} entries")
 
-    logger.info("Frequency vector calculation completed, processing individual requisitions")
+    logger.info("[FULFILLER] === STARTING INDIVIDUAL REQUISITION FULFILLMENT ===")
+    logger.info(
+      "[FULFILLER] Processing ${requisitions.size} requisitions with parallelism=$parallelism"
+    )
 
+    var processedCount = 0
     requisitions
       .asFlow()
-      .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
+      .map { req: Requisition ->
+        logger.info("[FULFILLER] Mapping requisition ${req.name} to frequency vector...")
+        req to frequencyVectorMap.getValue(req.name)
+      }
       .flatMapMerge(concurrency = parallelism) {
         (req: Requisition, frequencyVector: StripedByteFrequencyVector) ->
         flow {
           val start = TimeSource.Monotonic.markNow()
           try {
+            logger.info("[FULFILLER] Starting fulfillment for requisition ${req.name}")
             fulfillSingleRequisition(req, frequencyVector, populationSpec)
+            val elapsedMs = start.elapsedNow().inWholeMilliseconds
             fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
+            processedCount++
+            logger.info(
+              "[FULFILLER] Completed requisition ${req.name} in ${elapsedMs}ms ($processedCount/${requisitions.size} done)"
+            )
             emit(Unit)
           } catch (t: Throwable) {
-            logger.severe("Failed fulfilling ${req.name}: ${t.message}")
+            logger.severe("[FULFILLER] ERROR: Failed fulfilling ${req.name}: ${t.message}")
+            logger.severe("[FULFILLER] Exception type: ${t.javaClass.name}")
+            t.printStackTrace()
             throw t
           }
         }
       }
       .collect()
 
+    logger.info("[FULFILLER] === ALL REQUISITIONS COMPLETED ===")
+    logger.info("[FULFILLER] Total requisitions processed: $processedCount")
+
+    logger.info("[FULFILLER] Calling logFulfillmentStats()...")
     logFulfillmentStats()
+    logger.info("[FULFILLER] fulfillRequisitions() completed successfully")
   }
 
   /**
@@ -171,40 +236,69 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
   ) {
+    logger.info("[SINGLE] Processing requisition: ${requisition.name}")
+    logger.info("[SINGLE] Unpacking measurement spec...")
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    logger.info("[SINGLE] Measurement type: ${measurementSpec.measurementTypeCase}")
+
+    logger.info("[SINGLE] Converting frequency vector to int array...")
     val freqBytes = frequencyVector.getByteArray()
     val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    logger.info("[SINGLE] Frequency data size: ${frequencyData.size}")
 
+    logger.info("[SINGLE] Decrypting requisition spec...")
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+          logger.info("[SINGLE] Calling decryptRequisitionSpec on IO dispatcher...")
+          val result =
+            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+          logger.info("[SINGLE] Decryption successful")
+          result
         }
       } catch (e: GeneralSecurityException) {
+        logger.severe("[SINGLE] Decryption failed: ${e.message}")
         throw Exception("RequisitionSpec decryption failed", e)
       }
+    logger.info("[SINGLE] Unpacking requisition spec...")
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+    logger.info("[SINGLE] Requisition spec unpacked successfully")
 
+    logger.info("[SINGLE] Selecting fulfiller via fulfillerSelector...")
     val buildStart = TimeSource.Monotonic.markNow()
     val fulfiller =
-      fulfillerSelector.selectFulfiller(
-        requisition,
-        measurementSpec,
-        requisitionSpec,
-        frequencyData,
-        populationSpec,
-      )
+      try {
+        fulfillerSelector.selectFulfiller(
+          requisition,
+          measurementSpec,
+          requisitionSpec,
+          frequencyData,
+          populationSpec,
+        )
+      } catch (e: Exception) {
+        logger.severe("[SINGLE] Fulfiller selection failed: ${e.message}")
+        throw e
+      }
+    val buildElapsedMs = buildStart.elapsedNow().inWholeMilliseconds
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[SINGLE] Fulfiller selected in ${buildElapsedMs}ms")
 
-    logger.info("Fulfilling requisition: ${requisition.name}")
-    logger.info("Measurement spec type: ${measurementSpec.measurementTypeCase}")
+    logger.info("[SINGLE] Ready to fulfill requisition: ${requisition.name}")
+    logger.info("[SINGLE] Measurement spec type: ${measurementSpec.measurementTypeCase}")
     logger.info(
-      "Protocol configs: ${requisition.protocolConfig.protocolsList.map { it.protocolCase }}"
+      "[SINGLE] Protocol configs: ${requisition.protocolConfig.protocolsList.map { it.protocolCase }}"
     )
 
+    logger.info("[SINGLE] Calling fulfiller.fulfillRequisition() on IO dispatcher...")
     val sendStart = TimeSource.Monotonic.markNow()
-    withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+    withContext(Dispatchers.IO) {
+      logger.info("[SINGLE] Inside IO dispatcher, calling fulfillRequisition()...")
+      fulfiller.fulfillRequisition()
+      logger.info("[SINGLE] fulfillRequisition() completed")
+    }
+    val sendElapsedMs = sendStart.elapsedNow().inWholeMilliseconds
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+    logger.info("[SINGLE] Fulfillment sent in ${sendElapsedMs}ms")
   }
 
   /**
@@ -214,17 +308,23 @@ class ResultsFulfiller(
    * send time, and end-to-end fulfillment time.
    */
   fun logFulfillmentStats() {
-    logger.info(
+    val stats =
       """
-      |[ResultsFulfiller] Fulfillment Statistics:
+      |=== FULFILLMENT STATISTICS ===
       |  Total requisitions: ${totalRequisitions.get()}
       |  Frequency vector total ms: ${frequencyVectorTime.get() / 1_000_000}
       |  Build total ms: ${buildTime.get() / 1_000_000}
       |  Send total ms: ${sendTime.get() / 1_000_000}
       |  Fulfillment total ms: ${fulfillmentTime.get() / 1_000_000}
+      |  Average per requisition:
+      |    - Frequency vector: ${if (totalRequisitions.get() > 0) (frequencyVectorTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Build: ${if (totalRequisitions.get() > 0) (buildTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Send: ${if (totalRequisitions.get() > 0) (sendTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |    - Total: ${if (totalRequisitions.get() > 0) (fulfillmentTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |==============================
       """
         .trimMargin()
-    )
+    logger.info(stats)
   }
 
   companion object {

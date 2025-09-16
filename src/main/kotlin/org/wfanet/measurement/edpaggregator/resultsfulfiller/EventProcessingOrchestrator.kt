@@ -190,51 +190,109 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
-    logger.info("Starting with ${requisitions.size} requisitions")
+    logger.info("[ORCHESTRATOR] === STARTING EVENT PROCESSING ORCHESTRATOR ===")
+    logger.info("[ORCHESTRATOR] Processing ${requisitions.size} requisitions")
+    logger.info("[ORCHESTRATOR] Event group reference ID map: ${eventGroupReferenceIdMap.size} entries")
+    logger.info("[ORCHESTRATOR] Population spec size: ${populationSpec.size}")
+    logger.info("[ORCHESTRATOR] VID index map size: ${vidIndexMap.size}")
+    logger.info("[ORCHESTRATOR] Event descriptor: ${eventDescriptor.name}")
+    logger.info("[ORCHESTRATOR] Pipeline config: batchSize=${config.batchSize}, workers=${config.workers}, threadPoolSize=${config.threadPoolSize}")
 
+    logger.info("[ORCHESTRATOR] Validating pipeline configuration...")
     config.validate()
+    logger.info("[ORCHESTRATOR] Configuration validated successfully")
 
+    logger.info("[ORCHESTRATOR] Creating executor service with ${config.threadPoolSize} threads...")
     val executorService: ExecutorService = createExecutorService(config.threadPoolSize)
+    logger.info("[ORCHESTRATOR] Executor service created, creating coroutine dispatcher...")
     val dispatcher = executorService.asCoroutineDispatcher()
+    logger.info("[ORCHESTRATOR] Coroutine dispatcher created")
 
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
-      val filterSpecIndex =
+      logger.info("[ORCHESTRATOR] Building FilterSpecIndex from ${requisitions.size} requisitions...")
+      val filterSpecIndex = try {
         FilterSpecIndex.fromRequisitions(
           requisitions,
           eventGroupReferenceIdMap,
           privateEncryptionKey,
         )
+      } catch (e: Exception) {
+        logger.severe("[ORCHESTRATOR] ERROR building FilterSpecIndex: ${e.message}")
+        throw e
+      }
+      logger.info("[ORCHESTRATOR] FilterSpecIndex built with ${filterSpecIndex.filterSpecToRequisitionNames.size} unique FilterSpecs")
+      logger.info("[ORCHESTRATOR] FilterSpec details:")
+      filterSpecIndex.filterSpecToRequisitionNames.forEach { (spec, reqNames) ->
+        logger.info("[ORCHESTRATOR]   - FilterSpec(expr='${spec.celExpression}', eventGroups=${spec.eventGroupReferenceIds.size}) -> ${reqNames.size} requisitions")
+      }
 
       // Create one sink per unique FilterSpec
-      val sinkByFilterSpec =
+      logger.info("[ORCHESTRATOR] Creating sinks for ${filterSpecIndex.filterSpecToRequisitionNames.size} unique FilterSpecs...")
+      val sinkByFilterSpec = try {
         createSinksFromFilterSpecs(
           filterSpecs = filterSpecIndex.filterSpecToRequisitionNames.keys,
           vidIndexMap = vidIndexMap,
           populationSpec = populationSpec,
           eventDescriptor = eventDescriptor,
         )
-
-      val pipeline = createPipeline(config)
-
-      withContext(dispatcher) {
-        pipeline.processEventBatches(
-          eventSource = eventSource,
-          sinks = sinkByFilterSpec.values.toList(),
-        )
+      } catch (e: Exception) {
+        logger.severe("[ORCHESTRATOR] ERROR creating sinks: ${e.message}")
+        throw e
       }
+      logger.info("[ORCHESTRATOR] Created ${sinkByFilterSpec.size} sinks successfully")
+
+      logger.info("[ORCHESTRATOR] Creating pipeline...")
+      val pipeline = createPipeline(config)
+      logger.info("[ORCHESTRATOR] Pipeline created: ${pipeline.javaClass.simpleName}")
+
+      logger.info("[ORCHESTRATOR] === STARTING PIPELINE EXECUTION ===")
+      logger.info("[ORCHESTRATOR] Processing with ${sinkByFilterSpec.size} sinks on custom dispatcher")
+      withContext(dispatcher) {
+        logger.info("[ORCHESTRATOR] Inside custom dispatcher context, calling processEventBatches()...")
+        try {
+          pipeline.processEventBatches(
+            eventSource = eventSource,
+            sinks = sinkByFilterSpec.values.toList(),
+          )
+          logger.info("[ORCHESTRATOR] processEventBatches() completed successfully")
+        } catch (e: Exception) {
+          logger.severe("[ORCHESTRATOR] ERROR in processEventBatches(): ${e.message}")
+          logger.severe("[ORCHESTRATOR] Exception type: ${e.javaClass.name}")
+          e.printStackTrace()
+          throw e
+        }
+      }
+      logger.info("[ORCHESTRATOR] === PIPELINE EXECUTION COMPLETED ===")
 
       // Map results back to requisition names using their FilterSpec
-      val results =
+      logger.info("[ORCHESTRATOR] Mapping results back to requisition names...")
+      val results = try {
         requisitions.associate { req ->
+          logger.info("[ORCHESTRATOR]   - Mapping result for requisition: ${req.name}")
           val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
-          req.name to sinkByFilterSpec.getValue(spec).getFrequencyVector()
+          val frequencyVector = sinkByFilterSpec.getValue(spec).getFrequencyVector()
+          val vectorSize = frequencyVector.getByteArray().size
+          logger.info("[ORCHESTRATOR]   - Got frequency vector of size $vectorSize for ${req.name}")
+          req.name to frequencyVector
         }
+      } catch (e: Exception) {
+        logger.severe("[ORCHESTRATOR] ERROR mapping results: ${e.message}")
+        throw e
+      }
 
-      logger.info("Completed successfully, returning ${results.size} results")
+      logger.info("[ORCHESTRATOR] === ORCHESTRATOR COMPLETED SUCCESSFULLY ===")
+      logger.info("[ORCHESTRATOR] Returning ${results.size} results")
       return results
+    } catch (e: Exception) {
+      logger.severe("[ORCHESTRATOR] FATAL ERROR in orchestrator: ${e.message}")
+      logger.severe("[ORCHESTRATOR] Exception type: ${e.javaClass.name}")
+      e.printStackTrace()
+      throw e
     } finally {
+      logger.info("[ORCHESTRATOR] Shutting down executor service...")
       shutdownExecutorService(executorService)
+      logger.info("[ORCHESTRATOR] Executor service shutdown completed")
     }
   }
 
@@ -248,7 +306,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @return Configured [ExecutorService] suitable for coroutine dispatching.
    */
   private fun createExecutorService(size: Int): ExecutorService {
-    logger.info("Creating shared work-stealing thread pool with max size: $size")
+    logger.info("[ORCHESTRATOR] Creating shared work-stealing thread pool with max size: $size")
 
     return ForkJoinPool(
       size,
@@ -272,7 +330,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param executorService the ExecutorService to shut down
    */
   private fun shutdownExecutorService(executorService: ExecutorService) {
-    logger.info("Shutting down shared thread pool...")
+    logger.info("[ORCHESTRATOR] Shutting down shared thread pool...")
 
     executorService.shutdown()
 
@@ -281,13 +339,13 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       if (
         !executorService.awaitTermination(THREAD_POOL_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
       ) {
-        logger.warning("Thread pool did not terminate gracefully, forcing shutdown")
+        logger.warning("[ORCHESTRATOR] Thread pool did not terminate gracefully, forcing shutdown")
         executorService.shutdownNow() // Cancel currently executing tasks
         // Wait a while for tasks to respond to being cancelled
         if (
           !executorService.awaitTermination(THREAD_POOL_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         ) {
-          logger.warning("Thread pool did not terminate after forceful shutdown")
+          logger.warning("[ORCHESTRATOR] Thread pool did not terminate after forceful shutdown")
         }
       }
     } catch (e: InterruptedException) {
@@ -296,7 +354,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       Thread.currentThread().interrupt()
     }
 
-    logger.info("Thread pool shut down successfully")
+    logger.info("[ORCHESTRATOR] Thread pool shut down successfully")
   }
 
   /**
@@ -309,7 +367,10 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @return The configured [EventProcessingPipeline].
    */
   private fun createPipeline(config: PipelineConfiguration): EventProcessingPipeline<T> {
-    return ParallelBatchedPipeline(batchSize = config.batchSize, workers = config.workers)
+    logger.info("[ORCHESTRATOR] Creating ParallelBatchedPipeline with batchSize=${config.batchSize}, workers=${config.workers}")
+    val pipeline = ParallelBatchedPipeline<T>(batchSize = config.batchSize, workers = config.workers)
+    logger.info("[ORCHESTRATOR] Pipeline created successfully")
+    return pipeline
   }
 
   /**
@@ -333,16 +394,31 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     populationSpec: PopulationSpec,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<FilterSpec, FrequencyVectorSink<T>> {
-    logger.info("Creating sinks for ${filterSpecs.size} unique FilterSpecs")
-    logger.info("Population size: ${populationSpec.size}")
-    logger.info("VID index map size: ${vidIndexMap.size}")
+    logger.info("[ORCHESTRATOR] Creating sinks for ${filterSpecs.size} unique FilterSpecs")
+    logger.info("[ORCHESTRATOR] Population size: ${populationSpec.size}")
+    logger.info("[ORCHESTRATOR] VID index map size: ${vidIndexMap.size}")
+    logger.info("[ORCHESTRATOR] Event descriptor: ${eventDescriptor.name}")
 
     return filterSpecs.associateWith { spec ->
-      FrequencyVectorSink(
-        filterProcessor = FilterProcessor(spec, eventDescriptor),
-        frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt()),
+      val index = filterSpecs.indexOf(spec) + 1
+      logger.info("[ORCHESTRATOR]   - Creating sink $index/${filterSpecs.size} for FilterSpec: ${spec.celExpression}")
+      logger.info("[ORCHESTRATOR]     * Event groups: ${spec.eventGroupReferenceIds.size}")
+      logger.info("[ORCHESTRATOR]     * Collection interval: ${spec.collectionInterval}")
+      
+      val filterProcessor = FilterProcessor<T>(spec, eventDescriptor)
+      logger.info("[ORCHESTRATOR]     * FilterProcessor created")
+      
+      val frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt())
+      logger.info("[ORCHESTRATOR]     * FrequencyVector created with size ${populationSpec.size}")
+      
+      val sink = FrequencyVectorSink<T>(
+        filterProcessor = filterProcessor,
+        frequencyVector = frequencyVector,
         vidIndexMap = vidIndexMap,
       )
+      logger.info("[ORCHESTRATOR]     * Sink created successfully")
+      
+      sink
     }
   }
 

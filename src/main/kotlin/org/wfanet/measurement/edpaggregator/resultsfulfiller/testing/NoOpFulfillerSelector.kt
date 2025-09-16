@@ -40,7 +40,15 @@ class NoOpFulfillerSelector : FulfillerSelector {
     frequencyData: IntArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
+    logger.info("[NOOP_SELECTOR] Creating NoOpMeasurementFulfiller for requisition: ${requisition.name}")
+    logger.info("[NOOP_SELECTOR] Measurement type: ${measurementSpec.measurementTypeCase}")
+    logger.info("[NOOP_SELECTOR] Frequency data size: ${frequencyData.size}")
+    logger.info("[NOOP_SELECTOR] Population spec subpopulations: ${populationSpec.subpopulationsCount}")
     return NoOpMeasurementFulfiller(requisition, frequencyData)
+  }
+
+  companion object {
+    private val logger = Logger.getLogger(NoOpFulfillerSelector::class.java.name)
   }
 
   /**
@@ -53,18 +61,37 @@ class NoOpFulfillerSelector : FulfillerSelector {
   ) : MeasurementFulfiller {
 
     override suspend fun fulfillRequisition() {
+      logger.info("[NOOP_FULFILLER] Starting fulfillRequisition() for: ${requisition.name}")
+      
+      val startTime = System.currentTimeMillis()
       val nonZeroFrequencies = frequencyData.count { it > 0 }
       val totalFrequency = frequencyData.sum()
+      val maxFrequency = frequencyData.maxOrNull() ?: 0
+      val avgFrequency = if (frequencyData.isNotEmpty()) frequencyData.average() else 0.0
       
       logger.info(
         """
-        |[NoOp] Would fulfill requisition: ${requisition.name}
+        |[NOOP_FULFILLER] === MOCK FULFILLMENT ===
+        |  Requisition: ${requisition.name}
         |  Protocol: ${requisition.protocolConfig.protocolsList.map { it.protocolCase }}
         |  Measurement type: ${requisition.measurementSpec.message.typeUrl}
-        |  Frequency data: $nonZeroFrequencies non-zero entries, total frequency: $totalFrequency
+        |  State: ${requisition.state}
         |  Data provider certificate: ${requisition.dataProviderCertificate}
+        |  Frequency data analysis:
+        |    - Array size: ${frequencyData.size}
+        |    - Non-zero entries: $nonZeroFrequencies
+        |    - Total frequency: $totalFrequency
+        |    - Max frequency: $maxFrequency
+        |    - Average frequency: $avgFrequency
+        |  Processing time: ${System.currentTimeMillis() - startTime}ms
+        |================================
         """.trimMargin()
       )
+      
+      // Simulate some processing time
+      kotlinx.coroutines.delay(10)
+      
+      logger.info("[NOOP_FULFILLER] Mock fulfillment completed for: ${requisition.name}")
     }
 
     companion object {

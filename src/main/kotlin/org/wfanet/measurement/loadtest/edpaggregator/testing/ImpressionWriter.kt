@@ -43,7 +43,7 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * A class responsible for writing labeled impression data to storage with encryption.
+ * A class responsible for writing labeled impression data to storage with optional encryption.
  *
  * This class handles the encryption of impression data using a Key Management Service (KMS) and
  * outputs the encrypted data to a specified storage location. It also generates and stores the
@@ -51,7 +51,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *
  * Uses a SelectedStorageClient based on the schema (supports gs:// and file:///).
  *
- * Impressions are written using a Mesos Record IO format using streaming envelope encryption.
+ * Impressions are written using a Mesos Record IO format with optional streaming envelope
+ * encryption.
  *
  * @property eventGroupReferenceId The event group the impressions belong to.
  * @property eventGroupPath The path to the event group where impressions are stored.
@@ -61,12 +62,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property impressionsMetadataBucket The storage bucket where metadata for impressions is stored.
  * @property storagePath An optional file path for local storage, defaulting to null.
  * @property schema The URI schema for storage paths, defaulting to "file:///".
+ * @property skipEncryption If true, writes unencrypted data (useful for testing/debugging).
  */
 class ImpressionsWriter(
   private val eventGroupReferenceId: String,
   private val eventGroupPath: String,
-  private val kekUri: String,
-  private val kmsClient: KmsClient,
+  private val kekUri: String?,
+  private val kmsClient: KmsClient?,
   private val impressionsBucket: String,
   private val impressionsMetadataBucket: String,
   private val storagePath: File? = null,
@@ -74,7 +76,7 @@ class ImpressionsWriter(
 ) {
 
   /*
-   * Takes a Flow<DateShardedLabeledImpression<T>>, encrypts that data with a KMS,
+   * Takes a Flow<DateShardedLabeledImpression<T>>, optionally encrypts that data with a KMS,
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    *
@@ -82,9 +84,17 @@ class ImpressionsWriter(
    */
   suspend fun <T : Message> writeLabeledImpressionData(events: Flow<LabeledEventDateShardFlow<T>>) {
     val serializedEncryptionKey =
-      EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+      if (kmsClient != null && kekUri != null) {
+        EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
+      } else {
+        ByteString.EMPTY
+      }
     val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      if (kmsClient != null && kekUri != null) {
+        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      } else {
+        null
+      }
 
     // Collect all date shards first to enable parallel processing
     val dateShards = events.toList()
@@ -106,7 +116,7 @@ class ImpressionsWriter(
     localDate: LocalDate,
     labeledEvents: Flow<LabeledEvent<T>>,
     serializedEncryptionKey: ByteString,
-    encryptedDek: EncryptedDek,
+    encryptedDek: EncryptedDek?,
   ) {
     val eventCounter = AtomicLong(0)
     val ds = localDate.toString()
@@ -150,15 +160,17 @@ class ImpressionsWriter(
     val encryptedStorage = run {
       val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
-      val aeadStorageClient =
-        selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
-
-      MesosRecordIoStorageClient(aeadStorageClient)
+      if (kmsClient == null || kekUri == null) {
+        MesosRecordIoStorageClient(selectedStorageClient)
+      } else {
+        val aeadStorageClient =
+          selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+        MesosRecordIoStorageClient(aeadStorageClient)
+      }
     }
     logger.info("Writing impressions to $impressionsFileUri")
     // Write impressions to storage with progress tracking
     val writeStartTime = TimeSource.Monotonic.markNow()
-    var lastWriteLogTime = writeStartTime
     val impressionBytesFlow =
       labeledImpressions.withIndex().map { (index, impression) ->
         val count = index + 1
@@ -166,20 +178,12 @@ class ImpressionsWriter(
         if (count % 1000000 == 0) {
           val currentTime = TimeSource.Monotonic.markNow()
           val elapsed = currentTime - writeStartTime
-          val intervalElapsed = currentTime - lastWriteLogTime
           val writesPerSecond =
             if (elapsed.inWholeMilliseconds > 0) {
               (count * 1000.0 / elapsed.inWholeMilliseconds).format(2)
             } else "N/A"
-          val intervalWritesPerSecond =
-            if (intervalElapsed.inWholeMilliseconds > 0) {
-              (1000.0 * 1000.0 / intervalElapsed.inWholeMilliseconds).format(2)
-            } else "N/A"
 
-          logger.info(
-            "Date $ds: Written $count impressions to storage (avg: $writesPerSecond/sec, current: $intervalWritesPerSecond/sec)"
-          )
-          lastWriteLogTime = currentTime
+          logger.info("Date $ds: Written $count impressions to storage ($writesPerSecond/sec)")
         }
         impression.toByteString()
       }
@@ -196,7 +200,9 @@ class ImpressionsWriter(
 
     val blobDetails = blobDetails {
       this.blobUri = impressionsFileUri
-      this.encryptedDek = encryptedDek
+      if (encryptedDek != null) {
+        this.encryptedDek = encryptedDek
+      }
       this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
     }
     impressionsMetadataStorageClient.writeBlob(
