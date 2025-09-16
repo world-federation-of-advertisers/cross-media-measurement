@@ -100,7 +100,7 @@ class ParallelBatchedPipelineTest {
                 FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -125,7 +125,6 @@ class ParallelBatchedPipelineTest {
         timestamp = eventTimestamp,
         vid = 500L, // Within our TEST_POPULATION_SPEC range (1-1000)
         message = testEvent,
-        eventGroupReferenceId = "reference-id-1",
       )
 
     // Create a time interval that includes the current event
@@ -145,7 +144,7 @@ class ParallelBatchedPipelineTest {
                 FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -176,21 +175,18 @@ class ParallelBatchedPipelineTest {
         timestamp = now.minusSeconds(7200), // 2 hours ago
         vid = 600L,
         message = testEvent,
-        eventGroupReferenceId = "reference-id-1",
       )
     val currentEvent =
       LabeledEvent(
         timestamp = now.minusSeconds(1800), // 30 minutes ago
         vid = 601L,
         message = testEvent,
-        eventGroupReferenceId = "reference-id-1",
       )
     val futureEvent =
       LabeledEvent(
         timestamp = now.plusSeconds(3600), // 1 hour in future
         vid = 602L,
         message = testEvent,
-        eventGroupReferenceId = "reference-id-1",
       )
 
     // Time interval: 1 hour ago to now (should only include currentEvent)
@@ -211,7 +207,7 @@ class ParallelBatchedPipelineTest {
                 FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -247,7 +243,6 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = (i * 10).toLong(), // VIDs: 10, 20, 30, 40, 50
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         )
       }
 
@@ -269,7 +264,7 @@ class ParallelBatchedPipelineTest {
                 FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -303,49 +298,41 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = 100L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 100L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 200L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 300L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 400L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
         LabeledEvent(
           timestamp = now,
           vid = 500L,
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         ),
       )
 
@@ -367,7 +354,7 @@ class ParallelBatchedPipelineTest {
                 FilterSpec(
                   celExpression = "", // Empty expression matches all events
                   collectionInterval = timeInterval,
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -400,7 +387,6 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = i.toLong(),
           message = TestEvent.getDefaultInstance(),
-          eventGroupReferenceId = "reference-id-1",
         )
       }
 
@@ -416,7 +402,7 @@ class ParallelBatchedPipelineTest {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("reference-id-1"),
+                eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -465,7 +451,6 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = (i + 1).toLong(),
                 message = TestEvent.getDefaultInstance(),
-                eventGroupReferenceId = "reference-id-1",
               )
             emit(
               EventBatch<TestEvent>(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1")
@@ -487,7 +472,7 @@ class ParallelBatchedPipelineTest {
                       startTime = timestamp { seconds = now.epochSecond - 3600 }
                       endTime = timestamp { seconds = now.epochSecond + 3600 }
                     },
-                  eventGroupReferenceIds = listOf("reference-id-1"),
+                  eventGroupReferenceIds = listOf("test-group"),
                 ),
               eventDescriptor = TestEvent.getDescriptor(),
             ),
@@ -517,7 +502,6 @@ class ParallelBatchedPipelineTest {
           timestamp = now,
           vid = (i * 10).toLong(),
           message = testEvent { person = person { ageGroup = Person.AgeGroup.YEARS_18_TO_34 } },
-          eventGroupReferenceId = "reference-id-1",
         )
       }
 
@@ -533,7 +517,7 @@ class ParallelBatchedPipelineTest {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("reference-id-1"),
+                eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -552,7 +536,7 @@ class ParallelBatchedPipelineTest {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("reference-id-1"),
+                eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -604,7 +588,6 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = batchId.toLong(),
                 message = TestEvent.getDefaultInstance(),
-                eventGroupReferenceId = "reference-id-1",
               )
             emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
           }
@@ -624,7 +607,7 @@ class ParallelBatchedPipelineTest {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("reference-id-1"),
+                eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),
@@ -668,7 +651,6 @@ class ParallelBatchedPipelineTest {
                 timestamp = now,
                 vid = (i + 1).toLong(),
                 message = TestEvent.getDefaultInstance(),
-                eventGroupReferenceId = "reference-id-1",
               )
             emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
             kotlinx.coroutines.yield() // Allow cancellation
@@ -689,7 +671,7 @@ class ParallelBatchedPipelineTest {
                     startTime = timestamp { seconds = now.epochSecond - 3600 }
                     endTime = timestamp { seconds = now.epochSecond + 3600 }
                   },
-                eventGroupReferenceIds = listOf("reference-id-1"),
+                eventGroupReferenceIds = listOf("test-group"),
               ),
             eventDescriptor = TestEvent.getDescriptor(),
           ),

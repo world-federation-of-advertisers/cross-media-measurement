@@ -39,7 +39,6 @@ class FrequencyVectorSinkTest {
         timestamp = testInstant,
         vid = vid,
         message = TestEvent.getDefaultInstance(),
-        eventGroupReferenceId = "test-event-group-1",
       )
     }
 
