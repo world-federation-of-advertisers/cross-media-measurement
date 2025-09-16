@@ -18,9 +18,13 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
@@ -30,6 +34,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 
 data class ImpressionMetadataResult(
@@ -135,6 +140,75 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Buffers a delete mutation for the ImpressionMetadata table. */
+fun AsyncDatabaseClient.TransactionContext.deleteImpressionMetadata(
+  dataProviderResourceId: String,
+  impressionMetadataId: Long,
+) {
+  buffer(
+    Mutation.delete("ImpressionMetadata", Key.of(dataProviderResourceId, impressionMetadataId))
+  )
+}
+
+/**
+ * Reads the ID of the [ImpressionMetadata] with the specified resource ID.
+ *
+ * @throws ImpressionMetadataNotFoundException
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataIdByResourceId(
+  dataProviderResourceId: String,
+  impressionMetadataResourceId: String,
+): Long {
+  val row =
+    readRowUsingIndex(
+      "ImpressionMetadata",
+      "ImpressionMetadataByResourceId",
+      Key.of(dataProviderResourceId, impressionMetadataResourceId),
+      "ImpressionMetadataId",
+    )
+      ?: throw ImpressionMetadataNotFoundException(
+        dataProviderResourceId,
+        impressionMetadataResourceId,
+      )
+  return row.getLong("ImpressionMetadataId")
+}
+
+/** Reads [ImpressionMetadata] ordered by resource ID. */
+fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
+  limit: Int,
+  after: ListImpressionMetadataPageToken.After? = null,
+): Flow<ImpressionMetadataResult> {
+  val sql = buildString {
+    appendLine(
+      """
+      SELECT
+        ImpressionMetadata.*
+      FROM
+        ImpressionMetadata
+      """
+        .trimIndent()
+    )
+
+    if (after != null) {
+      appendLine("WHERE ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+    }
+    appendLine("ORDER BY ImpressionMetadataResourceId")
+    appendLine("LIMIT @limit")
+  }
+
+  val query =
+    statement(sql) {
+      if (after != null) {
+        bind("afterImpressionMetadataResourceId").to(after.impressionMetadataResourceId)
+      }
+      bind("limit").to(limit.toLong())
+    }
+
+  return executeQuery(query, Options.tag("action=readImpressionMetadata")).map { row ->
+    ImpressionMetadataEntity.buildImpressionMetadataResult(row)
   }
 }
 
