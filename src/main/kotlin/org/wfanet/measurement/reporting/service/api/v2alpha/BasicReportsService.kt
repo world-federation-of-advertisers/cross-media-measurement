@@ -235,7 +235,7 @@ class BasicReportsService(
         }
       }
 
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetsMap(campaignGroup, campaignGroupKey)
+    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
 
     val reportingSetsMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
@@ -243,7 +243,7 @@ class BasicReportsService(
         campaignGroupName = request.basicReport.campaignGroup,
         impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecsLists,
         dataProviderPrimitiveReportingSetMap =
-          reportingSetMaps.dataProviderPrimitiveReportingSetMap,
+          reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
         eventTemplateFieldsMap = eventTemplateFieldsMap,
       )
@@ -252,7 +252,7 @@ class BasicReportsService(
       buildReport(
         request.basicReport.reportingInterval,
         campaignGroupKey,
-        reportingSetMaps.reportingSetCompositeToNameMap,
+        reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
       )
 
@@ -484,7 +484,7 @@ class BasicReportsService(
    * DataProvider resource name to Primitive ReportingSet and the other for ReportingSet composite
    * to ReportingSet resource name.
    */
-  private suspend fun buildReportingSetsMap(
+  private suspend fun buildReportingSetMaps(
     campaignGroup: ReportingSet,
     campaignGroupKey: ReportingSetKey,
   ): ReportingSetMaps {
@@ -640,7 +640,7 @@ class BasicReportsService(
    *
    * @param reportingInterval [ReportingInterval] from [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
-   * @param reportingSetCompositeToNameMap Map of [ReportingSet.Composite] to ReportingSet resource
+   * @param nameByReportingSetComposite Map of [ReportingSet.Composite] to ReportingSet resource
    *   name
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
@@ -648,11 +648,11 @@ class BasicReportsService(
   private suspend fun buildReport(
     reportingInterval: ReportingInterval,
     campaignGroupKey: ReportingSetKey,
-    reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String>,
+    nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
   ): Report {
-    val existingReportingSetCompositesMap = reportingSetCompositeToNameMap.toMutableMap()
+    val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
       buildMetricCalculationSpecDetailsToNameMap(campaignGroupKey).toMutableMap()
 
@@ -662,45 +662,32 @@ class BasicReportsService(
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
             // Reuse ReportingSet or create a new one if it doesn't exist
-            val existingReportingSetName: String? =
+            key =
               // All required Primitive ReportingSets have already been created so the name exists
               if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
                 reportingSetMetricCalculationSpecDetailsEntry.key.name
               } else {
-                existingReportingSetCompositesMap[
-                  reportingSetMetricCalculationSpecDetailsEntry.key.composite]
-              }
+                existingReportingSetCompositesMap.getOrPut(reportingSetMetricCalculationSpecDetailsEntry.key.composite) {
+                  val externalReportingSetId = "a${UUID.randomUUID()}"
+                  val createdReportingSet =
+                    internalReportingSetsStub.createReportingSet(
+                      createReportingSetRequest {
+                        reportingSet =
+                          reportingSetMetricCalculationSpecDetailsEntry.key.toInternal(
+                            externalReportingSetId,
+                            campaignGroupKey.cmmsMeasurementConsumerId,
+                            internalReportingSetsStub,
+                          )
+                        this.externalReportingSetId = externalReportingSetId
+                      }
+                    )
 
-            key =
-              if (existingReportingSetName != null) {
-                existingReportingSetName
-              } else {
-                val externalReportingSetId = "a${UUID.randomUUID()}"
-                val createdReportingSet =
-                  internalReportingSetsStub.createReportingSet(
-                    createReportingSetRequest {
-                      reportingSet =
-                        reportingSetMetricCalculationSpecDetailsEntry.key.toInternal(
-                          externalReportingSetId,
-                          campaignGroupKey.cmmsMeasurementConsumerId,
-                          internalReportingSetsStub,
-                        )
-                      this.externalReportingSetId = externalReportingSetId
-                    }
-                  )
-
-                val createdReportingSetName =
-                  ReportingSetKey(
+                    ReportingSetKey(
                       createdReportingSet.cmmsMeasurementConsumerId,
                       createdReportingSet.externalReportingSetId,
                     )
-                    .toName()
-
-                existingReportingSetCompositesMap[
-                  reportingSetMetricCalculationSpecDetailsEntry.key.composite] =
-                  createdReportingSetName
-
-                createdReportingSetName
+                      .toName()
+                }
               }
 
             value =
@@ -708,11 +695,7 @@ class BasicReportsService(
                 // Reuse MetricCalculationSpec or create a new one if it doesn't exist
                 for (metricCalculationSpecDetails in
                   reportingSetMetricCalculationSpecDetailsEntry.value) {
-                  val existingMetricCalculationSpecName: String? =
-                    existingMetricCalculationSpecsMap[metricCalculationSpecDetails]
-                  if (existingMetricCalculationSpecName != null) {
-                    metricCalculationSpecs += existingMetricCalculationSpecName
-                  } else {
+                  metricCalculationSpecs += existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpecDetails) {
                     val createdMetricCalculationSpec =
                       internalMetricCalculationSpecsStub.createMetricCalculationSpec(
                         createMetricCalculationSpecRequest {
@@ -733,17 +716,11 @@ class BasicReportsService(
                         }
                       )
 
-                    val createdMetricCalculationSpecName =
                       MetricCalculationSpecKey(
-                          createdMetricCalculationSpec.cmmsMeasurementConsumerId,
-                          createdMetricCalculationSpec.externalMetricCalculationSpecId,
-                        )
+                        createdMetricCalculationSpec.cmmsMeasurementConsumerId,
+                        createdMetricCalculationSpec.externalMetricCalculationSpecId,
+                      )
                         .toName()
-
-                    metricCalculationSpecs += createdMetricCalculationSpecName
-
-                    existingMetricCalculationSpecsMap[metricCalculationSpecDetails] =
-                      createdMetricCalculationSpecName
                   }
                 }
               }
@@ -772,9 +749,9 @@ class BasicReportsService(
 
     private data class ReportingSetMaps(
       // Map of DataProvider resource name to Primitive ReportingSet
-      val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
+      val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
       // Map of ReportingSet composite to ReportingSet resource name
-      val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String>,
+      val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     )
 
     /** Specifies default values using [MetricSpecConfig] */
