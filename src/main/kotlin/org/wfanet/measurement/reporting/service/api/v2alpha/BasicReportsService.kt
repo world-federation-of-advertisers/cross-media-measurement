@@ -41,9 +41,11 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as I
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec as InternalMetricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
@@ -89,8 +91,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -673,7 +673,10 @@ class BasicReportsService(
                   reportingSetMetricCalculationSpecDetailsEntry.key.composite
                 ) {
                   val createdReportingSet =
-                    createCompositeReportingSet(reportingSetMetricCalculationSpecDetailsEntry.key, campaignGroupKey.cmmsMeasurementConsumerId)
+                    createCompositeReportingSet(
+                      reportingSetMetricCalculationSpecDetailsEntry.key,
+                      campaignGroupKey.cmmsMeasurementConsumerId,
+                    )
 
                   ReportingSetKey(
                       createdReportingSet.cmmsMeasurementConsumerId,
@@ -712,7 +715,10 @@ class BasicReportsService(
     }
   }
 
-  private suspend fun createCompositeReportingSet(reportingSet: ReportingSet, cmmsMeasurementConsumerId: String): InternalReportingSet {
+  private suspend fun createCompositeReportingSet(
+    reportingSet: ReportingSet,
+    cmmsMeasurementConsumerId: String,
+  ): InternalReportingSet {
     return internalReportingSetsStub.createReportingSet(
       createReportingSetRequest {
         this.reportingSet =
@@ -726,7 +732,10 @@ class BasicReportsService(
     )
   }
 
-  private suspend fun createMetricCalculationSpec(metricCalculationSpecDetails: MetricCalculationSpec.Details, campaignGroupKey: ReportingSetKey): MetricCalculationSpec {
+  private suspend fun createMetricCalculationSpec(
+    metricCalculationSpecDetails: MetricCalculationSpec.Details,
+    campaignGroupKey: ReportingSetKey,
+  ): MetricCalculationSpec {
     return internalMetricCalculationSpecsStub.createMetricCalculationSpec(
       createMetricCalculationSpecRequest {
         this.metricCalculationSpec = metricCalculationSpec {
@@ -735,9 +744,7 @@ class BasicReportsService(
           details =
             metricCalculationSpecDetails.copy {
               val metricSpecsWithDefault =
-                metricSpecs.map {
-                  it.withDefaults(metricSpecConfig, secureRandom)
-                }
+                metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
               metricSpecs.clear()
               metricSpecs += metricSpecsWithDefault
             }
