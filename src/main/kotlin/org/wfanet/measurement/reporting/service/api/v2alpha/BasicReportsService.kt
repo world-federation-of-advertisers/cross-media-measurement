@@ -570,9 +570,7 @@ class BasicReportsService(
 
     // Map of ReportingSet Composite to ReportingSet resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
-      campaignGroupReportingSetMap.filter {
-        it.key.hasComposite()
-      }
+      campaignGroupReportingSetMap.filter { it.key.hasComposite() }
       for (entry in campaignGroupReportingSetMap) {
         put(entry.key.composite, entry.value.name)
       }
@@ -642,7 +640,8 @@ class BasicReportsService(
    *
    * @param reportingInterval [ReportingInterval] from [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
-   * @param reportingSetCompositeToNameMap Map of [ReportingSet.Composite] to ReportingSet resource name
+   * @param reportingSetCompositeToNameMap Map of [ReportingSet.Composite] to ReportingSet resource
+   *   name
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    */
@@ -668,7 +667,8 @@ class BasicReportsService(
               if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
                 reportingSetMetricCalculationSpecDetailsEntry.key.name
               } else {
-                existingReportingSetCompositesMap[reportingSetMetricCalculationSpecDetailsEntry.key.composite]
+                existingReportingSetCompositesMap[
+                  reportingSetMetricCalculationSpecDetailsEntry.key.composite]
               }
 
             key =
@@ -696,7 +696,8 @@ class BasicReportsService(
                     )
                     .toName()
 
-                existingReportingSetCompositesMap[reportingSetMetricCalculationSpecDetailsEntry.key.composite] =
+                existingReportingSetCompositesMap[
+                  reportingSetMetricCalculationSpecDetailsEntry.key.composite] =
                   createdReportingSetName
 
                 createdReportingSetName
