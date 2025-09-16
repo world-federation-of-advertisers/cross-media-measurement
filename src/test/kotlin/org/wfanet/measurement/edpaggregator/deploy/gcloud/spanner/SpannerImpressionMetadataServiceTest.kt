@@ -31,7 +31,7 @@ class SpannerImpressionMetadataServiceTest : ImpressionMetadataServiceTest() {
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
-  override fun initService(
+  override fun newService(
     idGenerator: IdGenerator
   ): ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient

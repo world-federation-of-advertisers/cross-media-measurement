@@ -136,10 +136,7 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val startTime = Instant.now()
 
-      val request = createImpressionMetadataRequest {
-        impressionMetadata = IMPRESSION_METADATA
-        // no request_id
-      }
+      val request = createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
       val impressionMetadata = service.createImpressionMetadata(request)
 
       assertThat(impressionMetadata)
@@ -192,7 +189,7 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `createImpressionMetadata fails when dataProviderResourceName is missing`() = runBlocking {
+  fun `createImpressionMetadata fails when dataProviderId is missing`() = runBlocking {
     val request = createImpressionMetadataRequest {
       impressionMetadata = IMPRESSION_METADATA.copy { clearDataProviderResourceId() }
     }
@@ -206,17 +203,6 @@ abstract class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata fails when blobUri is missing`() = runBlocking {
     val request = createImpressionMetadataRequest {
       impressionMetadata = IMPRESSION_METADATA.copy { clearBlobUri() }
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `createImpressionMetadata fails when blobTypeUrl is missing`() = runBlocking {
-    val request = createImpressionMetadataRequest {
-      impressionMetadata = IMPRESSION_METADATA.copy { clearBlobTypeUrl() }
     }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
@@ -254,6 +240,17 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `createImpressionMetadata fails when blobTypeUrl is missing`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearBlobTypeUrl() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createImpressionMetadata fails when eventGroupReferenceId is missing`() = runBlocking {
     val request = createImpressionMetadataRequest {
       impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
@@ -268,6 +265,17 @@ abstract class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata fails when cmmsModelLine is missing`() = runBlocking {
     val request = createImpressionMetadataRequest {
       impressionMetadata = IMPRESSION_METADATA.copy { clearCmmsModelLine() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createImpressionMetadata fails when interval is missing`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearInterval() }
     }
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
