@@ -244,6 +244,14 @@ configuration uses one named `config-files`.
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 *   `basic_report_metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
+* `test_event_proto-descriptor-set.proto.bin`
+    *   Serialized Protobuf `FileDescriptorSet` containing Event type.
+* `banner_proto-descriptor-set.proto.bin`
+    *   Serialized Protobuf `FileDescriptorSet` containing EventTemplate type.
+* `person_proto-descriptor-set.proto.bin`
+    *   Serialized Protobuf `FileDescriptorSet` containing EventTemplate type.
+* `video_proto-descriptor-set.proto.bin`
+    *   Serialized Protobuf `FileDescriptorSet` containing EventTemplate type.
 *   `known_event_group_metadata_type_set.pb`
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
@@ -251,6 +259,10 @@ configuration uses one named `config-files`.
     *   [`ImpressionQualificationFilterConfig`](../../src/main/proto/wfa/measurement/config/reporting/impression_qualification_filter_config.proto)
         *   This is unused if the `basic_reports_enabled` variable was set to
             `false` when generating the Kustomization.
+
+`test_event_proto-descriptor-set.proto.bin`, `banner_proto-descriptor-set.proto.bin`,
+`person_proto-descriptor-set.proto.bin`, and `video_proto-descriptor-set.proto.bin`
+are examples and will be specific to the actual Event message.
 
 Place these files into the `src/main/k8s/dev/reporting_v2_config_files/` path
 within the Kustomization directory.

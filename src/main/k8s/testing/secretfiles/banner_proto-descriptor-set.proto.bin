@@ -1,0 +1,8 @@
+
+Ì
+Cwfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto3wfa.measurement.api.v2alpha.event_templates.testing3wfa/measurement/api/v2alpha/event_annotations.proto,wfa/measurement/api/v2alpha/media_type.proto"¤
+BannerÅ
+viewable (B¨‚µ£
+Viewable‘Whether the ad was shown for more than 2 seconds with at least 50% of the pixels on the screen. If not specified, viewability was not determined.*0Rviewable:R‚µN
+	banner_ad	Banner Ad4A simple template for events related to a banner ad. B>
+:org.wfanet.measurement.api.v2alpha.event_templates.testingPbproto3

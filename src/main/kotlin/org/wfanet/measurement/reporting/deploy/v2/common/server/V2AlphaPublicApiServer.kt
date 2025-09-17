@@ -70,6 +70,10 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -81,6 +85,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
@@ -270,6 +275,17 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
+    val eventDescriptor: EventDescriptor? =
+      if (v2AlphaPublicServerFlags.eventProto.isNotEmpty() && v2AlphaPublicServerFlags.eventDescriptorSetFiles.isNotEmpty()) {
+        val eventDescriptor =
+          buildTypeRegistry(v2AlphaPublicServerFlags.eventDescriptorSetFiles)
+            .find(v2AlphaPublicServerFlags.eventProto)
+
+        EventDescriptor(eventDescriptor)
+      } else {
+        null
+      }
+
     val services: List<ServerServiceDefinition> =
       listOf(
         DataProvidersService(
@@ -343,8 +359,7 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
-            // TODO(@tristanvuong2021#2761): Switch to non-null value using flags
-            null,
+            eventDescriptor,
             basicReportMetricSpecConfig,
             authorization,
             serviceDispatcher,
@@ -416,7 +431,54 @@ private object V2AlphaPublicApiServer {
 
     lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
       private set
+
+    @CommandLine.Option(
+      names = ["--event-proto"],
+      description = ["Fully qualified name of the event message type."],
+      required = false,
+      defaultValue = "",
+    )
+    lateinit var eventProto: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--event-descriptor-set"],
+      description =
+      [
+        "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
+          "dependencies.",
+        "This can be specified multiple times.",
+      ],
+      required = false,
+    ) var eventDescriptorSetFiles: List<File> = emptyList()
+      private set
   }
+
+  private fun buildTypeRegistry(descriptorSetFiles: List<File>): TypeRegistry {
+    val descriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      descriptorSetFiles.map {
+        it.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+
+    return TypeRegistry.newBuilder()
+      .add(ProtoReflection.buildDescriptors(descriptorSets, KNOWN_TYPES))
+      .build()
+  }
+
+  private val KNOWN_TYPES =
+    ProtoReflection.WELL_KNOWN_TYPES +
+      EventAnnotationsProto.getDescriptor() +
+      MediaTypeProto.getDescriptor()
+
+  private val EXTENSION_REGISTRY =
+    ExtensionRegistry.newInstance()
+      .apply {
+        add(EventAnnotationsProto.eventTemplate)
+        add(EventAnnotationsProto.templateField)
+      }
+      .unmodifiable
 }
 
 fun main(args: Array<String>) = commandLineMain(V2AlphaPublicApiServer::run, args)
