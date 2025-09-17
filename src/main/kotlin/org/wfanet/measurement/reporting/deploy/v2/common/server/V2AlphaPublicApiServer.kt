@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
@@ -39,11 +41,13 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
@@ -70,10 +74,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
-import com.google.protobuf.ExtensionRegistry
-import com.google.protobuf.TypeRegistry
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -276,7 +276,10 @@ private object V2AlphaPublicApiServer {
         .withShutdownTimeout(Duration.ofSeconds(30))
 
     val eventDescriptor: EventDescriptor? =
-      if (v2AlphaPublicServerFlags.eventProto.isNotEmpty() && v2AlphaPublicServerFlags.eventDescriptorSetFiles.isNotEmpty()) {
+      if (
+        v2AlphaPublicServerFlags.eventProto.isNotEmpty() &&
+          v2AlphaPublicServerFlags.eventDescriptorSetFiles.isNotEmpty()
+      ) {
         val eventDescriptor =
           buildTypeRegistry(v2AlphaPublicServerFlags.eventDescriptorSetFiles)
             .find(v2AlphaPublicServerFlags.eventProto)
@@ -444,13 +447,14 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Option(
       names = ["--event-descriptor-set"],
       description =
-      [
-        "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
-          "dependencies.",
-        "This can be specified multiple times.",
-      ],
+        [
+          "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
+            "dependencies.",
+          "This can be specified multiple times.",
+        ],
       required = false,
-    ) var eventDescriptorSetFiles: List<File> = emptyList()
+    )
+    var eventDescriptorSetFiles: List<File> = emptyList()
       private set
   }
 

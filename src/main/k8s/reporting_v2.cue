@@ -93,13 +93,13 @@ package k8s
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
-  _eventDescriptorArgs: [
-  	"--event-proto=wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
-    "--event-descriptor-set=/etc/\(#AppName)/config-files/test_event_proto-descriptor-set.proto.bin",
-    "--event-descriptor-set=/etc/\(#AppName)/config-files/banner_proto-descriptor-set.proto.bin",
-    "--event-descriptor-set=/etc/\(#AppName)/config-files/video_proto-descriptor-set.proto.bin",
-    "--event-descriptor-set=/etc/\(#AppName)/config-files/person_proto-descriptor-set.proto.bin",
-  ]
+	_eventDescriptorArgs: [
+		"--event-proto=wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-descriptor-set=/etc/\(#AppName)/config-files/test_event_proto-descriptor-set.proto.bin",
+		"--event-descriptor-set=/etc/\(#AppName)/config-files/banner_proto-descriptor-set.proto.bin",
+		"--event-descriptor-set=/etc/\(#AppName)/config-files/video_proto-descriptor-set.proto.bin",
+		"--event-descriptor-set=/etc/\(#AppName)/config-files/person_proto-descriptor-set.proto.bin",
+	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_akidToPrincipalMapFileFlag:                  "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_measurementConsumerConfigFileFlag:           "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
