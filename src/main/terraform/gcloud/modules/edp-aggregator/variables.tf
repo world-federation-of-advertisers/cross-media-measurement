@@ -237,8 +237,3 @@ variable "results_fulfiller_disk_image_family" {
   type        = string
   default     = "confidential-space"
 }
-
-variable "results_fulfiller_signed_image_repo" {
-  description = "Trusted container image repository for Results Fulfiller confidential attestation."
-  type        = string
-}
