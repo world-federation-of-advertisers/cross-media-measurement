@@ -31,8 +31,8 @@ option java_multiple_files = true;
 message RateLimitConfig {
   // Rate limit configuration for an RPC method.
   message MethodRateLimit {
-    // Maximum number of requests at one time. A negative value means there is
-    // no rate limit.
+    // Maximum number of requests allowed in an instant, i.e. the burst limit. A
+    // negative value means there is no rate limit.
     int32 maximum_request_count = 1;
     // Average number of requests per second.
     double average_request_rate = 2;

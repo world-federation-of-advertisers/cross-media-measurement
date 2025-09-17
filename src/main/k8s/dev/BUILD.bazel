@@ -84,13 +84,17 @@ kustomization_dir(
 )
 
 kustomization_dir(
-    name = "config_files",
+    name = "kingdom_config_files",
     testonly = True,
     srcs = [
-        "config_files_kustomization.yaml",
+        "kingdom_config_files_kustomization.yaml",
+        "unlimited_rate_limit_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
-    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+    renames = {
+        "kingdom_config_files_kustomization.yaml": "kustomization.yaml",
+        "unlimited_rate_limit_config.textproto": "rate_limit_config.textproto",
+    },
 )
 
 kustomization_dir(
@@ -103,7 +107,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        "config_files",
+        "kingdom_config_files",
         ":kingdom_secret",
     ],
 )
@@ -288,6 +292,15 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "duchy_config_files",
+    testonly = True,
+    srcs = [
+        "duchy_config_files_kustomization.yaml",
+    ],
+    renames = {"duchy_config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
     name = "aggregator_duchy",
     testonly = True,
     srcs = [
@@ -298,7 +311,7 @@ kustomization_dir(
     tags = ["manual"],
     deps = [
         ":aggregator_duchy_secret",
-        ":config_files",
+        ":duchy_config_files",
     ],
 )
 
@@ -312,7 +325,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":config_files",
+        ":duchy_config_files",
         ":worker1_duchy_secret",
     ],
 )
@@ -327,7 +340,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":config_files",
+        ":duchy_config_files",
         ":worker2_duchy_secret",
     ],
 )
@@ -342,7 +355,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":config_files",
+        ":duchy_config_files",
         ":worker2_duchy_secret",
     ],
 )
