@@ -523,6 +523,11 @@ class MetricReport:
     return get_subset_relationships(
         list(self.get_whole_campaign_reach_edp_combinations()))
 
+  def get_weekly_non_cumulative_reach_subset_relationships(self) -> list[
+    Tuple[EdpCombination, EdpCombination]]:
+    return get_subset_relationships(
+        list(self.get_weekly_non_cumulative_reach_edp_combinations()))
+
   def get_cumulative_cover_relationships(self) -> list[
     Tuple[EdpCombination, list[EdpCombination]]]:
     return get_cover_relationships(list(self._weekly_cumulative_reaches))
@@ -532,6 +537,10 @@ class MetricReport:
   ) -> list[Tuple[EdpCombination, list[EdpCombination]]]:
     return get_cover_relationships(
         list(self.get_whole_campaign_reach_edp_combinations()))
+
+  def get_weekly_non_cumulative_reach_cover_relationships(self) -> list[
+     Tuple[EdpCombination, list[EdpCombination]]]:
+     return get_cover_relationships(list(self.get_weekly_cumulative_reach_edp_combinations()))
 
   @staticmethod
   def _sample_with_noise(measurement: Measurement) -> Measurement:
@@ -858,12 +867,29 @@ class Report:
             parent=self._get_whole_campaign_reach_measurement_index(
                 metric, covered_parent),
         )
+      for cover_relationship in self._metric_reports[
+        metric].get_weekly_non_cumulative_reach_cover_relationships():
+        logging.debug(
+            f"Adding {metric} cover relations for weekly non cumulative reach "
+            f"measurements."
+        )
+        covered_parent = cover_relationship[0]
+        covering_children = cover_relationship[1]
+        for period in range(0, self._num_periods):
+          spec.add_cover(
+              children=list(
+                  self._get_weekly_non_cumulative_reach_measurement_index(
+                      metric, covering_child, period)
+                  for covering_child in covering_children),
+              parent=self._get_weekly_non_cumulative_reach_measurement_index(
+                  metric, covered_parent, period),
+          )
     logging.info("Finished adding cover relations to spec.")
 
   def _add_subset_relations_to_spec(self, spec: SetMeasurementsSpec):
-    # Adds relations for cumulative measurements.
     for metric in self._metric_reports:
       metric_report = self._metric_reports[metric]
+      # Adds relations for cumulative measurements.
       for subset_relationship in \
           metric_report.get_cumulative_subset_relationships():
         parent_edp_combination = subset_relationship[0]
@@ -899,6 +925,26 @@ class Report:
                 )
             ),
         )
+
+      # Adds relations for weekly non cumulative measurements.
+      for subset_relationship in \
+          metric_report.get_weekly_non_cumulative_reach_subset_relationships():
+        parent_edp_combination = subset_relationship[0]
+        child_edp_combination = subset_relationship[1]
+        for period in range(0, self._num_periods):
+            spec.add_subset_relation(
+                child_set_id=self._get_measurement_index(
+                    metric_report.get_weekly_non_cumulative_reach_measurement(
+                        child_edp_combination, period
+                    )
+                ),
+                parent_set_id=self._get_measurement_index(
+                    metric_report.get_weekly_non_cumulative_reach_measurement(
+                        parent_edp_combination, period
+                    )
+                ),
+            )
+
     logging.info("Finished adding subset relations to spec.")
 
   def _get_ordered_sets_for_cumulative_measurements_within_metric(
@@ -1513,6 +1559,14 @@ class Report:
     return self._get_measurement_index(
         self._metric_reports[metric].get_whole_campaign_reach_measurement(
             edp_combination)
+    )
+
+  def _get_weekly_non_cumulative_reach_measurement_index(
+      self, metric: str, edp_combination: EdpCombination, period: int
+    ) -> int:
+    return self._get_measurement_index(
+        self._metric_reports[metric].get_weekly_non_cumulative_reach_measurement(
+            edp_combination, period)
     )
 
   def _metric_report_from_solution(self, metric: str,
