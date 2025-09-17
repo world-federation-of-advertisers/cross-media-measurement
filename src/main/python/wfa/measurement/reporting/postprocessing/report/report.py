@@ -240,7 +240,7 @@ def get_edps_from_edp_combination(
 
 
 
-def build_whole_campaign_measurements(
+def build_measurement_set(
     reach: dict[EdpCombination, Measurement],
     k_reach: dict[EdpCombination, KReachMeasurements],
     impression: dict[EdpCombination, Measurement]
@@ -297,27 +297,35 @@ class MetricReport:
           EdpCombination, list[MeasurementSet]
       ],
   ):
-    num_periods = len(
-        next(iter(weekly_cumulative_reaches.values()))) if weekly_cumulative_reaches else 0
+    # Get the number of periods and check that all time series have the same
+    # length.
+    periods = set()
+    for edp_combination in weekly_cumulative_reaches.keys():
+      periods.add(len(weekly_cumulative_reaches[edp_combination]))
+    for edp_combination in weekly_non_cumulative_measurements.keys():
+      periods.add(len(weekly_non_cumulative_measurements[edp_combination]))
 
-    for series in weekly_cumulative_reaches.values():
-      if len(series) != num_periods:
-        raise ValueError(
-            "All time series must have the same length {1: d} vs {2: d}".format(
-                len(series), len(num_periods)
-            )
-        )
+    if len(periods) > 1:
+      raise ValueError("All weekly measurements must have the same number of periods.")
 
-    k_reach_lengths = {
-        len(measurement_set.k_reach)
-        for measurement_set in whole_campaign_measurements.values()
-        if measurement_set.k_reach
-    }
+    self._num_periods = next(iter(periods)) if len(periods) == 1 else 0
 
-    if len(k_reach_lengths) > 1:
-      raise ValueError(
-          "All non-empty k_reach must have the same number of frequencies."
-      )
+    frequencies = set()
+    for edp_combination in whole_campaign_measurements.keys():
+      k_reach_measurements = whole_campaign_measurements[edp_combination].k_reach
+      if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+        frequencies.add(len(k_reach_measurements))
+
+    for edp_combination in weekly_non_cumulative_measurements.keys():
+      for period in range(0, self._num_periods):
+        k_reach_measurements = weekly_non_cumulative_measurements[edp_combination][period].k_reach
+        if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+          frequencies.add(len(k_reach_measurements))
+
+    if len(frequencies) > 1:
+      raise ValueError("All k-reach measurements must have the same number of frequencies.")
+
+    self._num_frequencies = next(iter(frequencies)) if len(frequencies) == 1 else 0
 
     self._weekly_cumulative_reaches = weekly_cumulative_reaches
     self._whole_campaign_measurements = whole_campaign_measurements
@@ -341,15 +349,80 @@ class MetricReport:
         }
     )
 
+  def get_num_periods(self) -> int:
+    return self._num_periods
+
+  def get_num_frequencies(self) -> int:
+    return self._num_frequencies
+
   def get_weekly_cumulative_reach_measurements(
       self, edp_combination: EdpCombination
   ) -> list[Measurement]:
+    if edp_combination not in self._weekly_cumulative_reaches:
+      return None
+
     return self._weekly_cumulative_reaches[edp_combination]
 
   def get_weekly_cumulative_reach_measurement(
       self, edp_combination: EdpCombination, period: int
   ) -> Measurement:
+    if edp_combination not in self._weekly_cumulative_reaches:
+      return None
+
+    if period >= self._num_periods:
+      return None
+
     return self._weekly_cumulative_reaches[edp_combination][period]
+
+  def get_weekly_non_cumulative_reach_measurement(
+      self, edp_combination: EdpCombination, period: int
+  ) -> Measurement:
+    if edp_combination not in self._weekly_non_cumulative_measurements:
+      return None
+
+    if period >= len(self._weekly_non_cumulative_measurements[edp_combination]):
+      return None
+
+    if self._weekly_non_cumulative_measurements[edp_combination][period].reach is None:
+      return None
+
+    return self._weekly_non_cumulative_measurements[edp_combination][period].reach
+
+  def get_weekly_non_cumulative_impression_measurement(
+      self, edp_combination: EdpCombination, period: int
+  ) -> Measurement:
+    if edp_combination not in self._weekly_non_cumulative_measurements:
+      return None
+
+    if period >= len(self._weekly_non_cumulative_measurements[edp_combination]):
+      return None
+
+    if self._weekly_non_cumulative_measurements[edp_combination][period].impression is None:
+      return None
+
+    return self._weekly_non_cumulative_measurements[edp_combination][period].impression
+
+  def get_weekly_non_cumulative_k_reach_measurements(
+      self, edp_combination: EdpCombination, period: int
+  ) -> list[Measurement]:
+    if edp_combination not in self._weekly_non_cumulative_measurements:
+      return None
+
+    if period >= len(self._weekly_non_cumulative_measurements[edp_combination]):
+      return None
+
+    return self._weekly_non_cumulative_measurements[edp_combination][period].k_reach.values()
+
+  def get_weekly_non_cumulative_k_reach_measurement(
+      self, edp_combination: EdpCombination, period: int, frequency: int
+  ) -> Measurement:
+    k_reach_measurements = self.get_weekly_non_cumulative_k_reach_measurements(
+        edp_combination, period)
+
+    if k_reach_measurements is None:
+      return None
+
+    return self._weekly_non_cumulative_measurements[edp_combination][period].k_reach[frequency]
 
   def get_whole_campaign_reach_measurement(
       self, edp_combination: EdpCombination
@@ -373,6 +446,30 @@ class MetricReport:
 
   def get_weekly_cumulative_reach_edp_combinations(self) -> set[EdpCombination]:
     return set(self._weekly_cumulative_reaches.keys())
+
+  def get_weekly_non_cumulative_reach_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp in self._weekly_non_cumulative_measurements.keys()
+        if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
+          self._weekly_non_cumulative_measurements[edp][0].reach is not None
+    }
+
+  def get_weekly_non_cumulative_k_reach_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp in self._weekly_non_cumulative_measurements.keys()
+        if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
+          self._weekly_non_cumulative_measurements[edp][0].k_reach is not None
+    }
+
+  def get_weekly_non_cumulative_impression_edp_combinations(self) -> set[EdpCombination]:
+    return {
+        edp
+        for edp in self._weekly_non_cumulative_measurements.keys()
+        if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
+          self._weekly_non_cumulative_measurements[edp][0].impression is not None
+    }
 
   def get_whole_campaign_reach_edp_combinations(self) -> set[EdpCombination]:
     return {
@@ -504,11 +601,25 @@ class Report:
     for index, metric in enumerate(metric_reports.keys()):
       self._metric_index[metric] = index
 
-    self._num_periods = next(
-        iter(metric_reports.values())).get_number_of_periods()
+    periods = set()
+    for metric in metric_reports.keys():
+      if metric_reports[metric].get_num_periods() > 0:
+        periods.add(metric_reports[metric].get_num_periods())
 
-    self._num_frequencies = next(
-        iter(metric_reports.values())).get_number_of_frequencies()
+    if len(periods) > 1:
+      raise ValueError("All weekly measurements must have the same number of periods.")
+
+    self._num_periods = next(iter(periods)) if len(periods) == 1 else 0
+
+    frequencies = set()
+    for metric in metric_reports.keys():
+      if metric_reports[metric].get_num_frequencies() > 0:
+        frequencies.add(metric_reports[metric].get_num_frequencies())
+
+    if len(frequencies) > 1:
+      raise ValueError("All k-reach measurements must have the same number of frequencies.")
+
+    self._num_frequencies = next(iter(frequencies)) if len(frequencies) == 1 else 0
 
     # Assigns an index to each measurement and keeps track of the max standard
     # deviation. This max standard deviation will be used to normalized the
@@ -517,49 +628,75 @@ class Report:
     self._measurement_name_to_index = {}
     self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
+      metric_report = metric_reports[metric]
       # Assigns an index for whole campaign reaches.
-      for edp_combination in metric_reports[
-        metric].get_whole_campaign_reach_edp_combinations():
-        measurement = metric_reports[
-            metric].get_whole_campaign_reach_measurement(edp_combination)
+      for edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+        measurement = metric_report.get_whole_campaign_reach_measurement(
+          edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
 
       # Assigns an index for cumulative reaches.
-      for edp_combination in metric_reports[
-        metric].get_weekly_cumulative_reach_edp_combinations():
+      for edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
         for period in range(0, self._num_periods):
-          measurement = metric_reports[
-              metric].get_weekly_cumulative_reach_measurement(
-                  edp_combination, period)
+          measurement = metric_report.get_weekly_cumulative_reach_measurement(
+            edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
 
-      # Assign an index for k_reach.
-      for edp_combination in metric_reports[
-        metric].get_whole_campaign_k_reach_edp_combinations():
+      # Assign an index for whole campaign k_reach.
+      for edp_combination in metric_report.get_whole_campaign_k_reach_edp_combinations():
         for frequency in range(1, self._num_frequencies + 1):
-          measurement = metric_reports[
-              metric].get_whole_campaign_k_reach_measurement(
+          measurement = metric_report.get_whole_campaign_k_reach_measurement(
                   edp_combination, frequency)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
 
-      # Assigns an index for impressions.
-      for edp_combination in metric_reports[
-        metric].get_whole_campaign_impression_edp_combinations():
-        measurement = metric_reports[
-            metric].get_whole_campaign_impression_measurement(edp_combination)
+      # Assigns an index for whole campaign impressions.
+      for edp_combination in metric_report.get_whole_campaign_impression_edp_combinations():
+        measurement = metric_report.get_whole_campaign_impression_measurement(
+          edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
+
+      # Assign an index for weekly non cumulative reach.
+      for edp_combination in metric_report.get_weekly_non_cumulative_reach_edp_combinations():
+        for period in range(0, self._num_periods):
+          measurement = metric_report.get_weekly_non_cumulative_reach_measurement(
+            edp_combination, period)
+          self._measurement_name_to_index[measurement.name] = measurement_index
+          self._max_standard_deviation = max(self._max_standard_deviation,
+                                             measurement.sigma)
+          measurement_index += 1
+
+      # Assign an index for weekly non cumulative k-reach.
+      for edp_combination in metric_report.get_weekly_non_cumulative_k_reach_edp_combinations():
+        for period in range(0, self._num_periods):
+          for frequency in range(1, self._num_frequencies + 1):
+            measurement = metric_report.get_weekly_non_cumulative_k_reach_measurement(
+              edp_combination, period, frequency)
+            self._measurement_name_to_index[measurement.name] = measurement_index
+            self._max_standard_deviation = max(self._max_standard_deviation,
+                                               measurement.sigma)
+            measurement_index += 1
+
+      # Assign an index for weekly non cumulative impression.
+      for edp_combination in metric_report.get_weekly_non_cumulative_impression_edp_combinations():
+        for period in range(0, self._num_periods):
+          measurement = metric_report.get_weekly_non_cumulative_impression_measurement(
+            edp_combination, period)
+          self._measurement_name_to_index[measurement.name] = measurement_index
+          self._max_standard_deviation = max(self._max_standard_deviation,
+                                             measurement.sigma)
+          measurement_index += 1
 
     self._num_vars = measurement_index
 
@@ -1240,54 +1377,104 @@ class Report:
 
     logging.info("Finished adding set relations to spec.")
 
-  def _add_measurements_to_spec(self, spec: SetMeasurementsSpec):
+  def _add_weekly_cumulative_measurements_to_spec(self,
+                                                  spec: SetMeasurementsSpec):
     for metric in self._metric_reports.keys():
-      for edp_combination in self._metric_reports[
-        metric].get_weekly_cumulative_reach_edp_combinations():
+      metric_report = self._metric_reports[metric]
+      for edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
         for period in range(self._num_periods):
-          measurement = self._metric_reports[
-            metric].get_weekly_cumulative_reach_measurement(
-                edp_combination, period)
+          measurement = metric_report.get_weekly_cumulative_reach_measurement(
+              edp_combination, period)
           spec.add_measurement(
               self._get_measurement_index(measurement),
               Measurement(measurement.value,
                           self._normalized_sigma(measurement.sigma),
                           measurement.name),
           )
-      for edp_combination in self._metric_reports[
-        metric].get_whole_campaign_reach_edp_combinations():
-        measurement = self._metric_reports[
-          metric].get_whole_campaign_reach_measurement(edp_combination)
+
+  def _add_whole_campaign_measurements_to_spec(self,
+                                               spec: SetMeasurementsSpec):
+    for metric in self._metric_reports.keys():
+      metric_report = self._metric_reports[metric]
+      # Whole campaign reach measurements.
+      for edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+        measurement = metric_report.get_whole_campaign_reach_measurement(
+            edp_combination)
         spec.add_measurement(
             self._get_measurement_index(measurement),
             Measurement(measurement.value,
                         self._normalized_sigma(measurement.sigma),
                         measurement.name),
         )
-      for edp_combination in self._metric_reports[
-        metric].get_whole_campaign_k_reach_edp_combinations():
+
+      # Whole campaign k-reach measurements.
+      for edp_combination in metric_report.get_whole_campaign_k_reach_edp_combinations():
         for frequency in range(1, self._num_frequencies + 1):
-          measurement = self._metric_reports[
-              metric].get_whole_campaign_k_reach_measurement(
-                  edp_combination, frequency)
+          measurement = metric_report.get_whole_campaign_k_reach_measurement(
+              edp_combination, frequency)
           spec.add_measurement(
               self._get_measurement_index(measurement),
               Measurement(measurement.value,
                           self._normalized_sigma(measurement.sigma),
                           measurement.name),
           )
-      for edp_combination in self._metric_reports[
-        metric].get_whole_campaign_impression_edp_combinations():
-        measurement = self._metric_reports[
-          metric].get_whole_campaign_impression_measurement(edp_combination)
+
+      # Whole campaign impression measurements.
+      for edp_combination in metric_report.get_whole_campaign_impression_edp_combinations():
+        measurement = metric_report.get_whole_campaign_impression_measurement(
+            edp_combination)
         spec.add_measurement(
             self._get_measurement_index(measurement),
             Measurement(measurement.value,
                         self._normalized_sigma(measurement.sigma),
                         measurement.name),
         )
-      logging.info(
-          "Finished adding the measurements to the set measurement spec.")
+
+
+  def _add_weekly_non_cumulative_measurements_to_spec(self, spec: SetMeasurementsSpec):
+    for metric in self._metric_reports.keys():
+      metric_report = self._metric_reports[metric]
+      for edp_combination in metric_report.get_weekly_non_cumulative_reach_edp_combinations():
+        for period in range(self._num_periods):
+          measurement = metric_report.get_weekly_non_cumulative_reach_measurement(
+            edp_combination, period)
+          spec.add_measurement(
+              self._get_measurement_index(measurement),
+              Measurement(measurement.value,
+                          self._normalized_sigma(measurement.sigma),
+                          measurement.name),
+          )
+
+      for edp_combination in metric_report.get_weekly_non_cumulative_k_reach_edp_combinations():
+        for period in range(self._num_periods):
+          for frequency in range(1, self._num_frequencies + 1):
+            measurement = metric_report.get_weekly_non_cumulative_k_reach_measurement(
+              edp_combination, period, frequency)
+            spec.add_measurement(
+                self._get_measurement_index(measurement),
+                Measurement(measurement.value,
+                            self._normalized_sigma(measurement.sigma),
+                            measurement.name),
+            )
+
+      for edp_combination in metric_report.get_weekly_non_cumulative_impression_edp_combinations():
+        for period in range(self._num_periods):
+          measurement = metric_report.get_weekly_non_cumulative_impression_measurement(
+            edp_combination, period)
+          spec.add_measurement(
+              self._get_measurement_index(measurement),
+              Measurement(measurement.value,
+                          self._normalized_sigma(measurement.sigma),
+                          measurement.name),
+          )
+
+
+  def _add_measurements_to_spec(self, spec: SetMeasurementsSpec):
+    self._add_weekly_cumulative_measurements_to_spec(spec)
+    self._add_whole_campaign_measurements_to_spec(spec)
+    self._add_weekly_non_cumulative_measurements_to_spec(spec)
+    logging.info(
+        "Finished adding the measurements to the set measurement spec.")
 
   def _normalized_sigma(self, sigma: float) -> float:
     """Normalizes the standard deviation.
