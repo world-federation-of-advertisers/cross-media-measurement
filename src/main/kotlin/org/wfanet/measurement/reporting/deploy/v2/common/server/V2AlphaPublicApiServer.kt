@@ -98,6 +98,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
 private object V2AlphaPublicApiServer {
@@ -265,12 +266,37 @@ private object V2AlphaPublicApiServer {
       )
 
     startInProcessServerWithService(
-      IN_PROCESS_SERVER_NAME,
+      "$IN_PROCESS_SERVER_NAME-metrics",
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
     )
-    val inProcessChannel =
-      InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
+
+    val inProcessMetricsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-metrics")
+        .directExecutor()
+        .build()
+        .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val reportsService =
+      ReportsService(
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessMetricsChannel),
+        metricSpecConfig,
+        authorization,
+        SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.allowSamplingIntervalWrapping,
+        serviceDispatcher,
+      )
+
+    startInProcessServerWithService(
+      "$IN_PROCESS_SERVER_NAME-reports",
+      commonServerFlags,
+      reportsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+    )
+
+    val inProcessReportsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-reports")
         .directExecutor()
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
@@ -321,17 +347,7 @@ private object V2AlphaPublicApiServer {
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
-        ReportsService(
-            InternalReportsCoroutineStub(channel),
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            MetricsCoroutineStub(inProcessChannel),
-            metricSpecConfig,
-            authorization,
-            SecureRandom().asKotlinRandom(),
-            reportingApiServerFlags.allowSamplingIntervalWrapping,
-            serviceDispatcher,
-          )
-          .withInterceptor(principalAuthInterceptor),
+        reportsService.withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(
             InternalReportSchedulesCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
@@ -362,8 +378,11 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            ReportsCoroutineStub(inProcessReportsChannel),
             eventDescriptor,
             basicReportMetricSpecConfig,
+            SecureRandom().asKotlinRandom(),
             authorization,
             serviceDispatcher,
           )
