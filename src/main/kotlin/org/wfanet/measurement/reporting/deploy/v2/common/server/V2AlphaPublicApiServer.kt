@@ -302,6 +302,7 @@ private object V2AlphaPublicApiServer {
         .withShutdownTimeout(Duration.ofSeconds(30))
 
     val eventDescriptor: EventDescriptor? =
+      // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
       if (
         v2AlphaPublicServerFlags.eventProto.isNotEmpty() &&
           v2AlphaPublicServerFlags.eventDescriptorSetFiles.isNotEmpty()
