@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.edpaggregator.service.api.v1alpha
+package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.protobuf.Timestamp
 import io.grpc.Status
@@ -31,7 +31,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataRequest as internalFulfillRequisitionMetadataRequest
@@ -39,6 +42,7 @@ import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataReque
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest as internalLookupRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest as internalQueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
@@ -224,5 +228,61 @@ class RequisitionMetadataService(
       refusalMessage = request.refusalMessage
     }
     return internalClient.refuseRequisitionMetadata(internalRequest).toRequisitionMetadata()
+  }
+
+  /** Converts an internal [InternalRequisitionMetadata] to a public [RequisitionMetadata]. */
+  fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
+    val source = this
+    return requisitionMetadata {
+      name =
+        RequisitionMetadataKey(source.dataProviderResourceId, source.requisitionMetadataResourceId)
+          .toName()
+      cmmsRequisition = source.cmmsRequisition
+      blobUri = source.blobUri
+      blobTypeUrl = source.blobTypeUrl
+      groupId = source.groupId
+      cmmsCreateTime = source.cmmsCreateTime
+      report = source.report
+      workItem = source.workItem
+      state = source.state.toState()
+      createTime = source.createTime
+      updateTime = source.updateTime
+      refusalMessage = source.refusalMessage
+      etag = source.etag
+    }
+  }
+
+  /**
+   * Converts a public [RequisitionMetadata] to an internal [InternalRequisitionMetadata] for
+   * creation.
+   */
+  fun RequisitionMetadata.toInternal(
+    dataProviderKey: DataProviderKey
+  ): InternalRequisitionMetadata {
+    val source = this
+    return internalRequisitionMetadata {
+      this.dataProviderResourceId = dataProviderKey.dataProviderId
+      cmmsRequisition = source.cmmsRequisition
+      blobUri = source.blobUri
+      blobTypeUrl = source.blobTypeUrl
+      groupId = source.groupId
+      cmmsCreateTime = source.cmmsCreateTime
+      report = source.report
+      workItem = source.workItem
+      refusalMessage = source.refusalMessage
+    }
+  }
+
+  /** Converts an [InternalState] to a public [RequisitionMetadata.State]. */
+  internal fun InternalState.toState(): RequisitionMetadata.State {
+    return when (this) {
+      InternalState.REQUISITION_METADATA_STATE_STORED -> RequisitionMetadata.State.STORED
+      InternalState.REQUISITION_METADATA_STATE_QUEUED -> RequisitionMetadata.State.QUEUED
+      InternalState.REQUISITION_METADATA_STATE_PROCESSING -> RequisitionMetadata.State.PROCESSING
+      InternalState.REQUISITION_METADATA_STATE_FULFILLED -> RequisitionMetadata.State.FULFILLED
+      InternalState.REQUISITION_METADATA_STATE_REFUSED -> RequisitionMetadata.State.REFUSED
+      InternalState.UNRECOGNIZED,
+      InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED -> error("Unrecognized state")
+    }
   }
 }

@@ -6,13 +6,13 @@ load(
 spanner_emulator_test(
     name = "RequisitionMetadataServiceTest",
     srcs = ["RequisitionMetadataServiceTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.service.api.v1alpha.RequisitionMetadataServiceTest",
+    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.RequisitionMetadataServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_requisition_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/api/v1alpha:requisition_metadata_service",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/api/v1alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:requisition_metadata_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
