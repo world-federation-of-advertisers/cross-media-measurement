@@ -136,6 +136,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
   }
 
   override fun buildEdpSimulator(
+    edpDisplayName: String,
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
     requisitionFulfillmentStubsByDuchyId:
@@ -151,6 +152,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
   ): AbstractEdpSimulator {
     return LegacyMetadataEdpSimulator(
       edpData,
+      edpDisplayName,
       measurementConsumerName,
       MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(kingdomPublicApiChannel),
       CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel),
