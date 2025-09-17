@@ -61,6 +61,9 @@ service RequisitionMetadataService {
   //
   // Used to determine the starting point for fetching new
   // requisitions from the Kingdom.
+  //
+  // If there is no requisitions for the given parent, a timestamp of epoch
+  // will be returned.
   rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
       returns (google.protobuf.Timestamp) {}
 

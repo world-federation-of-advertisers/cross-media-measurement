@@ -36,3 +36,7 @@ databaseChangeLog:
 - include:
     file: create-basic-reports-state-index.sql
     relativeToChangeLogFile: true
+# TODO(@sanjayvas): Reinstate this when the service is implemented.
+#- include:
+#    file: create-report-results-schema.sql
+#    relativeToChangeLogFile: true

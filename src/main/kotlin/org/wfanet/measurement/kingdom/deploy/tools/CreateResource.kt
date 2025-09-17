@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.CanonicalRecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
@@ -189,7 +190,14 @@ private class CreateDataProviderCommand : Runnable {
 
     val apiId = externalIdToApiId(outputDataProvider.externalDataProviderId)
     val dataProviderName = DataProviderKey(apiId).toName()
-    println("Data Provider Name: $dataProviderName")
+    val certificateName =
+      DataProviderCertificateKey(
+          apiId,
+          externalIdToApiId(outputDataProvider.certificate.externalCertificateId),
+        )
+        .toName()
+    println("DataProvider name: $dataProviderName")
+    println("Certificate name: $certificateName")
   }
 }
 
