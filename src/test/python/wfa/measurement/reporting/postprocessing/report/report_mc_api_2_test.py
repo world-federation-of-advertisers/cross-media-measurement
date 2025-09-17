@@ -1885,6 +1885,289 @@ class TestReportMcApi2(unittest.TestCase):
             expected_set[1].sort()
         self.assertCountEqual(actual_equal_sets, expected_equal_sets)
 
+    def test_reach_impression_relations_are_correctly_added_to_spec(self):
+        report = SAMPLE_REPORT
+        name_to_index = report._measurement_name_to_index
+
+        expected_subsets_by_set = {
+            # AMI constraints.
+            # Whole Campaign
+            name_to_index["measurement_034"]: [
+                name_to_index["measurement_009"]
+            ],
+            name_to_index["measurement_035"]: [
+                name_to_index["measurement_010"]
+            ],
+            name_to_index["measurement_036"]: [
+                name_to_index["measurement_011"]
+            ],
+            name_to_index["measurement_037"]: [
+                name_to_index["measurement_012"]
+            ],
+            name_to_index["measurement_038"]: [
+                name_to_index["measurement_013"]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_045"]: [
+                name_to_index["measurement_039"]
+            ],
+            name_to_index["measurement_059"]: [
+                name_to_index["measurement_053"]
+            ],
+            name_to_index["measurement_073"]: [
+                name_to_index["measurement_067"]
+            ],
+            name_to_index["measurement_087"]: [
+                name_to_index["measurement_081"]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_052"]: [
+                name_to_index["measurement_046"]
+            ],
+            name_to_index["measurement_066"]: [
+                name_to_index["measurement_060"]
+            ],
+            name_to_index["measurement_080"]: [
+                name_to_index["measurement_074"]
+            ],
+            name_to_index["measurement_094"]: [
+                name_to_index["measurement_088"]
+            ],
+            # MRC constraints.
+            # Whole Campaign
+            name_to_index["measurement_127"]: [
+                name_to_index["measurement_103"]
+            ],
+            name_to_index["measurement_128"]: [
+                name_to_index["measurement_104"]
+            ],
+            name_to_index["measurement_129"]: [
+                name_to_index["measurement_105"]
+            ],
+            name_to_index["measurement_130"]: [
+                name_to_index["measurement_106"]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_137"]: [
+                name_to_index["measurement_131"]
+            ],
+            name_to_index["measurement_151"]: [
+                name_to_index["measurement_145"]
+            ],
+            name_to_index["measurement_165"]: [
+                name_to_index["measurement_159"]
+            ],
+            name_to_index["measurement_179"]: [
+                name_to_index["measurement_173"]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_144"]: [
+                name_to_index["measurement_138"]
+            ],
+            name_to_index["measurement_158"]: [
+                name_to_index["measurement_152"]
+            ],
+            name_to_index["measurement_172"]: [
+                name_to_index["measurement_166"]
+            ],
+            name_to_index["measurement_186"]: [
+                name_to_index["measurement_180"]
+            ],
+            # CUSTOM constraints.
+            # Whole Campaign
+            name_to_index["measurement_219"]: [
+                name_to_index["measurement_195"]
+            ],
+            name_to_index["measurement_220"]: [
+                name_to_index["measurement_196"]
+            ],
+            name_to_index["measurement_221"]: [
+                name_to_index["measurement_197"]
+            ],
+            name_to_index["measurement_222"]: [
+                name_to_index["measurement_198"]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_229"]: [
+                name_to_index["measurement_223"]
+            ],
+            name_to_index["measurement_243"]: [
+                name_to_index["measurement_237"]
+            ],
+            name_to_index["measurement_257"]: [
+                name_to_index["measurement_251"]
+            ],
+            name_to_index["measurement_271"]: [
+                name_to_index["measurement_265"]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_236"]: [
+                name_to_index["measurement_230"]
+            ],
+            name_to_index["measurement_250"]: [
+                name_to_index["measurement_244"]
+            ],
+            name_to_index["measurement_264"]: [
+                name_to_index["measurement_258"]
+            ],
+            name_to_index["measurement_278"]: [
+                name_to_index["measurement_272"]
+            ],
+        }
+
+        spec = SetMeasurementsSpec()
+        report._add_reach_impression_relations_to_spec(spec)
+
+        self.assertEqual(len(spec._covers_by_set), 0)
+        self.assertEqual(len(spec._equal_sets), 0)
+        self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+        self.assertEqual(expected_subsets_by_set.keys(),
+                         spec._subsets_by_set.keys())
+        for key in spec._subsets_by_set.keys():
+            self.assertEqual(
+                sorted(expected_subsets_by_set[key]),
+                sorted(spec._subsets_by_set[key]),
+            )
+
+    def test_k_reach_impression_relations_are_correctly_added_to_spec(self):
+        report = SAMPLE_REPORT
+        name_to_index = report._measurement_name_to_index
+
+        expected_weighted_sum_upperbound_sets = {
+            # AMI constraints.
+            # Whole Campaign
+            name_to_index["measurement_034"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(14, 19), range(1, 6))],
+            name_to_index["measurement_035"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(19, 24), range(1, 6))],
+            name_to_index["measurement_036"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(24, 29), range(1, 6))],
+            name_to_index["measurement_038"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(29, 34), range(1, 6))],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_045"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(40, 45), range(1, 6))],
+            name_to_index["measurement_059"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(54, 59), range(1, 6))],
+            name_to_index["measurement_073"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(68, 73), range(1, 6))],
+            name_to_index["measurement_087"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(82, 87), range(1, 6))],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_052"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(47, 52), range(1, 6))],
+            name_to_index["measurement_066"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(61, 66), range(1, 6))],
+            name_to_index["measurement_080"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(75, 80), range(1, 6))],
+            name_to_index["measurement_094"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(89, 94), range(1, 6))],
+            # MRC constraints.
+            # Whole Campaign
+            name_to_index["measurement_127"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(107, 112), range(1, 6))],
+            name_to_index["measurement_128"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(112, 117), range(1, 6))],
+            name_to_index["measurement_129"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(117, 122), range(1, 6))],
+            name_to_index["measurement_130"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(122, 127), range(1, 6))],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_137"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(132, 137), range(1, 6))],
+            name_to_index["measurement_151"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(146, 151), range(1, 6))],
+            name_to_index["measurement_165"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(160, 165), range(1, 6))],
+            name_to_index["measurement_179"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(174, 179), range(1, 6))],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_144"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(139, 144), range(1, 6))],
+            name_to_index["measurement_158"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(153, 158), range(1, 6))],
+            name_to_index["measurement_172"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(167, 172), range(1, 6))],
+            name_to_index["measurement_186"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(181, 186), range(1, 6))],
+            # CUSTOM constraints.
+            # Whole Campaign
+            name_to_index["measurement_219"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(199, 204), range(1, 6))],
+            name_to_index["measurement_220"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(204, 209), range(1, 6))],
+            name_to_index["measurement_221"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(209, 214), range(1, 6))],
+            name_to_index["measurement_222"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(214, 219), range(1, 6))],
+            # Weekly Non-Cumulative - Period 1
+            name_to_index["measurement_229"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(224, 229), range(1, 6))],
+            name_to_index["measurement_243"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(238, 243), range(1, 6))],
+            name_to_index["measurement_257"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(252, 257), range(1, 6))],
+            name_to_index["measurement_271"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(266, 271), range(1, 6))],
+            # Weekly Non-Cumulative - Period 2
+            name_to_index["measurement_236"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(231, 236), range(1, 6))],
+            name_to_index["measurement_250"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(245, 250), range(1, 6))],
+            name_to_index["measurement_264"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(259, 264), range(1, 6))],
+            name_to_index["measurement_278"]: [[
+                name_to_index[f"measurement_{i:03d}"], f
+            ] for i, f in zip(range(273, 278), range(1, 6))],
+        }
+
+        spec = SetMeasurementsSpec()
+        report._add_k_reach_impression_relations_to_spec(spec)
+
+        self.assertEqual(len(spec._covers_by_set), 0)
+        self.assertEqual(len(spec._subsets_by_set), 0)
+        self.assertEqual(len(spec._equal_sets), 0)
+        self.assertCountEqual(spec._weighted_sum_upperbound_sets.keys(),
+                              expected_weighted_sum_upperbound_sets.keys())
+        for key in expected_weighted_sum_upperbound_sets.keys():
+            self.assertCountEqual(spec._weighted_sum_upperbound_sets[key],
+                                  expected_weighted_sum_upperbound_sets[key])
+
 
 if __name__ == "__main__":
     unittest.main()

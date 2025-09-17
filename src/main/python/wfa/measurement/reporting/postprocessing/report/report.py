@@ -1149,14 +1149,15 @@ class Report:
               )
 
 
-  def _add_whole_campaign_reach_impression_relations_to_spec(self,
+  def _add_reach_impression_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
       metric_report = self._metric_reports[metric]
-      common_edp_combinations = \
+      # Gets relations for whole campaign impression.
+      common_whole_campaign_edp_combinations = \
         metric_report.get_whole_campaign_reach_edp_combinations().intersection(
             metric_report.get_whole_campaign_impression_edp_combinations())
-      for edp_combination in common_edp_combinations:
+      for edp_combination in common_whole_campaign_edp_combinations:
         spec.add_subset_relation(
             child_set_id=self._get_measurement_index(
                 metric_report.get_whole_campaign_reach_measurement(
@@ -1166,14 +1167,31 @@ class Report:
                     edp_combination)),
         )
 
+      # Gets relations for weekly non cumulative impression.
+      common_weekly_non_cumulative_edp_combinations = \
+        metric_report.get_weekly_non_cumulative_reach_edp_combinations().intersection(
+            metric_report.get_weekly_non_cumulative_impression_edp_combinations())
+      for edp_combination in common_weekly_non_cumulative_edp_combinations:
+        for period in range(0, self._num_periods):
+          spec.add_subset_relation(
+              child_set_id=self._get_measurement_index(
+                  metric_report.get_weekly_non_cumulative_reach_measurement(
+                      edp_combination, period)),
+              parent_set_id=self._get_measurement_index(
+                  metric_report.get_weekly_non_cumulative_impression_measurement(
+                      edp_combination, period)),
+          )
+
+
   def _add_k_reach_impression_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
       metric_report = self._metric_reports[metric]
-      common_edp_combinations = \
+      # Gets relations for whole campaign measurements.
+      common_whole_campaign_edp_combinations = \
         metric_report.get_whole_campaign_k_reach_edp_combinations().intersection(
             metric_report.get_whole_campaign_impression_edp_combinations())
-      for edp_combination in common_edp_combinations:
+      for edp_combination in common_whole_campaign_edp_combinations:
         spec.add_weighted_sum_upperbound_relation(
             weighted_id_set=[
                 [
@@ -1188,6 +1206,28 @@ class Report:
                 metric_report.get_whole_campaign_impression_measurement(
                     edp_combination))
         )
+
+      # Gets relations for weekly non cumulative measurements.
+      common_weekly_non_cumulative_edp_combinations = \
+        metric_report.get_weekly_non_cumulative_k_reach_edp_combinations().intersection(
+            metric_report.get_weekly_non_cumulative_impression_edp_combinations())
+      for edp_combination in common_weekly_non_cumulative_edp_combinations:
+        for period in range(0, self._num_periods):
+            spec.add_weighted_sum_upperbound_relation(
+                weighted_id_set=[
+                    [
+                        self._get_measurement_index(
+                            metric_report.get_weekly_non_cumulative_k_reach_measurement(
+                                edp_combination, period, frequency)),
+                        frequency
+                    ]
+                    for frequency in range(1, self._num_frequencies + 1)
+                ],
+                upperbound_id=self._get_measurement_index(
+                    metric_report.get_weekly_non_cumulative_impression_measurement(
+                        edp_combination, period))
+            )
+
 
   def _get_ordered_sets_for_cumulative_measurements_across_metric(
       self,
@@ -1454,7 +1494,7 @@ class Report:
 
     self._add_impression_relations_to_spec(spec)
 
-    self._add_whole_campaign_reach_impression_relations_to_spec(spec)
+    self._add_reach_impression_relations_to_spec(spec)
 
     self._add_k_reach_impression_relations_to_spec(spec)
 

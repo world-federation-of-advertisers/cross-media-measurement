@@ -861,7 +861,7 @@ class TestReport(unittest.TestCase):
     }
 
     spec = SetMeasurementsSpec()
-    report._add_whole_campaign_reach_impression_relations_to_spec(spec)
+    report._add_reach_impression_relations_to_spec(spec)
 
     self.assertEqual(len(spec._covers_by_set), 0)
     self.assertEqual(len(spec._equal_sets), 0)
