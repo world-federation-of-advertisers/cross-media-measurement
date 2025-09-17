@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.service.api.v1alpha
+package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.ResourceNameParser
