@@ -112,7 +112,7 @@ class DataAvailabilitySync(
     val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
     // 1. Retrieve blob details from storage and build a map and validate them
-    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
     if (impressionMetadataMap.isEmpty()){
       logger.info("There were no valid impressions metadata.")
@@ -215,12 +215,12 @@ class DataAvailabilitySync(
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *         `BlobDetails`.
    */
-  suspend private fun createImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, blobUri: BlobUri) : Map<String, List<ImpressionMetadata>> {
+  suspend private fun createModelLineToImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, blobUri: BlobUri) : Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
-        val fileName = blob.blobKey.substringAfterLast("/").lowercase()
-        METADATA_FILE_NAME in fileName &&
-                (fileName.endsWith(PROTO_FILE_SUFFIX) || fileName.endsWith(JSON_FILE_SUFFIX))
+
+      val fileName = blob.blobKey.substringAfterLast("/").lowercase()
+        METADATA_FILE_NAME in fileName
       }.collect { blob ->
 
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
@@ -229,12 +229,14 @@ class DataAvailabilitySync(
       // Build the blob details object
       val blobDetails = if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
         BlobDetails.parseFrom(bytes)
-      } else {
+      } else if (fileName.endsWith(JSON_FILE_SUFFIX)) {
         val builder = BlobDetails.newBuilder()
         JsonFormat.parser()
           .ignoringUnknownFields()
           .merge(bytes.toString(UTF_8), builder)
         builder.build()
+      } else {
+        throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
       }
 
       // Validate intervals

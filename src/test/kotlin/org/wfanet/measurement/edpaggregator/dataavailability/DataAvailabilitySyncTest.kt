@@ -58,7 +58,7 @@ import org.mockito.kotlin.argumentCaptor
 import kotlin.test.assertFailsWith
 import com.google.common.truth.Truth.assertThat
 
-enum class BlobEncoding { PROTO, JSON }
+enum class BlobEncoding { PROTO, JSON, EMPTY }
 
 @RunWith(JUnit4::class)
 class DataAvailabilitySyncTest {
@@ -313,6 +313,36 @@ class DataAvailabilitySyncTest {
     }
 
     @Test
+    fun `blob details with wrong file extension throws IllegalArgumentException`() {
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+        runBlocking {
+            seedBlobDetails(
+                storageClient,
+                folderPrefix,
+                listOf(
+                    300L to 400L,
+                ),
+                BlobEncoding.EMPTY
+            )
+        }
+
+        val dataAvailabilitySync = DataAvailabilitySync(
+            storageClient,
+            dataProvidersStub,
+            impressionMetadataStub,
+            "dataProviders/dataProvider123",
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
+        )
+
+        assertFailsWith<IllegalArgumentException> {
+            runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+        }
+
+    }
+
+    @Test
     fun `sync throw if file prefix doesn't follow expected path`() {
 
         val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
@@ -428,6 +458,7 @@ class DataAvailabilitySyncTest {
             val filename = when (encoding) {
                 BlobEncoding.PROTO -> "metadata-$index.pb"
                 BlobEncoding.JSON  -> "metadata-$index.json"
+                BlobEncoding.EMPTY  -> "metadata-$index"
             }
             val key = "$prefix$filename"
 
@@ -448,6 +479,7 @@ class DataAvailabilitySyncTest {
         when (encoding) {
             BlobEncoding.PROTO -> ByteString.copyFrom(this.toByteArray())
             BlobEncoding.JSON  -> ByteString.copyFromUtf8(JsonFormat.printer().print(this))
+            BlobEncoding.EMPTY  -> ByteString.copyFrom(this.toByteArray())
         }
 
 }
