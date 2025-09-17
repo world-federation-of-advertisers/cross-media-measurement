@@ -17,6 +17,7 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.Arrays
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -244,9 +245,10 @@ private constructor(
           }
         }
       }
-      hashes.sortWith(compareBy { it })
+      val hashesArray = hashes.toTypedArray()
+      Arrays.parallelSort(hashesArray)
 
-      for ((index, vidAndHash) in hashes.withIndex()) {
+      for ((index, vidAndHash) in hashesArray.withIndex()) {
         indexMap[vidAndHash.vid.toInt()] = index
       }
       return InMemoryVidIndexMap(populationSpec, indexMap)
