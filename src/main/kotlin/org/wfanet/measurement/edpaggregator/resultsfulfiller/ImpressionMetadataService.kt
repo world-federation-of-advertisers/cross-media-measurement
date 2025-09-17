@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.KmsClient
 import com.google.type.Interval
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 
@@ -54,5 +55,6 @@ interface ImpressionMetadataService {
     modelLine: String,
     eventGroupReferenceId: String,
     period: Interval,
+    kmsClient: KmsClient
   ): List<ImpressionDataSource>
 }

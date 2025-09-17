@@ -26,7 +26,6 @@ proto_library(
     srcs = ["encrypted_dek.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
-        "//src/main/proto/wfa/measurement/common/crypto:aes_gcm_hkdf_streaming_key_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
     ],
 )

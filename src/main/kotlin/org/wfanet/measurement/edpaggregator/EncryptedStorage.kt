@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek.ProtobufFormat
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -80,7 +81,8 @@ object EncryptedStorage {
   ): BlobDetails {
     val encryptedDek = encryptedDek {
       this.kekUri = kekUri
-      encryptedDek = serializedEncryptionKey
+      ciphertext = serializedEncryptionKey
+      protobufFormat = ProtobufFormat.BINARY
     }
 
     return blobDetails {

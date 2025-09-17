@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.common.crypto;
+package wfa.measurement.edpaggregator.crypto;
 
-option java_package = "org.wfanet.measurement.common.crypto";
+option java_package = "org.wfanet.measurement.edpaggregator.crypto";
 option java_multiple_files = true;
-option java_outer_classname = "AesGcmHkdfStreamingKeyProto";
+option java_outer_classname = "EncryptionKeyProto";
 
 enum HashType {
   UNKNOWN_HASH = 0;
@@ -41,4 +41,10 @@ message AesGcmHkdfStreamingKey {
   uint32 version = 1;
   AesGcmHkdfStreamingParams params = 2;
   bytes key_value = 3;  // Placeholder for ctype and debug_redact.
+}
+
+message EncryptionKey {
+  oneof key_type {
+    AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 1;
+  }
 }

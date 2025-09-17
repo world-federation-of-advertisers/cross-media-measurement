@@ -115,7 +115,7 @@ class StorageEventReader(
             selectedStorageClient,
             kekUri = encryptedDek.kekUri,
             kmsClient = kmsClient,
-            serializedEncryptionKey = encryptedDek.normalizedDekBytes(),
+            serializedEncryptionKey = encryptedDek.ciphertext,
           )
         }
 
@@ -153,29 +153,6 @@ class StorageEventReader(
         emit(currentBatch.toList())
       }
     }
-
-  /**
-   * Returns the DEK (Data Encryption Key) as raw bytes, decoding it if necessary
-   * based on the [EncryptedDek.format] field.
-   *
-   * This method ensures that callers always receive the key in its binary form,
-   * regardless of whether it was originally stored as raw bytes or encoded text
-   * (e.g., Base64).
-   *
-   * @receiver the [EncryptedDek] message containing the encrypted DEK and format metadata.
-   * @return the encrypted DEK as a [ByteString] containing the raw bytes.
-   * @throws IllegalArgumentException if the [format] value is unknown or unsupported.
-   */
-  fun EncryptedDek.normalizedDekBytes(): ByteString {
-    return when (format) {
-      EncryptedDek.Format.RAW_BYTES -> encryptedDek
-      EncryptedDek.Format.BASE64_ENCODED -> {
-        val decoded = Base64.getDecoder().decode(encryptedDek.toStringUtf8())
-        ByteString.copyFrom(decoded)
-      }
-      else -> throw IllegalArgumentException("Unknown EncryptedDek format: $format")
-    }
-  }
 
   companion object {
     /**

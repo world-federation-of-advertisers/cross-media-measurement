@@ -23,7 +23,6 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.impressions;
 
 import "google/api/field_behavior.proto";
-import "wfa/measurement/common/crypto/aes_gcm_hkdf_streaming_key.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -34,11 +33,21 @@ message EncryptedDek {
   // The URI for the key encryption key used with KMS
   string kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
-  oneof dek_format {
-    // The serialized Tink encrypted data encryption key
-    bytes encrypted_dek = 2;
-    // A AesGcmHkdfStreamingKey used to reconstruct the Tink encrypted DEK.
-    wfa.measurement.common.crypto.AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 3;
+  // Protobuf type URL of the serialized key.
+  //
+  // This must be either <Tink keyset type URL> or <our EncryptionKey type URL>.
+  string type_url = 2;
+
+  enum ProtobufFormat {
+    PROTOBUF_FORMAT_UNSPECIFIED = 0;
+    BINARY = 1;
+    JSON = 2;
   }
+  ProtobufFormat protobuf_format = 3;
+
+  // DEK ciphertext encrypted with [kek_uri][].
+  //
+  // The plaintext is a protobuf message of type [type_url][] serialized in [protobuf_format][].
+  bytes ciphertext = 4;
 
 }
