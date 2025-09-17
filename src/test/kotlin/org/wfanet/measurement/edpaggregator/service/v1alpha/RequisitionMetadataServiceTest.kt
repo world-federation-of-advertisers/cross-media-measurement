@@ -41,6 +41,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRequisitionMetadataService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
@@ -562,6 +563,19 @@ class RequisitionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for missing refusalMessage`() =
+    runBlocking {
+      val request = refuseRequisitionMetadataRequest {
+        name = REQUISITION_METADATA_KEY.toName()
+        etag = ETAG_1
+        // missing refusalMessage
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

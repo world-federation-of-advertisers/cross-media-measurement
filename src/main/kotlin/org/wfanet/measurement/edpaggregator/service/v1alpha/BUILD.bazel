@@ -1,19 +1,10 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 
-package(default_visibility = ["//visibility:public"])
-
-kt_jvm_library(
-    name = "resource_key",
-    srcs = [
-        "IdVariable.kt",
-        "RequisitionMetadataKey.kt",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        test_target(":__pkg__"),
     ],
 )
 
@@ -23,7 +14,8 @@ kt_jvm_library(
         "RequisitionMetadataService.kt",
     ],
     deps = [
-        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
