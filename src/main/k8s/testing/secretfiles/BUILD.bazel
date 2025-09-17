@@ -325,6 +325,18 @@ PDP1_CS_RENAMES = {
     "pdp1_enc_private.tink": "pdp_enc_private.tink",
 }
 
+pkg_files(
+    name = "pdp1_consent_signaling_files",
+    srcs = PDP1_CS_SRCS,
+    renames = PDP1_CS_RENAMES,
+)
+
+pkg_tar(
+    name = "pdp1_consent_signaling_archive",
+    srcs = [":pdp1_consent_signaling_files"],
+    out = "pdp1_consent_signaling_files.tar",
+)
+
 kustomization_dir(
     name = "pdp1_consent_signaling",
     srcs = [
