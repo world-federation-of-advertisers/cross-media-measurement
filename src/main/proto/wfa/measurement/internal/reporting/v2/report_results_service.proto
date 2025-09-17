@@ -1,0 +1,60 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/empty.proto";
+import "wfa/measurement/internal/reporting/v2/report_result.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Metric entities.
+service ReportResults {
+  // Add a batch of non-cumulative noisy result values to a ReportResult.
+  // This method will create the hierarchy of rows as necessary. If they
+  // already exist existing rows will be reused. This method will only add
+  // non-cumulative noisy results. If non-cumulative noisy results already exist
+  // for the NoisyReportResultValue indicate then an error will be thrown.
+  rpc AddNonCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
+      returns (google.protobuf.Empty);
+  // Same as AddNonCumulativeNoisyResults but applies to cumulative results.
+  rpc AddCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
+      returns (google.protobuf.Empty);
+  // Add a batch of denoised result to a ReportResult. This method should not
+  // need to create any intermediate artifacts as noisy result values should
+  // already exist. Due to the difference in how we process noisy vs. denoised
+  // results, there is no method for working with cumulative and non-cumulative
+  // result values separately.
+  rpc AddDenoisedResults(AddDenoisedResultValuesRequest)
+      returns (google.protobuf.Empty);
+  // Gets all of the noisy result values associated with a particular report
+  // result.
+  rpc GetNoisyResultValues(GetNoisyResultValuesRequest) returns (ReportResult);
+}
+
+message AddNoisyResultValuesRequest {
+  ReportResult report_result = 1;
+}
+
+message AddDenoisedResultValuesRequest {
+  ReportResult report_result = 1;
+}
+
+message GetNoisyResultValuesRequest {
+  string cmms_measurement_consumer_id = 1;
+  fixed64 external_report_result_id = 2;
+}

@@ -17,7 +17,7 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
+import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
 import io.grpc.StatusException
 import java.lang.IllegalStateException
@@ -34,7 +34,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
-import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -44,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -69,7 +67,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -107,8 +105,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.dataprovider.MeasurementResults.computePopulation
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
@@ -123,7 +119,6 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -138,8 +133,7 @@ data class MeasurementConsumerData(
 
 data class PopulationData(
   val populationDataProviderName: String,
-  val populationInfo: PopulationInfo,
-  val populationKey: PopulationKey,
+  val populationSpec: PopulationSpec,
 )
 
 /** Simulator for MeasurementConsumer operations on the CMMS public API. */
@@ -174,12 +168,6 @@ abstract class MeasurementConsumerSimulator(
     val measurement: Measurement,
     val measurementSpec: MeasurementSpec,
     val requisitions: List<RequisitionInfo>,
-  )
-
-  data class PopulationMeasurementInfo(
-    val populationInfo: PopulationInfo,
-    val typeRegistry: TypeRegistry,
-    val measurementInfo: MeasurementInfo,
   )
 
   private data class MeasurementComputationInfo(
@@ -692,32 +680,36 @@ abstract class MeasurementConsumerSimulator(
     populationData: PopulationData,
     modelLineName: String,
     populationFilterExpression: String,
-    typeRegistry: TypeRegistry,
+    eventMessageDescriptor: Descriptors.Descriptor,
   ) {
     logger.info { "Creating population Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     populationModelLineName = modelLineName
-    val populationMeasurementInfo: PopulationMeasurementInfo =
+    val measurementInfo: MeasurementInfo =
       createPopulationMeasurement(
         measurementConsumer,
         runId,
         populationData,
         populationFilterExpression,
-        typeRegistry,
         ::newPopulationMeasurementSpec,
       )
 
     onMeasurementsCreated?.invoke()
 
-    val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
+    val measurementName = measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
 
     // Get the CMMS computed result and compare it with the expected result.
     val populationResult: Result = pollForResult { getPopulationResult(measurementName) }
     logger.info("Got population result from Kingdom: $populationResult")
 
-    val expectedResult = getExpectedPopulationResult(populationMeasurementInfo)
+    val expectedResult =
+      getExpectedPopulationResult(
+        measurementInfo,
+        populationData.populationSpec,
+        eventMessageDescriptor,
+      )
     logger.info("Expected result: $expectedResult")
 
     assertThat(populationResult.population.value).isEqualTo(expectedResult.population.value)
@@ -913,7 +905,7 @@ abstract class MeasurementConsumerSimulator(
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
-          val nonce = Random.Default.nextLong()
+          val nonce = Random.nextLong()
           nonceHashes.add(Hashing.hashSha256(nonce))
           val dataProvider = keyToDataProviderMap.getValue(dataProviderKey)
           buildRequisitionInfo(
@@ -934,11 +926,10 @@ abstract class MeasurementConsumerSimulator(
     runId: String,
     populationData: PopulationData,
     populationFilterExpression: String,
-    typeRegistry: TypeRegistry,
     newMeasurementSpec:
       (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
-  ): PopulationMeasurementInfo {
-    val nonce = Random.Default.nextLong()
+  ): MeasurementInfo {
+    val nonce = Random.nextLong()
     val nonceHashes = mutableListOf<ByteString>()
     nonceHashes.add(Hashing.hashSha256(nonce))
     val populationDataProvider = getDataProvider(populationData.populationDataProviderName)
@@ -953,9 +944,7 @@ abstract class MeasurementConsumerSimulator(
       )
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
 
-    val measurementInfo =
-      createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
-    return PopulationMeasurementInfo(populationData.populationInfo, typeRegistry, measurementInfo)
+    return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
 
   private suspend fun createMeasurementInfo(
@@ -1150,43 +1139,22 @@ abstract class MeasurementConsumerSimulator(
   }
 
   private fun getExpectedPopulationResult(
-    populationMeasurementInfo: PopulationMeasurementInfo
+    measurementInfo: MeasurementInfo,
+    populationSpec: PopulationSpec,
+    eventMessageDescriptor: Descriptors.Descriptor,
   ): Result {
-    val measurementInfo = populationMeasurementInfo.measurementInfo
     val requisition = measurementInfo.requisitions[0]
     val requisitionSpec = requisition.requisitionSpec
     val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
-    val operativeFields =
-      populationMeasurementInfo.populationInfo.eventMessageDescriptor.fields
-        .flatMap { templateField ->
-          templateField.messageType.fields.map { templateFieldDescriptor ->
-            if (
-              templateFieldDescriptor.options
-                .getExtension(EventAnnotationsProto.templateField)
-                .populationAttribute
-            ) {
-              "${templateField.name}.${templateFieldDescriptor.name}"
-            } else null
-          }
-        }
-        .filterNotNull()
-        .toSet()
-    val eventMessageDescriptor = populationMeasurementInfo.populationInfo.eventMessageDescriptor
-    val program: Program =
-      EventFilters.compileProgram(
-        eventMessageDescriptor,
-        requisitionFilterExpression,
-        operativeFields,
-      )
     return result {
       population =
         MeasurementKt.ResultKt.population {
           value =
-            computePopulation(
-              populationMeasurementInfo.populationInfo,
-              program,
-              populationMeasurementInfo.typeRegistry,
+            MeasurementResults.computePopulation(
+              populationSpec,
+              requisitionFilterExpression,
+              eventMessageDescriptor,
             )
         }
     }
