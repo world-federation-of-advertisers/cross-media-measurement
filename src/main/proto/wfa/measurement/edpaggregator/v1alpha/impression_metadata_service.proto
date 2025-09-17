@@ -55,6 +55,14 @@ service ImpressionMetadataService {
       returns (BatchDeleteImpressionMetadataResponse) {}
 
   // Computes the availability intervals for the given ModelLines.
+  //
+  // This method returns, for each requested ModelLine, the largest interval
+  // during which all associated ImpressionMetadata resources are in the ACTIVE
+  // state.
+  //
+  // Callers are responsible for ensuring that all expected ImpressionMetadata
+  // have been created before using these intervals for downstream purposes, such
+  // as populating `DataProvider.data_availability_intervals`.
   rpc ComputeModelLinesAvailability(ComputeModelLinesAvailabilityRequest)
       returns (ComputeModelLinesAvailabilityResponse) {}
 }
