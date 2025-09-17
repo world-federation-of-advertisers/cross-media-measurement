@@ -1105,11 +1105,12 @@ class Report:
   def _add_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
       metric_report = self._metric_reports[metric]
-      edp_combinations = metric_report.get_whole_campaign_impression_edp_combinations()
-      for edp_combination in edp_combinations:
+      # Gets relations for whole campaign impression.
+      whole_campaign_edp_combinations = metric_report.get_whole_campaign_impression_edp_combinations()
+      for edp_combination in whole_campaign_edp_combinations:
         if len(edp_combination) > 1:
           single_edp_subset = [
-              comb for comb in edp_combinations
+              comb for comb in whole_campaign_edp_combinations
               if len(comb) == 1 and comb.issubset(edp_combination)
           ]
           spec.add_equal_relation(
@@ -1124,6 +1125,29 @@ class Report:
                   for child_edp in single_edp_subset
               ]
           )
+
+      # Gets relations for weekly non cumulative impression.
+      weekly_non_cumulative_edp_combinations = metric_report.get_weekly_non_cumulative_impression_edp_combinations()
+      for edp_combination in weekly_non_cumulative_edp_combinations:
+        if len(edp_combination) > 1:
+          single_edp_subset = [
+              comb for comb in weekly_non_cumulative_edp_combinations
+              if len(comb) == 1 and comb.issubset(edp_combination)
+          ]
+          for period in range(0, self._num_periods):
+              spec.add_equal_relation(
+                  set_id_one=self._get_measurement_index(
+                      metric_report.get_weekly_non_cumulative_impression_measurement(
+                          edp_combination, period)),
+                  set_id_two=[
+                      self._get_measurement_index(
+                          metric_report.get_weekly_non_cumulative_impression_measurement(
+                              child_edp, period)
+                      )
+                      for child_edp in single_edp_subset
+                  ]
+              )
+
 
   def _add_whole_campaign_reach_impression_relations_to_spec(self,
       spec: SetMeasurementsSpec):

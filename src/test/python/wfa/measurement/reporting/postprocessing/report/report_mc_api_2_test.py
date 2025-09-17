@@ -1777,6 +1777,114 @@ class TestReportMcApi2(unittest.TestCase):
             expected_set[1].sort()
         self.assertCountEqual(actual_equal_sets, expected_equal_sets)
 
+    def test_impression_relations_are_correctly_added_to_spec(self):
+        report = SAMPLE_REPORT
+        name_to_index = report._measurement_name_to_index
+
+        expected_equal_sets = [
+            # AMI constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_037"],
+                [
+                    name_to_index["measurement_034"],
+                    name_to_index["measurement_035"],
+                ],
+            ],
+            [
+                name_to_index["measurement_038"],
+                [
+                    name_to_index["measurement_034"],
+                    name_to_index["measurement_035"],
+                    name_to_index["measurement_036"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_087"],
+                [
+                    name_to_index["measurement_045"],
+                    name_to_index["measurement_059"],
+                    name_to_index["measurement_073"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_094"],
+                [
+                    name_to_index["measurement_052"],
+                    name_to_index["measurement_066"],
+                    name_to_index["measurement_080"],
+                ],
+            ],
+            # MRC constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_130"],
+                [
+                    name_to_index["measurement_127"],
+                    name_to_index["measurement_128"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_179"],
+                [
+                    name_to_index["measurement_137"],
+                    name_to_index["measurement_151"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_186"],
+                [
+                    name_to_index["measurement_144"],
+                    name_to_index["measurement_158"],
+                ],
+            ],
+            # CUSTOM constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_222"],
+                [
+                    name_to_index["measurement_219"],
+                    name_to_index["measurement_220"],
+                    name_to_index["measurement_221"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_271"],
+                [
+                    name_to_index["measurement_229"],
+                    name_to_index["measurement_243"],
+                    name_to_index["measurement_257"],
+                ],
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_278"],
+                [
+                    name_to_index["measurement_236"],
+                    name_to_index["measurement_250"],
+                    name_to_index["measurement_264"],
+                ],
+            ],
+        ]
+
+        spec = SetMeasurementsSpec()
+        report._add_impression_relations_to_spec(spec)
+
+        self.assertEqual(len(spec._covers_by_set), 0)
+        self.assertEqual(len(spec._subsets_by_set), 0)
+        self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+
+        # Sort the inner lists for comparison to be order-independent.
+        actual_equal_sets = [[s[0], sorted(s[1])] for s in spec._equal_sets]
+        for expected_set in expected_equal_sets:
+            expected_set[1].sort()
+        self.assertCountEqual(actual_equal_sets, expected_equal_sets)
+
 
 if __name__ == "__main__":
     unittest.main()
