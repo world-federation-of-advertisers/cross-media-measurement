@@ -17,6 +17,7 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.Arrays
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -87,6 +88,7 @@ class InMemoryVidIndexMap
 private constructor(
   override val populationSpec: PopulationSpec,
   private val indexMap: HashMap<Int, Int>,
+  private val useParallelSorting: Boolean = false,
 ) : VidIndexMap {
   override val size
     get() = indexMap.size.toLong()
@@ -230,6 +232,7 @@ private constructor(
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
+      useParallelSorting: Boolean = false,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
       val indexMap = hashMapOf<Int, Int>()
@@ -244,10 +247,20 @@ private constructor(
           }
         }
       }
-      hashes.sortWith(compareBy { it })
 
-      for ((index, vidAndHash) in hashes.withIndex()) {
-        indexMap[vidAndHash.vid.toInt()] = index
+      if (useParallelSorting) {
+        val hashesArray = hashes.toTypedArray()
+        Arrays.parallelSort(hashesArray)
+
+        for ((index, vidAndHash) in hashesArray.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
+      } else {
+        hashes.sortWith(compareBy { it })
+
+        for ((index, vidAndHash) in hashes.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
       }
       return InMemoryVidIndexMap(populationSpec, indexMap)
     }
