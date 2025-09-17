@@ -83,10 +83,6 @@ class DataAvailabilitySync(
   private val throttler: Throttler,
 ) {
 
-  private val impressionsPrefixRegex: Regex by lazy {
-    Regex("^${Regex.escape(dataProviderName)}/[^/]+(/.*)?$")
-  }
-
   /**
    * Synchronizes impression availability data after a completion signal.
    *
@@ -105,8 +101,8 @@ class DataAvailabilitySync(
       SelectedStorageClient.parseBlobUri(doneBlobPath)
     val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-    require(impressionsPrefixRegex.matches(folderPrefix)) {
-      "Folder prefix $folderPrefix does not match expected pattern $impressionsPrefixRegex"
+    require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
+      "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
     }
 
     val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
@@ -290,6 +286,9 @@ class DataAvailabilitySync(
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".pb"
     private const val JSON_FILE_SUFFIX = ".json"
+
+    private val VALID_IMPRESSION_PATH_PREFIX: Regex =
+      Regex("^edp/[^/]+/[^/]+(/.*)?$")
   }
 
 }

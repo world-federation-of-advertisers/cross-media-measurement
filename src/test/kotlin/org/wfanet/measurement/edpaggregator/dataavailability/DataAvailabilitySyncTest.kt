@@ -64,7 +64,7 @@ enum class BlobEncoding { PROTO, JSON, EMPTY }
 class DataAvailabilitySyncTest {
 
     private val bucket = "file:///my-bucket"
-    private val folderPrefix = "dataProviders/dataProvider123/timestamp/"
+    private val folderPrefix = "edp/edpa_edp/timestamp/"
 
     private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
         onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
