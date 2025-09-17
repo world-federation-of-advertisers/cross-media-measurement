@@ -107,6 +107,9 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
+import com.google.protobuf.duration
+import java.lang.Math.pow
+import kotlin.time.toDuration
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
@@ -1714,6 +1717,86 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `reach-and-frequency metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            reachPrivacyParams = DP_PARAMS
+            frequencyPrivacyParams = DP_PARAMS
+            maximumFrequency = 5
+          }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val reachAndFrequencyResult = retrievedMetric.result.reachAndFrequency
+    val actualResult =
+      MeasurementKt.result {
+        reach = MeasurementKt.ResultKt.reach { value = reachAndFrequencyResult.reach.value }
+        frequency =
+          MeasurementKt.ResultKt.frequency {
+            relativeFrequencyDistribution.putAll(
+              reachAndFrequencyResult.frequencyHistogram.binsList.associate {
+                Pair(it.label.toLong(),
+                     if (reachAndFrequencyResult.reach.value == 0L) {
+                       0.0
+                     } else {
+                      it.binResult.value / reachAndFrequencyResult.reach.value
+                     }
+                )
+              }
+            )
+          }
+      }
+    val reachTolerance =
+      computeErrorMargin(reachAndFrequencyResult.reach.univariateStatistics.standardDeviation)
+    val frequencyToleranceMap: Map<Long, Double> =
+      reachAndFrequencyResult.frequencyHistogram.binsList.associate { bin ->
+        bin.label.toLong() to computeErrorMargin(bin.relativeUnivariateStatistics.standardDeviation)
+      }
+
+    val mapWithAllZeroFrequency = buildMap {
+      reachAndFrequencyResult.frequencyHistogram.binsList.forEach { bin ->
+        put(bin.label.toLong(), 0.0)
+      }
+    }
+
+    assertThat(actualResult).reachValue().isWithin(reachTolerance).of(0)
+    assertThat(actualResult)
+      .frequencyDistribution()
+      .isWithin(frequencyToleranceMap)
+      .of(mapWithAllZeroFrequency)
+  }
+
+  @Test
   fun `impression count metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1767,6 +1850,55 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .impressionValue()
       .isWithin(tolerance)
       .of(expectedResult.impression.value)
+  }
+
+  @Test
+  fun `impression count metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val impressionResult = retrievedMetric.result.impressionCount
+    val actualResult =
+      MeasurementKt.result {
+        impression = MeasurementKt.ResultKt.impression { value = impressionResult.value }
+      }
+    val tolerance = computeErrorMargin(impressionResult.univariateStatistics.standardDeviation)
+
+    assertThat(actualResult)
+      .impressionValue()
+      .isWithin(tolerance)
+      .of(0)
   }
 
   @Test
@@ -1852,6 +1984,50 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
     val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+  }
+
+  @Test
+  fun `reach metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+      filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val reachResult = retrievedMetric.result.reach
+    val actualResult =
+      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+    val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+    assertThat(actualResult).reachValue().isWithin(tolerance).of(0)
   }
 
   @Test
