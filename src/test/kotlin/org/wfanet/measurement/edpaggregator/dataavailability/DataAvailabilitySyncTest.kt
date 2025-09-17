@@ -64,7 +64,7 @@ enum class BlobEncoding { PROTO, JSON }
 class DataAvailabilitySyncTest {
 
     private val bucket = "file:///my-bucket"
-    private val folderPrefix = "edp/edp_name/"
+    private val folderPrefix = "dataProviders/dataProvider123/timestamp/"
 
     private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
         onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -313,7 +313,7 @@ class DataAvailabilitySyncTest {
     }
 
     @Test
-    fun `metadata file is ignored if file prefix doesn't follow expected path`() {
+    fun `sync throw if file prefix doesn't follow expected path`() {
 
         val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
@@ -333,10 +333,9 @@ class DataAvailabilitySyncTest {
             MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
         )
 
-        runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
-        verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
-        verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLinesAvailability(any()) }
+        assertFailsWith<IllegalArgumentException> {
+            runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
+        }
     }
 
     @Test
@@ -380,7 +379,7 @@ class DataAvailabilitySyncTest {
             )
         }
 
-        val dataAvailabilitySync = DataAvailabilitySync(storageClient, dataProvidersStub, impressionMetadataStub, "dataProviders/123", MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)))
+        val dataAvailabilitySync = DataAvailabilitySync(storageClient, dataProvidersStub, impressionMetadataStub, "dataProviders/dataProvider123", MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)))
 
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
         runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }

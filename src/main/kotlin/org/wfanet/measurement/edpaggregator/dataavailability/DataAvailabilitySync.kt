@@ -45,7 +45,36 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import java.security.MessageDigest
 
-
+/**
+ * Synchronizes impression data availability between Cloud Storage and the Kingdom.
+ *
+ * This class coordinates the workflow that occurs after impression data has been fully uploaded
+ * to Cloud Storage and signaled by the presence of a "done" blob in the relevant folder.
+ * It handles:
+ *
+ * - Crawling the folder where the "done" blob resides to find and parse impression metadata files
+ *   (`.pb` or `.json`).
+ * - Validating and storing impression metadata records via the [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
+ * - Computing model line availability intervals using the impression metadata service.
+ * - Updating the kingdom data provider’s availability intervals through
+ *   [DataProvidersGrpcKt.DataProvidersCoroutineStub].
+ *
+ * The synchronization process is throttled via the provided [Throttler] to prevent overwhelming
+ * downstream services with bursts of requests.
+ *
+ * Typical workflow:
+ * 1. A "done" blob path is passed to [sync].
+ * 2. Metadata blobs in the same folder are discovered and parsed into [ImpressionMetadata].
+ * 3. Valid impression metadata are persisted.
+ * 4. Model line availability intervals are computed from the persisted metadata.
+ * 5. The data provider’s availability intervals are updated accordingly.
+ *
+ * @property storageClient Client for accessing Cloud Storage blobs, used for crawling and reading metadata files.
+ * @property dataProvidersStub gRPC stub for interacting with the Kingdom Data Providers service.
+ * @property impressionMetadataServiceStub gRPC stub for creating impression metadata and computing model line availability.
+ * @property dataProviderName The resource name of the data provider, used as a parent identifier in gRPC requests.
+ * @property throttler A throttling utility to regulate request flow to external services.
+ */
 class DataAvailabilitySync(
   private val storageClient: StorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
@@ -53,6 +82,10 @@ class DataAvailabilitySync(
   private val dataProviderName: String,
   private val throttler: Throttler,
 ) {
+
+  private val impressionsPrefixRegex: Regex by lazy {
+    Regex("^${Regex.escape(dataProviderName)}/[^/]+(/.*)?$")
+  }
 
   /**
    * Synchronizes impression availability data after a completion signal.
@@ -71,6 +104,10 @@ class DataAvailabilitySync(
     val doneBlobUri: BlobUri =
       SelectedStorageClient.parseBlobUri(doneBlobPath)
     val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+
+    require(impressionsPrefixRegex.matches(folderPrefix)) {
+      "Folder prefix $folderPrefix does not match expected pattern $impressionsPrefixRegex"
+    }
 
     val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
 
