@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.service.api.v1alpha
+package org.wfanet.measurement.edpaggregator.service.v1alpha
 
-import java.util.Locale
 import org.wfanet.measurement.common.ResourceNameParser
 
 internal enum class IdVariable {
@@ -30,11 +29,9 @@ internal enum class IdVariable {
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.lowercase(Locale.getDefault()) })
+  return assembleName(idMap.mapKeys { it.key.name.lowercase() })
 }
 
 internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys {
-    IdVariable.valueOf(it.key.uppercase(Locale.getDefault()))
-  }
+  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.uppercase()) }
 }
