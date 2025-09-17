@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 The Cross-Media Measurement Authors
+ * Copyright 2025 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,43 +14,41 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.access.deploy.common.server
+package org.wfanet.measurement.edpaggregator.deploy.common.server
 
 import io.grpc.BindableService
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
-import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.edpaggregator.service.api.v1alpha.Services
 import picocli.CommandLine
 
-private const val SERVER_NAME = "AccessApiServer"
+private const val SERVER_NAME = "EdpAggregatorApiServer"
 
 @CommandLine.Command(name = SERVER_NAME)
-class PublicApiServer : Runnable {
+class SystemApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
 
   @CommandLine.Option(
-    names = ["--access-internal-api-target"],
-    description = ["gRPC target of the Access internal API server"],
+    names = ["--edp-aggregator-internal-api-target"],
+    description = ["gRPC target of the EDP Aggregator internal API server"],
     required = true,
   )
   private lateinit var internalApiTarget: String
 
   @CommandLine.Option(
-    names = ["--access-internal-api-cert-host"],
+    names = ["--edp-aggregator-internal-api-cert-host"],
     description =
       [
-        "Expected hostname (DNS-ID) in the Access internal API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --access-internal-api-target.",
+        "Expected hostname (DNS-ID) in the EDP Aggregator internal API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --edp-aggregator-internal-api-target.",
       ],
     required = false,
   )
@@ -89,9 +87,5 @@ class PublicApiServer : Runnable {
 
     val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
     server.start().blockUntilShutdown()
-  }
-
-  companion object {
-    @JvmStatic fun main(args: Array<String>) = commandLineMain(PublicApiServer(), args)
   }
 }
