@@ -540,7 +540,7 @@ class MetricReport:
 
   def get_weekly_non_cumulative_reach_cover_relationships(self) -> list[
      Tuple[EdpCombination, list[EdpCombination]]]:
-     return get_cover_relationships(list(self.get_weekly_cumulative_reach_edp_combinations()))
+     return get_cover_relationships(list(self.get_weekly_non_cumulative_reach_edp_combinations()))
 
   @staticmethod
   def _sample_with_noise(measurement: Measurement) -> Measurement:
@@ -1062,14 +1062,15 @@ class Report:
         "campaign measurements to spec."
     )
 
-  def _add_k_reach_whole_campaign_relations_to_spec(self,
+  def _add_k_reach_and_reach_relations_to_spec(self,
       spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
       metric_report = self._metric_reports[metric]
-      common_edp_combinations = \
+      # Gets relations for whole campaign.
+      common_whole_campaign_edp_combinations = \
         metric_report.get_whole_campaign_reach_edp_combinations().intersection(
             metric_report.get_whole_campaign_k_reach_edp_combinations())
-      for edp_combination in common_edp_combinations:
+      for edp_combination in common_whole_campaign_edp_combinations:
         spec.add_equal_relation(
             set_id_one=self._get_measurement_index(
                 metric_report.get_whole_campaign_reach_measurement(
@@ -1082,6 +1083,24 @@ class Report:
                 for frequency in range(1, self._num_frequencies + 1)
             ]
         )
+      # Gets relations for weekly non cumulative.
+      common_weekly_non_cumulative_edp_combinations = \
+        metric_report.get_weekly_non_cumulative_reach_edp_combinations().intersection(
+            metric_report.get_weekly_non_cumulative_k_reach_edp_combinations())
+      for edp_combination in common_weekly_non_cumulative_edp_combinations:
+        for period in range(0, self._num_periods):
+            spec.add_equal_relation(
+                set_id_one=self._get_measurement_index(
+                    metric_report.get_weekly_non_cumulative_reach_measurement(
+                        edp_combination, period)),
+                set_id_two=[
+                    self._get_measurement_index(
+                        metric_report.get_weekly_non_cumulative_k_reach_measurement(
+                           edp_combination, period, frequency)
+                    )
+                    for frequency in range(1, self._num_frequencies + 1)
+                ]
+            )
 
   def _add_impression_relations_to_spec(self, spec: SetMeasurementsSpec):
     for metric in self._metric_reports:
@@ -1407,7 +1426,7 @@ class Report:
     # period1 <= period2.
     self._add_cumulative_relations_to_spec(spec)
 
-    self._add_k_reach_whole_campaign_relations_to_spec(spec)
+    self._add_k_reach_and_reach_relations_to_spec(spec)
 
     self._add_impression_relations_to_spec(spec)
 

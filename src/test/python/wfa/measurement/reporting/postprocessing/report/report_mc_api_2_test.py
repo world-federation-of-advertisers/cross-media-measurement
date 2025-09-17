@@ -1529,6 +1529,254 @@ class TestReportMcApi2(unittest.TestCase):
             self.assertEqual(sorted(expected_subsets_by_set[key]),
                              sorted(spec._subsets_by_set[key]))
 
+    def test_k_reach_and_reach_relations_are_correctly_added_to_spec(self):
+        report = SAMPLE_REPORT
+        name_to_index = report._measurement_name_to_index
+
+        expected_equal_sets = [
+            # AMI constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_009"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(14, 19)]
+            ],
+            [
+                name_to_index["measurement_010"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(19, 24)]
+            ],
+            [
+                name_to_index["measurement_011"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(24, 29)]
+            ],
+            [
+                name_to_index["measurement_013"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(29, 34)]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_039"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(40, 45)]
+            ],
+            [
+                name_to_index["measurement_053"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(54, 59)]
+            ],
+            [
+                name_to_index["measurement_067"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(68, 73)]
+            ],
+            [
+                name_to_index["measurement_081"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(82, 87)]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_046"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(47, 52)]
+            ],
+            [
+                name_to_index["measurement_060"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(61, 66)]
+            ],
+            [
+                name_to_index["measurement_074"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(75, 80)]
+            ],
+            [
+                name_to_index["measurement_088"],
+                [name_to_index[f"measurement_{i:03d}"] for i in range(89, 94)]
+            ],
+            # MRC constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_103"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(107, 112)
+                ]
+            ],
+            [
+                name_to_index["measurement_104"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(112, 117)
+                ]
+            ],
+            [
+                name_to_index["measurement_105"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(117, 122)
+                ]
+            ],
+            [
+                name_to_index["measurement_106"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(122, 127)
+                ]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_131"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(132, 137)
+                ]
+            ],
+            [
+                name_to_index["measurement_145"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(146, 151)
+                ]
+            ],
+            [
+                name_to_index["measurement_159"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(160, 165)
+                ]
+            ],
+            [
+                name_to_index["measurement_173"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(174, 179)
+                ]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_138"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(139, 144)
+                ]
+            ],
+            [
+                name_to_index["measurement_152"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(153, 158)
+                ]
+            ],
+            [
+                name_to_index["measurement_166"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(167, 172)
+                ]
+            ],
+            [
+                name_to_index["measurement_180"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(181, 186)
+                ]
+            ],
+            # CUSTOM constraints.
+            # Whole Campaign
+            [
+                name_to_index["measurement_195"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(199, 204)
+                ]
+            ],
+            [
+                name_to_index["measurement_196"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(204, 209)
+                ]
+            ],
+            [
+                name_to_index["measurement_197"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(209, 214)
+                ]
+            ],
+            [
+                name_to_index["measurement_198"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(214, 219)
+                ]
+            ],
+            # Weekly Non-Cumulative - Period 1
+            [
+                name_to_index["measurement_223"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(224, 229)
+                ]
+            ],
+            [
+                name_to_index["measurement_237"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(238, 243)
+                ]
+            ],
+            [
+                name_to_index["measurement_251"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(252, 257)
+                ]
+            ],
+            [
+                name_to_index["measurement_265"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(266, 271)
+                ]
+            ],
+            # Weekly Non-Cumulative - Period 2
+            [
+                name_to_index["measurement_230"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(231, 236)
+                ]
+            ],
+            [
+                name_to_index["measurement_244"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(245, 250)
+                ]
+            ],
+            [
+                name_to_index["measurement_258"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(259, 264)
+                ]
+            ],
+            [
+                name_to_index["measurement_272"],
+                [
+                    name_to_index[f"measurement_{i:03d}"]
+                    for i in range(273, 278)
+                ]
+            ],
+        ]
+
+        spec = SetMeasurementsSpec()
+        report._add_k_reach_and_reach_relations_to_spec(spec)
+
+        self.assertEqual(len(spec._covers_by_set), 0)
+        self.assertEqual(len(spec._subsets_by_set), 0)
+        self.assertEqual(len(spec._weighted_sum_upperbound_sets), 0)
+
+        # Sort the inner lists for comparison to be order-independent.
+        actual_equal_sets = [[s[0], sorted(s[1])] for s in spec._equal_sets]
+        for expected_set in expected_equal_sets:
+            expected_set[1].sort()
+        self.assertCountEqual(actual_equal_sets, expected_equal_sets)
+
 
 if __name__ == "__main__":
     unittest.main()
