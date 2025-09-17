@@ -9224,10 +9224,7 @@ class MetricsServiceTest {
                         details.copy {
                           results +=
                             InternalMeasurementKt.result {
-                              impression =
-                                InternalMeasurementKt.ResultKt.impression {
-                                  value = 0
-                                }
+                              impression = InternalMeasurementKt.ResultKt.impression { value = 0 }
                             }
                         }
                     }
@@ -9242,10 +9239,7 @@ class MetricsServiceTest {
                         details.copy {
                           results +=
                             InternalMeasurementKt.result {
-                              impression =
-                                InternalMeasurementKt.ResultKt.impression {
-                                  value = 0
-                                }
+                              impression = InternalMeasurementKt.ResultKt.impression { value = 0 }
                             }
                         }
                     }
@@ -9254,9 +9248,7 @@ class MetricsServiceTest {
           }
         )
 
-      val request = getMetricRequest {
-        name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
-      }
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
 
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
@@ -9268,10 +9260,7 @@ class MetricsServiceTest {
             this.result = metricResult {
               cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
               cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
-              impressionCount =
-                MetricResultKt.impressionCountResult {
-                  value = 0L
-                }
+              impressionCount = MetricResultKt.impressionCountResult { value = 0L }
             }
           }
         )
@@ -9300,10 +9289,7 @@ class MetricsServiceTest {
                         details.copy {
                           results +=
                             InternalMeasurementKt.result {
-                              reach =
-                                InternalMeasurementKt.ResultKt.reach {
-                                  value = 0
-                                }
+                              reach = InternalMeasurementKt.ResultKt.reach { value = 0 }
                             }
                         }
                     }
@@ -9318,10 +9304,7 @@ class MetricsServiceTest {
                         details.copy {
                           results +=
                             InternalMeasurementKt.result {
-                              reach =
-                                InternalMeasurementKt.ResultKt.reach {
-                                  value = 0
-                                }
+                              reach = InternalMeasurementKt.ResultKt.reach { value = 0 }
                             }
                         }
                     }
@@ -9330,9 +9313,7 @@ class MetricsServiceTest {
           }
         )
 
-      val request = getMetricRequest {
-        name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name
-      }
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
 
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
@@ -9344,10 +9325,7 @@ class MetricsServiceTest {
             this.result = metricResult {
               cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
               cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
-              reach =
-                MetricResultKt.reachResult {
-                  value = 0L
-                }
+              reach = MetricResultKt.reachResult { value = 0L }
             }
           }
         )
@@ -9402,7 +9380,8 @@ class MetricsServiceTest {
                                   value = duration {
                                     seconds = 0
                                     nanos = 0
-                                  }                                }
+                                  }
+                                }
                             }
                         }
                     }
@@ -9411,9 +9390,7 @@ class MetricsServiceTest {
           }
         )
 
-      val request = getMetricRequest {
-        name = SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name
-      }
+      val request = getMetricRequest { name = SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
 
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
@@ -9425,10 +9402,7 @@ class MetricsServiceTest {
             this.result = metricResult {
               cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
               cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
-              watchDuration =
-                MetricResultKt.watchDurationResult {
-                  value = 0.0
-                }
+              watchDuration = MetricResultKt.watchDurationResult { value = 0.0 }
             }
           }
         )

@@ -107,9 +107,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec as inter
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter as internalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval as internalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
-import com.google.protobuf.duration
-import java.lang.Math.pow
-import kotlin.time.toDuration
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
@@ -1765,12 +1762,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           MeasurementKt.ResultKt.frequency {
             relativeFrequencyDistribution.putAll(
               reachAndFrequencyResult.frequencyHistogram.binsList.associate {
-                Pair(it.label.toLong(),
-                     if (reachAndFrequencyResult.reach.value == 0L) {
-                       0.0
-                     } else {
-                      it.binResult.value / reachAndFrequencyResult.reach.value
-                     }
+                Pair(
+                  it.label.toLong(),
+                  if (reachAndFrequencyResult.reach.value == 0L) {
+                    0.0
+                  } else {
+                    it.binResult.value / reachAndFrequencyResult.reach.value
+                  },
                 )
               }
             )
@@ -1895,10 +1893,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     val tolerance = computeErrorMargin(impressionResult.univariateStatistics.standardDeviation)
 
-    assertThat(actualResult)
-      .impressionValue()
-      .isWithin(tolerance)
-      .of(0)
+    assertThat(actualResult).impressionValue().isWithin(tolerance).of(0)
   }
 
   @Test
