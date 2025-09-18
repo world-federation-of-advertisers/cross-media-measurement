@@ -389,7 +389,7 @@ resource "google_compute_address" "gcs_psc_address" {
 
 # Forwarding rule creates the actual PSC endpoint
 # Routes GCS traffic through the private endpoint instead of public internet
-resource "google_compute_forwarding_rule" "gcs_psc_endpoint" {
+resource "google_compute_global_forwarding_rule" "gcs_psc_endpoint" {
   name                  = "${var.private_network_name}-gcs-endpoint"
   network               = google_compute_network.private_network.id
   ip_address            = google_compute_address.gcs_psc_address.id
