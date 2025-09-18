@@ -90,16 +90,16 @@ sealed class ServiceException(
 }
 
 class RequisitionMetadataNotFoundException(
-  dataProviderResourceId: String,
-  requisitionMetadataResourceId: String,
+  dataProviderResourceName: String,
+  requisitionMetadataResourceName: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
-    "RequisitionMetadata with Requisition Metadata Resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+    "RequisitionMetadata with Requisition Metadata Resource Name $requisitionMetadataResourceName for DataProvider with resource Name $dataProviderResourceName not found",
     mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceId,
-      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceId,
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
     ),
     cause,
   ) {
@@ -121,15 +121,15 @@ class RequisitionMetadataNotFoundException(
 }
 
 class RequisitionMetadataNotFoundByCmmsRequisitionException(
-  dataProviderResourceId: String,
+  dataProviderResourceName: String,
   cmmsRequisition: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId not found",
+    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName not found",
     mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceId,
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
       Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
     ),
     cause,
@@ -152,15 +152,15 @@ class RequisitionMetadataNotFoundByCmmsRequisitionException(
 }
 
 class RequisitionMetadataNotFoundByBlobUriException(
-  dataProviderResourceId: String,
+  dataProviderResourceName: String,
   blobUri: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
-    "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource ID $dataProviderResourceId not found",
+    "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource name $dataProviderResourceName not found",
     mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceId,
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
       Errors.Metadata.BLOB_URI to blobUri,
     ),
     cause,
@@ -191,8 +191,8 @@ class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
   )
 
 class RequisitionMetadataInvalidStateException(
-  dataProviderResourceId: String,
-  requisitionMetadataResourceId: String,
+  dataProviderResourceName: String,
+  requisitionMetadataResourceName: String,
   actualState: State,
   expectedStates: Set<State>,
   cause: Throwable? = null,
@@ -201,8 +201,8 @@ class RequisitionMetadataInvalidStateException(
     Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
     "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
     mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceId,
-      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceId,
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
       Errors.Metadata.REQUISITION_METADATA_STATE to actualState.name,
       Errors.Metadata.EXPECTED_REQUISITION_METADATA_STATES to
         expectedStates.joinToString(",") { it.name },
@@ -211,16 +211,16 @@ class RequisitionMetadataInvalidStateException(
   )
 
 class DataProviderMismatchException(
-  expectedDataProviderId: String,
-  actualDataProviderId: String,
+  expectedDataProviderResourceName: String,
+  actualDataProviderResourceName: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.DATA_PROVIDER_MISMATCH,
-    "DataProvider from parent $actualDataProviderId does not match DataProvider $actualDataProviderId",
+    "DataProvider from parent $actualDataProviderResourceName does not match DataProvider $actualDataProviderResourceName",
     mapOf(
-      Errors.Metadata.PARENT to expectedDataProviderId,
-      Errors.Metadata.DATA_PROVIDER to actualDataProviderId,
+      Errors.Metadata.PARENT to expectedDataProviderResourceName,
+      Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
     ),
     cause,
   )

@@ -64,21 +64,21 @@ class RequisitionMetadataService(
     request: CreateRequisitionMetadataRequest
   ): RequisitionMetadata {
     val parentKey =
-      DataProviderKey.FACTORY.fromName(request.parent)
+      DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val requisitionMetadataKey =
       if (request.requisitionMetadata.name.isNotEmpty()) {
-        RequisitionMetadataKey.FACTORY.fromName(request.requisitionMetadata.name)
-          ?: throw InvalidFieldValueException("name")
+        RequisitionMetadataKey.fromName(request.requisitionMetadata.name)
+          ?: throw InvalidFieldValueException("requisition_metadata.name")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       } else {
         null
       }
 
     val cmmsRequisitionKey =
-      CanonicalRequisitionKey.FACTORY.fromName(request.requisitionMetadata.cmmsRequisition)
+      CanonicalRequisitionKey.fromName(request.requisitionMetadata.cmmsRequisition)
         ?: throw InvalidFieldValueException("cmms_requisition")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
@@ -91,7 +91,7 @@ class RequisitionMetadataService(
     }
 
     // Validate report format.
-    ReportKey.FACTORY.fromName(request.requisitionMetadata.report)
+    ReportKey.fromName(request.requisitionMetadata.report)
       ?: throw InvalidFieldValueException("report")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
@@ -127,8 +127,8 @@ class RequisitionMetadataService(
     request: GetRequisitionMetadataRequest
   ): RequisitionMetadata {
     val key =
-      RequisitionMetadataKey.FACTORY.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalRequest = internalGetRequisitionMetadataRequest {
@@ -141,7 +141,7 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND ->
-            RequisitionMetadataNotFoundException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -162,7 +162,7 @@ class RequisitionMetadataService(
     request: LookupRequisitionMetadataRequest
   ): RequisitionMetadata {
     val parentKey =
-      DataProviderKey.FACTORY.fromName(request.parent)
+      DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
@@ -184,10 +184,13 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION ->
-            RequisitionMetadataNotFoundByCmmsRequisitionException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundByCmmsRequisitionException(
+                parentKey.dataProviderId,
+                request.cmmsRequisition,
+              )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI ->
-            RequisitionMetadataNotFoundByBlobUriException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundByBlobUriException(parentKey.dataProviderId, request.blobUri)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -206,7 +209,7 @@ class RequisitionMetadataService(
     request: FetchLatestCmmsCreateTimeRequest
   ): Timestamp {
     val parentKey =
-      DataProviderKey.FACTORY.fromName(request.parent)
+      DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
@@ -234,10 +237,10 @@ class RequisitionMetadataService(
     request: QueueRequisitionMetadataRequest
   ): RequisitionMetadata {
     val key =
-      RequisitionMetadataKey.FACTORY.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    WorkItemKey.Companion.fromName(request.workItem)
+    WorkItemKey.fromName(request.workItem)
       ?: throw InvalidFieldValueException("work_item")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
@@ -257,10 +260,10 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND ->
-            RequisitionMetadataNotFoundException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.ETAG_MISMATCH ->
-            EtagMismatchException.Companion.fromInternal(e)
+            EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -278,8 +281,8 @@ class RequisitionMetadataService(
     request: StartProcessingRequisitionMetadataRequest
   ): RequisitionMetadata {
     val key =
-      RequisitionMetadataKey.FACTORY.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
       throw InvalidFieldValueException("etag")
@@ -297,10 +300,10 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND ->
-            RequisitionMetadataNotFoundException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.ETAG_MISMATCH ->
-            EtagMismatchException.Companion.fromInternal(e)
+            EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -318,8 +321,8 @@ class RequisitionMetadataService(
     request: FulfillRequisitionMetadataRequest
   ): RequisitionMetadata {
     val key =
-      RequisitionMetadataKey.FACTORY.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
       throw InvalidFieldValueException("etag")
@@ -337,10 +340,10 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND ->
-            RequisitionMetadataNotFoundException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.ETAG_MISMATCH ->
-            EtagMismatchException.Companion.fromInternal(e)
+            EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -358,8 +361,8 @@ class RequisitionMetadataService(
     request: RefuseRequisitionMetadataRequest
   ): RequisitionMetadata {
     val key =
-      RequisitionMetadataKey.FACTORY.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
       throw InvalidFieldValueException("etag")
@@ -382,10 +385,10 @@ class RequisitionMetadataService(
       } catch (e: StatusException) {
         throw when (Errors.getReason(e)) {
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND ->
-            RequisitionMetadataNotFoundException.Companion.fromInternal(e)
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.ETAG_MISMATCH ->
-            EtagMismatchException.Companion.fromInternal(e)
+            EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
