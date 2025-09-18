@@ -387,11 +387,19 @@ resource "google_compute_address" "gcs_psc_address" {
   purpose      = "GCE_ENDPOINT"
 }
 
+provider "google-beta" {
+  project = var.project_id
+  region  = var.private_network_location
+}
+
 # Forwarding rule creates the actual PSC endpoint
 # Routes GCS traffic through the private endpoint instead of public internet
-resource "google_compute_global_forwarding_rule" "gcs_psc_endpoint" {
+resource "google_compute_forwarding_rule" "gcs_psc_endpoint" {
+  provider              = google-beta
   name                  = "${var.private_network_name}-gcs-endpoint"
+  region                = var.private_network_location
   network               = google_compute_network.private_network.id
+  subnetwork            = google_compute_subnetwork.private_subnetwork.id
   ip_address            = google_compute_address.gcs_psc_address.id
   target                = "all-apis"  # This includes GCS access
 }
