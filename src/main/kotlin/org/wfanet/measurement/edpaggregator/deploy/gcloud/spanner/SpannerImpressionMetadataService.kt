@@ -187,6 +187,11 @@ class SpannerImpressionMetadataService(
     return Empty.getDefaultInstance()
   }
 
+  /**
+   * Checks whether the specified create impression metadata request is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   */
   private fun validateImpressionMetadataRequest(request: CreateImpressionMetadataRequest) {
     if (request.impressionMetadata.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("impression_metadata.data_provider_resource_id")
