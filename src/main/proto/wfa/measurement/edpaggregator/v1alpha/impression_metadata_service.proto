@@ -22,6 +22,7 @@ import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
+import "google/protobuf/empty.proto";
 import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -48,7 +49,7 @@ service ImpressionMetadataService {
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata) {}
+      returns (google.protobuf.Empty) {}
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
@@ -69,7 +70,7 @@ message CreateImpressionMetadataRequest {
   // The ImpressionMetadata to create.
   // The `name` and output-only fields are ignored.
   ImpressionMetadata impression_metadata = 2
-      [(google.api.field_behavior) = REQUIRED];
+  [(google.api.field_behavior) = REQUIRED];
 
   // A request ID provided by the client on creation to ensure idempotency.
   //
@@ -96,7 +97,7 @@ message BatchCreateImpressionMetadataRequest {
 
   // The list of ImpressionMetadata to create.
   repeated CreateImpressionMetadataRequest requests = 2
-      [(google.api.field_behavior) = REQUIRED];
+  [(google.api.field_behavior) = REQUIRED];
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
@@ -152,17 +153,17 @@ message ListImpressionMetadataRequest {
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string model_line = 1 [
       (google.api.field_behavior) = OPTIONAL,
-      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+      (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
     ];
 
     // The event group reference ID to filter by.
     string event_group_reference_id = 2
-        [(google.api.field_behavior) = OPTIONAL];
+    [(google.api.field_behavior) = OPTIONAL];
 
     // The time interval to filter by. The `ImpressionMetadata` time range must
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
-        [(google.api.field_behavior) = OPTIONAL];
+    [(google.api.field_behavior) = OPTIONAL];
 
     // The state to filter by.
     // (-- api-linter: core::0216::state-field-output-only=disabled
