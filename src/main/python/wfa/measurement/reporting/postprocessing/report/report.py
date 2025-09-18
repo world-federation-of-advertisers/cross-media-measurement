@@ -1860,10 +1860,13 @@ class Report:
         solution_whole_campaign_measurements[edp] = MeasurementSet(
             reach=reach, k_reach=k_reach, impression=impression
         )
+
+    solution_weekly_non_cumulative = \
+        self._get_weekly_non_cumulative_from_solution(metric, solution)
     return MetricReport(
         weekly_cumulative_reaches=solution_time_series,
         whole_campaign_measurements=solution_whole_campaign_measurements,
-        weekly_non_cumulative_measurements=self._get_weekly_non_cumulative_from_solution(metric, solution),
+        weekly_non_cumulative_measurements=solution_weekly_non_cumulative,
     )
 
   def _get_weekly_non_cumulative_from_solution(
@@ -1894,15 +1897,11 @@ class Report:
 
         k_reach = {
             freq: Measurement(
-                solution[
-                    self._get_measurement_index(
-                        m
-                    )
-                ],
-                m.sigma,
-                m.name,
+                solution[self._get_measurement_index(measurement)],
+                measurement.sigma,
+                measurement.name,
             )
-            for freq, m in metric_report._weekly_non_cumulative_measurements[
+            for freq, measurement in metric_report._weekly_non_cumulative_measurements[
                 edp_combination
             ][period].k_reach.items()
         }

@@ -583,7 +583,7 @@ class TestReportMcApi2(unittest.TestCase):
                         MetricReport(
                             weekly_cumulative_reaches={
                                 frozenset({EDP_THREE}): [
-                                    Measurement(1000000, 0, "m6")
+                                    Measurement(1000000, 0, "m_6")
                                 ],
                             },
                             whole_campaign_measurements={},
@@ -623,13 +623,13 @@ class TestReportMcApi2(unittest.TestCase):
                                 frozenset({EDP_ONE}): [
                                     MeasurementSet(
                                         reach=Measurement(
-                                            15819974, 10000, "m3"),
+                                            15819974, 10000, "m_3"),
                                         k_reach={
                                             1: Measurement(
-                                                8165148, 10000, "m4")
+                                                8165148, 10000, "m_4")
                                         },
                                         impression=Measurement(
-                                            29052805, 10000, "m5"),
+                                            29052805, 10000, "m_5"),
                                     )
                                 ],
                             },
@@ -655,14 +655,14 @@ class TestReportMcApi2(unittest.TestCase):
                                 frozenset({EDP_ONE}):
                                     MeasurementSet(
                                         reach=Measurement(
-                                            15819974, 10000, "m6"),
+                                            15819974, 10000, "m_6"),
                                         k_reach={
                                             1:
                                                 Measurement(
-                                                    8165148, 10000, "m7"),
+                                                    8165148, 10000, "m_7"),
                                         },
                                         impression=Measurement(
-                                            29052805, 10000, "m9"),
+                                            29052805, 10000, "m_9"),
                                     )
                             },
                             weekly_non_cumulative_measurements={},
@@ -675,17 +675,17 @@ class TestReportMcApi2(unittest.TestCase):
                                 frozenset({EDP_ONE}): [
                                     MeasurementSet(
                                         reach=Measurement(
-                                            15819974, 10000, "m3"),
+                                            15819974, 10000, "m_3"),
                                         k_reach={
                                             1:
                                                 Measurement(
-                                                    8165148, 10000, "m4"),
+                                                    8165148, 10000, "m_4"),
                                             2:
                                                 Measurement(
-                                                    8165148, 10000, "m8")
+                                                    8165148, 10000, "m_8")
                                         },
                                         impression=Measurement(
-                                            29052805, 10000, "m5"),
+                                            29052805, 10000, "m_5"),
                                     )
                                 ],
                             },
@@ -720,7 +720,7 @@ class TestReportMcApi2(unittest.TestCase):
                         MetricReport(
                             weekly_cumulative_reaches={
                                 frozenset({EDP_THREE}): [
-                                    Measurement(1000000, 0, "m6")
+                                    Measurement(1000000, 0, "m_6")
                                 ],
                             },
                             whole_campaign_measurements={},
@@ -755,12 +755,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -769,19 +769,19 @@ class TestReportMcApi2(unittest.TestCase):
                     MetricReport(
                         weekly_cumulative_reaches={
                             frozenset({EDP_THREE}): [
-                                Measurement(1000000, 0, "m6")
+                                Measurement(1000000, 0, "m_6")
                             ],
                             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                                Measurement(19015392, 10000, "m7")
+                                Measurement(19015392, 10000, "m_7")
                             ],
                         },
                         whole_campaign_measurements={},
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
                                 MeasurementSet(
-                                    reach=Measurement(5819974, 10000, "m8"),
+                                    reach=Measurement(5819974, 10000, "m_8"),
                                     k_reach={
-                                        1: Measurement(165148, 10000, "m9")
+                                        1: Measurement(165148, 10000, "m_9")
                                     },
                                     impression=Measurement(
                                         9052805, 10000, "m_10"),
@@ -798,7 +798,8 @@ class TestReportMcApi2(unittest.TestCase):
         report._add_weekly_non_cumulative_measurements_to_spec(spec)
 
         measurements_in_spec = {
-            m[0].name: m[0] for m in spec._measurements_by_set.values()
+            measurements[0].name: measurements[0]
+            for measurements in spec._measurements_by_set.values()
         }
 
         # Verifies that the report has 10 measurements.
@@ -809,12 +810,12 @@ class TestReportMcApi2(unittest.TestCase):
 
         # Verifies the content of the spec.
         self.assertEqual(sorted(measurements_in_spec),
-                         sorted(["m3", "m4", "m5", "m8", "m9", "m_10"]))
-        self.assertEqual(measurements_in_spec["m3"].value, 15819974)
-        self.assertEqual(measurements_in_spec["m4"].value, 8165148)
-        self.assertEqual(measurements_in_spec["m5"].value, 29052805)
-        self.assertEqual(measurements_in_spec["m8"].value, 5819974)
-        self.assertEqual(measurements_in_spec["m9"].value, 165148)
+                         sorted(["m_3", "m_4", "m_5", "m_8", "m_9", "m_10"]))
+        self.assertEqual(measurements_in_spec["m_3"].value, 15819974)
+        self.assertEqual(measurements_in_spec["m_4"].value, 8165148)
+        self.assertEqual(measurements_in_spec["m_5"].value, 29052805)
+        self.assertEqual(measurements_in_spec["m_8"].value, 5819974)
+        self.assertEqual(measurements_in_spec["m_9"].value, 165148)
         self.assertEqual(measurements_in_spec["m_10"].value, 9052805)
 
     def test_add_all_measurements_to_spec_when_report_is_valid(self):
@@ -838,12 +839,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -852,19 +853,19 @@ class TestReportMcApi2(unittest.TestCase):
                     MetricReport(
                         weekly_cumulative_reaches={
                             frozenset({EDP_THREE}): [
-                                Measurement(1000000, 0, "m6")
+                                Measurement(1000000, 0, "m_6")
                             ],
                             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
-                                Measurement(19015392, 10000, "m7")
+                                Measurement(19015392, 10000, "m_7")
                             ],
                         },
                         whole_campaign_measurements={},
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE, EDP_TWO, EDP_THREE}): [
                                 MeasurementSet(
-                                    reach=Measurement(5819974, 10000, "m8"),
+                                    reach=Measurement(5819974, 10000, "m_8"),
                                     k_reach={
-                                        1: Measurement(165148, 10000, "m9")
+                                        1: Measurement(165148, 10000, "m_9")
                                     },
                                     impression=Measurement(
                                         9052805, 10000, "m_10"),
@@ -895,8 +896,9 @@ class TestReportMcApi2(unittest.TestCase):
         # Verifies the content of the spec.
         self.assertEqual(
             sorted(measurements_in_spec),
-            sorted(
-                ["m_1", "m_2", "m3", "m4", "m5", "m6", "m7", "m8", "m9", "m_10"]))
+            sorted([
+                "m_1", "m_2", "m_3", "m_4", "m_5", "m_6", "m_7", "m_8", "m_9", "m_10"
+            ]))
 
     def test_get_weekly_cumulative_reaches_return_correct_result(self):
         report = Report(
@@ -919,12 +921,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -976,12 +978,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -994,7 +996,7 @@ class TestReportMcApi2(unittest.TestCase):
             report._metric_reports["ami"].
             get_weekly_non_cumulative_reach_measurement(frozenset({EDP_ONE}),
                                                         0),
-            Measurement(15819974, 10000, "m3"))
+            Measurement(15819974, 10000, "m_3"))
         self.assertEqual(
             report._metric_reports["ami"].
             get_weekly_non_cumulative_reach_measurement(frozenset({EDP_ONE}),
@@ -1026,12 +1028,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -1044,11 +1046,11 @@ class TestReportMcApi2(unittest.TestCase):
             list(report._metric_reports["ami"].
                  get_weekly_non_cumulative_k_reach_measurements(
                      frozenset({EDP_ONE}), 0)),
-            [Measurement(8165148, 10000, "m4")])
+            [Measurement(8165148, 10000, "m_4")])
         self.assertEqual(
             report._metric_reports["ami"].
             get_weekly_non_cumulative_k_reach_measurement(
-                frozenset({EDP_ONE}), 0, 1), Measurement(8165148, 10000, "m4"))
+                frozenset({EDP_ONE}), 0, 1), Measurement(8165148, 10000, "m_4"))
         self.assertEqual(
             report._metric_reports["ami"].
             get_weekly_non_cumulative_k_reach_measurements(
@@ -1079,12 +1081,12 @@ class TestReportMcApi2(unittest.TestCase):
                         weekly_non_cumulative_measurements={
                             frozenset({EDP_ONE}): [
                                 MeasurementSet(
-                                    reach=Measurement(15819974, 10000, "m3"),
+                                    reach=Measurement(15819974, 10000, "m_3"),
                                     k_reach={
-                                        1: Measurement(8165148, 10000, "m4")
+                                        1: Measurement(8165148, 10000, "m_4")
                                     },
                                     impression=Measurement(
-                                        29052805, 10000, "m5"),
+                                        29052805, 10000, "m_5"),
                                 )
                             ],
                         },
@@ -1096,7 +1098,7 @@ class TestReportMcApi2(unittest.TestCase):
         self.assertEqual(
             report._metric_reports["ami"].
             get_weekly_non_cumulative_impression_measurement(
-                frozenset({EDP_ONE}), 0), Measurement(29052805, 10000, "m5"))
+                frozenset({EDP_ONE}), 0), Measurement(29052805, 10000, "m_5"))
         self.assertEqual(
             report._metric_reports["ami"].
             get_weekly_non_cumulative_impression_measurement(
@@ -1113,6 +1115,7 @@ class TestReportMcApi2(unittest.TestCase):
 
         expected_covers_by_set = {
             # AMI constraints.
+            # From Cumulative Reach.
             name_to_index["m_007"]: [[
                 name_to_index["m_001"], name_to_index["m_003"],
                 name_to_index["m_005"]
@@ -1121,11 +1124,12 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_002"], name_to_index["m_004"],
                 name_to_index["m_006"]
             ]],
+            # From Whole Campaign.
             name_to_index["m_012"]: [[
                 name_to_index["m_009"], name_to_index["m_010"]
             ]],
-            name_to_index["m_013"]:
-                [[name_to_index["m_011"], name_to_index["m_012"]],
+            name_to_index["m_013"]: [
+                 [name_to_index["m_011"], name_to_index["m_012"]],
                  [
                      name_to_index["m_009"], name_to_index["m_010"],
                      name_to_index["m_011"]
@@ -1141,7 +1145,9 @@ class TestReportMcApi2(unittest.TestCase):
                  [
                      name_to_index["m_009"], name_to_index["m_010"],
                      name_to_index["m_011"], name_to_index["m_012"]
-                 ]],
+                 ]
+            ],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_081"]: [[
                 name_to_index["m_039"], name_to_index["m_053"],
                 name_to_index["m_067"]
@@ -1151,15 +1157,18 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_074"]
             ]],
             # MRC constraints.
+            # From Cumulative Reach.
             name_to_index["m_101"]: [[
                 name_to_index["m_095"], name_to_index["m_097"]
             ]],
             name_to_index["m_102"]: [[
                 name_to_index["m_096"], name_to_index["m_098"]
             ]],
+            # From Whole Campaign.
             name_to_index["m_106"]: [[
                 name_to_index["m_103"], name_to_index["m_104"]
             ]],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_173"]: [[
                 name_to_index["m_131"], name_to_index["m_145"]
             ]],
@@ -1167,6 +1176,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_138"], name_to_index["m_152"]
             ]],
             # CUSTOM constraints.
+            # From Cumulative Reach.
             name_to_index["m_193"]: [[
                 name_to_index["m_187"], name_to_index["m_189"],
                 name_to_index["m_191"]
@@ -1175,10 +1185,12 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_188"], name_to_index["m_190"],
                 name_to_index["m_192"]
             ]],
+            # From Whole Campaign.
             name_to_index["m_198"]: [[
                 name_to_index["m_195"], name_to_index["m_196"],
                 name_to_index["m_197"]
             ]],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_265"]: [[
                 name_to_index["m_223"], name_to_index["m_237"],
                 name_to_index["m_251"]
@@ -1218,6 +1230,7 @@ class TestReportMcApi2(unittest.TestCase):
         name_to_index = report._measurement_name_to_index
         expected_subsets_by_set = {
             # AMI constraints.
+            # From Cumulative Reach.
             name_to_index["m_007"]: [
                 name_to_index["m_001"], name_to_index["m_003"],
                 name_to_index["m_005"]
@@ -1226,6 +1239,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_002"], name_to_index["m_004"],
                 name_to_index["m_006"]
             ],
+            # From Whole Campaign.
             name_to_index["m_012"]: [
                 name_to_index["m_009"], name_to_index["m_010"]
             ],
@@ -1233,6 +1247,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_009"], name_to_index["m_010"],
                 name_to_index["m_011"], name_to_index["m_012"]
             ],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_081"]: [
                 name_to_index["m_039"], name_to_index["m_053"],
                 name_to_index["m_067"]
@@ -1242,15 +1257,18 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_074"]
             ],
             # MRC constraints.
+            # From Cumulative Reach.
             name_to_index["m_101"]: [
                 name_to_index["m_095"], name_to_index["m_097"]
             ],
             name_to_index["m_102"]: [
                 name_to_index["m_096"], name_to_index["m_098"]
             ],
+            # From Whole Campaign.
             name_to_index["m_106"]: [
                 name_to_index["m_103"], name_to_index["m_104"]
             ],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_173"]: [
                 name_to_index["m_131"], name_to_index["m_145"]
             ],
@@ -1258,6 +1276,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_138"], name_to_index["m_152"]
             ],
             # CUSTOM constraints.
+            # From Cumulative Reach.
             name_to_index["m_193"]: [
                 name_to_index["m_187"], name_to_index["m_189"],
                 name_to_index["m_191"]
@@ -1266,10 +1285,12 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_188"], name_to_index["m_190"],
                 name_to_index["m_192"]
             ],
+            # From Whole Campaign.
             name_to_index["m_198"]: [
                 name_to_index["m_195"], name_to_index["m_196"],
                 name_to_index["m_197"]
             ],
+            # From Weekly Non-Cumulative Reach.
             name_to_index["m_265"]: [
                 name_to_index["m_223"], name_to_index["m_237"],
                 name_to_index["m_251"]
@@ -1298,7 +1319,7 @@ class TestReportMcApi2(unittest.TestCase):
 
         expected_equal_sets = [
             # AMI constraints.
-            # Whole Campaign
+            # From Whole Campaign Reach and k-Reach.
             [
                 name_to_index["m_009"],
                 [name_to_index[f"m_{i:03d}"] for i in range(14, 19)]
@@ -1315,7 +1336,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_013"],
                 [name_to_index[f"m_{i:03d}"] for i in range(29, 34)]
             ],
-            # Weekly Non-Cumulative - Period 1
+            # From Weekly Non-Cumulative Reach and k-Reach - Period 1.
             [
                 name_to_index["m_039"],
                 [name_to_index[f"m_{i:03d}"] for i in range(40, 45)]
@@ -1332,7 +1353,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_081"],
                 [name_to_index[f"m_{i:03d}"] for i in range(82, 87)]
             ],
-            # Weekly Non-Cumulative - Period 2
+            # From Weekly Non-Cumulative Reach and k-Reach - Period 2.
             [
                 name_to_index["m_046"],
                 [name_to_index[f"m_{i:03d}"] for i in range(47, 52)]
@@ -1350,7 +1371,7 @@ class TestReportMcApi2(unittest.TestCase):
                 [name_to_index[f"m_{i:03d}"] for i in range(89, 94)]
             ],
             # MRC constraints.
-            # Whole Campaign
+            # From Whole Campaign Reach and k-Reach.
             [
                 name_to_index["m_103"],
                 [name_to_index[f"m_{i:03d}"] for i in range(107, 112)]
@@ -1367,7 +1388,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_106"],
                 [name_to_index[f"m_{i:03d}"] for i in range(122, 127)]
             ],
-            # Weekly Non-Cumulative - Period 1
+            # From Weekly Non-Cumulative Reach and k-Reach - Period 1.
             [
                 name_to_index["m_131"],
                 [name_to_index[f"m_{i:03d}"] for i in range(132, 137)]
@@ -1384,7 +1405,7 @@ class TestReportMcApi2(unittest.TestCase):
                 name_to_index["m_173"],
                 [name_to_index[f"m_{i:03d}"] for i in range(174, 179)]
             ],
-            # Weekly Non-Cumulative - Period 2
+            # From Weekly Non-Cumulative Reach and k-Reach - Period 2.
             [
                 name_to_index["m_138"],
                 [name_to_index[f"m_{i:03d}"] for i in range(139, 144)]
@@ -1474,7 +1495,8 @@ class TestReportMcApi2(unittest.TestCase):
 
         expected_equal_sets = [
             # AMI constraints.
-            # Whole Campaign
+            # Whole Campaign.
+            # Imp({EDP_ONE, EDP_TWO}) = Imp({EDP_ONE}) + Imp({EDP_ONE})
             [
                 name_to_index["m_037"],
                 [
@@ -1482,6 +1504,8 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_035"],
                 ],
             ],
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_038"],
                 [
@@ -1490,7 +1514,9 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_036"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_087"],
                 [
@@ -1499,7 +1525,9 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_073"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_094"],
                 [
@@ -1509,7 +1537,8 @@ class TestReportMcApi2(unittest.TestCase):
                 ],
             ],
             # MRC constraints.
-            # Whole Campaign
+            # Whole Campaign.
+            # Imp({EDP_ONE, EDP_TWO}) = Imp({EDP_ONE}) + Imp({EDP_ONE})
             [
                 name_to_index["m_130"],
                 [
@@ -1517,7 +1546,8 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_128"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
+            # Imp({EDP_ONE, EDP_TWO}) = Imp({EDP_ONE}) + Imp({EDP_ONE})
             [
                 name_to_index["m_179"],
                 [
@@ -1525,7 +1555,8 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_151"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
+            # Imp({EDP_ONE, EDP_TWO}) = Imp({EDP_ONE}) + Imp({EDP_ONE})
             [
                 name_to_index["m_186"],
                 [
@@ -1534,7 +1565,9 @@ class TestReportMcApi2(unittest.TestCase):
                 ],
             ],
             # CUSTOM constraints.
-            # Whole Campaign
+            # Whole Campaign.
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_222"],
                 [
@@ -1543,7 +1576,9 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_221"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_271"],
                 [
@@ -1552,7 +1587,9 @@ class TestReportMcApi2(unittest.TestCase):
                     name_to_index["m_257"],
                 ],
             ],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
+            # Imp({EDP_ONE, EDP_TWO, EDP_THREE}) = Imp({EDP_ONE}) +
+            # Imp({EDP_TWO}) + Imp({EDP_THREE})
             [
                 name_to_index["m_278"],
                 [
@@ -1582,50 +1619,50 @@ class TestReportMcApi2(unittest.TestCase):
 
         expected_subsets_by_set = {
             # AMI constraints.
-            # Whole Campaign
+            # Whole Campaign.
             name_to_index["m_034"]: [name_to_index["m_009"]],
             name_to_index["m_035"]: [name_to_index["m_010"]],
             name_to_index["m_036"]: [name_to_index["m_011"]],
             name_to_index["m_037"]: [name_to_index["m_012"]],
             name_to_index["m_038"]: [name_to_index["m_013"]],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
             name_to_index["m_045"]: [name_to_index["m_039"]],
             name_to_index["m_059"]: [name_to_index["m_053"]],
             name_to_index["m_073"]: [name_to_index["m_067"]],
             name_to_index["m_087"]: [name_to_index["m_081"]],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
             name_to_index["m_052"]: [name_to_index["m_046"]],
             name_to_index["m_066"]: [name_to_index["m_060"]],
             name_to_index["m_080"]: [name_to_index["m_074"]],
             name_to_index["m_094"]: [name_to_index["m_088"]],
             # MRC constraints.
-            # Whole Campaign
+            # Whole Campaign.
             name_to_index["m_127"]: [name_to_index["m_103"]],
             name_to_index["m_128"]: [name_to_index["m_104"]],
             name_to_index["m_129"]: [name_to_index["m_105"]],
             name_to_index["m_130"]: [name_to_index["m_106"]],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
             name_to_index["m_137"]: [name_to_index["m_131"]],
             name_to_index["m_151"]: [name_to_index["m_145"]],
             name_to_index["m_165"]: [name_to_index["m_159"]],
             name_to_index["m_179"]: [name_to_index["m_173"]],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
             name_to_index["m_144"]: [name_to_index["m_138"]],
             name_to_index["m_158"]: [name_to_index["m_152"]],
             name_to_index["m_172"]: [name_to_index["m_166"]],
             name_to_index["m_186"]: [name_to_index["m_180"]],
             # CUSTOM constraints.
-            # Whole Campaign
+            # Whole Campaign.
             name_to_index["m_219"]: [name_to_index["m_195"]],
             name_to_index["m_220"]: [name_to_index["m_196"]],
             name_to_index["m_221"]: [name_to_index["m_197"]],
             name_to_index["m_222"]: [name_to_index["m_198"]],
-            # Weekly Non-Cumulative - Period 1
+            # Weekly Non-Cumulative - Period 1.
             name_to_index["m_229"]: [name_to_index["m_223"]],
             name_to_index["m_243"]: [name_to_index["m_237"]],
             name_to_index["m_257"]: [name_to_index["m_251"]],
             name_to_index["m_271"]: [name_to_index["m_265"]],
-            # Weekly Non-Cumulative - Period 2
+            # Weekly Non-Cumulative - Period 2.
             name_to_index["m_236"]: [name_to_index["m_230"]],
             name_to_index["m_250"]: [name_to_index["m_244"]],
             name_to_index["m_264"]: [name_to_index["m_258"]],
@@ -1693,59 +1730,83 @@ class TestReportMcApi2(unittest.TestCase):
             name_to_index["m_094"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(89, 94), range(1, 6))],
             # MRC constraints.
-            # Whole Campaign
+            # Whole Campaign.
+            # {EDP_ONE}
             name_to_index["m_127"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(107, 112), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_128"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(112, 117), range(1, 6))],
+            # {EDP_THREE}
             name_to_index["m_129"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(117, 122), range(1, 6))],
+            # {EDP_ONE, EDP_TWO}
             name_to_index["m_130"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(122, 127), range(1, 6))],
             # Weekly Non-Cumulative - Period 1
+            # {EDP_ONE}
             name_to_index["m_137"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(132, 137), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_151"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(146, 151), range(1, 6))],
+            # {EDP_ONE, EDP_TWO}
             name_to_index["m_165"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(160, 165), range(1, 6))],
+            # {EDP_ONE, EDP_TWO}
             name_to_index["m_179"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(174, 179), range(1, 6))],
             # Weekly Non-Cumulative - Period 2
+            # {EDP_ONE}
             name_to_index["m_144"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(139, 144), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_158"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(153, 158), range(1, 6))],
+            # {EDP_THREE}
             name_to_index["m_172"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(167, 172), range(1, 6))],
+            # {EDP_ONE, EDP_TWO}
             name_to_index["m_186"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(181, 186), range(1, 6))],
             # CUSTOM constraints.
             # Whole Campaign
+            # {EDP_ONE}
             name_to_index["m_219"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(199, 204), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_220"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(204, 209), range(1, 6))],
+            # {EDP_THREE}
             name_to_index["m_221"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(209, 214), range(1, 6))],
+            # {EDP_ONE, EDP_TWO, EDP_THREE}
             name_to_index["m_222"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(214, 219), range(1, 6))],
             # Weekly Non-Cumulative - Period 1
+            # {EDP_ONE}
             name_to_index["m_229"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(224, 229), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_243"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(238, 243), range(1, 6))],
+            # {EDP_THREE}
             name_to_index["m_257"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(252, 257), range(1, 6))],
+            # {EDP_ONE, EDP_TWO, EDP_THREE}
             name_to_index["m_271"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(266, 271), range(1, 6))],
             # Weekly Non-Cumulative - Period 2
+            # {EDP_ONE}
             name_to_index["m_236"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(231, 236), range(1, 6))],
+            # {EDP_TWO}
             name_to_index["m_250"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(245, 250), range(1, 6))],
+            # {EDP_THREE}
             name_to_index["m_264"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(259, 264), range(1, 6))],
+            # {EDP_ONE, EDP_TWO, EDP_THREE}
             name_to_index["m_278"]: [[name_to_index[f"m_{i:03d}"], f]
                                     for i, f in zip(range(273, 278), range(1, 6))],
         }
@@ -1774,41 +1835,50 @@ class TestReportMcApi2(unittest.TestCase):
             name_to_index["m_004"]: [name_to_index["m_098"], name_to_index["m_190"]],
             name_to_index["m_005"]: [name_to_index["m_099"], name_to_index["m_191"]],
             name_to_index["m_006"]: [name_to_index["m_100"], name_to_index["m_192"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_007"]: [name_to_index["m_193"]],
             name_to_index["m_008"]: [name_to_index["m_194"]],
             # Whole Campaign Reach: ami >= mrc, custom
             name_to_index["m_009"]: [name_to_index["m_103"], name_to_index["m_195"]],
             name_to_index["m_010"]: [name_to_index["m_104"], name_to_index["m_196"]],
             name_to_index["m_011"]: [name_to_index["m_105"], name_to_index["m_197"]],
+            # custom does not have union of 2 EDPs.
             name_to_index["m_012"]: [name_to_index["m_106"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_013"]: [name_to_index["m_198"]],
             # Whole Campaign Impression: ami >= mrc, custom
             name_to_index["m_034"]: [name_to_index["m_127"], name_to_index["m_219"]],
             name_to_index["m_035"]: [name_to_index["m_128"], name_to_index["m_220"]],
             name_to_index["m_036"]: [name_to_index["m_129"], name_to_index["m_221"]],
+            # custom does not have union of 2 EDPs.
             name_to_index["m_037"]: [name_to_index["m_130"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_038"]: [name_to_index["m_222"]],
             # Weekly Non-Cumulative Reach: ami >= mrc, custom
             # Period 1
             name_to_index["m_039"]: [name_to_index["m_131"], name_to_index["m_223"]],
             name_to_index["m_053"]: [name_to_index["m_145"], name_to_index["m_237"]],
             name_to_index["m_067"]: [name_to_index["m_159"], name_to_index["m_251"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_081"]: [name_to_index["m_265"]],
             # Period 2
             name_to_index["m_046"]: [name_to_index["m_138"], name_to_index["m_230"]],
             name_to_index["m_060"]: [name_to_index["m_152"], name_to_index["m_244"]],
             name_to_index["m_074"]: [name_to_index["m_166"], name_to_index["m_258"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_088"]: [name_to_index["m_272"]],
             # Weekly Non-Cumulative Impression: ami >= mrc, custom
             # Period 1
             name_to_index["m_045"]: [name_to_index["m_137"], name_to_index["m_229"]],
             name_to_index["m_059"]: [name_to_index["m_151"], name_to_index["m_243"]],
             name_to_index["m_073"]: [name_to_index["m_165"], name_to_index["m_257"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_087"]: [name_to_index["m_271"]],
             # Period 2
             name_to_index["m_052"]: [name_to_index["m_144"], name_to_index["m_236"]],
             name_to_index["m_066"]: [name_to_index["m_158"], name_to_index["m_250"]],
             name_to_index["m_080"]: [name_to_index["m_172"], name_to_index["m_264"]],
+            # mrc does not have union of 3 EDPs.
             name_to_index["m_094"]: [name_to_index["m_278"]],
         }
 
