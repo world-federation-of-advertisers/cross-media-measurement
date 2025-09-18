@@ -265,7 +265,7 @@ message ComputeModelLinesAvailabilityResponse {
     string model_line = 1 [
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
-    interval
+
     // The largest interval during which all associated
     // ImpressionMetadata resources are in the ACTIVE state.
     google.type.Interval availability = 2;
