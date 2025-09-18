@@ -42,6 +42,31 @@ import java.time.Clock
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
+/**
+ * Cloud Function that synchronizes data availability state between
+ * ImpressionMetadataStorage and the Kingdom.
+ *
+ * Invoked when an EDP finishes uploading impressions and writes a "done" blob
+ * to Google Cloud Storage. The function reads the new availability,
+ * synchronizes it with ImpressionMetadataStorage, and updates the
+ * impression availability interval in the Kingdom.
+ *
+ * The "done" blob is expected to be written to the bucket under the prefix:
+ * `/edp/<edp_name>/<unique_identifier>/[optional subfolder]`.
+ *
+ * ## Environment Variables
+ * - `KINGDOM_TARGET`: Required. Target endpoint for the Kingdom service.
+ * - `KINGDOM_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
+ * - `IMPRESSION_METADATA_TARGET`: Required. Target endpoint for the Impression Metadata service.
+ * - `IMPRESSION_METADATA_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `DATA_AVAILABILITY_FILE_SYSTEM_PATH`: Optional. If set, enables `FileSystemStorageClient`
+ *   instead of GCS. Used only in testing.
+ *
+ * ## Configuration
+ * - A [DataAvailabilitySyncConfig] is provided in the request body by the DataWatcher Cloud Function.
+ * - gRPC channels are created with mutual TLS using the provided certificate files.
+ */
 class DataAvailabilitySyncFunction() : HttpFunction {
 
     override fun service(request: HttpRequest, response: HttpResponse) {
@@ -97,6 +122,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
      * @throws IllegalArgumentException if any required certificate file path
      * is missing or invalid.
      */
+    // @TODO(@marcopremier): This function should be reused across Cloud Functions.
     fun createPublicChannel(connecionParams: TransportLayerSecurityParams, target: String, hostName: String?): ManagedChannel {
         val signingCerts =
             SigningCerts.fromPemFiles(
