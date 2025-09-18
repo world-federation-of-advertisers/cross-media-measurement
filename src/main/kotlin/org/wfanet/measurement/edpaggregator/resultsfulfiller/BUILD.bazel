@@ -238,8 +238,8 @@ kt_jvm_library(
     deps = [
         ":impression_read_exception",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
-        "//src/main/proto/wfa/measurement/edpaggregator/crypto:encryption_key_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encryption_key_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",

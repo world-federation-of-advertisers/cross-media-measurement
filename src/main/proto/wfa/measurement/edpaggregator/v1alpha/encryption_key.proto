@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package wfa.measurement.edpaggregator.crypto;
+package wfa.measurement.edpaggregator.v1alpha;
 
-option java_package = "org.wfanet.measurement.edpaggregator.crypto";
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EncryptionKeyProto";
 
@@ -44,7 +44,7 @@ message AesGcmHkdfStreamingKey {
 }
 
 message EncryptionKey {
-  oneof key_type {
+  oneof key {
     AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 1;
   }
 }

@@ -122,7 +122,7 @@ class EventReaderTest {
     mesosRecordIoStorageClient.writeBlob(DS.toString(), impressionsFlow)
     val encryptedDek = encryptedDek {
       this.kekUri = this@EventReaderTest.kekUri
-      typeUrl = "type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey"
+      typeUrl = "type.googleapis.com/google.crypto.tink.KeySet"
       protobufFormat = EncryptedDek.ProtobufFormat.BINARY
       ciphertext = serializedEncryptionKey
     }

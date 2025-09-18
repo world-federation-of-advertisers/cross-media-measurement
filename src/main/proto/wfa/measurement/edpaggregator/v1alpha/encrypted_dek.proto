@@ -35,7 +35,8 @@ message EncryptedDek {
 
   // Protobuf type URL of the serialized key.
   //
-  // This must be either <Tink keyset type URL> or <our EncryptionKey type URL>.
+  // This must be either "type.googleapis.com/google.crypto.tink.Keyset"
+  // or "wfa.measurement.edpaggregator.v1alpha.EncryptionKey".
   string type_url = 2;
 
   enum ProtobufFormat {

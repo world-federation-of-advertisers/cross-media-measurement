@@ -25,6 +25,8 @@ import com.google.crypto.tink.proto.KeyData
 import com.google.crypto.tink.proto.KeyStatusType
 import com.google.crypto.tink.proto.Keyset
 import com.google.crypto.tink.proto.OutputPrefixType
+import com.google.crypto.tink.proto.AesGcmHkdfStreamingKey
+import com.google.crypto.tink.BinaryKeysetReader
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
@@ -41,8 +43,8 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.crypto.HashType as EdpAggregatorHashType
-import org.wfanet.measurement.edpaggregator.crypto.EncryptionKey
+import org.wfanet.measurement.edpaggregator.v1alpha.HashType as EdpAggregatorHashType
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptionKey
 import java.security.SecureRandom
 import kotlin.math.absoluteValue
 
@@ -176,10 +178,10 @@ class StorageImpressionMetadataService(
   ): ByteString {
     val kmsAead = kmsClient.getAead(kekUri)
 
-    val aesKey = when (encryptionKey.keyTypeCase) {
-      EncryptionKey.KeyTypeCase.AES_GCM_HKDF_STREAMING_KEY ->
+    val aesKey = when (encryptionKey.keyCase) {
+      EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY ->
         encryptionKey.aesGcmHkdfStreamingKey
-      EncryptionKey.KeyTypeCase.KEYTYPE_NOT_SET ->
+      EncryptionKey.KeyCase.KEY_NOT_SET ->
         throw IllegalArgumentException("EncryptionKey has no key_type set")
     }
 
@@ -192,7 +194,7 @@ class StorageImpressionMetadataService(
       .setCiphertextSegmentSize(aesKey.params.ciphertextSegmentSize)
       .build()
 
-    val tinkKey = com.google.crypto.tink.proto.AesGcmHkdfStreamingKey.newBuilder()
+    val tinkKey = AesGcmHkdfStreamingKey.newBuilder()
       .setParams(params)
       .setKeyValue(ByteString.copyFrom(rawKeyBytes))
       .setVersion(aesKey.version)
@@ -218,7 +220,7 @@ class StorageImpressionMetadataService(
       .build()
 
     val handle = CleartextKeysetHandle.read(
-      com.google.crypto.tink.BinaryKeysetReader.withBytes(ks.toByteArray())
+      BinaryKeysetReader.withBytes(ks.toByteArray())
     )
 
     // Encrypt the keyset again with KMS
