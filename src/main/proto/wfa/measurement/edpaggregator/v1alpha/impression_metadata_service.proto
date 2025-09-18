@@ -253,7 +253,7 @@ message ComputeModelLinesAvailabilityRequest {
   // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
   repeated string model_lines = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
   ];
 }
 
@@ -264,7 +264,7 @@ message ComputeModelLinesAvailabilityResponse {
     // The model line resource names to get availability for.
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string model_line = 1 [
-      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+      (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
     ];
 
     // The largest interval during which all associated
