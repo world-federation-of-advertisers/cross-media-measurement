@@ -427,21 +427,42 @@ class MetricReport:
   def get_whole_campaign_reach_measurement(
       self, edp_combination: EdpCombination
   ) -> Measurement:
+    if edp_combination not in self._whole_campaign_measurements:
+      return None
+
     return self._whole_campaign_measurements[edp_combination].reach
 
   def get_whole_campaign_impression_measurement(
       self, edp_combination: EdpCombination
   ) -> Measurement:
+    if edp_combination not in self._whole_campaign_measurements:
+      return None
+
     return self._whole_campaign_measurements[edp_combination].impression
 
   def get_whole_campaign_k_reach_measurements(
       self, edp_combination: EdpCombination
   ) -> list[Measurement]:
+    if edp_combination not in self._whole_campaign_measurements:
+      return None
+
+    if self._whole_campaign_measurements[edp_combination].k_reach is None:
+      return None
+
     return list(self._whole_campaign_measurements[edp_combination].k_reach.values())
 
   def get_whole_campaign_k_reach_measurement(
       self, edp_combination: EdpCombination, frequency: int
   ) -> Measurement:
+    if edp_combination not in self._whole_campaign_measurements:
+      return None
+
+    if self._whole_campaign_measurements[edp_combination].k_reach is None:
+      return None
+
+    if frequency not in self._whole_campaign_measurements[edp_combination].k_reach:
+      return None
+
     return self._whole_campaign_measurements[edp_combination].k_reach[frequency]
 
   def get_weekly_cumulative_reach_edp_combinations(self) -> set[EdpCombination]:
@@ -1976,56 +1997,71 @@ class Report:
     for metric in self._metric_reports.keys():
       metric_report = self._metric_reports[metric]
 
-      cumulative_measurements = [
-          metric_report.get_weekly_cumulative_reach_measurement(
-              edp_combination,
-              period
-          ).value
-          for period in range(0, self._num_periods)
-      ]
-      whole_campaign_measurement = metric_report.get_whole_campaign_reach_measurement(
-          edp_combination).value
-      impression_measurement = metric_report.get_whole_campaign_impression_measurement(
-          edp_combination).value
-      k_reach_measurements = {
+      # Gets cumulative and whole campaign measurements.
+      cumulative_reach_measurements = (
+          metric_report.get_weekly_cumulative_reach_measurements(
+              edp_combination
+          )
+      )
+      whole_campaign_reach = metric_report.get_whole_campaign_reach_measurement(
+          edp_combination
+      )
+      whole_campaign_impression = (
+          metric_report.get_whole_campaign_impression_measurement(
+              edp_combination
+          )
+      )
+      whole_campaign_k_reaches = {
           frequency: metric_report.get_whole_campaign_k_reach_measurement(
-              edp_combination,
-              frequency
-          ).value
+              edp_combination, frequency
+          )
           for frequency in range(1, self._num_frequencies + 1)
       }
 
-      # Cumulative measurements are non-decreasing.
-      for period in range(0, self._num_periods - 1):
-        if not fuzzy_less_equal(cumulative_measurements[period],
-                                cumulative_measurements[period + 1],
-                                CONSISTENCY_TEST_TOLERANCE):
+      # Perform consistency checks for cumulative measurements.
+      if cumulative_reach_measurements:
+        # Cumulative measurements are non-decreasing.
+        for period in range(0, self._num_periods - 1):
+          if not fuzzy_less_equal(
+              cumulative_reach_measurements[period].value,
+              cumulative_reach_measurements[period + 1].value,
+              CONSISTENCY_TEST_TOLERANCE,
+          ):
+            return False
+
+        # Whole campaign reach matches last cumulative reach.
+        if cumulative_reach_measurements and whole_campaign_reach and not fuzzy_equal(
+            cumulative_reach_measurements[-1].value,
+            whole_campaign_reach.value,
+            CONSISTENCY_TEST_TOLERANCE,
+        ):
           return False
 
-      # Whole campaign reach matches last cumulative reach.
-      if not fuzzy_equal(cumulative_measurements[-1],
-                         whole_campaign_measurement,
-                         CONSISTENCY_TEST_TOLERANCE):
-        return False
+      if whole_campaign_reach and all(whole_campaign_k_reaches.values()):
+        # Whole campaign reach equals to the sum of k-reaches.
+        sum_of_k_reach_values = sum(
+            measurement.value
+            for measurement in whole_campaign_k_reaches.values()
+        )
+        if not fuzzy_equal(
+            whole_campaign_reach.value,
+            sum_of_k_reach_values,
+            sum(whole_campaign_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+        ):
+          return False
 
-      sum_of_k_reach_keys = sum(k_reach_measurements.keys())
-      sum_of_k_reach_values = sum(k_reach_measurements.values())
-      weighted_sum_of_k_reach_values = sum(
-          key * value for key, value in k_reach_measurements.items())
-
-      # Whole campaign reach equals to the sum of k-reaches.
-      if not fuzzy_equal(
-          whole_campaign_measurement,
-          sum_of_k_reach_values,
-          sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
-        return False
-
-      # Impression is greater than or equal to weighted sum of k-reaches.
-      if not fuzzy_less_equal(
-          weighted_sum_of_k_reach_values,
-          impression_measurement,
-          sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
-        return False
+      if whole_campaign_impression and all(whole_campaign_k_reaches.values()):
+        # Impression is greater than or equal to weighted sum of k-reaches.
+        weighted_sum_of_k_reach_values = sum(
+            freq * measurement.value
+            for freq, measurement in whole_campaign_k_reaches.items()
+        )
+        if not fuzzy_less_equal(
+            weighted_sum_of_k_reach_values,
+            whole_campaign_impression.value,
+            sum(whole_campaign_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+        ):
+          return False
 
       # Check for weekly non-cumulative measurements.
       for period in range(0, self._num_periods):
@@ -2040,24 +2076,26 @@ class Report:
         }
 
         if weekly_reach and all(weekly_k_reaches.values()):
-          sum_of_k_reach_keys = sum(weekly_k_reaches.keys())
           sum_of_k_reach_values = sum(
-              measurement.value for measurement in weekly_k_reaches.values())
+              measurement.value
+              for measurement in weekly_k_reaches.values())
           # Weekly non-cumulative reach equals to the sum of k-reaches.
           if not fuzzy_equal(
               weekly_reach.value,
               sum_of_k_reach_values,
-              sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
+              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+          ):
             return False
 
         if weekly_impression and all(weekly_k_reaches.values()):
-          sum_of_k_reach_keys = sum(weekly_k_reaches.keys())
           weighted_sum_of_k_reach_values = sum(
-              freq * measurement.value for freq, measurement in weekly_k_reaches.items())
+              freq * measurement.value
+              for freq, measurement in weekly_k_reaches.items())
           # Impression is >= weighted sum of k-reaches for each week.
           if not fuzzy_less_equal(
               weighted_sum_of_k_reach_values, weekly_impression.value,
-              sum_of_k_reach_keys * CONSISTENCY_TEST_TOLERANCE):
+              sum(weekly_k_reaches.keys()) * CONSISTENCY_TEST_TOLERANCE,
+          ):
             return False
 
     # Check for the consistency between ordered metrics.

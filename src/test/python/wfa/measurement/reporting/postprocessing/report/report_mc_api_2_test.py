@@ -935,27 +935,28 @@ class TestReportMcApi2(unittest.TestCase):
             metric_subsets_by_parent={"ami": []},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
+        metric_report = report._metric_reports["ami"]
 
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_cumulative_reach_measurements(frozenset({EDP_TWO})),
+            metric_report.get_weekly_cumulative_reach_measurements(
+                frozenset({EDP_TWO})),
             [Measurement(6000000, 0, "m_1")])
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_cumulative_reach_measurement(frozenset({EDP_TWO}), 0),
+            metric_report.get_weekly_cumulative_reach_measurement(
+                frozenset({EDP_TWO}), 0),
             Measurement(6000000, 0, "m_1"))
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_cumulative_reach_measurement(frozenset({EDP_TWO}),
-                                                    1), None)
-        self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_cumulative_reach_measurements(frozenset({EDP_ONE})),
+            metric_report.get_weekly_cumulative_reach_measurement(
+                frozenset({EDP_TWO}), 1),
             None)
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_cumulative_reach_measurement(frozenset({EDP_ONE}),
-                                                    0), None)
+            metric_report.get_weekly_cumulative_reach_measurements(
+                frozenset({EDP_ONE})),
+            None)
+        self.assertEqual(
+            metric_report.get_weekly_cumulative_reach_measurement(
+                frozenset({EDP_ONE}), 0),
+            None)
 
     def test_get_weekly_non_cumulative_reaches_return_correct_result(self):
         report = Report(
@@ -992,19 +993,19 @@ class TestReportMcApi2(unittest.TestCase):
             metric_subsets_by_parent={"ami": []},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
+        metric_report = report._metric_reports["ami"]
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_reach_measurement(frozenset({EDP_ONE}),
-                                                        0),
+            metric_report.get_weekly_non_cumulative_reach_measurement(
+                frozenset({EDP_ONE}), 0),
             Measurement(15819974, 10000, "m_3"))
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_reach_measurement(frozenset({EDP_ONE}),
-                                                        1), None)
+            metric_report.get_weekly_non_cumulative_reach_measurement(
+                frozenset({EDP_ONE}), 1),
+            None)
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_reach_measurement(frozenset({EDP_TWO}),
-                                                        0), None)
+            metric_report.get_weekly_non_cumulative_reach_measurement(
+                frozenset({EDP_TWO}), 0),
+            None)
 
     def test_get_weekly_non_cumulative_k_reach_measurements_return_correct_result(
             self):
@@ -1042,25 +1043,25 @@ class TestReportMcApi2(unittest.TestCase):
             metric_subsets_by_parent={"ami": []},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
+        metric_report = report._metric_reports["ami"]
         self.assertEqual(
-            list(report._metric_reports["ami"].
-                 get_weekly_non_cumulative_k_reach_measurements(
+            list(metric_report.get_weekly_non_cumulative_k_reach_measurements(
                      frozenset({EDP_ONE}), 0)),
             [Measurement(8165148, 10000, "m_4")])
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_k_reach_measurement(
-                frozenset({EDP_ONE}), 0, 1), Measurement(8165148, 10000, "m_4"))
+            metric_report.get_weekly_non_cumulative_k_reach_measurement(
+                frozenset({EDP_ONE}), 0, 1),
+            Measurement(8165148, 10000, "m_4"))
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_k_reach_measurements(
-                frozenset({EDP_ONE}), 1), None)
+            metric_report.get_weekly_non_cumulative_k_reach_measurements(
+                frozenset({EDP_ONE}), 1),
+            None)
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_k_reach_measurements(
-                frozenset({EDP_TWO}), 0), None)
+            metric_report.get_weekly_non_cumulative_k_reach_measurements(
+                frozenset({EDP_TWO}), 0),
+            None)
 
-    def test_get_weekly_non_cumulative_impression_mreturn_correct_result(self):
+    def test_get_weekly_non_cumulative_impression_measurements_return_correct_result(self):
         report = Report(
             metric_reports={
                 "ami":
@@ -1095,18 +1096,19 @@ class TestReportMcApi2(unittest.TestCase):
             metric_subsets_by_parent={"ami": []},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
+        metric_report = report._metric_reports["ami"]
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_impression_measurement(
-                frozenset({EDP_ONE}), 0), Measurement(29052805, 10000, "m_5"))
+            metric_report.get_weekly_non_cumulative_impression_measurement(
+                frozenset({EDP_ONE}), 0),
+            Measurement(29052805, 10000, "m_5"))
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_impression_measurement(
-                frozenset({EDP_ONE}), 1), None)
+            metric_report.get_weekly_non_cumulative_impression_measurement(
+                frozenset({EDP_ONE}), 1),
+            None)
         self.assertEqual(
-            report._metric_reports["ami"].
-            get_weekly_non_cumulative_impression_measurement(
-                frozenset({EDP_TWO}), 0), None)
+            metric_report.get_weekly_non_cumulative_impression_measurement(
+                frozenset({EDP_TWO}), 0),
+            None)
 
     def test_cover_relations_are_correctly_added_to_spec(self):
         report = SAMPLE_REPORT
@@ -1962,18 +1964,23 @@ class TestReportMcApi2(unittest.TestCase):
         report = SAMPLE_REPORT
         corrected_report, report_post_processor_result = report.get_corrected_report()
 
-        # Checks that EDP_ONE is not consistent before correction.
-        self.assertFalse(
-            report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
-        )
-        self.assertTrue(
-            corrected_report._are_edp_measurements_consistent(frozenset({EDP_ONE}))
-        )
+        # Checks that non-zero edp combinations are not consistent before
+        # correction.
+        for edp_combination in [frozenset({EDP_ONE}), frozenset({EDP_ONE, EDP_TWO}), frozenset({EDP_ONE, EDP_TWO, EDP_THREE})]:
+            self.assertFalse(
+                report._are_edp_measurements_consistent(edp_combination)
+            )
 
         # Checks that non-noised EDPs (EDP_TWO and EDP_THREE) are consistent.
         for edp_combination in [frozenset({EDP_TWO}), frozenset({EDP_THREE})]:
             self.assertTrue(
                 report._are_edp_measurements_consistent(edp_combination)
+            )
+
+        # Checks that non-zero edp combinations are consistent after correction.
+        for edp_combination in [frozenset({EDP_ONE}), frozenset({EDP_ONE, EDP_TWO}), frozenset({EDP_ONE, EDP_TWO, EDP_THREE})]:
+            self.assertTrue(
+                corrected_report._are_edp_measurements_consistent(edp_combination)
             )
 
         self.assertEqual(report_post_processor_result.status.status_code,
