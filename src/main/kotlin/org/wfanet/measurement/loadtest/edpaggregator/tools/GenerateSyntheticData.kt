@@ -73,6 +73,14 @@ class GenerateSyntheticData : Runnable {
     private set
 
   @Option(
+    names = ["--model-line"],
+    description = ["The model line for this campaign."],
+    required = true,
+  )
+  lateinit var modelLine: String
+    private set
+
+  @Option(
     names = ["--kek-uri"],
     description = ["The KMS kek uri."],
     required = true,
@@ -160,10 +168,12 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
+    val eventGroupPath = "model-line/$modelLine/event-group-reference-id/$eventGroupReferenceId"
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
           eventGroupReferenceId,
+          eventGroupPath,
           kekUri,
           kmsClient,
           outputBucket,

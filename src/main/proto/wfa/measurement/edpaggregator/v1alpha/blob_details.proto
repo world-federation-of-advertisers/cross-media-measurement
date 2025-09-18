@@ -24,6 +24,8 @@ syntax = "proto3";
 package wfa.measurement.securecomputation.impressions;
 
 import "google/api/field_behavior.proto";
+import "google/type/interval.proto";
+import "google/api/resource.proto";
 import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -38,4 +40,17 @@ message BlobDetails {
 
   // The encrypted dek used with KMS to decrypt data
   EncryptedDek encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A map from event_group_reference_id to the EventGroup resource name.
+  string event_group_reference_id = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the ModelLine associated with these impressions.
+  string model_line = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
+  // Interval for when data from blob_uri is guaranteed to be available for a
+  // Requisition fulfillment for the ModelLine indicated by model_line.
+  google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
 }

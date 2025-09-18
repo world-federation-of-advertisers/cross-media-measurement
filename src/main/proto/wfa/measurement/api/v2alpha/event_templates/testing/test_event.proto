@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
 import "wfa/measurement/api/v2alpha/event_templates/testing/video.proto";
@@ -24,6 +25,10 @@ option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testin
 option java_multiple_files = true;
 
 message TestEvent {
+  option (.wfa.measurement.api.v2alpha.event) = {
+    current_version: 1
+  };
+
   Person person = 1;
   Video video_ad = 2;
   Banner banner_ad = 3;

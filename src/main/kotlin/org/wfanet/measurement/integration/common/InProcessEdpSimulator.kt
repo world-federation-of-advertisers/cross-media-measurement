@@ -57,9 +57,9 @@ import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
-  val displayName: String,
+  displayName: String,
   resourceName: String,
-  private val certificateKey: DataProviderCertificateKey,
+  certificateKey: DataProviderCertificateKey,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
@@ -99,7 +99,8 @@ class InProcessEdpSimulator(
 
     delegate =
       EdpSimulator(
-        edpData = createEdpData(displayName, resourceName),
+        edpData = createEdpData(displayName, resourceName, certificateKey),
+        edpDisplayName = displayName,
         measurementConsumerName = mcResourceName,
         certificatesStub =
           CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
@@ -148,24 +149,28 @@ class InProcessEdpSimulator(
 
   suspend fun ensureEventGroup() = delegate.ensureEventGroups().single()
 
-  /**
-   * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
-   */
-  @Blocking
-  private fun createEdpData(displayName: String, resourceName: String) =
-    DataProviderData(
-      name = resourceName,
-      displayName = displayName,
-      certificateKey = certificateKey,
-      privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKeyHandle =
-        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
-    )
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
+
+    /**
+     * Builds a [DataProviderData] object for the Edp with a certain [displayName] and
+     * [resourceName].
+     */
+    @Blocking
+    private fun createEdpData(
+      displayName: String,
+      resourceName: String,
+      certificateKey: DataProviderCertificateKey,
+    ) =
+      DataProviderData(
+        name = resourceName,
+        certificateKey = certificateKey,
+        privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+        signingKeyHandle =
+          loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
+      )
   }
 }

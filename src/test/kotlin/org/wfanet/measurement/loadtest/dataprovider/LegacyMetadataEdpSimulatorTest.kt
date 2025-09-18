@@ -88,6 +88,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       LegacyMetadataEdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -143,7 +144,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
               name = EVENT_GROUP_NAME
               measurementConsumer = MEASUREMENT_CONSUMER_NAME
               eventGroupReferenceId =
-                "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DATA.displayName}"
+                "${TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX}-${EDP_DISPLAY_NAME}"
             }
           }
         )
@@ -151,6 +152,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       LegacyMetadataEdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -206,6 +208,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       LegacyMetadataEdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -256,6 +259,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       LegacyMetadataEdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         measurementConsumersStub,
         certificatesStub,
@@ -320,6 +324,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
     val edpSimulator =
       LegacyMetadataEdpSimulator(
         EDP_DATA,
+        EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         measurementConsumersStub,
         certificatesStub,
