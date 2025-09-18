@@ -93,6 +93,10 @@ package k8s
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
+	_eventDescriptorArgs: [
+		"--event-message-type-url=wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-message-descriptor-set=/etc/\(#AppName)/config-files/event_message_descriptor_set.pb",
+	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_akidToPrincipalMapFileFlag:                  "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_measurementConsumerConfigFileFlag:           "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
@@ -102,8 +106,6 @@ package k8s
 	_impressionQualificationFilterConfigFileFlag: "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
 	_metricSpecConfigFileFlag:                    "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
 	_basicReportMetricSpecConfigFileFlag:         "--basic-report-metric-spec-config-file=/etc/\(#AppName)/config-files/basic_report_metric_spec_config.textproto"
-	_eventDescriptorSetFlag:                      "--event-descriptor-set=/etc/\(#AppName)/config-files/event_proto-descriptor-set.proto.bin"
-	_eventProtoFlag:                              "--event-proto=wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
@@ -185,15 +187,13 @@ package k8s
 						_encryptionKeyPairConfigFileFlag,
 						_metricSpecConfigFileFlag,
 						_basicReportMetricSpecConfigFileFlag,
-						_eventDescriptorSetFlag,
-						_eventProtoFlag,
 						_knownEventGroupMetadataTypeFlag,
 						"--open-id-providers-config-file=/etc/\(#AppName)/config-files/open_id_providers_config.json",
 						"--require-client-auth=false",
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
 				_mounts: {

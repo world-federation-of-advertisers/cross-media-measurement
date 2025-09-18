@@ -22,6 +22,6 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     with:
-      image-tag: test-descriptor-flags
+      image-tag: test-new-reporting-flags-3
       environment: dev
       apply: true
