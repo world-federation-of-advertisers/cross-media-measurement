@@ -7,6 +7,7 @@ load(
     "GCLOUD_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
+    "PDP_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
 )
@@ -105,6 +106,65 @@ kustomization_dir(
     deps = [
         "config_files",
         ":kingdom_secret",
+    ],
+)
+
+cue_dump(
+    name = "population_requisition_fulfiller_gke",
+    srcs = [
+        "population_requisition_fulfiller_gke.cue",
+    ],
+    cue_tags = {
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "pdp_name": PDP_K8S_SETTINGS.pdp_name,
+        "pdp_cert_name": PDP_K8S_SETTINGS.pdp_cert_name,
+        "event_message_type_url": PDP_K8S_SETTINGS.event_message_type_url,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:population_requisition_fulfiller",
+    ],
+)
+
+kustomization_dir(
+    name = "pdp_config",
+    srcs = ["pdp_config_kustomization.yaml"],
+    renames = {
+        "pdp_config_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "pdp_consent_signaling",
+    srcs = ["pdp_cs_kustomization.yaml"],
+    renames = {
+        "pdp_cs_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "pdp_tls",
+    srcs = ["pdp_tls_kustomization.yaml"],
+    renames = {
+        "pdp_tls_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "population_requisition_fulfiller",
+    srcs = [
+        ":population_requisition_fulfiller_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":pdp_config",
+        ":pdp_consent_signaling",
+        ":pdp_tls",
     ],
 )
 
