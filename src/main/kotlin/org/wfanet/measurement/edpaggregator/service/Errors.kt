@@ -28,6 +28,8 @@ object Errors {
   const val DOMAIN = "edpaggregator.halo-cmm.org"
 
   enum class Reason {
+      IMPRESSION_METADATA_NOT_FOUND,
+      IMPRESSION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -35,6 +37,7 @@ object Errors {
     REQUISITION_METADATA_STATE_INVALID,
     DATA_PROVIDER_MISMATCH,
     ETAG_MISMATCH,
+
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
   }
@@ -49,6 +52,7 @@ object Errors {
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
+    IMPRESSION_METADATA("impressionMetadata"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -266,5 +270,21 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class ImpressionMetadataNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+    "ImpressionMetadata $name not found",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to name),
+    cause,
+  )
+
+class ImpressionMetadataAlreadyExistsException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata $name already exists",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to name),
     cause,
   )
