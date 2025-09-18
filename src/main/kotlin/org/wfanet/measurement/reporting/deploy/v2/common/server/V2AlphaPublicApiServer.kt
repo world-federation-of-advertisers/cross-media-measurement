@@ -307,15 +307,14 @@ private object V2AlphaPublicApiServer {
         v2AlphaPublicServerFlags.eventMessageTypeUrl.isNotEmpty() &&
           v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles.isNotEmpty()
       ) {
-        val eventDescriptor: Descriptors.Descriptor? =
+        val eventDescriptor: Descriptors.Descriptor =
+          checkNotNull(
           buildTypeRegistry(v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles)
-            .getDescriptorForTypeUrl(v2AlphaPublicServerFlags.eventMessageTypeUrl)
+            .getDescriptorForTypeUrl(v2AlphaPublicServerFlags.eventMessageTypeUrl)) {
+            "--event-message-type-url is invalid"
+          }
 
-        if (eventDescriptor == null) {
-          throw IllegalArgumentException("--event-message-type-url is invalid")
-        } else {
-          EventDescriptor(eventDescriptor)
-        }
+        EventDescriptor(eventDescriptor)
       } else {
         null
       }
