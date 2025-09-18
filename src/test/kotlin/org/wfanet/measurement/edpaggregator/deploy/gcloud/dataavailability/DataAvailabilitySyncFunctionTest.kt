@@ -163,7 +163,6 @@ class DataAvailabilitySyncFunctionTest {
         val port = runBlocking {
             functionProcess.start(
                 mapOf(
-                    "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
                     "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
                     "KINGDOM_CERT_HOST" to "localhost",
                     "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",

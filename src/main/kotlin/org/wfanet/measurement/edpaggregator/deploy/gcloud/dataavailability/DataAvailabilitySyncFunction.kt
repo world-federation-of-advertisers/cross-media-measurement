@@ -23,6 +23,7 @@ import com.google.cloud.storage.StorageOptions
 import java.io.BufferedReader
 import java.time.Duration
 import com.google.protobuf.util.JsonFormat
+import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -33,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import java.io.File
@@ -54,40 +56,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow { IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER") }
 
         val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
-//        val doneBlobUri =
-//            SelectedStorageClient.parseBlobUri(doneBlobPath)
-//
-//        val storageClient =
-//            SelectedStorageClient(
-//                blobUri = doneBlobUri,
-//                rootDirectory =
-//                    if (dataAvailabilitySyncConfig.dataAvailabilityStorage.hasFileSystem())
-//                        File(checkNotNull(fileSystemStorageRoot))
-//                    else null,
-//                projectId = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs.projectId
-//            )
 
-        val cmmsSigningCerts =
-            SigningCerts.fromPemFiles(
-                certificateFile = checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.certFilePath)),
-                privateKeyFile = checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.privateKeyFilePath)),
-                trustedCertCollectionFile =
-                checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.certCollectionFilePath)),
-            )
-        val cmmsPublicChannel =
-            buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
-                .withShutdownTimeout(kingdomChannelShutdownDuration)
+        val cmmsPublicChannel = createPublicChannel(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
 
-        val impressionMetadataStorageSigningCerts =
-            SigningCerts.fromPemFiles(
-                certificateFile = checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.certFilePath)),
-                privateKeyFile = checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.privateKeyFilePath)),
-                trustedCertCollectionFile =
-                checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.certCollectionFilePath)),
-            )
-        val impressionMetadataStoragePublicChannel =
-            buildMutualTlsChannel(impressionMetadataTarget, impressionMetadataStorageSigningCerts, impressionMetadataCertHost)
-                .withShutdownTimeout(impressionMetadataChannelShutdownDuration)
+        val impressionMetadataStoragePublicChannel = createPublicChannel(dataAvailabilitySyncConfig.impressionMetadataStorageConnection, impressionMetadataTarget, impressionMetadataCertHost)
 
         val dataProvidersClient = DataProvidersCoroutineStub(cmmsPublicChannel)
         val impressionMetadataServicesClient = ImpressionMetadataServiceCoroutineStub(impressionMetadataStoragePublicChannel)
@@ -102,6 +74,42 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
         runBlocking { dataAvailabilitySync.sync(doneBlobPath) }
 
+    }
+
+    /**
+     * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
+     *
+     * This function loads the client certificate, private key, and trusted root
+     * certificates from the file paths defined in [connecionParams]. It then
+     * uses these credentials to build a secure channel to the given [target].
+     *
+     * Optionally, a [hostName] can be provided to override the default authority
+     * used for TLS host verification.
+     *
+     * The returned channel is configured with a shutdown timeout defined by
+     * [channelShutdownDuration].
+     *
+     * @param connecionParams the TLS parameters containing file paths for the
+     * client certificate, private key, and certificate collection.
+     * @param target the server target (e.g., "host:port") to connect to.
+     * @param hostName an optional hostname override for TLS verification.
+     * @return a [ManagedChannel] secured with mutual TLS authentication.
+     * @throws IllegalArgumentException if any required certificate file path
+     * is missing or invalid.
+     */
+    fun createPublicChannel(connecionParams: TransportLayerSecurityParams, target: String, hostName: String?): ManagedChannel {
+        val signingCerts =
+            SigningCerts.fromPemFiles(
+                certificateFile = checkNotNull(File(connecionParams.certFilePath)),
+                privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
+                trustedCertCollectionFile =
+                checkNotNull(File(connecionParams.certCollectionFilePath)),
+            )
+        val publicChannel =
+            buildMutualTlsChannel(target, signingCerts, hostName)
+                .withShutdownTimeout(channelShutdownDuration)
+
+        return publicChannel
     }
 
     ///**
@@ -146,7 +154,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
         private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
         private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
-        private val kingdomChannelShutdownDuration =
+        private val channelShutdownDuration =
             Duration.ofSeconds(
                 System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
                     ?: CHANNEL_SHUTDOWN_DURATION_SECONDS
@@ -154,13 +162,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
         private val impressionMetadataTarget = EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
         private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
-        private val impressionMetadataChannelShutdownDuration =
-            Duration.ofSeconds(
-                System.getenv("CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
-                    ?: CHANNEL_SHUTDOWN_DURATION_SECONDS
-            )
 
-        private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
         private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
     }

@@ -96,6 +96,7 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
   suspend fun sync(doneBlobPath: String) {
+
     // 1. Crawl for metadata files
     val doneBlobUri: BlobUri =
       SelectedStorageClient.parseBlobUri(doneBlobPath)
@@ -123,6 +124,7 @@ class DataAvailabilitySync(
     // found in the storage folder and update kingdom availability
     // Collect all model lines
     val modelLines = impressionMetadataMap.keys.toList()
+
     val modelLinesAvailabilityInterval: ComputeModelLinesAvailabilityResponse =
       impressionMetadataServiceStub.computeModelLinesAvailability(
         computeModelLinesAvailabilityRequest {
@@ -141,6 +143,7 @@ class DataAvailabilitySync(
         }
       }
     }
+
     if (availabilityEntries.isNotEmpty()) {
       throttler.onReady {
         try {
@@ -213,11 +216,14 @@ class DataAvailabilitySync(
   suspend private fun createModelLineToImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, blobUri: BlobUri) : Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
+
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
         METADATA_FILE_NAME in fileName
       }.collect { blob ->
+
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
       val bytes: ByteString = blob.read().flatten()
+
       // Build the blob details object
       val blobDetails = if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
         BlobDetails.parseFrom(bytes)
@@ -285,7 +291,6 @@ class DataAvailabilitySync(
 
     private val VALID_IMPRESSION_PATH_PREFIX: Regex =
       Regex("^edp/[^/]+/[^/]+(/.*)?$")
-
   }
 
 }
