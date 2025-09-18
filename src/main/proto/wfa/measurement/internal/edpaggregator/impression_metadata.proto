@@ -22,6 +22,7 @@ import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataProto";
 
 // Proto representation of the internal ImpressionMetadata entity type.
 message ImpressionMetadata {
