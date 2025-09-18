@@ -365,6 +365,7 @@ class ImpressionMetadataServiceTest {
       val request = deleteImpressionMetadataRequest {
         name = "dataProviders/data-provider-1/impressionMetadata/impression-metadata-1"
       }
+
       val exception =
         assertFailsWith<StatusRuntimeException> { service.deleteImpressionMetadata(request) }
 
