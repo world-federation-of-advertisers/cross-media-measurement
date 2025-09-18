@@ -158,11 +158,6 @@ jobs:
         cp src/main/k8s/testing/secretfiles/basic_report_metric_spec_config.textproto
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
-    - name: Copy Event Message DescriptorSet file
-      run: >
-        cp src/main/k8s/testing/secretfiles/event_message_descriptor_set.pb
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"    
-
     - name: Write OpenIdProvidersConfig
       env:
         OPEN_ID_PROVIDER_ISSUER: ${{ vars.OPEN_ID_PROVIDER_ISSUER }}
