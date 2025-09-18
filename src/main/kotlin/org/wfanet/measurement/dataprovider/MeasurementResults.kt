@@ -28,6 +28,7 @@ import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -165,19 +166,12 @@ object MeasurementResults {
   private fun getPopulationOperativeFields(
     eventMessageDescriptor: Descriptors.Descriptor
   ): Set<String> {
-    return eventMessageDescriptor.fields
-      .flatMap { templateField ->
-        templateField.messageType.fields.map { templateFieldDescriptor ->
-          if (
-            templateFieldDescriptor.options
-              .getExtension(EventAnnotationsProto.templateField)
-              .populationAttribute
-          ) {
-            "${templateField.name}.${templateFieldDescriptor.name}"
-          } else null
-        }
+    return EventTemplates.getPopulationFields(eventMessageDescriptor)
+      .map { field ->
+        val templateName =
+          field.containingType.options.getExtension(EventAnnotationsProto.eventTemplate).name
+        "${templateName}.${field.name}"
       }
-      .filterNotNull()
       .toSet()
   }
 
