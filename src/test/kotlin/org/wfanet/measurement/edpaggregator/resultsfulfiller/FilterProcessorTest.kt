@@ -67,11 +67,7 @@ class FilterProcessorTest {
     gender: Person.Gender = Person.Gender.MALE,
   ): LabeledEvent<Message> {
     val message = createDynamicMessage(ageGroup, gender)
-    return LabeledEvent(
-      timestamp = timestamp,
-      vid = vid,
-      message = message,
-    )
+    return LabeledEvent(timestamp = timestamp, vid = vid, message = message)
   }
 
   /** Helper function to create an EventBatch with proper minTime and maxTime. */
@@ -202,11 +198,7 @@ class FilterProcessorTest {
       val filterProcessor = FilterProcessor<Message>(filterSpec, testEventDescriptor)
 
       val events =
-        listOf(
-          createTestLabeledEvent(1),
-          createTestLabeledEvent(2),
-          createTestLabeledEvent(3),
-        )
+        listOf(createTestLabeledEvent(1), createTestLabeledEvent(2), createTestLabeledEvent(3))
 
       val batch = createEventBatch(events)
       val result = filterProcessor.processBatch(batch)

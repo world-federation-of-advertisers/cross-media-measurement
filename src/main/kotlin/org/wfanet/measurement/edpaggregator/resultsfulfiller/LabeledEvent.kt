@@ -35,8 +35,4 @@ import java.time.Instant
  * @property message the actual event data as a Protocol Buffer message. Contains the
  *   domain-specific event information.
  */
-data class LabeledEvent<T : Message>(
-  val timestamp: Instant,
-  val vid: Long,
-  val message: T,
-)
+data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)
