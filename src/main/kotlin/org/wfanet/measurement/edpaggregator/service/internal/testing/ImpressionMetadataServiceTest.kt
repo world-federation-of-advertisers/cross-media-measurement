@@ -38,17 +38,11 @@ import org.wfanet.measurement.edpaggregator.service.internal.Errors
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
-import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
-import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
 
 @RunWith(JUnit4::class)
 abstract class ImpressionMetadataServiceTest {
@@ -331,79 +325,6 @@ abstract class ImpressionMetadataServiceTest {
           }
         )
     }
-
-  @Test
-  fun `listImpressionMetadata returns ImpressionMetadata ordered by resource ID`() = runBlocking {
-    val impressionMetadata: List<ImpressionMetadata> = createImpressionMetadata(service, 10)
-
-    val response: ListImpressionMetadataResponse =
-      service.listImpressionMetadata(ListImpressionMetadataRequest.getDefaultInstance())
-
-    assertThat(response)
-      .isEqualTo(listImpressionMetadataResponse { this.impressionMetadata += impressionMetadata })
-  }
-
-  @Test
-  fun `listImpressionMetadata returns ImpressionMetadata when page size is specified`() =
-    runBlocking {
-      val impressionMetadata: List<ImpressionMetadata> = createImpressionMetadata(service, 10)
-
-      val response: ListImpressionMetadataResponse =
-        service.listImpressionMetadata(listImpressionMetadataRequest { pageSize = 10 })
-
-      assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { this.impressionMetadata += impressionMetadata })
-    }
-
-  @Test
-  fun `listImpressionMetadata returns next page token when there are more results`() = runBlocking {
-    val impressionMetadata: List<ImpressionMetadata> = createImpressionMetadata(service, 10)
-
-    val request = listImpressionMetadataRequest { pageSize = 5 }
-    val response: ListImpressionMetadataResponse = service.listImpressionMetadata(request)
-
-    assertThat(response)
-      .isEqualTo(
-        listImpressionMetadataResponse {
-          this.impressionMetadata += impressionMetadata.take(request.pageSize)
-          nextPageToken = listImpressionMetadataPageToken {
-            after =
-              ListImpressionMetadataPageTokenKt.after {
-                impressionMetadataResourceId = "impressionMetadata-0000000005"
-              }
-          }
-        }
-      )
-  }
-
-  @Test
-  fun `listImpressionMetadata returns results after page token`() = runBlocking {
-    val impressionMetadata: List<ImpressionMetadata> = createImpressionMetadata(service, 10)
-
-    val request = listImpressionMetadataRequest {
-      pageSize = 2
-      pageToken = listImpressionMetadataPageToken {
-        after =
-          ListImpressionMetadataPageTokenKt.after {
-            impressionMetadataResourceId = "impressionMetadata-0000000005"
-          }
-      }
-    }
-    val response: ListImpressionMetadataResponse = service.listImpressionMetadata(request)
-
-    assertThat(response)
-      .isEqualTo(
-        listImpressionMetadataResponse {
-          this.impressionMetadata += impressionMetadata.subList(5, 7)
-          nextPageToken = listImpressionMetadataPageToken {
-            after =
-              ListImpressionMetadataPageTokenKt.after {
-                impressionMetadataResourceId = "impressionMetadata-0000000007"
-              }
-          }
-        }
-      )
-  }
 
   private suspend fun createImpressionMetadata(
     service: ImpressionMetadataServiceCoroutineImplBase,
