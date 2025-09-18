@@ -57,7 +57,8 @@ class DataWatcherFunction : CloudEventsFunction {
     logger.info("Receiving path $path")
     val size = data.size
     if (size == 0L) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2653): Update logic once metadata storage are in place
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2653): Update logic once
+      // metadata storage are in place
       // Temporary accept empty blob if path ends with "done"
       if (!path.lowercase().endsWith(VALID_EMPTY_BLOB_NAME)) {
         logger.info("Skipping processing: file '$path' is empty and not a done marker")
@@ -149,5 +150,4 @@ class DataWatcherFunction : CloudEventsFunction {
       )
     }
   }
-
 }
