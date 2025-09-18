@@ -25,9 +25,6 @@ import io.grpc.Status
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collectIndexed
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
@@ -39,7 +36,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataIdByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -51,12 +47,7 @@ import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataReques
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
-import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
-import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
 
 class SpannerImpressionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
@@ -95,14 +86,14 @@ class SpannerImpressionMetadataService(
     request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
     try {
-      validateImpressionMetadata(request.impressionMetadata)
+      validateImpressionMetadataRequest(request)
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val initialState = State.IMPRESSION_METADATA_STATE_ACTIVE
 
-    val transactionRunner =
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createImpressionMetadata"))
     val impressionMetadata: ImpressionMetadata =
       try {
@@ -131,7 +122,7 @@ class SpannerImpressionMetadataService(
             }
           val impressionMetadataResourceId =
             request.impressionMetadata.impressionMetadataResourceId.ifEmpty {
-              "imp-" + UUID.randomUUID()
+              IMPRESSION_METADATA_PREFIX + UUID.randomUUID()
             }
 
           txn.insertImpressionMetadata(
@@ -196,69 +187,29 @@ class SpannerImpressionMetadataService(
     return Empty.getDefaultInstance()
   }
 
-  override suspend fun listImpressionMetadata(
-    request: ListImpressionMetadataRequest
-  ): ListImpressionMetadataResponse {
-    if (request.pageSize < 0) {
-      throw InvalidFieldValueException("page_size") { fieldName ->
-        "$fieldName must be non-negative"
-      }
+  private fun validateImpressionMetadataRequest(request: CreateImpressionMetadataRequest) {
+    if (request.impressionMetadata.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata.data_provider_resource_id")
     }
-
-    val pageSize =
-      if (request.pageSize == 0) {
-        DEFAULT_PAGE_SIZE
-      } else {
-        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
-      }
-
-    val after = if (request.hasPageToken()) request.pageToken.after else null
-
-    databaseClient.singleUse().use { txn ->
-      val impressionMetadataList: Flow<ImpressionMetadata> =
-        txn.readImpressionMetadata(pageSize + 1, after).map { it.impressionMetadata }
-      return listImpressionMetadataResponse {
-        impressionMetadataList.collectIndexed { index, impressionMetadata ->
-          if (index == pageSize) {
-            nextPageToken = listImpressionMetadataPageToken {
-              this.after =
-                ListImpressionMetadataPageTokenKt.after {
-                  impressionMetadataResourceId =
-                    this@listImpressionMetadataResponse.impressionMetadata
-                      .last()
-                      .impressionMetadataResourceId
-                }
-            }
-          } else {
-            this.impressionMetadata += impressionMetadata
-          }
-        }
-      }
+    if (request.impressionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata.blob_uri")
     }
-  }
-
-  private fun validateImpressionMetadata(impressionMetadata: ImpressionMetadata) {
-    if (impressionMetadata.dataProviderResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("data_provider_resource_id")
+    if (request.impressionMetadata.blobTypeUrl.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata.blob_type_url")
     }
-    if (impressionMetadata.blobUri.isEmpty()) {
-      throw RequiredFieldNotSetException("blob_uri")
+    if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata.event_group_reference_id")
     }
-    if (impressionMetadata.blobTypeUrl.isEmpty()) {
-      throw RequiredFieldNotSetException("blob_type_url")
+    if (request.impressionMetadata.cmmsModelLine.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata.cmms_model_line")
     }
-    if (impressionMetadata.eventGroupReferenceId.isEmpty()) {
-      throw RequiredFieldNotSetException("event_group_reference_id")
-    }
-    if (impressionMetadata.cmmsModelLine.isEmpty()) {
-      throw RequiredFieldNotSetException("cmms_model_line")
-    }
-    if (!impressionMetadata.hasInterval()) {
-      throw RequiredFieldNotSetException("interval")
+    if (!request.impressionMetadata.hasInterval()) {
+      throw RequiredFieldNotSetException("impression_metadata.interval")
     }
   }
 
   companion object {
+    private const val IMPRESSION_METADATA_PREFIX = "imp-"
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
   }
