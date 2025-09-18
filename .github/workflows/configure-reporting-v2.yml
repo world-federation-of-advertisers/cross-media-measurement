@@ -160,7 +160,7 @@ jobs:
 
     - name: Copy Event Message DescriptorSet
       run: >
-        cp $BAZEL_BIN/src/main/k8s/testing/secretfiles/event_message_descriptor_set.pb
+        cp $BAZEL_BIN/src/main/k8s/dev/reporting_v2_config_files/event_message_descriptor_set.pb
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"    
 
     - name: Write OpenIdProvidersConfig
