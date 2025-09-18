@@ -29,47 +29,50 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import java.util.logging.Logger
-import org.wfanet.measurement.config.edpaggregator.DataAvailabilityConfig
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailability
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import java.io.File
 import java.time.Clock
-import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
-class DataAvailabilityFunction() : HttpFunction {
+class DataAvailabilitySyncFunction() : HttpFunction {
 
     override fun service(request: HttpRequest, response: HttpResponse) {
-        logger.fine("Starting DataAvailabilityFunction")
+        logger.fine("Starting DataAvailabilitySyncFunction")
         val requestBody: BufferedReader = request.getReader()
-        val dataAvailabilityConfig =
-          DataAvailabilityConfig.newBuilder()
+        val dataAvailabilitySyncConfig =
+          DataAvailabilitySyncConfig.newBuilder()
             .apply { JsonFormat.parser().merge(requestBody, this) }
             .build()
 
         // Read the path as request header
-        val path = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow { IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER") }
+        val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow { IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER") }
 
-        val doneBlobUri =
-            SelectedStorageClient.parseBlobUri(path)
-
-        val storageClient =
-            SelectedStorageClient(
-                blobUri = doneBlobUri,
-                rootDirectory =
-                    if (dataAvailabilityConfig.dataAvailabilityStorage.hasFileSystem())
-                        File(checkNotNull(fileSystemStorageRoot))
-                    else null,
-                projectId = dataAvailabilityConfig.dataAvailabilityStorage.gcs.projectId
-            )
+        val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
+//        val doneBlobUri =
+//            SelectedStorageClient.parseBlobUri(doneBlobPath)
+//
+//        val storageClient =
+//            SelectedStorageClient(
+//                blobUri = doneBlobUri,
+//                rootDirectory =
+//                    if (dataAvailabilitySyncConfig.dataAvailabilityStorage.hasFileSystem())
+//                        File(checkNotNull(fileSystemStorageRoot))
+//                    else null,
+//                projectId = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs.projectId
+//            )
 
         val cmmsSigningCerts =
             SigningCerts.fromPemFiles(
-                certificateFile = checkNotNull(File(dataAvailabilityConfig.cmmsConnection.certFilePath)),
-                privateKeyFile = checkNotNull(File(dataAvailabilityConfig.cmmsConnection.privateKeyFilePath)),
+                certificateFile = checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.certFilePath)),
+                privateKeyFile = checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.privateKeyFilePath)),
                 trustedCertCollectionFile =
-                checkNotNull(File(dataAvailabilityConfig.cmmsConnection.certCollectionFilePath)),
+                checkNotNull(File(dataAvailabilitySyncConfig.cmmsConnection.certCollectionFilePath)),
             )
         val cmmsPublicChannel =
             buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
@@ -77,10 +80,10 @@ class DataAvailabilityFunction() : HttpFunction {
 
         val impressionMetadataStorageSigningCerts =
             SigningCerts.fromPemFiles(
-                certificateFile = checkNotNull(File(dataAvailabilityConfig.impressionMetadataStorageConnection.certFilePath)),
-                privateKeyFile = checkNotNull(File(dataAvailabilityConfig.impressionMetadataStorageConnection.privateKeyFilePath)),
+                certificateFile = checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.certFilePath)),
+                privateKeyFile = checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.privateKeyFilePath)),
                 trustedCertCollectionFile =
-                checkNotNull(File(dataAvailabilityConfig.impressionMetadataStorageConnection.certCollectionFilePath)),
+                checkNotNull(File(dataAvailabilitySyncConfig.impressionMetadataStorageConnection.certCollectionFilePath)),
             )
         val impressionMetadataStoragePublicChannel =
             buildMutualTlsChannel(impressionMetadataTarget, impressionMetadataStorageSigningCerts, impressionMetadataCertHost)
@@ -89,16 +92,46 @@ class DataAvailabilityFunction() : HttpFunction {
         val dataProvidersClient = DataProvidersCoroutineStub(cmmsPublicChannel)
         val impressionMetadataServicesClient = ImpressionMetadataServiceCoroutineStub(impressionMetadataStoragePublicChannel)
 
-        val dataAvailability = DataAvailability(
+        val dataAvailabilitySync = DataAvailabilitySync(
             storageClient,
             dataProvidersClient,
             impressionMetadataServicesClient,
-            dataAvailabilityConfig.dataProvider,
+            dataAvailabilitySyncConfig.dataProvider,
             MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
         )
 
-        runBlocking { dataAvailability.sync(path) }
+        runBlocking { dataAvailabilitySync.sync(doneBlobPath) }
 
+    }
+
+    ///**
+    //   * Creates a [StorageClient] based on the current environment and the provided data provider
+    //   * configuration.
+    //   *
+    //   * @param dataProviderConfig The configuration object for a `DataProvider`.
+    //   * @return A [StorageClient] instance, either for local file system access or GCS access.
+    //   */
+    //  // @TODO(@marcopremier): This function may share the logic of
+    //  // `ResultsFulfillerAppImpl.createStorageClient` method.
+    private fun createStorageClient(
+        dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): StorageClient {
+        return if (!fileSystemPath.isNullOrEmpty()) {
+            FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
+        } else {
+            val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
+            GcsStorageClient(
+                StorageOptions.newBuilder()
+                    .also {
+                        if (gcsConfig.projectId.isNotEmpty()) {
+                            it.setProjectId(gcsConfig.projectId)
+                        }
+                    }
+                    .build()
+                    .service,
+                gcsConfig.bucketName,
+            )
+        }
     }
 
     companion object {
@@ -128,5 +161,7 @@ class DataAvailabilityFunction() : HttpFunction {
             )
 
         private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
+        private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
+
     }
 }

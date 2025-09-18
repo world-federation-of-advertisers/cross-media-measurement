@@ -35,6 +35,7 @@ import com.google.type.interval
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
@@ -95,7 +96,6 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
   suspend fun sync(doneBlobPath: String) {
-
     // 1. Crawl for metadata files
     val doneBlobUri: BlobUri =
       SelectedStorageClient.parseBlobUri(doneBlobPath)
@@ -105,7 +105,8 @@ class DataAvailabilitySync(
       "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
     }
 
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
+    val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+    val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs(doneBlobFolderPath)
 
     // 1. Retrieve blob details from storage and build a map and validate them
     val impressionMetadataMap: Map<String, List<ImpressionMetadata>> = createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
@@ -122,7 +123,6 @@ class DataAvailabilitySync(
     // found in the storage folder and update kingdom availability
     // Collect all model lines
     val modelLines = impressionMetadataMap.keys.toList()
-
     val modelLinesAvailabilityInterval: ComputeModelLinesAvailabilityResponse =
       impressionMetadataServiceStub.computeModelLinesAvailability(
         computeModelLinesAvailabilityRequest {
@@ -141,7 +141,6 @@ class DataAvailabilitySync(
         }
       }
     }
-
     if (availabilityEntries.isNotEmpty()) {
       throttler.onReady {
         try {
@@ -214,14 +213,11 @@ class DataAvailabilitySync(
   suspend private fun createModelLineToImpressionMetadataMap(impressionMetadataBlobs : Flow<StorageClient.Blob>, blobUri: BlobUri) : Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs.filter { blob ->
-
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
         METADATA_FILE_NAME in fileName
       }.collect { blob ->
-
       val fileName = blob.blobKey.substringAfterLast("/").lowercase()
       val bytes: ByteString = blob.read().flatten()
-
       // Build the blob details object
       val blobDetails = if (fileName.endsWith(PROTO_FILE_SUFFIX)) {
         BlobDetails.parseFrom(bytes)
@@ -240,7 +236,7 @@ class DataAvailabilitySync(
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
       }
 
-      val metadata_blob_uri = "${blobUri.asUriString()}${blobUri.bucket}/${blob.blobKey}"
+      val metadata_blob_uri = blob.blobKey
       val impressionBlob = storageClient.getBlob(blobDetails.blobUri)
       if (impressionBlob == null) {
         logger.info("Encrypted impressions blob non found for metadata: $metadata_blob_uri.")
@@ -289,6 +285,7 @@ class DataAvailabilitySync(
 
     private val VALID_IMPRESSION_PATH_PREFIX: Regex =
       Regex("^edp/[^/]+/[^/]+(/.*)?$")
+
   }
 
 }

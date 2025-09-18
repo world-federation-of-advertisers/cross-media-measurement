@@ -105,7 +105,7 @@ class DataWatcher(
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
         .header("Authorization", "Bearer $jwt")
-        .header(DATA_WATHCER_PATH_HEADER, path)
+        .header(DATA_WATCHER_PATH_HEADER, path)
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
         .build()
     val response = client.send(request, BodyHandlers.ofString())
@@ -116,6 +116,6 @@ class DataWatcher(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val DATA_WATHCER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
   }
 }

@@ -9,7 +9,7 @@ package(
 )
 
 java_binary(
-    name = "InvokeDataAvailabilityFunction",
+    name = "InvokeDataAvailabilitySyncFunction",
     main_class = "com.google.cloud.functions.invoker.runner.Invoker",
     resources = [
         "//src/main/k8s/testing/secretfiles:root_certs",
@@ -17,6 +17,6 @@ java_binary(
     ],
     runtime_deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityFunction_deploy.jar",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction_deploy.jar",
     ],
 )

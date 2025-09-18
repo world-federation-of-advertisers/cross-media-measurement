@@ -28,31 +28,44 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.times
+import com.google.type.interval
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.config.edpaggregator.dataAvailabilityConfig
+import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponseKt.modelLineAvailability
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import java.io.File
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
 
 @RunWith(JUnit4::class)
-class DataAvailabilityFunctionTest {
+class DataAvailabilitySyncFunctionTest {
 
     private lateinit var grpcServer: CommonServer
     private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
@@ -65,35 +78,18 @@ class DataAvailabilityFunctionTest {
     }
 
     private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
-        onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
+        onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+            .thenReturn(BatchCreateImpressionMetadataResponse.getDefaultInstance())
+        onBlocking { computeModelLinesAvailability(any<ComputeModelLinesAvailabilityRequest>()) }
             .thenAnswer { invocation ->
-                val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-
-                // Build some fake proto data for the response
-                listImpressionMetadataResponse {
-                    impressionMetadata += listOf(
-                        impressionMetadata {
-                            name = "${request.parent}/impressionMetadata1"
-                            modelLine = request.filter.modelLine
-                            blobUri = "gs://bucket/blob-1"
-                            interval = interval {
-                                startTime = timestamp { seconds = 100 }
-                                endTime = timestamp { seconds = 200 }
-                            }
-                            state = ImpressionMetadata.State.ACTIVE
-                        },
-                        impressionMetadata {
-                            name = "${request.parent}/impressionMetadata2"
-                            modelLine = request.filter.modelLine
-                            blobUri = "gs://bucket/blob-2"
-                            interval = interval {
-                                startTime = timestamp { seconds = 200 }
-                                endTime = timestamp { seconds = 300 }
-                            }
-                            state = ImpressionMetadata.State.ACTIVE
+                computeModelLinesAvailabilityResponse {
+                    modelLineAvailabilities += modelLineAvailability {
+                        modelLine = "some-model-line"
+                        availability = interval {
+                            startTime = timestamp { seconds = 1735689600 } // 2025-01-01T00:00:00Z
+                            endTime   = timestamp { seconds = 1736467200 } // 2025-01-10T00:00:00Z
                         }
-                    )
-
+                    }
                 }
             }
     }
@@ -133,7 +129,22 @@ class DataAvailabilityFunctionTest {
 
     @Test
     fun `sync registersUnregisteredImpressionMetadata`() {
-        val dataAvailabilityConfig = dataAvailabilityConfig {
+
+        val localImpressionBlobUri = "edp/edp_name/timestamp/impressions"
+        val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.pb"
+        val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+        val blobDetails = blobDetails {
+            blobUri = localImpressionBlobUri
+            eventGroupReferenceId = "reference-id"
+            modelLine = "some-model-line"
+            interval = interval {
+                startTime = timestamp { seconds = 1735689600 }
+                endTime   = timestamp { seconds = 1736467200 }
+            }
+        }
+
+        val dataAvailabilitySyncConfig = dataAvailabilitySyncConfig {
             dataProvider = "dataProviders/edp123"
             cmmsConnection = transportLayerSecurityParams {
                 certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
@@ -148,19 +159,43 @@ class DataAvailabilityFunctionTest {
             }
             dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
         }
-
-        // DO_NOT_SUBMIT (Complete tests once the ImpressionMetadataStorage is implemented)
+        File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
         val port = runBlocking {
             functionProcess.start(
                 mapOf(
                     "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
                     "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
                     "KINGDOM_CERT_HOST" to "localhost",
-                    "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+                    "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+                    "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+                    "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
                 )
             )
         }
 
+        val url = "http://localhost:$port"
+        logger.info("Testing Cloud Function at: $url")
+
+        val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+        runBlocking {
+            storageClient.writeBlob(localImpressionBlobUri, emptyFlow())
+            storageClient.writeBlob(localMetadataBlobUri, flowOf(blobDetails.toByteString()))
+        }
+        // In practice, the DataWatcher makes this HTTP call
+        val client = HttpClient.newHttpClient()
+        val getRequest =
+            HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("X-DataWatcher-Path", localDoneBlobUri)
+                .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+                .build()
+        val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+        logger.info("Response status: ${getResponse.statusCode()}")
+        logger.info("Response body: ${getResponse.body()}")
+
+        verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+        verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
     }
 
     companion object {
@@ -191,10 +226,10 @@ class DataAvailabilityFunctionTest {
                 "gcloud",
                 "dataavailability",
                 "testing",
-                "InvokeDataAvailabilityFunction",
+                "InvokeDataAvailabilitySyncFunction",
             )
         private const val GCG_TARGET =
-            "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityFunction"
+            "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
     }
 
 }
