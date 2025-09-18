@@ -94,7 +94,7 @@ package k8s
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
 	_eventDescriptorArgs: [
-		"--event-message-type-url=wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-message-type-url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
 		"--event-message-descriptor-set=/etc/\(#AppName)/config-files/event_message_descriptor_set.pb",
 	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
