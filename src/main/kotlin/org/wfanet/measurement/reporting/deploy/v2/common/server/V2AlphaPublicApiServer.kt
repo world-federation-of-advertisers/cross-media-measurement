@@ -309,8 +309,9 @@ private object V2AlphaPublicApiServer {
       ) {
         val eventDescriptor: Descriptors.Descriptor =
           checkNotNull(
-          buildTypeRegistry(v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles)
-            .getDescriptorForTypeUrl(v2AlphaPublicServerFlags.eventMessageTypeUrl)) {
+            buildTypeRegistry(v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles)
+              .getDescriptorForTypeUrl(v2AlphaPublicServerFlags.eventMessageTypeUrl)
+          ) {
             "--event-message-type-url is invalid"
           }
 
