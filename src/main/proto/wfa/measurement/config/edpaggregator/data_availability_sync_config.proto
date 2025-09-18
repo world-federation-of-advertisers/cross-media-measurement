@@ -28,7 +28,7 @@ message DataProviderDataAvailabilitySyncConfig {
   // Resource name referencing the `DataProvider` in an external system,
   // provided out-of-band.
   string data_provider = 1
-    [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
 }
 
