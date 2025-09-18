@@ -1,10 +1,0 @@
-
-è
-?wfa/measurement/api/v2alpha/event_templates/testing/video.proto3wfa.measurement.api.v2alpha.event_templates.testinggoogle/protobuf/duration.proto3wfa/measurement/api/v2alpha/event_annotations.proto,wfa/measurement/api/v2alpha/media_type.proto"¤
-VideoJ
-length (2.google.protobuf.DurationB‚µ
-Video Length*0Rlength~
-viewed_fraction (BU‚µQ
-Viewed Fraction9Fraction of the video that was viewed in the range [0, 1]*0RviewedFraction:O‚µK
-video_adVideo Ad3A simple template for events related to a video ad. B>
-:org.wfanet.measurement.api.v2alpha.event_templates.testingPbproto3

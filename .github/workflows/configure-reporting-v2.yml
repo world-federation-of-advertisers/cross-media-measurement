@@ -158,25 +158,10 @@ jobs:
         cp src/main/k8s/testing/secretfiles/basic_report_metric_spec_config.textproto
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
-    - name: Copy Event descriptor set file
+    - name: Copy Event Message DescriptorSet file
       run: >
-        cp src/main/k8s/testing/secretfiles/test_event_proto-descriptor-set.proto.bin
+        cp src/main/k8s/testing/secretfiles/event_message_descriptor_set.pb
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"    
-
-    - name: Copy first Event Template descriptor set file
-      run: >
-        cp src/main/k8s/testing/secretfiles/banner_proto-descriptor-set.proto.bin
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
-
-    - name: Copy second Event Template descriptor set file
-      run: >
-        cp src/main/k8s/testing/secretfiles/video_proto-descriptor-set.proto.bin 
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
-
-    - name: Copy third Event Template descriptor set file
-      run: >
-        cp src/main/k8s/testing/secretfiles/person_proto-descriptor-set.proto.bin 
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_config_files/"
 
     - name: Write OpenIdProvidersConfig
       env:

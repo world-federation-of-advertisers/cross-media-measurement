@@ -29,15 +29,11 @@ package(
 )
 
 exports_files([
-    "banner_proto-descriptor-set.proto.bin",
     "basic_report_metric_spec_config.textproto",
     "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
     "pdp1_tls.key",
     "pdp1_tls.pem",
-    "person_proto-descriptor-set.proto.bin",
-    "test_event_proto-descriptor-set.proto.bin",
-    "video_proto-descriptor-set.proto.bin",
 ])
 
 filegroup(

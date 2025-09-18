@@ -304,12 +304,12 @@ private object V2AlphaPublicApiServer {
     val eventDescriptor: EventDescriptor? =
       // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
       if (
-        v2AlphaPublicServerFlags.eventProto.isNotEmpty() &&
-          v2AlphaPublicServerFlags.eventDescriptorSetFiles.isNotEmpty()
+        v2AlphaPublicServerFlags.eventMessageTypeUrl.isNotEmpty() &&
+          v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles.isNotEmpty()
       ) {
         val eventDescriptor =
-          buildTypeRegistry(v2AlphaPublicServerFlags.eventDescriptorSetFiles)
-            .find(v2AlphaPublicServerFlags.eventProto)
+          buildTypeRegistry(v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles)
+            .find(v2AlphaPublicServerFlags.eventMessageTypeUrl)
 
         EventDescriptor(eventDescriptor)
       } else {
@@ -456,16 +456,16 @@ private object V2AlphaPublicApiServer {
       private set
 
     @CommandLine.Option(
-      names = ["--event-proto"],
+      names = ["--event-message-type-url"],
       description = ["Fully qualified name of the event message type."],
       required = false,
       defaultValue = "",
     )
-    lateinit var eventProto: String
+    lateinit var eventMessageTypeUrl: String
       private set
 
     @CommandLine.Option(
-      names = ["--event-descriptor-set"],
+      names = ["--event-message-descriptor-set"],
       description =
         [
           "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
@@ -474,7 +474,7 @@ private object V2AlphaPublicApiServer {
         ],
       required = false,
     )
-    var eventDescriptorSetFiles: List<File> = emptyList()
+    var eventMessageDescriptorSetFiles: List<File> = emptyList()
       private set
   }
 
