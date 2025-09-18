@@ -17,7 +17,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
 import java.lang.UnsupportedOperationException
 import java.nio.file.Path
@@ -25,15 +24,16 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.random.Random
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -48,11 +48,12 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCorou
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
+import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -69,11 +70,13 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -104,8 +107,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.dataprovider.DataProviderData
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
 
 @RunWith(JUnit4::class)
@@ -138,13 +139,20 @@ class PopulationRequisitionFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
 
-  private val modelRolloutsServiceStub: ModelRolloutsCoroutineImplBase = mockService {
+  private val modelRolloutsServiceMock: ModelRolloutsCoroutineImplBase = mockService {
     onBlocking { listModelRollouts(any()) }
       .thenReturn(listModelRolloutsResponse { modelRollouts += listOf(MODEL_ROLLOUT) })
   }
 
-  private val modelReleasesServiceStub: ModelReleasesCoroutineImplBase = mockService {
+  private val modelReleasesServiceMock: ModelReleasesCoroutineImplBase = mockService {
     onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_1)
+  }
+
+  private val populationsServiceMock: PopulationsGrpcKt.PopulationsCoroutineImplBase = mockService {
+    onBlocking { getPopulation(getPopulationRequest { name = POPULATION_NAME_1 }) } doReturn
+      POPULATION_1
+    onBlocking { getPopulation(getPopulationRequest { name = POPULATION_NAME_2 }) } doReturn
+      POPULATION_2
   }
 
   @get:Rule
@@ -152,8 +160,9 @@ class PopulationRequisitionFulfillerTest {
     addService(certificatesServiceMock)
     addService(dataProvidersServiceMock)
     addService(requisitionsServiceMock)
-    addService(modelRolloutsServiceStub)
-    addService(modelReleasesServiceStub)
+    addService(modelRolloutsServiceMock)
+    addService(modelReleasesServiceMock)
+    addService(populationsServiceMock)
   }
 
   private val certificatesStub: CertificatesCoroutineStub by lazy {
@@ -172,6 +181,10 @@ class PopulationRequisitionFulfillerTest {
     ModelReleasesCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val populationsStub by lazy {
+    PopulationsGrpcKt.PopulationsCoroutineStub(grpcTestServerRule.channel)
+  }
+
   @Test
   fun `fulfills requisition for 18-34 age range`() {
     requisitionsServiceMock.stub {
@@ -188,8 +201,8 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -237,8 +250,8 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -289,8 +302,8 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -308,7 +321,7 @@ class PopulationRequisitionFulfillerTest {
 
   @Test
   fun `fulfills requisition for females using different ModelRelease`() {
-    modelReleasesServiceStub.stub {
+    modelReleasesServiceMock.stub {
       onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_2)
     }
 
@@ -342,8 +355,8 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -361,7 +374,7 @@ class PopulationRequisitionFulfillerTest {
 
   @Test
   fun `fulfills requisition for females using field not part of population spec`() {
-    modelReleasesServiceStub.stub {
+    modelReleasesServiceMock.stub {
       onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_2)
     }
 
@@ -398,8 +411,8 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -419,7 +432,7 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
-  fun `throws error when attribute is not part of event descriptor`() {
+  fun `refuses requisition when attribute is not part of event descriptor`() {
     val requisitionSpec =
       REQUISITION_SPEC.copy {
         population =
@@ -427,21 +440,19 @@ class PopulationRequisitionFulfillerTest {
             filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
           }
       }
-
     val encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
         DATA_PROVIDER_PUBLIC_KEY,
       )
-
     val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
-
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
         .thenReturn(listRequisitionsResponse { requisitions += requisition })
     }
-
-    val invalidPopulationInfoMap = mapOf(POPULATION_ID_1 to INVALID_POPULATION_INFO_1)
+    wheneverBlocking {
+      populationsServiceMock.getPopulation(getPopulationRequest { name = POPULATION_NAME_1 })
+    } doReturn POPULATION_1.copy { populationSpec = INVALID_POPULATION_SPEC_1 }
 
     val requisitionFulfiller =
       PopulationRequisitionFulfiller(
@@ -452,120 +463,20 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        invalidPopulationInfoMap,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
-    val exception =
-      assertFailsWith<Exception> {
-        runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
-      }
-
-    // Result should throw InvalidSpecException
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Subpopulation attribute is not a field in the event descriptor.")
+    val refuseRequisitionRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequisitionRequest.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    assertThat(refuseRequisitionRequest.refusal.message).contains("PopulationSpec")
   }
 
   @Test
-  fun `throws error when population attribute is unspecified`() {
-    val requisitionSpec =
-      REQUISITION_SPEC.copy {
-        population =
-          RequisitionSpecKt.population {
-            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
-          }
-      }
-
-    val encryptedRequisitionSpec =
-      encryptRequisitionSpec(
-        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY,
-      )
-
-    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
-
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
-
-    val INVALID_POPULATION_INFO_MAP = mapOf(POPULATION_ID_1 to INVALID_POPULATION_INFO_2)
-
-    val requisitionFulfiller =
-      PopulationRequisitionFulfiller(
-        PDP_DATA,
-        certificatesStub,
-        requisitionsStub,
-        dummyThrottler,
-        TRUSTED_CERTIFICATES,
-        modelRolloutsStub,
-        modelReleasesStub,
-        INVALID_POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
-      )
-
-    val exception =
-      assertFailsWith<Exception> {
-        runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
-      }
-
-    // Result should throw InvalidSpecException
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Subpopulation population attribute cannot be unspecified.")
-  }
-
-  @Test
-  fun `throws error when ModelRelease population id is not found in PopulationInfoMap`() {
-    val requisitionSpec =
-      REQUISITION_SPEC.copy {
-        population =
-          RequisitionSpecKt.population {
-            filter = eventFilter { expression = "person.gender == ${Person.Gender.FEMALE_VALUE}" }
-          }
-      }
-
-    val encryptedRequisitionSpec =
-      encryptRequisitionSpec(
-        signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
-        DATA_PROVIDER_PUBLIC_KEY,
-      )
-
-    val requisition = REQUISITION.copy { this.encryptedRequisitionSpec = encryptedRequisitionSpec }
-
-    requisitionsServiceMock.stub {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(listRequisitionsResponse { requisitions += requisition })
-    }
-
-    val INVALID_POPULATION_ID = PopulationKey.defaultValue
-    val INVALID_POPULATION_INFO_MAP = mapOf(INVALID_POPULATION_ID to POPULATION_INFO_2)
-
-    val requisitionFulfiller =
-      PopulationRequisitionFulfiller(
-        PDP_DATA,
-        certificatesStub,
-        requisitionsStub,
-        dummyThrottler,
-        TRUSTED_CERTIFICATES,
-        modelRolloutsStub,
-        modelReleasesStub,
-        INVALID_POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
-      )
-
-    // Result should throw NoSuchElementException
-    val exception =
-      assertFailsWith<NoSuchElementException> {
-        runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
-      }
-
-    assertThat(exception).hasMessageThat().contains("Key $POPULATION_ID_1 is missing in the map.")
-  }
-
-  @Test
-  fun `throws error when filter expression is not in operative field in population info`() {
+  fun `refuses requisition when filter expression is not in operative field in population info`() {
     val requisitionSpec =
       REQUISITION_SPEC.copy {
         population =
@@ -599,21 +510,17 @@ class PopulationRequisitionFulfillerTest {
         TRUSTED_CERTIFICATES,
         modelRolloutsStub,
         modelReleasesStub,
-        POPULATION_INFO_MAP,
-        TYPE_REGISTRY,
+        populationsStub,
+        EVENT_MESSAGE_DESCRIPTOR,
       )
 
-    // Result should throw EventFilterValidationException
-    val exception =
-      assertFailsWith<EventFilterValidationException> {
-        runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
-      }
+    runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
-    assertThat(exception)
-      .hasMessageThat()
-      .contains(
-        "undeclared reference to 'other_field' (in container 'wfa.measurement.api.v2alpha.event_templates.testing.TestEvent')"
-      )
+    val refuseRequisitionRequest: RefuseRequisitionRequest =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(refuseRequisitionRequest.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
+    assertThat(refuseRequisitionRequest.refusal.message).contains("filter")
   }
 
   companion object {
@@ -626,6 +533,7 @@ class PopulationRequisitionFulfillerTest {
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
         )
       )
+    private val EVENT_MESSAGE_DESCRIPTOR = TestEvent.getDescriptor()
     private const val PDP_ID = "somePopulationDataProvider"
     private const val PDP_NAME = "dataProviders/$PDP_ID"
 
@@ -643,9 +551,8 @@ class PopulationRequisitionFulfillerTest {
     private val CREATE_TIME_1: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
     private val CREATE_TIME_2: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
-    private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-    private const val POPULATION_NAME_1 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAHs"
-    private const val POPULATION_NAME_2 = "$DATA_PROVIDER_NAME/populations/AAAAAAAAAJs"
+    private const val POPULATION_NAME_1 = "$PDP_NAME/populations/AAAAAAAAAHs"
+    private const val POPULATION_NAME_2 = "$PDP_NAME/populations/AAAAAAAAAJs"
 
     private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
     private const val MODEL_SUITE_NAME = "$MODEL_PROVIDER_NAME/modelSuites/AAAAAAAAAHs"
@@ -690,12 +597,6 @@ class PopulationRequisitionFulfillerTest {
       socialGradeGroup = Person.SocialGradeGroup.A_B_C1
     }
 
-    private val INVALID_PERSON = person {
-      gender = Person.Gender.FEMALE
-      ageGroup = Person.AgeGroup.AGE_GROUP_UNSPECIFIED
-      socialGradeGroup = Person.SocialGradeGroup.A_B_C1
-    }
-
     private val ATTRIBUTE_1 = PERSON_1.pack()
 
     private val ATTRIBUTE_2 = PERSON_2.pack()
@@ -703,8 +604,6 @@ class PopulationRequisitionFulfillerTest {
     private val ATTRIBUTE_3 = PERSON_3.pack()
 
     private val INVALID_ATTRIBUTE_1 = Dummy.getDefaultInstance().pack()
-
-    private val INVALID_ATTRIBUTE_2 = INVALID_PERSON.pack()
 
     private val VID_RANGE_1 = vidRange {
       startVid = 1
@@ -740,10 +639,11 @@ class PopulationRequisitionFulfillerTest {
     }
 
     private val POPULATION_SPEC_1 = populationSpec {
-      subpopulations += listOf(SUB_POPULATION_1, SUB_POPULATION_2)
+      subpopulations += SUB_POPULATION_1
+      subpopulations += SUB_POPULATION_2
     }
 
-    private val POPULATION_SPEC_2 = populationSpec { subpopulations += listOf(SUB_POPULATION_3) }
+    private val POPULATION_SPEC_2 = populationSpec { subpopulations += SUB_POPULATION_3 }
 
     private val INVALID_POPULATION_SPEC_1 = populationSpec {
       subpopulations +=
@@ -755,39 +655,16 @@ class PopulationRequisitionFulfillerTest {
         )
     }
 
-    private val INVALID_POPULATION_SPEC_2 = populationSpec {
-      subpopulations +=
-        listOf(
-          subPopulation {
-            attributes += listOf(INVALID_ATTRIBUTE_2)
-            vidRanges += listOf(VID_RANGE_1)
-          }
-        )
+    private val POPULATION_1 = population {
+      name = POPULATION_NAME_1
+      populationSpec = POPULATION_SPEC_1
     }
 
-    private val POPULATION_ID_1: PopulationKey =
-      requireNotNull(PopulationKey.fromName(POPULATION_NAME_1))
-    private val POPULATION_ID_2: PopulationKey =
-      requireNotNull(PopulationKey.fromName(POPULATION_NAME_2))
+    private val POPULATION_2 = population {
+      name = POPULATION_NAME_2
+      populationSpec = POPULATION_SPEC_2
+    }
 
-    private val POPULATION_INFO_1 = PopulationInfo(POPULATION_SPEC_1, TestEvent.getDescriptor())
-
-    private val POPULATION_INFO_2 = PopulationInfo(POPULATION_SPEC_2, TestEvent.getDescriptor())
-
-    private val INVALID_POPULATION_INFO_1 =
-      PopulationInfo(INVALID_POPULATION_SPEC_1, TestEvent.getDescriptor())
-
-    private val INVALID_POPULATION_INFO_2 =
-      PopulationInfo(INVALID_POPULATION_SPEC_2, TestEvent.getDescriptor())
-
-    private val POPULATION_INFO_MAP =
-      mapOf<PopulationKey, PopulationInfo>(
-        POPULATION_ID_1 to POPULATION_INFO_1,
-        POPULATION_ID_2 to POPULATION_INFO_2,
-      )
-
-    private val TYPE_REGISTRY =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).add(Dummy.getDescriptor()).build()
     private val MC_SIGNING_KEY: SigningKeyHandle =
       loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
     private val PDP_SIGNING_KEY: SigningKeyHandle =
@@ -804,7 +681,6 @@ class PopulationRequisitionFulfillerTest {
     private val PDP_DATA =
       DataProviderData(
         PDP_NAME,
-        PDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${PDP_DISPLAY_NAME}_enc_private.tink"),
         PDP_SIGNING_KEY,
         DATA_PROVIDER_CERTIFICATE_KEY,
@@ -827,7 +703,7 @@ class PopulationRequisitionFulfillerTest {
           }
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      nonce = Random.Default.nextLong()
+      nonce = Random.nextLong()
     }
     private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(

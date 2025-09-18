@@ -14,72 +14,59 @@
 
 package org.wfanet.measurement.populationdataprovider
 
-import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
-import com.google.protobuf.Descriptors.Descriptor
-import com.google.protobuf.Descriptors.FieldDescriptor
-import com.google.protobuf.DynamicMessage
-import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.cert.X509Certificate
 import java.util.logging.Level
-import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelRelease
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
+import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
-import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.InvalidRequisitionException
+import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.dataprovider.UnfulfillableRequisitionException
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 /**
- * Data class associated with a population.
+ * A requisition fulfiller for a Population Data Provider (PDP).
  *
- * @param populationSpec The [PopulationSpec] that contains 1) information on the attributes of a
- *   population, and 2) vid ranges that are used to calculate the size of the population.
- * @param eventMessageDescriptor The [Descriptor] of the event message that wraps the event template
- *   which is used by the CEL program to filter out irrelevant populations and calculate the size.
- *   The event template should contain the same types provided in the attributes list of the
- *   [PopulationSpec].
+ * The fulfiller supports a single CMMS instance (market) with a single set of templates.
  */
-data class PopulationInfo(
-  val populationSpec: PopulationSpec,
-  // TODO(jojijac0b): Dynamically generate an Event message type for each EventTemplate by building
-  //  a DescriptorProto.
-  val eventMessageDescriptor: Descriptor,
-)
-
-/** A requisition fulfiller for PDP businesses. */
 class PopulationRequisitionFulfiller(
   pdpData: DataProviderData,
-  certificatesStub: CertificatesCoroutineStub,
-  requisitionsStub: RequisitionsCoroutineStub,
+  certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   throttler: Throttler,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  private val modelRolloutsStub: ModelRolloutsCoroutineStub,
-  private val modelReleasesStub: ModelReleasesCoroutineStub,
-  private val populationInfoMap: Map<PopulationKey, PopulationInfo>,
-  private val typeRegistry: TypeRegistry,
+  private val modelRolloutsStub: ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub,
+  private val modelReleasesStub: ModelReleasesGrpcKt.ModelReleasesCoroutineStub,
+  private val populationsStub: PopulationsGrpcKt.PopulationsCoroutineStub,
+  /** Protobuf descriptor of the event message for the CMMS instance. */
+  private val eventMessageDescriptor: Descriptors.Descriptor,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -130,19 +117,8 @@ class PopulationRequisitionFulfiller(
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
-        val populationInfo: PopulationInfo = getPopulationInfo(measurementSpec)
-        PopulationSpecValidator.validateVidRangesList(populationInfo.populationSpec).getOrThrow()
-
-        val requisitionFilterExpression = requisitionSpec.population.filter.expression
-
-        fulfillPopulationMeasurement(
-          requisition,
-          requisitionSpec,
-          measurementSpec,
-          requisitionFilterExpression,
-          populationInfo,
-          typeRegistry,
-        )
+        val populationSpec: PopulationSpec = getValidPopulationSpec(measurementSpec)
+        fulfillPopulationMeasurement(requisition, requisitionSpec, measurementSpec, populationSpec)
       } catch (e: RequisitionRefusalException) {
         if (e !is RequisitionRefusalException.Test) {
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
@@ -153,40 +129,64 @@ class PopulationRequisitionFulfiller(
     }
   }
 
-  private suspend fun getPopulationInfo(measurementSpec: MeasurementSpec): PopulationInfo {
-    val modelRelease: ModelRelease = getModelRelease(measurementSpec)
+  /**
+   * Returns the valid [PopulationSpec] for the specified [measurementSpec].
+   *
+   * @throws RequisitionRefusalException if there was a problem obtaining the valid [PopulationSpec]
+   *   that should result in the [Requisition] being refused.
+   */
+  private suspend fun getValidPopulationSpec(measurementSpec: MeasurementSpec): PopulationSpec {
+    val modelRelease: ModelRelease = getModelRelease(measurementSpec.modelLine)
+    val population: Population = getPopulation(modelRelease.population)
+    if (!population.hasPopulationSpec()) {
+      throw UnfulfillableRequisitionException(
+        "Population ${population.name} does not have a PopulationSpec"
+      )
+    }
 
-    val populationId: PopulationKey =
-      requireNotNull(PopulationKey.fromName(modelRelease.population)) {
-        throw InvalidSpecException(
-          "Measurement spec model line does not contain a valid Population for the model release of its latest model rollout."
-        )
+    return population.populationSpec.also {
+      try {
+        PopulationSpecValidator.validate(it, eventMessageDescriptor)
+      } catch (e: PopulationSpecValidationException) {
+        throw UnfulfillableRequisitionException("PopulationSpec is invalid", e)
       }
+    }
+  }
 
-    return populationInfoMap.getValue(populationId)
+  private suspend fun getPopulation(populationName: String): Population {
+    val populationKey = requireNotNull(PopulationKey.fromName(populationName))
+    if (populationKey.parentKey.toName() != dataProviderData.name) {
+      throw InvalidRequisitionException("Population is for wrong PDP")
+    }
+
+    return try {
+      populationsStub.getPopulation(getPopulationRequest { name = populationName })
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND ->
+          UnfulfillableRequisitionException("Population $populationName not found", e)
+        else -> Exception("Error retrieving Population $populationName", e)
+      }
+    }
   }
 
   /**
-   * Returns the [ModelRelease] associated with the latest `ModelRollout` that is connected to the
-   * `ModelLine` provided in the MeasurementSpec`
+   * Returns the [ModelRelease] associated with the latest
+   * [org.wfanet.measurement.api.v2alpha.ModelRollout] for the specified [modelLineName].
    */
-  private suspend fun getModelRelease(measurementSpec: MeasurementSpec): ModelRelease {
+  private suspend fun getModelRelease(modelLineName: String): ModelRelease {
     // TODO(@jojijac0b): Handle case where measurement spans across one or more model outages.
     //  Should use HoldbackModelLine in this case to reflect what is done with measurement reports.
-
-    val measurementSpecModelLineName = measurementSpec.modelLine
 
     // Returns list of ModelRollouts.
     val listModelRolloutsResponse =
       try {
-        modelRolloutsStub.listModelRollouts(
-          listModelRolloutsRequest { parent = measurementSpecModelLineName }
-        )
+        modelRolloutsStub.listModelRollouts(listModelRolloutsRequest { parent = modelLineName })
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.NOT_FOUND ->
-            InvalidSpecException("ModelLine $measurementSpecModelLineName not found", e)
-          else -> Exception("Error retrieving ModelLine $measurementSpecModelLineName", e)
+            InvalidRequisitionException("ModelLine $modelLineName not found", e)
+          else -> UnfulfillableRequisitionException("Error retrieving ModelLine $modelLineName", e)
         }
       }
 
@@ -209,7 +209,8 @@ class PopulationRequisitionFulfiller(
       modelReleasesStub.getModelRelease(getModelReleaseRequest { name = modelReleaseName })
     } catch (e: StatusException) {
       throw when (e.status.code) {
-        Status.Code.NOT_FOUND -> InvalidSpecException("ModelRelease $modelReleaseName not found", e)
+        Status.Code.NOT_FOUND ->
+          InvalidRequisitionException("ModelRelease $modelReleaseName not found", e)
         else -> Exception("Error retrieving ModelLine $modelReleaseName", e)
       }
     }
@@ -220,146 +221,29 @@ class PopulationRequisitionFulfiller(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
-    filterExpression: String,
-    populationInfo: PopulationInfo,
-    typeRegistry: TypeRegistry,
+    populationSpec: PopulationSpec,
   ) {
-
-    val operativeFields = getPopulationOperativeFields(populationInfo.eventMessageDescriptor)
-
-    // CEL program that will check the event against the filter expression
-    val program: Program =
-      EventFilters.compileProgram(
-        populationInfo.eventMessageDescriptor,
-        filterExpression,
-        operativeFields,
-      )
-
+    val filterExpression = requisitionSpec.population.filter.expression
     // Create measurement result with sum of valid populations.
     val measurementResult: Measurement.Result =
       MeasurementKt.result {
-        population =
+        this.population =
           MeasurementKt.ResultKt.population {
-            value = computePopulation(populationInfo, program, typeRegistry)
+            value =
+              try {
+                MeasurementResults.computePopulation(
+                  populationSpec,
+                  filterExpression,
+                  eventMessageDescriptor,
+                )
+              } catch (e: EventFilterValidationException) {
+                throw InvalidRequisitionException("Population filter is invalid", e)
+              }
             deterministicCount = DeterministicCount.getDefaultInstance()
           }
       }
 
     // Fulfill the measurement.
     fulfillDirectMeasurement(requisition, measurementSpec, requisitionSpec.nonce, measurementResult)
-  }
-
-  /**
-   * Returns a [Set] of operative fields derived from a [Descriptor]. Only fields that have the
-   * population attribute set to true will be returned.
-   */
-  private fun getPopulationOperativeFields(eventMessageDescriptor: Descriptor): Set<String> {
-    // TODO(jojijac0b): Pass in specific template descriptor instead of entire event message
-    //  descriptor.
-    return eventMessageDescriptor.fields
-      .flatMap { templateField ->
-        templateField.messageType.fields.map { templateFieldDescriptor ->
-          if (
-            templateFieldDescriptor.options
-              .getExtension(EventAnnotationsProto.templateField)
-              .populationAttribute
-          ) {
-            "${templateField.name}.${templateFieldDescriptor.name}"
-          } else null
-        }
-      }
-      .filterNotNull()
-      .toSet()
-  }
-
-  companion object {
-    /**
-     * Computes population using the "deterministic count" methodology by filtering the
-     * populationBucketsList through a CEL program and summing the result.
-     */
-    fun computePopulation(
-      populationInfo: PopulationInfo,
-      program: Program,
-      typeRegistry: TypeRegistry,
-    ): Long {
-      return populationInfo.populationSpec.subpopulationsList.sumOf {
-        val attributesList = it.attributesList
-        val vidRanges = it.vidRangesList
-        val shouldSumPopulation =
-          isValidAttributesList(
-            attributesList,
-            populationInfo.eventMessageDescriptor,
-            program,
-            typeRegistry,
-          )
-        if (shouldSumPopulation) {
-          vidRanges.sumOf { jt -> jt.size() }
-        } else {
-          0L
-        }
-      }
-    }
-
-    /**
-     * Returns a [Boolean] representing whether the attributes in the list are 1) the correct type
-     * and
-     * 2) pass a check against the filter expression after being run through a CEL program.
-     */
-    private fun isValidAttributesList(
-      attributeList: List<Any>,
-      eventMessageDescriptor: Descriptor,
-      program: Program,
-      typeRegistry: TypeRegistry,
-    ): Boolean {
-      // Event message that will be passed to CEL program
-      val eventMessage: DynamicMessage.Builder = DynamicMessage.newBuilder(eventMessageDescriptor)
-
-      // Populate event message that will be used in the program if attribute is valid
-      attributeList.forEach { attribute ->
-        val attributeDescriptor: Descriptor =
-          typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-        val requiredAttributes: List<FieldDescriptor> =
-          attributeDescriptor.fields.filter {
-            it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute
-          }
-
-        // Create the attribute message of the type specified in attribute descriptor using the type
-        // registry.
-        val descriptor: Descriptors.Descriptor =
-          typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)
-        val attributeMessage: DynamicMessage = DynamicMessage.parseFrom(descriptor, attribute.value)
-
-        // If the attribute type is not a field in the event message, it is not valid.
-        val isAttributeFieldInEvent =
-          eventMessageDescriptor.fields.any {
-            it.messageType.name === attributeMessage.descriptorForType.name
-          }
-        require(isAttributeFieldInEvent) {
-          throw RequisitionFulfiller.InvalidSpecException(
-            "Subpopulation attribute is not a field in the event descriptor."
-          )
-        }
-
-        // If the population_attribute option in the attribute message is set to true, we do not
-        // allow
-        // the value to be unspecified.
-        val isValidAttribute = attributeMessage.allFields.keys.containsAll(requiredAttributes)
-        require(isValidAttribute) {
-          throw RequisitionFulfiller.InvalidSpecException(
-            "Subpopulation population attribute cannot be unspecified."
-          )
-        }
-
-        // Find corresponding field descriptor for this attribute.
-        val fieldDescriptor: Descriptors.FieldDescriptor =
-          eventMessageDescriptor.fields.first { eventField ->
-            eventField.messageType.name === attributeDescriptor.name
-          }
-
-        // Set field in event message with typed attribute message.
-        eventMessage.setField(fieldDescriptor, attributeMessage)
-      }
-      return EventFilters.matches(eventMessage.build(), program)
-    }
   }
 }

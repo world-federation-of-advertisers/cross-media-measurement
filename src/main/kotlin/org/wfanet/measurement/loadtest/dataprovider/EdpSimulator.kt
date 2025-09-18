@@ -41,6 +41,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.Fulf
 
 class EdpSimulator(
   edpData: DataProviderData,
+  edpDisplayName: String,
   measurementConsumerName: String,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
   dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
@@ -64,6 +65,7 @@ class EdpSimulator(
 ) :
   AbstractEdpSimulator(
     edpData,
+    edpDisplayName,
     measurementConsumerName,
     certificatesStub,
     dataProvidersStub,
