@@ -1966,21 +1966,33 @@ class TestReportMcApi2(unittest.TestCase):
 
         # Checks that non-zero edp combinations are not consistent before
         # correction.
-        for edp_combination in [frozenset({EDP_ONE}), frozenset({EDP_ONE, EDP_TWO}), frozenset({EDP_ONE, EDP_TWO, EDP_THREE})]:
+        for edp_combination in [
+            frozenset({EDP_ONE}),
+            frozenset({EDP_ONE, EDP_TWO}),
+            frozenset({EDP_ONE, EDP_TWO, EDP_THREE})
+        ]:
             self.assertFalse(
                 report._are_edp_measurements_consistent(edp_combination)
             )
 
-        # Checks that non-noised EDPs (EDP_TWO and EDP_THREE) are consistent.
+        # Checks that non-noised EDPs are consistent before correction.
         for edp_combination in [frozenset({EDP_TWO}), frozenset({EDP_THREE})]:
             self.assertTrue(
                 report._are_edp_measurements_consistent(edp_combination)
             )
 
-        # Checks that non-zero edp combinations are consistent after correction.
-        for edp_combination in [frozenset({EDP_ONE}), frozenset({EDP_ONE, EDP_TWO}), frozenset({EDP_ONE, EDP_TWO, EDP_THREE})]:
+        # Checks that all edp combinations are consistent after correction.
+        for edp_combination in [
+            frozenset({EDP_ONE}),
+            frozenset({EDP_TWO}),
+            frozenset({EDP_THREE}),
+            frozenset({EDP_ONE, EDP_TWO}),
+            frozenset({EDP_ONE, EDP_TWO, EDP_THREE})
+        ]:
             self.assertTrue(
-                corrected_report._are_edp_measurements_consistent(edp_combination)
+                corrected_report._are_edp_measurements_consistent(
+                    edp_combination
+                )
             )
 
         self.assertEqual(report_post_processor_result.status.status_code,
