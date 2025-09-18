@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
-import com.google.cloud.Timestamp
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
@@ -29,11 +29,11 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
-import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 
@@ -135,8 +135,8 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
     set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
-    set("IntervalStartTime").to(Timestamp.fromProto(impressionMetadata.interval.startTime))
-    set("IntervalEndTime").to(Timestamp.fromProto(impressionMetadata.interval.endTime))
+    set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
+    set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
