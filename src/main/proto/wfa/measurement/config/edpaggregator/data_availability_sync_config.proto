@@ -29,7 +29,6 @@ message DataProviderDataAvailabilitySyncConfig {
   // provided out-of-band.
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
-
 }
 
 // The Data Availability configuration
