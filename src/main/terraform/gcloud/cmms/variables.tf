@@ -165,6 +165,12 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_function_name" {
+  description = "Name of the DataAvailabilitySync function"
+  type        = string
+  nullable    = false
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -195,6 +201,16 @@ variable "event_group_secret_mapping" {
   type        = string
 }
 
+variable "data_availability_env_var" {
+  description = "DataAvailabilitySync extra env variables"
+  type        = string
+}
+
+variable "data_availability_secret_mapping" {
+  description = "DataAvailabilitySync secret mapping"
+  type        = string
+}
+
 variable "data_watcher_uber_jar_path" {
   description = "Path to DataWatcher uber jar."
   type = string
@@ -207,6 +223,11 @@ variable "requisition_fetcher_uber_jar_path" {
 
 variable "event_group_uber_jar_path" {
   description = "Path to EventGroupSync uber jar."
+  type = string
+}
+
+variable "data_availability_uber_jar_path" {
+  description = "Path to DataAvailability uber jar."
   type = string
 }
 

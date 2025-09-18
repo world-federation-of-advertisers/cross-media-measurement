@@ -216,6 +216,12 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_service_account_name" {
+  description = "Name of the DataAvailabilitySync service account."
+  type        = string
+  nullable    = false
+}
+
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
   type        = string

@@ -229,6 +229,18 @@ module "event_group_sync_cloud_function" {
   uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
 }
 
+module "data_availability_sync_cloud_function" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.data_availability_sync_service_account_name
+  terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.data_availability_sync.function_name
+  entry_point                               = var.cloud_function_configs.data_availability_sync.entry_point
+  extra_env_vars                            = var.cloud_function_configs.data_availability_sync.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
+  uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
+}
+
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   depends_on = [module.secrets]
   for_each = local.secret_access_map
