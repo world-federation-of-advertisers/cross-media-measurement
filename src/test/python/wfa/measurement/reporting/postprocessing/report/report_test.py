@@ -27,6 +27,8 @@ from report.report import get_covers
 from report.report import is_cover
 from report.report import is_union_reach_consistent
 from report.testing.validate_report import are_overlap_constraints_consistent
+from report.testing.validate_report import get_sorted_list
+from report.testing.validate_report import ordered_sets_to_sorted_list
 
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -216,24 +218,6 @@ SAMPLE_REPORT = Report(
     metric_subsets_by_parent={"ami": ["mrc", "custom"]},
     cumulative_inconsistency_allowed_edp_combinations={},
 )
-
-
-def get_sorted_list(lst):
-  sorted_list = []
-  for item in lst:
-    if isinstance(item, list):
-      sorted_list.append(tuple(sorted(get_sorted_list(item))))
-    else:
-      sorted_list.append(item)
-  return sorted(sorted_list)
-
-
-def ordered_sets_to_sorted_list(ordered_sets: list[OrderedSets]):
-  ordered_sets_list = []
-  for ordered_pair in ordered_sets:
-    ordered_sets_list.append(
-        [list(ordered_pair.larger_set), list(ordered_pair.smaller_set)])
-  return get_sorted_list(ordered_sets_list)
 
 
 class TestReport(unittest.TestCase):
