@@ -245,7 +245,8 @@ configuration uses one named `config-files`.
 *   `basic_report_metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 * `event_message_descriptor_set.pb`
-    *   Serialized Protobuf `FileDescriptorSet` containing Event Message.
+    *   Serialized Protobuf `FileDescriptorSet` containing Event Message and its
+        dependencies.
 *   `known_event_group_metadata_type_set.pb`
     *   Protobuf `FileDescriptorSet` containing known `EventGroup` metadata
         types.
