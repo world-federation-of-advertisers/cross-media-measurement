@@ -61,8 +61,8 @@ service ImpressionMetadataService {
   // state.
   //
   // Callers are responsible for ensuring that all expected ImpressionMetadata
-  // have been created before using these intervals for downstream purposes, such
-  // as populating `DataProvider.data_availability_intervals`.
+  // have been created before using these intervals for downstream purposes,
+  // such as populating `DataProvider.data_availability_intervals`.
   rpc ComputeModelLinesAvailability(ComputeModelLinesAvailabilityRequest)
       returns (ComputeModelLinesAvailabilityResponse) {}
 }
@@ -238,6 +238,7 @@ message BatchDeleteImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 
+// Request message for the `ComputeModelLinesAvailability` method.
 message ComputeModelLinesAvailabilityRequest {
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
@@ -255,14 +256,21 @@ message ComputeModelLinesAvailabilityRequest {
   ];
 }
 
+// Response message for the `ComputeModelLinesAvailability` method.
 message ComputeModelLinesAvailabilityResponse {
   // Availability per ModelLine.
   message ModelLineAvailability {
+    // The model line resource names to get availability for.
+    // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string model_line = 1 [
       (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
     ];
+    interval
+    // The largest interval during which all associated
+    // ImpressionMetadata resources are in the ACTIVE state.
     google.type.Interval availability = 2;
   }
 
+  // A list of ModelLine availabilities.
   repeated ModelLineAvailability model_line_availabilities = 1;
 }
