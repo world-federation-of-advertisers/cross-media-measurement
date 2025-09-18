@@ -190,12 +190,15 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
   ): Map<String, StripedByteFrequencyVector> {
-    logger.info("""
+    logger.info(
+      """
       |Starting event processing:
       |  Requisitions: ${requisitions.size}
       |  Population size: ${populationSpec.size}
       |  Pipeline config: batchSize=${config.batchSize}, workers=${config.workers}
-    """.trimMargin())
+    """
+        .trimMargin()
+    )
 
     config.validate()
 
@@ -204,20 +207,22 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
 
     try {
       // Build a mapping from requisitions to canonical FilterSpecs
-      val filterSpecIndex = FilterSpecIndex.fromRequisitions(
-        requisitions,
-        eventGroupReferenceIdMap,
-        privateEncryptionKey,
-      )
+      val filterSpecIndex =
+        FilterSpecIndex.fromRequisitions(
+          requisitions,
+          eventGroupReferenceIdMap,
+          privateEncryptionKey,
+        )
       logger.info("Found ${filterSpecIndex.filterSpecToRequisitionNames.size} unique filter specs")
 
       // Create one sink per unique FilterSpec
-      val sinkByFilterSpec = createSinksFromFilterSpecs(
-        filterSpecs = filterSpecIndex.filterSpecToRequisitionNames.keys,
-        vidIndexMap = vidIndexMap,
-        populationSpec = populationSpec,
-        eventDescriptor = eventDescriptor,
-      )
+      val sinkByFilterSpec =
+        createSinksFromFilterSpecs(
+          filterSpecs = filterSpecIndex.filterSpecToRequisitionNames.keys,
+          vidIndexMap = vidIndexMap,
+          populationSpec = populationSpec,
+          eventDescriptor = eventDescriptor,
+        )
 
       val pipeline = createPipeline(config)
 
@@ -230,11 +235,12 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       }
 
       // Map results back to requisition names using their FilterSpec
-      val results = requisitions.associate { req ->
-        val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
-        val frequencyVector = sinkByFilterSpec.getValue(spec).getFrequencyVector()
-        req.name to frequencyVector
-      }
+      val results =
+        requisitions.associate { req ->
+          val spec = filterSpecIndex.requisitionNameToFilterSpec.getValue(req.name)
+          val frequencyVector = sinkByFilterSpec.getValue(spec).getFrequencyVector()
+          req.name to frequencyVector
+        }
 
       logger.info("Completed processing ${results.size} requisitions")
       return results
@@ -299,7 +305,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
       executorService.shutdownNow()
       Thread.currentThread().interrupt()
     }
-
   }
 
   /**

@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
@@ -218,7 +219,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-                  )
+            )
           )
         }
 
@@ -230,7 +231,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-                  )
+            )
           )
         }
 
@@ -242,7 +243,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-                  )
+            )
           )
         }
 
@@ -254,7 +255,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_55_PLUS,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-                  )
+            )
           )
         }
       }
@@ -355,7 +356,7 @@ class EventProcessingIntegrationTest {
         count = 20,
         ageGroup = Person.AgeGroup.YEARS_35_TO_54, // Different age group
         gender = Person.Gender.MALE,
-              )
+      )
 
     // Write events to storage
     val eventSource =
@@ -448,7 +449,7 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = yesterday,
-              )
+      )
 
     val eventsTwoDaysAgo =
       createTestEvents(
@@ -457,7 +458,7 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = twoDaysAgo,
-              )
+      )
 
     // Write events to storage for both days
     val eventSource =
@@ -500,7 +501,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
-        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
+        eventGroupReferenceIdMap =
+          createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -537,7 +539,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-                          )
+            )
           )
         }
 
@@ -549,7 +551,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-                          )
+            )
           )
         }
 
@@ -561,7 +563,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-                          )
+            )
           )
         }
 
@@ -573,7 +575,7 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-                          )
+            )
           )
         }
       }
@@ -680,7 +682,7 @@ class EventProcessingIntegrationTest {
                     gender = gender,
                     socialGrade = socialGrade,
                     eventDate = testDate,
-                                      )
+                  )
                 )
               }
             }
@@ -803,7 +805,7 @@ class EventProcessingIntegrationTest {
         count = 20,
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
-              )
+      )
 
     val eventSource = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
 
@@ -926,7 +928,7 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = day3,
-              )
+      )
 
     // Setup multi-day storage
     val eventSource =
@@ -1054,9 +1056,8 @@ class EventProcessingIntegrationTest {
 
   /** EventSource that combines multiple EventReaders for different event groups. */
   /** Combined event reader that reads from multiple EventReaders sequentially */
-  private class CombinedEventReader(
-    private val readers: List<EventReader<Message>>
-  ) : EventReader<Message> {
+  private class CombinedEventReader(private val readers: List<EventReader<Message>>) :
+    EventReader<Message> {
     override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> {
       return flow {
         readers.forEach { reader ->
@@ -1087,7 +1088,14 @@ class EventProcessingIntegrationTest {
               val minTime = eventTimes.minOrNull() ?: Instant.now()
               val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
-              emit(EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId))
+              emit(
+                EventBatch(
+                  eventList,
+                  minTime,
+                  maxTime,
+                  eventGroupReferenceId = eventGroupReferenceId,
+                )
+              )
             }
           }
         }
@@ -1113,7 +1121,9 @@ class EventProcessingIntegrationTest {
             val minTime = eventTimes.minOrNull() ?: Instant.now()
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
-            emit(EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId))
+            emit(
+              EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId)
+            )
           }
         }
       }
@@ -1215,10 +1225,11 @@ class EventProcessingIntegrationTest {
         }
       }
 
-    // Create readers map grouped by event group (combining readers for same event group across dates)
+    // Create readers map grouped by event group (combining readers for same event group across
+    // dates)
     val readerMap = mutableMapOf<String, EventReader<Message>>()
     val allEventGroups = eventsByDayAndGroup.values.flatMap { it.keys }.distinct()
-    
+
     allEventGroups.forEach { eventGroup ->
       // Find all readers for this event group across all dates
       val readersForGroup = mutableListOf<EventReader<Message>>()
@@ -1228,7 +1239,7 @@ class EventProcessingIntegrationTest {
           readersForGroup.add(reader)
         }
       }
-      
+
       // Create a combined reader that reads from all readers for this event group
       if (readersForGroup.size == 1) {
         readerMap[eventGroup] = readersForGroup[0]
@@ -1236,7 +1247,7 @@ class EventProcessingIntegrationTest {
         readerMap[eventGroup] = CombinedEventReader(readersForGroup)
       }
     }
-    
+
     val startDate = eventsByDayAndGroup.keys.minOrNull() ?: LocalDate.now()
     val endDate = eventsByDayAndGroup.keys.maxOrNull() ?: LocalDate.now()
     return MultiGroupEventSource(readerMap, readerMap.keys.toList(), startDate, endDate)
@@ -1318,10 +1329,8 @@ class EventProcessingIntegrationTest {
   private fun createEventGroupReferenceIdMap(requisitions: List<Requisition>): Map<String, String> {
     val eventGroupReferenceIdMap = mutableMapOf<String, String>()
     for (requisition in requisitions) {
-      val signedRequisitionSpec = decryptRequisitionSpec(
-        requisition.encryptedRequisitionSpec, 
-        PRIVATE_ENCRYPTION_KEY
-      )
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, PRIVATE_ENCRYPTION_KEY)
       val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
       for (eventGroup in requisitionSpec.events.eventGroupsList) {
         // Extract event group reference ID from the event group resource name

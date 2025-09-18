@@ -73,7 +73,12 @@ class ParallelBatchedPipelineTest {
           } else {
             Instant.now().plusSeconds(1)
           }
-        EventBatch<TestEvent>(events = events, minTime = minTime, maxTime = maxTime, eventGroupReferenceId = "test-group")
+        EventBatch<TestEvent>(
+          events = events,
+          minTime = minTime,
+          maxTime = maxTime,
+          eventGroupReferenceId = "test-group",
+        )
       }
     }
   }
@@ -383,11 +388,7 @@ class ParallelBatchedPipelineTest {
     val now = Instant.now()
     val events =
       (1..6).map { i ->
-        LabeledEvent(
-          timestamp = now,
-          vid = i.toLong(),
-          message = TestEvent.getDefaultInstance(),
-        )
+        LabeledEvent(timestamp = now, vid = i.toLong(), message = TestEvent.getDefaultInstance())
       }
 
     val baseSink =
@@ -453,7 +454,12 @@ class ParallelBatchedPipelineTest {
                 message = TestEvent.getDefaultInstance(),
               )
             emit(
-              EventBatch<TestEvent>(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1")
+              EventBatch<TestEvent>(
+                events = listOf(e),
+                minTime = now,
+                maxTime = now.plusSeconds(1),
+                eventGroupReferenceId = "reference-id-1",
+              )
             )
           }
         }
@@ -589,7 +595,14 @@ class ParallelBatchedPipelineTest {
                 vid = batchId.toLong(),
                 message = TestEvent.getDefaultInstance(),
               )
-            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
+            emit(
+              EventBatch(
+                events = listOf(e),
+                minTime = now,
+                maxTime = now.plusSeconds(1),
+                eventGroupReferenceId = "reference-id-1",
+              )
+            )
           }
         }
       }
@@ -652,7 +665,14 @@ class ParallelBatchedPipelineTest {
                 vid = (i + 1).toLong(),
                 message = TestEvent.getDefaultInstance(),
               )
-            emit(EventBatch(events = listOf(e), minTime = now, maxTime = now.plusSeconds(1), eventGroupReferenceId = "reference-id-1"))
+            emit(
+              EventBatch(
+                events = listOf(e),
+                minTime = now,
+                maxTime = now.plusSeconds(1),
+                eventGroupReferenceId = "reference-id-1",
+              )
+            )
             kotlinx.coroutines.yield() // Allow cancellation
           }
         }
