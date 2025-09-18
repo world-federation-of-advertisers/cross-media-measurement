@@ -112,15 +112,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         return publicChannel
     }
 
-    ///**
-    //   * Creates a [StorageClient] based on the current environment and the provided data provider
-    //   * configuration.
-    //   *
-    //   * @param dataProviderConfig The configuration object for a `DataProvider`.
-    //   * @return A [StorageClient] instance, either for local file system access or GCS access.
-    //   */
-    //  // @TODO(@marcopremier): This function may share the logic of
-    //  // `ResultsFulfillerAppImpl.createStorageClient` method.
+    /**
+     * Creates a [StorageClient] based on the current environment and the provided data provider
+     * configuration.
+     *
+     * @param dataProviderConfig The configuration object for a `DataProvider`.
+     * @return A [StorageClient] instance, either for local file system access or GCS access.
+     */
+    // @TODO(@marcopremier): This function should be reused across Cloud Functions.
     private fun createStorageClient(
         dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
     ): StorageClient {
