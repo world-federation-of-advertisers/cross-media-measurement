@@ -53,6 +53,18 @@ service ImpressionMetadataService {
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse) {}
+
+  // Computes the availability intervals for the given ModelLines.
+  //
+  // This method returns, for each requested ModelLine, the largest interval
+  // during which all associated ImpressionMetadata resources are in the ACTIVE
+  // state.
+  //
+  // Callers are responsible for ensuring that all expected ImpressionMetadata
+  // have been created before using these intervals for downstream purposes,
+  // such as populating `DataProvider.data_availability_intervals`.
+  rpc ComputeModelLinesAvailability(ComputeModelLinesAvailabilityRequest)
+      returns (ComputeModelLinesAvailabilityResponse) {}
 }
 
 // Request message for the `CreateImpressionMetadata` method.
@@ -224,4 +236,41 @@ message BatchDeleteImpressionMetadataRequest {
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
   repeated ImpressionMetadata impression_metadata = 1;
+}
+
+// Request message for the `ComputeModelLinesAvailability` method.
+message ComputeModelLinesAvailabilityRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+  // The model line resource names to get availability for.
+  // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+  repeated string model_lines = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+}
+
+// Response message for the `ComputeModelLinesAvailability` method.
+message ComputeModelLinesAvailabilityResponse {
+  // Availability per ModelLine.
+  message ModelLineAvailability {
+    // The model line resource names to get availability for.
+    // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+    string model_line = 1 [
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+
+    // The largest interval during which all associated
+    // ImpressionMetadata resources are in the ACTIVE state.
+    google.type.Interval availability = 2;
+  }
+
+  // A list of ModelLine availabilities.
+  repeated ModelLineAvailability model_line_availabilities = 1;
 }

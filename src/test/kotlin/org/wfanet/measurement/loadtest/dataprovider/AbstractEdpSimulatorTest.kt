@@ -302,7 +302,6 @@ abstract class AbstractEdpSimulatorTest {
     val EDP_DATA =
       DataProviderData(
         EDP_NAME,
-        EDP_DISPLAY_NAME,
         loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
         EDP_RESULT_SIGNING_KEY,
         DATA_PROVIDER_RESULT_CERTIFICATE_KEY,

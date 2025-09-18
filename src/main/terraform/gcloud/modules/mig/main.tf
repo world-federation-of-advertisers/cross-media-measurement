@@ -18,6 +18,7 @@ locals {
 
   metadata_map = merge(
       {
+        "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
       },

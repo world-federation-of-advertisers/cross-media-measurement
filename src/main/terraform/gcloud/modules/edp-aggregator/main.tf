@@ -275,6 +275,8 @@ module "result_fulfiller_tee_app" {
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   network_name                  = google_compute_network.private_network.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
+  # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
+  edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {

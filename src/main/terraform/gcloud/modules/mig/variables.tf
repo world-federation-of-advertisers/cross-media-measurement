@@ -119,3 +119,8 @@ variable "subnetwork_name" {
   type        = string
   nullable    = false
 }
+
+variable "edpa_tee_signed_image_repo" {
+  description = "Trusted container image repository for Confidential Space attestation."
+  type        = string
+}
