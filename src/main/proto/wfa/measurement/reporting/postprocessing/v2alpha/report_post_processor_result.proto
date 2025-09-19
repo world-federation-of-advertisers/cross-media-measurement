@@ -162,7 +162,7 @@ message ReportPostProcessorResult {
   // statistically out of bound (e.g. |corrected_value - value| > 7*sigma).
   message LargeCorrection {
     // The unique name of the measurement.
-    string measurement_name = 1;
+    string measurement_id = 1;
 
     // The original value of the measurement before correction.
     int64 original_value = 2;
