@@ -8,6 +8,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing:__subpackages__",
