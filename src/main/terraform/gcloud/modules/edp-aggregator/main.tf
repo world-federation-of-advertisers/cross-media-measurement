@@ -397,6 +397,6 @@ resource "google_dns_record_set" "googleapis_wildcard_cname" {
   name         = "*.googleapis.com."
   type         = "CNAME"
   ttl          = 300
-  managed_zone = google_dns_managed_zone.googleapis_private.name
+  managed_zone = google_dns_managed_zone.private_gcs.name
   rrdatas      = ["private.googleapis.com."]
 }
