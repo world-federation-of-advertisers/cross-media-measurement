@@ -219,9 +219,10 @@ module "requisition_fetcher_cloud_function" {
 }
 
 module "requisition_fetcher_cloud_scheduler" {
-  source                = "../cloud-scheduler"
-  scheduler_config      = var.requisition_fetcher_scheduler_config
-  depends_on            = [module.requisition_fetcher_cloud_function]
+  source                        = "../cloud-scheduler"
+  terraform_service_account     = var.terraform_service_account
+  scheduler_config              = var.requisition_fetcher_scheduler_config
+  depends_on                    = [module.requisition_fetcher_cloud_function]
 }
 
 module "event_group_sync_cloud_function" {

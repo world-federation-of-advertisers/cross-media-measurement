@@ -20,6 +20,12 @@ resource "google_service_account" "scheduler_service_account" {
   description  = var.scheduler_config.scheduler_sa_description
 }
 
+resource "google_service_account_iam_member" "allow_terraform_to_use_scheduler_service_account" {
+  service_account_id = google_service_account.scheduler_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.terraform_service_account}"
+}
+
 resource "google_cloud_scheduler_job" "scheduler_job" {
   name        = "${var.scheduler_config.name}-requisition-fetcher"
   description = var.scheduler_config.scheduler_job_description
