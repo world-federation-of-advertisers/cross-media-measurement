@@ -65,7 +65,7 @@ class RequisitionMetadataService(
   ): RequisitionMetadata {
     val parentKey =
       DataProviderKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
+        ?: throw InvalidFieldValueException("requisition_metadata.parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val requisitionMetadataKey =
@@ -79,7 +79,7 @@ class RequisitionMetadataService(
 
     val cmmsRequisitionKey =
       CanonicalRequisitionKey.fromName(request.requisitionMetadata.cmmsRequisition)
-        ?: throw InvalidFieldValueException("cmms_requisition")
+        ?: throw InvalidFieldValueException("requisition_metadata.cmms_requisition")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     if (cmmsRequisitionKey.dataProviderId != parentKey.dataProviderId) {
@@ -92,7 +92,7 @@ class RequisitionMetadataService(
 
     // Validate report format.
     ReportKey.fromName(request.requisitionMetadata.report)
-      ?: throw InvalidFieldValueException("report")
+      ?: throw InvalidFieldValueException("requisition_metadata.report")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalRequest = internalCreateRequisitionMetadataRequest {
@@ -163,7 +163,7 @@ class RequisitionMetadataService(
   ): RequisitionMetadata {
     val parentKey =
       DataProviderKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
+        ?: throw InvalidFieldValueException("requisition_metadata.parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalRequest = internalLookupRequisitionMetadataRequest {
@@ -174,7 +174,7 @@ class RequisitionMetadataService(
 
         LookupRequisitionMetadataRequest.LookupKeyCase.BLOB_URI -> blobUri = request.blobUri
         LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
-          throw InvalidFieldValueException("lookup_key")
+          throw InvalidFieldValueException("requisition_metadata.lookup_key")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
@@ -210,7 +210,7 @@ class RequisitionMetadataService(
   ): Timestamp {
     val parentKey =
       DataProviderKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
+        ?: throw InvalidFieldValueException("requisition_metadata.parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalRequest = internalFetchLatestCmmsCreateTimeRequest {
@@ -241,10 +241,10 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     WorkItemKey.fromName(request.workItem)
-      ?: throw InvalidFieldValueException("work_item")
+      ?: throw InvalidFieldValueException("requisition_metadata.work_item")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
-      throw InvalidFieldValueException("etag")
+      throw InvalidFieldValueException("requisition_metadata.etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -285,7 +285,7 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
-      throw InvalidFieldValueException("etag")
+      throw InvalidFieldValueException("requisition_metadata.etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -325,7 +325,7 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
-      throw InvalidFieldValueException("etag")
+      throw InvalidFieldValueException("requisition_metadata.etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -365,11 +365,11 @@ class RequisitionMetadataService(
         ?: throw InvalidFieldValueException("requisition_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.etag.isEmpty()) {
-      throw InvalidFieldValueException("etag")
+      throw InvalidFieldValueException("requisition_metadata.etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (request.refusalMessage.isEmpty()) {
-      throw InvalidFieldValueException("refusal_message")
+      throw InvalidFieldValueException("requisition_metadata.refusal_message")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
