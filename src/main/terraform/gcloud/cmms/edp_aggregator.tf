@@ -123,7 +123,7 @@ locals {
   requisition_fetcher_scheduler_config = {
     schedule                    = "* * * * *"  # Every minute
     time_zone                   = "UTC"
-    name                        = "requisition-fetcher-cloud-scheduler"
+    name                        = "requisition-fetcher-scheduler"
     function_url                = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${var.requisition_fetcher_function_name}"
     scheduler_sa_display_name   = "Requisition Fetcher Scheduler"
     scheduler_sa_description    = "Service account for Cloud Scheduler to trigger requisition fetcher"
