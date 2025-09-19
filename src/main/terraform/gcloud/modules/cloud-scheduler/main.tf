@@ -14,14 +14,14 @@
 
 data "google_client_config" "default" {}
 
-resource "google_service_account" "scheduler" {
+resource "google_service_account" "scheduler_service_account" {
   account_id   = var.scheduler_config.name
   display_name = var.scheduler_config.scheduler_sa_display_name
   description  = var.scheduler_config.scheduler_sa_description
 }
 
 resource "google_cloud_scheduler_job" "scheduler_job" {
-  name        = "${var.scheduler_config.name_prefix}-requisition-fetcher"
+  name        = "${var.scheduler_config.name}-requisition-fetcher"
   description = var.scheduler_config.scheduler_job_description
   schedule    = var.scheduler_config.schedule
   time_zone   = var.scheduler_config.time_zone
@@ -35,7 +35,7 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
     }
 
     oidc_token {
-      service_account_email = google_service_account.scheduler.email
+      service_account_email = google_service_account.scheduler_service_account.email
     }
   }
 }
@@ -43,5 +43,5 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
 resource "google_project_iam_member" "scheduler_function_invoker" {
   project = data.google_client_config.default.project
   role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.scheduler_job.email}"
+  member  = "serviceAccount:${google_service_account.scheduler_service_account.email}"
 }
