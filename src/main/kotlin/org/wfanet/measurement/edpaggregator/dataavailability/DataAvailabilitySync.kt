@@ -27,6 +27,7 @@ import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
@@ -106,7 +107,9 @@ class DataAvailabilitySync(
       "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
     }
 
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs("$folderPrefix")
+    val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+    val impressionMetadataBlobs: Flow<StorageClient.Blob> =
+      storageClient.listBlobs(doneBlobFolderPath)
 
     // 1. Retrieve blob details from storage and build a map and validate them
     val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =

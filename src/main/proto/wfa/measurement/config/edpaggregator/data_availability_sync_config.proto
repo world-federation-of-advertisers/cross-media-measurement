@@ -18,21 +18,27 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
+import "wfa/measurement/config/edpaggregator/storage_params.proto";
+import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "DataAvailabilitySyncConfigProto";
 
-// The Data Availability config for a single EDP
-message DataProviderDataAvailabilitySyncConfig {
+// The Data Availability configuration
+message DataAvailabilitySyncConfig {
   // Resource name referencing the `DataProvider` in an external system,
   // provided out-of-band.
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
-}
 
-// The Data Availability configuration
-message DataAvailabilitySyncConfigs {
-  // All the configs per EDP
-  repeated DataProviderDataAvailabilitySyncConfig config = 1;
+  // Where the impressions are stored
+  StorageParams data_availability_storage = 2;
+
+  // How the DataAvailabilitySync connects to the CMMS Public API
+  TransportLayerSecurityParams cmms_connection = 3;
+
+  // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
+  // Public API
+  TransportLayerSecurityParams impression_metadata_storage_connection = 4;
 }
