@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -27,10 +28,12 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
@@ -40,6 +43,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -61,6 +65,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param getImpressionsStorageConfig Lambda to obtain [StorageConfig] for impressions.
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
+ * @param pipelineConfiguration Configuration for the event processing pipeline.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -75,6 +80,7 @@ class ResultsFulfillerApp(
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
+  private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -94,6 +100,9 @@ class ResultsFulfillerApp(
     val requisitionsStorageConfig = getRequisitionsStorageConfig(storageParams)
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
+    
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
 
     val requisitionFulfillmentStubsMap =
@@ -127,13 +136,12 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val eventReader: LegacyEventReader =
-      LegacyEventReader(
-        kmsClient = kmsClient,
-        impressionsStorageConfig = impressionsStorageConfig,
-        impressionDekStorageConfig = impressionsMetadataStorageConfig,
-        labeledImpressionsDekPrefix =
+    val impressionsMetadataService =
+      StorageImpressionMetadataService(
+        impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
+        impressionsBlobDetailsUriPrefix =
           fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
+        zoneIdForDates = ZoneOffset.UTC,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -141,39 +149,90 @@ class ResultsFulfillerApp(
         NoiseType.CONTINUOUS_GAUSSIAN -> ContinuousGaussianNoiseSelector()
         else -> throw Exception("Invalid noise type ${fulfillerParams.noiseParams.noiseType}")
       }
+
     val kAnonymityParams: KAnonymityParams? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "K-Anonymity min impressions must be > 0"
-        }
         require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "K-Anonymity min users must be > 0"
+          "k-anonymity minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
+        }
+        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
+          "k-anonymity minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
         }
         require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "K-Anonymity reach maximum frequency per user must be > 0"
+          "k-anonymity reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
         }
         KAnonymityParams(
-          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
+          minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
         )
       } else {
         null
       }
+
+    val fulfillerSelector = DefaultFulfillerSelector(
+      requisitionsStub = requisitionsStub,
+      requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+      dataProviderCertificateKey = dataProviderCertificateKey,
+      dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
+      noiserSelector = noiseSelector,
+      kAnonymityParams = kAnonymityParams,
+    )
+
     ResultsFulfiller(
-        loadPrivateKey(encryptionPrivateKeyFile),
-        requisitionsStub,
-        requisitionFulfillmentStubsMap,
-        dataProviderCertificateKey,
-        dataProviderResultSigningKeyHandle,
-        requisitionsBlobUri = requisitionsBlobUri,
-        requisitionsStorageConfig = requisitionsStorageConfig,
-        zoneId = ZoneOffset.UTC,
-        noiserSelector = noiseSelector,
-        eventReader = eventReader,
+        privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
-        kAnonymityParams = kAnonymityParams,
+        pipelineConfiguration = pipelineConfiguration,
+        impressionMetadataService = impressionsMetadataService,
+        impressionsStorageConfig = impressionsStorageConfig,
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
       )
       .fulfillRequisitions()
+  }
+  
+  /**
+   * Loads [GroupedRequisitions] from blob storage using the provided URI.
+   *
+   * Validates that the blob exists and is in the expected serialized `Any` format.
+   *
+   * @param requisitionsBlobUri The URI of the blob containing grouped requisitions.
+   * @param requisitionsStorageConfig Storage configuration for reading grouped requisitions.
+   * @return The parsed [GroupedRequisitions] payload.
+   * @throws ImpressionReadException If the blob is missing or has an invalid format.
+   */
+  private suspend fun loadGroupedRequisitions(
+    requisitionsBlobUri: String,
+    requisitionsStorageConfig: StorageConfig
+  ): GroupedRequisitions {
+    val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
+    val requisitionsStorageClient =
+      SelectedStorageClient(
+        storageClientUri,
+        requisitionsStorageConfig.rootDirectory,
+        requisitionsStorageConfig.projectId,
+      )
+
+    val requisitionBytes: ByteString =
+      requisitionsStorageClient.getBlob(storageClientUri.key)?.read()?.flatten()
+        ?: throw ImpressionReadException(
+          storageClientUri.key,
+          ImpressionReadException.Code.BLOB_NOT_FOUND,
+        )
+
+    return try {
+      Any.parseFrom(requisitionBytes).unpack(GroupedRequisitions::class.java)
+    } catch (e: Exception) {
+      throw ImpressionReadException(
+        storageClientUri.key,
+        ImpressionReadException.Code.INVALID_FORMAT,
+      )
+    }
+  }
+
+  companion object {
+    private val DEFAULT_PIPELINE_CONFIGURATION =
+      PipelineConfiguration(batchSize = 256, channelCapacity = 128, threadPoolSize = 4, workers = 4)
   }
 }
