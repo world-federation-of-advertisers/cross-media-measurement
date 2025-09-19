@@ -22,7 +22,6 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.8.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +36,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.119.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -134,7 +132,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "8.7.1",
+    version = "8.15.2",
 )
 bazel_dep(
     name = "rules_jvm_external",
@@ -148,7 +146,7 @@ bazel_dep(
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "29.3",
+    version = "29.5",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
@@ -192,7 +190,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "bazel_jar_jar",
-    version = "0.1.0",
+    version = "0.1.7",
 )
 bazel_dep(
     name = "riegeli",
@@ -282,6 +280,14 @@ maven.install(
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
+    known_contributing_modules = [
+        "any-sketch-java",
+        "bazel_worker_java",
+        "common-jvm",
+        "cross-media-measurement-system",
+        "rules_kotlin_jvm",
+        "virtual-people-common",
+    ],
     lock_file = "//:maven_install.json",
     resolver = "maven",
     strict_visibility = True,
@@ -407,4 +413,22 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/rules_kotlin_jvm#16): Use version.
+archive_override(
+    module_name = "rules_kotlin_jvm",
+    strip_prefix = "rules_kotlin_jvm-afa0e2e6a17dee4632e04b039d1139e985616ac9",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/archive/afa0e2e6a17dee4632e04b039d1139e985616ac9.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#341): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-b83c01691c7ba3d0e0caae2443dda7164e5879f3",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/b83c01691c7ba3d0e0caae2443dda7164e5879f3.tar.gz",
+    ],
 )
