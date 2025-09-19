@@ -157,4 +157,23 @@ message ReportPostProcessorResult {
   // If an unhandled exception occurred during processing, this field contains
   // the error message.
   string error_message = 7;
+
+  // Contains details about a measurement where the correction applied was
+  // statistically out of bound (e.g. |corrected_value - value| > 7*sigma).
+  message LargeCorrection {
+    // The unique name of the measurement.
+    string measurement_name = 1;
+
+    // The original value of the measurement before correction.
+    int64 original_value = 2;
+
+    // The new value of the measurement after correction.
+    int64 corrected_value = 3;
+
+    // The standard deviation of the measurement.
+    double sigma = 4;
+  }
+
+  // Contains details about all large measurements.
+  repeated LargeCorrection large_corrections = 8;
 }

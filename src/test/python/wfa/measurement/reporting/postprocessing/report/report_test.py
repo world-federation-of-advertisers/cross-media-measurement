@@ -33,6 +33,7 @@ from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 ReportQuality = report_post_processor_result_pb2.ReportQuality
+LargeCorrection = report_post_processor_result_pb2.ReportPostProcessorResult.LargeCorrection
 
 EXPECTED_PRECISION = 1
 EDP_ONE = "EDP_ONE"
@@ -3002,6 +3003,73 @@ class TestReport(unittest.TestCase):
         are_overlap_constraints_consistent(corrected,
                                            NOISE_CORRECTION_TOLERANCE))
     self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
+  def test_report_processor_logs_measurements_with_large_correction(self):
+    report = Report(
+        metric_reports={
+            "ami": MetricReport(
+                weekly_cumulative_reaches={
+                    frozenset({EDP_ONE}): [
+                        Measurement(48, 1, "measurement_02")
+                    ],
+                },
+                whole_campaign_measurements=build_whole_campaign_measurements(
+                    reach={
+                        frozenset({EDP_ONE}): Measurement(2, 1, "measurement_04"),
+                    },
+                    k_reach={},
+                    impression={}),
+                weekly_non_cumulative_measurements={},
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    expected = Report(
+        metric_reports={
+            "ami": MetricReport(
+                weekly_cumulative_reaches={
+                    frozenset({EDP_ONE}): [
+                        Measurement(25, 1, "measurement_02")
+                    ],
+                },
+                whole_campaign_measurements=build_whole_campaign_measurements(
+                    reach={
+                        frozenset({EDP_ONE}): Measurement(25, 1, "measurement_04"),
+                    },
+                    k_reach={},
+                    impression={}),
+                weekly_non_cumulative_measurements={},
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+    self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+
+    self.assertCountEqual(
+        report_post_processor_result.large_corrections,
+        [
+            LargeCorrection(
+                measurement_name="measurement_04",
+                original_value=2,
+                corrected_value=25,
+                sigma=1.0
+            ),
+            LargeCorrection(
+                measurement_name="measurement_02",
+                original_value=48,
+                corrected_value=25,
+                sigma=1.0
+            )
+        ]
+    )
+
 
   def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
     report = Report(
