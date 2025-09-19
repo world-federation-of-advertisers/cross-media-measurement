@@ -290,6 +290,7 @@ class ImpressionMetadataServiceTest {
     val request = getImpressionMetadataRequest {
       name = "dataProviders/asdf/impressionMetadata/123"
     }
+    val key = ImpressionMetadataKey.fromName(request.name)
     val exception =
       assertFailsWith<StatusRuntimeException> { service.getImpressionMetadata(request) }
 
@@ -299,7 +300,8 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
+          metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
+          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
         }
       )
   }
@@ -366,6 +368,7 @@ class ImpressionMetadataServiceTest {
         name = "dataProviders/data-provider-1/impressionMetadata/impression-metadata-1"
       }
 
+      val key = ImpressionMetadataKey.fromName(request.name)
       val exception =
         assertFailsWith<StatusRuntimeException> { service.deleteImpressionMetadata(request) }
 
@@ -375,7 +378,8 @@ class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
+            metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
+            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
           }
         )
     }
