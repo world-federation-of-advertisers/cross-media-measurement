@@ -33,15 +33,18 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -225,6 +228,59 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
   }
 
   @Test
+  fun `streamModelReleases returns ModelReleases filtered by Population`(): Unit = runBlocking {
+    val pdp = population.createDataProvider(dataProvidersService)
+    val populationResource = population.createPopulation(pdp, populationsService)
+    val populationResource2 = population.createPopulation(pdp, populationsService)
+    val modelProvider: ModelProvider = population.createModelProvider(modelProvidersService)
+    val modelSuite: ModelSuite = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelSuite2 = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelRelease1 =
+      modelReleasesService.createModelRelease(
+        modelRelease {
+          externalModelProviderId = modelSuite.externalModelProviderId
+          externalModelSuiteId = modelSuite.externalModelSuiteId
+          externalDataProviderId = populationResource.externalDataProviderId
+          externalPopulationId = populationResource.externalPopulationId
+        }
+      )
+    modelReleasesService.createModelRelease(
+      modelRelease {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalDataProviderId = populationResource2.externalDataProviderId
+        externalPopulationId = populationResource2.externalPopulationId
+      }
+    )
+    val modelRelease3 =
+      modelReleasesService.createModelRelease(
+        modelRelease {
+          externalModelProviderId = modelSuite2.externalModelProviderId
+          externalModelSuiteId = modelSuite2.externalModelSuiteId
+          externalDataProviderId = populationResource.externalDataProviderId
+          externalPopulationId = populationResource.externalPopulationId
+        }
+      )
+
+    val response =
+      modelReleasesService
+        .streamModelReleases(
+          streamModelReleasesRequest {
+            filter = filter {
+              externalModelProviderId = modelProvider.externalModelProviderId
+              populationKeyIn += populationKey {
+                externalDataProviderId = populationResource.externalDataProviderId
+                externalPopulationId = populationResource.externalPopulationId
+              }
+            }
+          }
+        )
+        .toList()
+
+    assertThat(response).containsExactly(modelRelease1, modelRelease3)
+  }
+
+  @Test
   fun `streamModelReleases can get one page at a time`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
     val populationDataProvider = population.createDataProvider(dataProvidersService)
@@ -325,19 +381,21 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelReleasesService.streamModelReleases(
-          streamModelReleasesRequest {
-            filter = filter {
-              externalModelProviderId = modelSuite.externalModelProviderId
-              externalModelSuiteId = modelSuite.externalModelSuiteId
-              after = afterFilter {
-                createTime = modelReleases[0].createTime
-                externalModelSuiteId = modelReleases[0].externalModelSuiteId
-                externalModelProviderId = modelReleases[0].externalModelProviderId
+        modelReleasesService
+          .streamModelReleases(
+            streamModelReleasesRequest {
+              filter = filter {
+                externalModelProviderId = modelSuite.externalModelProviderId
+                externalModelSuiteId = modelSuite.externalModelSuiteId
+                after = afterFilter {
+                  createTime = modelReleases[0].createTime
+                  externalModelSuiteId = modelReleases[0].externalModelSuiteId
+                  externalModelProviderId = modelReleases[0].externalModelProviderId
+                }
               }
             }
-          }
-        )
+          )
+          .toList()
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -350,15 +408,17 @@ abstract class ModelReleasesServiceTest<T : ModelReleasesCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        modelReleasesService.streamModelReleases(
-          streamModelReleasesRequest {
-            limit = -1
-            filter = filter {
-              externalModelProviderId = modelSuite.externalModelProviderId
-              externalModelSuiteId = modelSuite.externalModelSuiteId
+        modelReleasesService
+          .streamModelReleases(
+            streamModelReleasesRequest {
+              limit = -1
+              filter = filter {
+                externalModelProviderId = modelSuite.externalModelProviderId
+                externalModelSuiteId = modelSuite.externalModelSuiteId
+              }
             }
-          }
-        )
+          )
+          .toList()
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

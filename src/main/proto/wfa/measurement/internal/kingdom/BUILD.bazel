@@ -47,6 +47,7 @@ LIBS = [
     "model_shard",
     "model_suite",
     "population",
+    "population_key",
     "protocol_config_config",
     "protocol_config",
     "recurring_exchange",
@@ -719,6 +720,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":model_release_proto",
+        ":population_key_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -790,6 +792,12 @@ proto_library(
         ":population_details_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
+)
+
+proto_library(
+    name = "population_key_proto",
+    srcs = ["population_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(

@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.CreateModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageToken
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesResponse
@@ -40,11 +41,13 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelReleasesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelReleasesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
@@ -52,6 +55,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.afterFilter
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
@@ -199,7 +203,23 @@ class ModelReleasesService(
     grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
 
     val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
-    val externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+    val externalModelSuiteId =
+      if (key.modelSuiteId == ResourceKey.WILDCARD_ID) {
+        0
+      } else {
+        apiIdToExternalId(key.modelSuiteId)
+      }
+    val populationKeys =
+      source.filter.populationInList.map { population ->
+        val populationKey =
+          grpcRequireNotNull(PopulationKey.fromName(population)) {
+            "Population resource name unspecified or invalid"
+          }
+        ListModelReleasesPageTokenKt.populationKey {
+          externalDataProviderId = ApiId(populationKey.dataProviderId).externalId.value
+          externalPopulationId = ApiId(populationKey.populationId).externalId.value
+        }
+      }
 
     return if (source.pageToken.isNotBlank()) {
       ListModelReleasesPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
@@ -207,6 +227,9 @@ class ModelReleasesService(
           "Arguments must be kept the same when using a page token"
         }
         grpcRequire(this.externalModelSuiteId == externalModelSuiteId) {
+          "Arguments must be kept the same when using a page token"
+        }
+        grpcRequire(this.populationKeys == populationKeys) {
           "Arguments must be kept the same when using a page token"
         }
 
@@ -224,6 +247,7 @@ class ModelReleasesService(
           }
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
+        this.populationKeys += populationKeys
       }
     }
   }
@@ -240,6 +264,12 @@ class ModelReleasesService(
       filter = filter {
         externalModelProviderId = source.externalModelProviderId
         externalModelSuiteId = source.externalModelSuiteId
+        for (populationKey: ListModelReleasesPageToken.PopulationKey in source.populationKeysList) {
+          populationKeyIn += populationKey {
+            externalDataProviderId = populationKey.externalDataProviderId
+            externalPopulationId = populationKey.externalPopulationId
+          }
+        }
         if (source.hasLastModelRelease()) {
           after = afterFilter {
             createTime = source.lastModelRelease.createTime
