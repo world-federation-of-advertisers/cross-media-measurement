@@ -197,14 +197,6 @@ module "secrets" {
   is_binary_format  = each.value.is_binary_format
 }
 
-resource "google_secret_manager_secret_iam_member" "secret_accessor" {
-  depends_on = [module.secrets]
-  for_each = local.secret_access_map
-  secret_id = local.all_secrets[each.value.secret_key].secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
-}
-
 module "data_watcher_cloud_function" {
   source    = "../gcs-bucket-cloud-function"
 
@@ -217,8 +209,6 @@ module "data_watcher_cloud_function" {
   extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
-
-  depends_on                                    = [google_secret_manager_secret_iam_member.secret_accessor]
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -231,8 +221,6 @@ module "requisition_fetcher_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-
-  depends_on                                = [google_secret_manager_secret_iam_member.secret_accessor]
 }
 
 module "event_group_sync_cloud_function" {
@@ -245,8 +233,6 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
-
-  depends_on                                = [google_secret_manager_secret_iam_member.secret_accessor]
 }
 
 module "data_availability_sync_cloud_function" {
@@ -259,8 +245,14 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
+}
 
-  depends_on                                = [google_secret_manager_secret_iam_member.secret_accessor]
+resource "google_secret_manager_secret_iam_member" "secret_accessor" {
+  depends_on = [module.secrets]
+  for_each = local.secret_access_map
+  secret_id = local.all_secrets[each.value.secret_key].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
 }
 
 module "result_fulfiller_queue" {
