@@ -26,6 +26,12 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_scheduler_s
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+resource "google_project_iam_member" "scheduler_function_invoker" {
+  project = data.google_client_config.default.project
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.scheduler_service_account.email}"
+}
+
 resource "google_cloud_scheduler_job" "scheduler_job" {
   name        = "${var.scheduler_config.name}-requisition-fetcher"
   description = var.scheduler_config.scheduler_job_description
@@ -44,10 +50,9 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
       service_account_email = google_service_account.scheduler_service_account.email
     }
   }
-}
 
-resource "google_project_iam_member" "scheduler_function_invoker" {
-  project = data.google_client_config.default.project
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.scheduler_service_account.email}"
+  depends_on = [
+      google_service_account_iam_member.allow_terraform_to_use_scheduler_service_account,
+      google_project_iam_member.scheduler_function_invoker
+    ]
 }
