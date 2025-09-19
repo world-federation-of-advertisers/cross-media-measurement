@@ -620,7 +620,7 @@ class Report:
             f"sigma={measurement.sigma}."
           )
           report_post_processor_result.large_corrections.add(
-            name=measurement_name,
+            metric_title=measurement_name,
             original_value=round(measurement.value),
             corrected_value=round(corrected_measurement.value),
             sigma=measurement.sigma,

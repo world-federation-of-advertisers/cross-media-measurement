@@ -158,11 +158,11 @@ message ReportPostProcessorResult {
   // the error message.
   string error_message = 7;
 
-  // Contains details about a measurement where the correction applied was
+  // Contains details about a metric where the correction applied was
   // statistically out of bound (e.g. |corrected_value - value| > 7*sigma).
   message LargeCorrection {
-    // The unique name of the measurement that was corrected.
-    string name = 1;
+    // The unique name of the metric title that was corrected.
+    string metric_title = 1;
 
     // The original value of the measurement before correction.
     int64 original_value = 2;
@@ -174,6 +174,6 @@ message ReportPostProcessorResult {
     double sigma = 4;
   }
 
-  // Contains details about all large measurements.
+  // Contains details about all metric with large correction.
   repeated LargeCorrection large_corrections = 8;
 }
