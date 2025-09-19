@@ -139,7 +139,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
     val vidIndexMap: InMemoryVidIndexMap? =
       if (flags.supportHmss) {
-        InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpec())
+        InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpecWithoutAttributes())
       } else {
         null
       }
