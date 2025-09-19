@@ -30,7 +30,7 @@ message DataAvailabilitySyncConfig {
   // Resource name referencing the `DataProvider` in an external system,
   // provided out-of-band.
   string data_provider = 1
-  [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // Where the impressions are stored
   StorageParams data_availability_storage = 2;
@@ -42,4 +42,3 @@ message DataAvailabilitySyncConfig {
   // Public API
   TransportLayerSecurityParams impression_metadata_storage_connection = 4;
 }
-
