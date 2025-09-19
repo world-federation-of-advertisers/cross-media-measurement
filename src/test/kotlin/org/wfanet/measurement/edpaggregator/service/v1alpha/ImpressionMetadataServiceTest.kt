@@ -203,7 +203,7 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "model_line"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.model_line"
         }
       )
   }
@@ -291,6 +291,7 @@ class ImpressionMetadataServiceTest {
     val request = getImpressionMetadataRequest {
       name = "dataProviders/asdf/impressionMetadata/123"
     }
+    val key = ImpressionMetadataKey.fromName(request.name)
     val exception =
       assertFailsWith<StatusRuntimeException> { service.getImpressionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -299,7 +300,8 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
+          metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
+          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
         }
       )
   }
@@ -366,6 +368,7 @@ class ImpressionMetadataServiceTest {
         name = "dataProviders/data-provider-1/impressionMetadata/impression-metadata-1"
       }
 
+      val key = ImpressionMetadataKey.fromName(request.name)
       val exception =
         assertFailsWith<StatusRuntimeException> { service.deleteImpressionMetadata(request) }
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -374,7 +377,8 @@ class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
+            metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
+            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
           }
         )
     }
