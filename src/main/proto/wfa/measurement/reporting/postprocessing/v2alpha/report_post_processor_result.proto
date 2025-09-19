@@ -164,16 +164,16 @@ message ReportPostProcessorResult {
     // The unique name of the metric title that was corrected.
     string metric_title = 1;
 
-    // The original value of the measurement before correction.
+    // The original value of the metric before correction.
     int64 original_value = 2;
 
-    // The new value of the measurement after correction.
+    // The new value of the metric after correction.
     int64 corrected_value = 3;
 
-    // The standard deviation of the measurement.
+    // The standard deviation of the metric.
     double sigma = 4;
   }
 
-  // Contains details about all metric with large correction.
+  // Contains details about all metrics with large correction.
   repeated LargeCorrection large_corrections = 8;
 }
