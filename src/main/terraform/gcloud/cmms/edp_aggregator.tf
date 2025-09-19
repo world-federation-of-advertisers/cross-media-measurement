@@ -198,6 +198,6 @@ module "edp_aggregator" {
   trusted_root_ca_collection                = local.trusted_root_ca_collection
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
-  results_fulfiller_disk_image_family       = "confidential-space-debug"
+  results_fulfiller_disk_image_family       = "confidential-space"
   dns_managed_zone_name                     = "googleapis-private"
 }
