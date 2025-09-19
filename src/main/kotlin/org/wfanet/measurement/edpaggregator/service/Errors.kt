@@ -273,11 +273,18 @@ class InvalidFieldValueException(
     cause,
   )
 
-class ImpressionMetadataNotFoundException(name: String, cause: Throwable? = null) :
+class ImpressionMetadataNotFoundException(
+  dataProviderResourceName: String,
+  impressionMetadataResourceName: String,
+  cause: Throwable? = null,
+) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-    "ImpressionMetadata $name not found",
-    mapOf(Errors.Metadata.IMPRESSION_METADATA to name),
+    "ImpressionMetadata with Impression Metadata Resource Name $impressionMetadataResourceName for DataProvider with resource Name $dataProviderResourceName not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName,
+    ),
     cause,
   )
 
