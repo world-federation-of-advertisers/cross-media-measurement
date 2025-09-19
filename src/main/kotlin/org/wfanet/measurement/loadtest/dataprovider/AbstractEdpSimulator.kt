@@ -51,11 +51,11 @@ import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt.variance
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DeterministicCount
 import org.wfanet.measurement.api.v2alpha.DeterministicCountDistinct
 import org.wfanet.measurement.api.v2alpha.DeterministicDistribution
@@ -64,7 +64,7 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
@@ -83,9 +83,9 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -117,6 +117,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.dataprovider.InvalidRequisitionException
 import org.wfanet.measurement.dataprovider.MeasurementResults
 import org.wfanet.measurement.dataprovider.MeasurementResults.computeImpression
 import org.wfanet.measurement.dataprovider.RequisitionFulfiller
@@ -143,13 +144,14 @@ import org.wfanet.measurement.loadtest.config.TestIdentifiers.SIMULATOR_EVENT_GR
 /** A simulator handling EDP businesses. */
 abstract class AbstractEdpSimulator(
   edpData: DataProviderData,
+  edpDisplayName: String,
   protected val measurementConsumerName: String,
-  certificatesStub: CertificatesCoroutineStub,
-  private val dataProvidersStub: DataProvidersCoroutineStub,
-  private val eventGroupsStub: EventGroupsCoroutineStub,
-  requisitionsStub: RequisitionsCoroutineStub,
+  certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
+  private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
+  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubsByDuchyId:
-    Map<String, RequisitionFulfillmentCoroutineStub>,
+    Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   protected val syntheticDataTimeZone: ZoneId,
   protected open val eventGroupsOptions: Collection<EventGroupOptions>,
   protected val eventQuery: EventQuery<Message>,
@@ -194,7 +196,7 @@ abstract class AbstractEdpSimulator(
     return timeRange.toInterval()
   }
 
-  protected val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpData.displayName)
+  protected val eventGroupReferenceIdPrefix = getEventGroupReferenceIdPrefix(edpDisplayName)
 
   protected val edpData: DataProviderData
     get() = dataProviderData
@@ -358,7 +360,7 @@ abstract class AbstractEdpSimulator(
             )
           }
         ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {}
-        else -> throw InvalidSpecException("Unsupported protocol $protocol")
+        else -> throw InvalidRequisitionException("Unsupported protocol $protocol")
       }
     } catch (e: CertPathValidatorException) {
       throw InvalidConsentSignalException(
@@ -520,15 +522,7 @@ abstract class AbstractEdpSimulator(
           }
         }
 
-        val eventGroupSpecs: List<EventQuery.EventGroupSpec> =
-          try {
-            buildEventGroupSpecs(requisitionSpec)
-          } catch (e: InvalidSpecException) {
-            throw RequisitionRefusalException.Default(
-              Requisition.Refusal.Justification.SPEC_INVALID,
-              e.message.orEmpty(),
-            )
-          }
+        val eventGroupSpecs: List<EventQuery.EventGroupSpec> = buildEventGroupSpecs(requisitionSpec)
 
         val requisitionFingerprint = computeRequisitionFingerprint(requisition)
 
@@ -687,7 +681,7 @@ abstract class AbstractEdpSimulator(
   /**
    * Builds [EventQuery.EventGroupSpec]s from a [requisitionSpec] by fetching [EventGroup]s.
    *
-   * @throws RequisitionFulfiller.InvalidSpecException if [requisitionSpec] is found to be invalid
+   * @throws InvalidRequisitionException if [requisitionSpec] is found to be invalid
    */
   private suspend fun buildEventGroupSpecs(
     requisitionSpec: RequisitionSpec
@@ -699,13 +693,13 @@ abstract class AbstractEdpSimulator(
           eventGroupsStub.getEventGroup(getEventGroupRequest { name = it.key })
         } catch (e: StatusException) {
           throw when (e.status.code) {
-            Status.Code.NOT_FOUND -> InvalidSpecException("EventGroup $it not found", e)
+            Status.Code.NOT_FOUND -> InvalidRequisitionException("EventGroup $it not found", e)
             else -> Exception("Error retrieving EventGroup $it", e)
           }
         }
 
       if (!eventGroup.eventGroupReferenceId.startsWith(SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX)) {
-        throw InvalidSpecException("EventGroup ${it.key} not supported by this simulator")
+        throw InvalidRequisitionException("EventGroup ${it.key} not supported by this simulator")
       }
 
       EventQuery.EventGroupSpec(eventGroup, it.value)
@@ -1013,7 +1007,7 @@ abstract class AbstractEdpSimulator(
   }
 
   private suspend fun fulfillRequisition(
-    requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
+    requisitionFulfillmentStub: RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
     requisition: Requisition,
     requests: Flow<FulfillRequisitionRequest>,
   ) {

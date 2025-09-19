@@ -17,6 +17,8 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.Arrays
+import kotlin.collections.withIndex
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -73,7 +75,10 @@ class InconsistentIndexMapAndPopulationSpecException(
 /**
  * An implementation of [VidIndexMap] that holds the Map in memory.
  *
- * See build methods in the companion object.
+ * This constructor is private. See build methods in the companion object.
+ *
+ * Note that this class takes ownership of the `indexMap` and that the caller must not modify it
+ * after calling this constructor.
  *
  * @param[populationSpec] The [PopulationSpec] represented by this map
  * @param[indexMap] The map of VIDs to indexes
@@ -83,7 +88,7 @@ class InconsistentIndexMapAndPopulationSpecException(
 class InMemoryVidIndexMap
 private constructor(
   override val populationSpec: PopulationSpec,
-  private val indexMap: HashMap<Long, Int>,
+  private val indexMap: HashMap<Int, Int>,
 ) : VidIndexMap {
   override val size
     get() = indexMap.size.toLong()
@@ -93,13 +98,16 @@ private constructor(
    *
    * @throws VidNotFoundException if the [vid] does not exist in the map
    */
-  override operator fun get(vid: Long): Int = indexMap[vid] ?: throw VidNotFoundException(vid)
+  override operator fun get(vid: Long): Int {
+    require(vid < Integer.MAX_VALUE) { "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}" }
+    return indexMap[vid.toInt()] ?: throw VidNotFoundException(vid)
+  }
 
   /** Get an Iterator for the VidIndexMapEntries of this VidIndexMap. */
   override operator fun iterator(): Iterator = Iterator()
 
   /** A data class for a VID and its hash value. */
-  data class VidAndHash(val vid: Long, val hash: Long) : Comparable<VidAndHash> {
+  data class VidAndHash(val vid: Int, val hash: Long) : Comparable<VidAndHash> {
     override operator fun compareTo(other: VidAndHash): Int =
       compareValuesBy(this, other, { it.hash }, { it.vid })
   }
@@ -116,11 +124,15 @@ private constructor(
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
      *
      * @param[populationSpec] The [PopulationSpec] represented by this map
+     * @param[useParallelSorting] whether to perform sorting on multiple threads
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
     @JvmStatic
-    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash)
+    fun build(
+      populationSpec: PopulationSpec,
+      useParallelSorting: Boolean = false,
+    ): InMemoryVidIndexMap {
+      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash, useParallelSorting)
     }
 
     /**
@@ -142,7 +154,7 @@ private constructor(
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
 
-      val indexMap = hashMapOf<Long, Int>()
+      val indexMap = hashMapOf<Int, Int>()
 
       // Ensure the indexMap is contained by the population spec
       val populationRanges: List<LongRange> =
@@ -153,7 +165,10 @@ private constructor(
       val vidsNotInPopulationSpec = mutableListOf<Long>()
       indexMapEntries.collect { vidEntry ->
         val vid = vidEntry.key
-        indexMap[vid] = vidEntry.value.index
+        require(vid < Integer.MAX_VALUE) {
+          "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+        }
+        indexMap[vid.toInt()] = vidEntry.value.index
         var vidFound = false
         for (range in populationRanges) {
           // Ensure the VID is in one of the ranges. We already know the ranges are disjoint.
@@ -175,7 +190,10 @@ private constructor(
       val vidsNotInIndexMap: List<Long> =
         populationRanges.flatMap { range ->
           range.filter { vid ->
-            !indexMap.containsKey(vid) &&
+            require(vid < Integer.MAX_VALUE) {
+              "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+            }
+            !indexMap.containsKey(vid.toInt()) &&
               vidsNotInPopulationSpec.size <
                 InconsistentIndexMapAndPopulationSpecException.MAX_LIST_SIZE
           }
@@ -218,21 +236,35 @@ private constructor(
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
+      useParallelSorting: Boolean,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
-      val indexMap = hashMapOf<Long, Int>()
+      val indexMap = hashMapOf<Int, Int>()
       val hashes = mutableListOf<VidAndHash>()
       for (subPop in populationSpec.subpopulationsList) {
         for (range in subPop.vidRangesList) {
           for (vid in range.startVid..range.endVidInclusive) {
-            hashes.add(VidAndHash(vid, hashFunction(vid, SALT)))
+            require(vid < Integer.MAX_VALUE) {
+              "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
+            }
+            hashes.add(VidAndHash(vid.toInt(), hashFunction(vid, SALT)))
           }
         }
       }
-      hashes.sortWith(compareBy { it })
 
-      for ((index, vidAndHash) in hashes.withIndex()) {
-        indexMap[vidAndHash.vid] = index
+      if (useParallelSorting) {
+        val hashesArray: Array<VidAndHash> = hashes.toTypedArray()
+        Arrays.parallelSort(hashesArray)
+
+        for ((index, vidAndHash) in hashesArray.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
+      } else {
+        hashes.sortWith(compareBy { it })
+
+        for ((index, vidAndHash) in hashes.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
       }
       return InMemoryVidIndexMap(populationSpec, indexMap)
     }
@@ -247,7 +279,7 @@ private constructor(
     override fun next(): VidIndexMapEntry {
       val (k, v) = vidIndexIterator.next()
       return vidIndexMapEntry {
-        key = k
+        key = k.toLong()
         value = value {
           index = v
           unitIntervalValue = v.toDouble() / this@InMemoryVidIndexMap.size

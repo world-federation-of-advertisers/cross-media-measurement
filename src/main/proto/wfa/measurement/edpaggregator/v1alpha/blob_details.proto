@@ -51,7 +51,6 @@ message BlobDetails {
   ];
 
   // Interval for when data from blob_uri is guaranteed to be available for a
-  // [Requisition][] fulfillment for the [ModelLine][] indicated by [model_line][].
+  // Requisition fulfillment for the ModelLine indicated by model_line.
   google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
-
 }

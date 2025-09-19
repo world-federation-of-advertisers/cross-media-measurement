@@ -97,6 +97,8 @@ proto_library(
     srcs = ["data_availability_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],

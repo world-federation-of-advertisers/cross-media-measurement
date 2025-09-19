@@ -110,7 +110,6 @@ class EventReaderTest {
           eventTime = TIME_RANGE.start.toProtoTime()
           vid = index.toLong()
           event = TEST_EVENT.pack()
-          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
 
@@ -169,7 +168,6 @@ class EventReaderTest {
           eventTime = TIME_RANGE.start.toProtoTime()
           vid = index.toLong()
           event = TEST_EVENT.pack()
-          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
 

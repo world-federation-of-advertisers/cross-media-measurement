@@ -180,7 +180,6 @@ class StorageEventSourceTest {
           .setVid(i.toLong())
           .setEventTime(date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime())
           .setEvent(TEST_EVENT.pack())
-          .setEventGroupReferenceId(eventGroupRef)
           .build()
       }
 
