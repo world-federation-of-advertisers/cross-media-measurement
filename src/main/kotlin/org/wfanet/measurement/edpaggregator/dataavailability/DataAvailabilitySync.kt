@@ -297,7 +297,6 @@ class DataAvailabilitySync(
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".pb"
     private const val JSON_FILE_SUFFIX = ".json"
-
     private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
   }
 }

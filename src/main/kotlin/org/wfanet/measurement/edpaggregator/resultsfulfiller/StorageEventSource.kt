@@ -103,7 +103,7 @@ class StorageEventSource(
   private val impressionMetadataService: ImpressionMetadataService,
   private val eventGroupDetailsList: List<EventGroupDetails>,
   private val modelLine: String,
-  private val kmsClient: KmsClient?,
+  private val kmsClient: KmsClient,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
@@ -170,6 +170,7 @@ class StorageEventSource(
             modelLine,
             details.eventGroupReferenceId,
             interval,
+            kmsClient
           )
         }
       }

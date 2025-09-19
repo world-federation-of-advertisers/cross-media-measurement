@@ -106,7 +106,7 @@ class LegacyEventReader(
         selectedStorageClient,
         kekUri = encryptedDek.kekUri,
         kmsClient = kmsClient,
-        serializedEncryptionKey = encryptedDek.encryptedDek,
+        serializedEncryptionKey = encryptedDek.ciphertext,
       )
     val impressionBlob =
       impressionsStorage.getBlob(storageClientUri.key)
