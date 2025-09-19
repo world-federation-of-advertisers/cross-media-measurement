@@ -16,6 +16,8 @@ package org.wfanet.measurement.access.service.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.service.EtagMismatchException
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PolicyAlreadyExistsException
@@ -50,8 +52,10 @@ import org.wfanet.measurement.internal.access.lookupPolicyRequest as internalLoo
 import org.wfanet.measurement.internal.access.policy as internalPolicy
 import org.wfanet.measurement.internal.access.removePolicyBindingMembersRequest as internalRemovePolicyBindingMembersRequest
 
-class PoliciesService(private val internalPoliciesStub: InternalPoliciesCoroutineStub) :
-  PoliciesGrpcKt.PoliciesCoroutineImplBase() {
+class PoliciesService(
+  private val internalPoliciesStub: InternalPoliciesCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PoliciesGrpcKt.PoliciesCoroutineImplBase(coroutineContext) {
   override suspend fun getPolicy(request: GetPolicyRequest): Policy {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")

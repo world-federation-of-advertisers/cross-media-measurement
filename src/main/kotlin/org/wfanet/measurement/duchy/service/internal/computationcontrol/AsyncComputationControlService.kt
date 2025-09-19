@@ -18,6 +18,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.time.delay
@@ -44,7 +46,8 @@ class AsyncComputationControlService(
   private val maxAdvanceAttempts: Int,
   /** Retry backoff for [advanceComputation]. */
   private val advanceRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
-) : AsyncComputationControlCoroutineService() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : AsyncComputationControlCoroutineService(coroutineContext) {
   init {
     require(maxAdvanceAttempts >= 1) { "maxAdvanceAttempts must be at least 1" }
   }

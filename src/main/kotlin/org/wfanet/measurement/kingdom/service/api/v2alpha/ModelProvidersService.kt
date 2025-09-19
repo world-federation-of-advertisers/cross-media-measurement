@@ -19,6 +19,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
@@ -28,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase as ModelProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
@@ -44,8 +46,9 @@ import org.wfanet.measurement.internal.kingdom.getModelProviderRequest as intern
 import org.wfanet.measurement.internal.kingdom.listModelProvidersRequest as internalListModelProvidersRequest
 
 class ModelProvidersService(
-  private val internalModelProviders: ModelProvidersGrpcKt.ModelProvidersCoroutineStub
-) : ModelProvidersCoroutineImplBase() {
+  private val internalModelProviders: ModelProvidersGrpcKt.ModelProvidersCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ModelProvidersCoroutineService(coroutineContext) {
   override suspend fun getModelProvider(request: GetModelProviderRequest): ModelProvider {
     val key =
       grpcRequireNotNull(ModelProviderKey.fromName(request.name)) {

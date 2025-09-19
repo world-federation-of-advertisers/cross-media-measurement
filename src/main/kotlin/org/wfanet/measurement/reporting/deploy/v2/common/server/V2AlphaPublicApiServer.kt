@@ -28,7 +28,9 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
 import kotlin.random.asKotlinRandom
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.PrincipalAuthInterceptor
@@ -48,6 +50,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withInterceptor
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -58,6 +61,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -89,6 +93,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
 private object V2AlphaPublicApiServer {
@@ -105,6 +110,7 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
     @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
     @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+    @CommandLine.Mixin serviceFlags: ServiceFlags,
     @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
@@ -201,6 +207,17 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
+    val basicReportMetricSpecConfig =
+      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
+        metricSpecConfig
+      } else {
+        parseTextProto(
+          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
+          MetricSpecConfig.getDefaultInstance(),
+        )
+      }
+    basicReportMetricSpecConfig.validate()
+
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -211,6 +228,8 @@ private object V2AlphaPublicApiServer {
         v2AlphaPublicServerFlags.knownEventGroupMetadataTypes,
         Dispatchers.Default,
       )
+
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val metricsService =
       MetricsService(
@@ -236,17 +255,43 @@ private object V2AlphaPublicApiServer {
           v2AlphaPublicServerFlags.certificateCacheExpirationDuration,
         dataProviderCacheExpirationDuration =
           v2AlphaPublicServerFlags.dataProviderCacheExpirationDuration,
-        Dispatchers.IO,
-        Dispatchers.Default,
+        keyReaderContext = Dispatchers.IO,
+        cacheLoaderContext = Dispatchers.Default,
+        coroutineContext = serviceDispatcher,
       )
 
     startInProcessServerWithService(
-      IN_PROCESS_SERVER_NAME,
+      "$IN_PROCESS_SERVER_NAME-metrics",
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
     )
-    val inProcessChannel =
-      InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
+
+    val inProcessMetricsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-metrics")
+        .directExecutor()
+        .build()
+        .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val reportsService =
+      ReportsService(
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessMetricsChannel),
+        metricSpecConfig,
+        authorization,
+        SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.allowSamplingIntervalWrapping,
+        serviceDispatcher,
+      )
+
+    startInProcessServerWithService(
+      "$IN_PROCESS_SERVER_NAME-reports",
+      commonServerFlags,
+      reportsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+    )
+
+    val inProcessReportsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-reports")
         .directExecutor()
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
@@ -257,12 +302,14 @@ private object V2AlphaPublicApiServer {
             KingdomDataProvidersCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         EventGroupMetadataDescriptorsService(
             KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         EventGroupsService(
@@ -271,21 +318,17 @@ private object V2AlphaPublicApiServer {
             celEnvCacheProvider,
             measurementConsumerConfigs,
             InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         metricsService.withInterceptor(principalAuthInterceptor),
-        ReportingSetsService(InternalReportingSetsCoroutineStub(channel), authorization)
-          .withInterceptor(principalAuthInterceptor),
-        ReportsService(
-            InternalReportsCoroutineStub(channel),
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            MetricsCoroutineStub(inProcessChannel),
-            metricSpecConfig,
+        ReportingSetsService(
+            InternalReportingSetsCoroutineStub(channel),
             authorization,
-            SecureRandom().asKotlinRandom(),
-            reportingApiServerFlags.allowSamplingIntervalWrapping,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
+        reportsService.withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(
             InternalReportSchedulesCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
@@ -293,11 +336,13 @@ private object V2AlphaPublicApiServer {
             KingdomEventGroupsCoroutineStub(kingdomChannel),
             authorization,
             measurementConsumerConfigs,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         ReportScheduleIterationsService(
             InternalReportScheduleIterationsCoroutineStub(channel),
             authorization,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
         MetricCalculationSpecsService(
@@ -307,14 +352,28 @@ private object V2AlphaPublicApiServer {
             authorization,
             SecureRandom().asKotlinRandom(),
             measurementConsumerConfigs,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
-        BasicReportsService(InternalBasicReportsCoroutineStub(channel), authorization)
+        BasicReportsService(
+            InternalBasicReportsCoroutineStub(channel),
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            ReportsCoroutineStub(inProcessReportsChannel),
+            // TODO(@tristanvuong2021#2761): Switch to non-null value using flags
+            null,
+            basicReportMetricSpecConfig,
+            SecureRandom().asKotlinRandom(),
+            authorization,
+            serviceDispatcher,
+          )
           .withInterceptor(principalAuthInterceptor),
         ModelLinesService(
             KingdomModelLinesCoroutineStub(kingdomChannel),
             authorization,
             systemMeasurementConsumerConfig.apiKey,
+            serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
       )

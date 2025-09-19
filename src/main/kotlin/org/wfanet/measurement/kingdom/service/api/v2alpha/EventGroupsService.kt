@@ -424,6 +424,7 @@ class EventGroupsService(
     pageToken: ListEventGroupsPageToken?,
   ): StreamEventGroupsRequest {
     return streamEventGroupsRequest {
+      allowStaleReads = true
       this.filter =
         InternalStreamEventGroupsRequests.filter {
           if (parentKey is DataProviderKey) {
@@ -470,7 +471,7 @@ class EventGroupsService(
                 pageToken.showDeleted != showDeleted ||
                 pageToken.externalDataProviderIdInList != externalDataProviderIdIn ||
                 pageToken.externalMeasurementConsumerIdInList != externalMeasurementConsumerIdIn ||
-                pageToken.mediaTypesIntersectList != mediaTypesIntersect ||
+                pageToken.mediaTypesIntersectList != filter.mediaTypesIntersectList ||
                 pageToken.dataAvailabilityStartTimeOnOrAfter !=
                   dataAvailabilityStartTimeOnOrAfter ||
                 pageToken.dataAvailabilityEndTimeOnOrBefore != dataAvailabilityEndTimeOnOrBefore ||

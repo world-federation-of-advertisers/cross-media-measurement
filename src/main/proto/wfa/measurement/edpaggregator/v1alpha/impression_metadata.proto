@@ -1,0 +1,89 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionMetadataProto";
+
+// Metadata for a blob of labeled impressions.
+// This resource tracks the location and context of raw data files uploaded by
+// an EDP.
+message ImpressionMetadata {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    pattern: "dataProviders/{data_provider}/impressionMetadata/{impression_metadata}"
+    singular: "impressionMetadata"
+    plural: "impressionMetadata"
+  };
+
+  // The lifecycle state of the impression metadata.
+  enum State {
+    // Default, unspecified state.
+    STATE_UNSPECIFIED = 0;
+    // The metadata is active and can be used for fulfillment.
+    ACTIVE = 1;
+    // The metadata has been marked as deleted and will not be used for
+    // fulfillment.
+    DELETED = 2;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The blob storage URI of the metadata for the LabeledImpressions file.
+  // This is provided by the client on creation and cannot be changed.
+  string blob_uri = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Type URL of the blob.
+  //
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: this is mirroring the type_url field in
+  //     protobuf.Any. --)
+  string blob_type_url = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // The reference ID of the EventGroup associated with these impressions.
+  string event_group_reference_id = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the ModelLine associated with these impressions.
+  string model_line = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
+  // The time interval that the impressions in the blob cover.
+  google.type.Interval interval = 6 [(google.api.field_behavior) = REQUIRED];
+
+  // The current state of the metadata.
+  State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 8
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was last updated (e.g., deleted).
+  google.protobuf.Timestamp update_time = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}

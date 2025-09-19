@@ -35,7 +35,6 @@ import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCorou
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
@@ -43,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -54,7 +54,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
 /**
@@ -90,9 +89,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
-  private val publicRequisitionsClient by lazy {
-    RequisitionsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-  }
 
   private val publicModelSuitesClient by lazy {
     ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
@@ -122,11 +118,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
 
   private fun initMcSimulator() {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventQuery =
-      MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-      )
     mcSimulator =
       EventQueryMeasurementConsumerSimulator(
         MeasurementConsumerData(
@@ -142,7 +133,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         publicMeasurementConsumersClient,
         publicCertificatesClient,
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
-        eventQuery,
+        inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
   }
@@ -289,13 +280,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         }
       )
 
-    val populationData = inProcessCmmsComponents.getPopulationData()
-
     val modelRelease =
       publicModelReleasesClient.createModelRelease(
         createModelReleaseRequest {
           parent = modelSuite.name
-          modelRelease = modelRelease { population = populationData.populationKey.toName() }
+          modelRelease = modelRelease {
+            population = inProcessCmmsComponents.populationResourceName
+          }
         }
       )
 
@@ -313,12 +304,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
     )
 
     // Use frontend simulator to create a population measurement
+    val populationData = inProcessCmmsComponents.getPopulationData()
     mcSimulator.testPopulation(
       "1234",
       populationData,
       modelLine.name,
       DEFAULT_POPULATION_FILTER_EXPRESSION,
-      inProcessCmmsComponents.typeRegistry,
+      TestEvent.getDescriptor(),
     )
   }
 

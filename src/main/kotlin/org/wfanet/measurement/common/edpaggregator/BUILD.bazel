@@ -1,0 +1,29 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "blob_loader",
+    srcs = ["BlobLoader.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+kt_jvm_library(
+    name = "edp_aggregator_config",
+    srcs = ["EdpAggregatorConfig.kt"],
+    deps = [
+        ":blob_loader",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
+import kotlinx.coroutines.Dispatchers
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
@@ -36,7 +37,12 @@ class SpannerAccessServicesFactory(emulatorDatabaseAdmin: SpannerDatabaseAdmin) 
     permissionMapping: PermissionMapping,
     tlsClientMapping: TlsClientPrincipalMapping,
   ): AccessInternalServices =
-    InternalApiServices.build(spannerDatabase.databaseClient, permissionMapping, tlsClientMapping)
+    InternalApiServices.build(
+      spannerDatabase.databaseClient,
+      permissionMapping,
+      tlsClientMapping,
+      Dispatchers.Default,
+    )
 
   override fun apply(base: Statement, description: Description): Statement {
     return spannerDatabase.apply(base, description)

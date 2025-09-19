@@ -18,7 +18,8 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_reportSchedulingCronSchedule: string | *"30 6 * * *" // Daily at 6:30 AM
+	_reportSchedulingCronSchedule:    string | *"30 6 * * *" // Daily at 6:30 AM
+	_basicReportsReportsCronSchedule: string | *"30 7 * * *" // Daily at 7:30 AM
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -67,6 +68,7 @@ package k8s
 		"postgres-internal-reporting-server":  string | *"reporting/v2/internal-server"
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
+		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
@@ -99,6 +101,7 @@ package k8s
 	_encryptionKeyPairConfigFileFlag:             "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_impressionQualificationFilterConfigFileFlag: "--impression-qualification-filter-config-file=/etc/\(#AppName)/config-files/impression_qualification_filter_config.textproto"
 	_metricSpecConfigFileFlag:                    "--metric-spec-config-file=/etc/\(#AppName)/config-files/metric_spec_config.textproto"
+	_basicReportMetricSpecConfigFileFlag:         "--basic-report-metric-spec-config-file=/etc/\(#AppName)/config-files/basic_report_metric_spec_config.textproto"
 	_knownEventGroupMetadataTypeFlag:             "--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb"
 	_debugVerboseGrpcClientLoggingFlag:           "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag:           "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
@@ -141,6 +144,7 @@ package k8s
 						"--port=8443",
 						"--health-port=8080",
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
+						"--disable-metrics-reuse=false",
 						_impressionQualificationFilterConfigFileFlag,
 			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
 
@@ -178,6 +182,7 @@ package k8s
 						_encryptionKeyPairDirFlag,
 						_encryptionKeyPairConfigFileFlag,
 						_metricSpecConfigFileFlag,
+						_basicReportMetricSpecConfigFileFlag,
 						_knownEventGroupMetadataTypeFlag,
 						"--open-id-providers-config-file=/etc/\(#AppName)/config-files/open_id_providers_config.json",
 						"--require-client-auth=false",
@@ -276,7 +281,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
 					"mc-config": {
@@ -286,6 +291,30 @@ package k8s
 					"config-files": #ConfigMapMount
 				}
 				schedule: _reportSchedulingCronSchedule
+			}
+		}
+		"basic-reports-reports": {
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_measurementConsumerConfigFileFlag,
+						_signingPrivateKeyStoreDirFlag,
+						_encryptionKeyPairDirFlag,
+						_encryptionKeyPairConfigFileFlag,
+						_metricSpecConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
+			spec: {
+				jobTemplate: spec: template: spec: _mounts: {
+					"mc-config": {
+						volume: secret: secretName: Reporting._mcConfigSecretName
+						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+					}
+					"config-files": #ConfigMapMount
+				}
+				schedule: _basicReportsReportsCronSchedule
 			}
 		}
 	}
@@ -300,6 +329,7 @@ package k8s
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
+				"basic-reports-reports-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -336,6 +366,9 @@ package k8s
 				// Needs to call out to Kingdom.
 				any: {}
 			}
+		}
+		"basic-reports-reports": {
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 		}
 		"access-internal-api-server": {
 			_sourceMatchLabels: ["access-public-api-server-app"]

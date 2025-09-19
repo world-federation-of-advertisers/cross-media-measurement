@@ -164,7 +164,7 @@ class EventGroupsServiceTest {
         celEnvCacheProvider,
         MEASUREMENT_CONSUMER_CONFIGS,
         ENCRYPTION_KEY_PAIR_STORE,
-        fakeTicker,
+        ticker = fakeTicker,
       )
   }
 

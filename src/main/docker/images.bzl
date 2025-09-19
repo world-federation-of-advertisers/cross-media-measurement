@@ -97,9 +97,14 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
     struct(
-        name = "synthetic_generator_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/synthetic-generator-edp",
+        name = "edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/edp",
+    ),
+    struct(
+        name = "legacy_metadata_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:legacy_metadata_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/legacy-metadata-edp",
     ),
     struct(
         name = "access_public_api_server_image",
@@ -269,6 +274,11 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/v2/report-scheduling",
     ),
     struct(
+        name = "basic_reports_reports_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_job_executor_image",
+        repository = _PREFIX + "/reporting/v2/basic-reports-reports",
+    ),
+    struct(
         name = "reporting_spanner_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/reporting/v2/spanner-update-schema",
@@ -328,7 +338,11 @@ SECURE_COMPUTATION_GKE_IMAGES = [
 ]
 
 SECURE_COMPUTATION_TEE_APP_IMAGES = [
-    #TODO(@marcopremier) add images here when PR is ready
+    struct(
+        name = "gcloud_results_fulfiller_app",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_image",
+        repository = _PREFIX + "/edp-aggregator/results_fulfiller",
+    ),
 ]
 
 ALL_SECURE_COMPUTATION_GKE_IMAGES = SECURE_COMPUTATION_COMMON_IMAGES + SECURE_COMPUTATION_GKE_IMAGES

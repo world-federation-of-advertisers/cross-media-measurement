@@ -16,12 +16,20 @@ package k8s
 
 import "list"
 
+#EventGroupConfig: {
+	referenceIdSuffix:     string
+	syntheticDataSpecPath: string
+	mediaTypes: [...string]
+	brandName:    string
+	campaignName: string
+}
+
 #EdpConfig: {
 	displayName:      string
 	resourceName:     string
 	certResourceName: string
-	publisherId:      int
 	supportHmss:      bool | *false
+	eventGroupConfigs: [...#EventGroupConfig]
 }
 
 #RequisitionFulfillmentServiceConfig: {
@@ -30,25 +38,35 @@ import "list"
 }
 
 #EdpSimulator: {
-	_edpConfig:        #EdpConfig
-	_mc_resource_name: string
-	_edp_secret_name:  string
+	_edpConfig:          #EdpConfig
+	_populationSpecPath: string
+	_mc_resource_name:   string
+	_edp_secret_name:    string
 	_requisitionFulfillmentServiceConfigs: [...#RequisitionFulfillmentServiceConfig]
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
+	_imageConfig:               #ImageConfig
 
 	let DisplayName = _edpConfig.displayName
-
-	_imageConfig: #ImageConfig
-	_additional_args: [...string]
-
-	_requisitionFulfillmentServiceFlags: {
+	let RequisitionFulfillmentServiceOptions = {
 		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
 			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
 			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
 			"--requisition-fulfillment-service-cert-host=localhost",
 		]}]
 		list.FlattenN(flagLists, 2)
+	}
+	let EventGroupOptions = {
+		let Lists = [ for config in _edpConfig.eventGroupConfigs {
+			[
+				"--event-group-reference-id-suffix=\(config.referenceIdSuffix)",
+				"--event-group-synthetic-spec=\(config.syntheticDataSpecPath)",
+				"--event-group-brand-name=\(config.brandName)",
+				"--event-group-campaign-name=\(config.campaignName)",
+				for mediaType in config.mediaTypes {"--event-group-media-type=\(mediaType)"},
+			]
+		}]
+		list.FlattenN(Lists, 2)
 	}
 
 	deployment: #Deployment & {
@@ -73,8 +91,9 @@ import "list"
 				"--kingdom-public-api-cert-host=localhost",
 				"--log-sketch-details=\(_logSketchDetails)",
 				"--health-file=\(HealthFile)",
-				"--known-event-group-metadata-type=/etc/\(#AppName)/config-files/known_event_group_metadata_type_set.pb",
-			] + _requisitionFulfillmentServiceFlags + _additional_args
+				"--population-spec=\(_populationSpecPath)",
+				"--support-hmss=\(_edpConfig.supportHmss)",
+			] + RequisitionFulfillmentServiceOptions + EventGroupOptions
 		}
 		spec: template: spec: {
 			_mounts: {

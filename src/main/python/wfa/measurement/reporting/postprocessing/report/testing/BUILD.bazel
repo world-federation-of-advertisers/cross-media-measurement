@@ -1,0 +1,17 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+py_library(
+    name = "validate_report",
+    srcs = ["validate_report.py"],
+    imports = ["../"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+        requirement("absl-py"),
+    ],
+)

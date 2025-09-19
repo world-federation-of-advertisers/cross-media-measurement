@@ -48,6 +48,9 @@ message ReportPostProcessorStatus {
     // OSQP solver converged to a solution, but it did not meet the required
     // tolerance.
     PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
+
+    // The process crashed or terminated unexpectedly due to an internal error.
+    INTERNAL_ERROR = 6;
   }
 
   // The final status code indicating the overall outcome of the solver stage
@@ -130,6 +133,11 @@ message ReportPostProcessorResult {
   // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
   map<string, int64> updated_measurements = 1;
 
+  // Contains the measurements that are not corrected by the report post
+  // post processor. These measurements may be inconsistent. This field is only
+  // set when the solution or partial solution exists.
+  repeated string uncorrected_measurements = 6;
+
   // Contains the detailed status and metrics from the QP solver step. The
   // status indicates if the report post processor found a solution, a partial
   // solution, or fail to find any. It also provides metrics such as the primal
@@ -145,4 +153,8 @@ message ReportPostProcessorResult {
   // the corrected measurements from the 'updated_measurements' map (if a
   // solution was found).
   ReportQuality post_correction_quality = 4;
+
+  // If an unhandled exception occurred during processing, this field contains
+  // the error message.
+  string error_message = 7;
 }

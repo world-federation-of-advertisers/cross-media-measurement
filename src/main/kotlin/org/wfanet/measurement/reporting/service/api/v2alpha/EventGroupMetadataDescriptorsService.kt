@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
@@ -33,7 +35,8 @@ class EventGroupMetadataDescriptorsService(
   private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val authorization: Authorization,
   private val apiAuthenticationKey: String,
-) : EventGroupMetadataDescriptorsCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : EventGroupMetadataDescriptorsCoroutineImplBase(coroutineContext) {
   override suspend fun getEventGroupMetadataDescriptor(
     request: GetEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {

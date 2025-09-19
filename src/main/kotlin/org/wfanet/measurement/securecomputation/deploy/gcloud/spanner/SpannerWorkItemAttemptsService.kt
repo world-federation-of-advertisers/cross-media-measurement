@@ -20,6 +20,7 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
@@ -61,7 +62,8 @@ class SpannerWorkItemAttemptsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase() {
+  coroutineContext: CoroutineContext,
+) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createWorkItemAttempt(
     request: CreateWorkItemAttemptRequest

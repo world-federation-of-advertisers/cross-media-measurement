@@ -19,20 +19,25 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 import io.grpc.BindableService
 import java.io.File
 import java.time.Clock
+import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
 import picocli.CommandLine.MissingParameterException
@@ -51,6 +56,15 @@ abstract class AbstractInternalReportingServer : Runnable {
     required = false,
   )
   var basicReportsEnabled: Boolean = false
+
+  // TODO(@tristanvuong2021): Delete flag when there is a better alternative.
+  @set:CommandLine.Option(
+    names = ["--disable-metrics-reuse"],
+    description = ["Whether Metrics Reuse is disabled. Will be removed when testing is finished."],
+    required = true,
+  )
+  var disableMetricsReuse by Delegates.notNull<Boolean>()
+    private set
 
   protected suspend fun run(services: Services) {
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
@@ -74,6 +88,7 @@ abstract class AbstractInternalReportingServer : Runnable {
   showDefaultValues = true,
 )
 class InternalReportingServer : AbstractInternalReportingServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -91,6 +106,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
@@ -116,7 +132,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFilterConfig)
 
-      spannerFlags.usingSpanner { spanner ->
+      spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
         run(
           DataServices.create(
@@ -124,11 +140,22 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            disableMetricsReuse,
+            serviceDispatcher,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null))
+      run(
+        DataServices.create(
+          idGenerator,
+          postgresClient,
+          null,
+          null,
+          disableMetricsReuse,
+          serviceDispatcher,
+        )
+      )
     }
   }
 }

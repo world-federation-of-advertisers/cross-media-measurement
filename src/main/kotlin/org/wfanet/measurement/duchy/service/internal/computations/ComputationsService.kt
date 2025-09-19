@@ -21,6 +21,8 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
@@ -32,6 +34,7 @@ import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.toDatabaseEditToken
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.service.internal.ComputationLockOwnerMismatchException
 import org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException
 import org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
 import org.wfanet.measurement.duchy.storage.ComputationStore
@@ -78,9 +81,10 @@ class ComputationsService(
   private val computationStore: ComputationStore,
   private val requisitionStore: RequisitionStore,
   private val duchyName: String,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val clock: Clock = Clock.systemUTC(),
   private val defaultLockDuration: Duration = Duration.ofMinutes(5),
-) : ComputationsCoroutineImplBase() {
+) : ComputationsCoroutineImplBase(coroutineContext) {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
     grpcRequire(request.owner.isNotEmpty()) { "owner is not specified" }
@@ -347,10 +351,16 @@ class ComputationsService(
       "DelaySecond ${request.delaySecond} should be non-negative."
     }
     try {
-      computationsDatabase.enqueue(request.token.toDatabaseEditToken(), request.delaySecond)
+      computationsDatabase.enqueue(
+        request.token.toDatabaseEditToken(),
+        request.delaySecond,
+        request.expectedOwner,
+      )
     } catch (e: ComputationNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ComputationTokenVersionMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    } catch (e: ComputationLockOwnerMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED)
     }
     return EnqueueComputationResponse.getDefaultInstance()

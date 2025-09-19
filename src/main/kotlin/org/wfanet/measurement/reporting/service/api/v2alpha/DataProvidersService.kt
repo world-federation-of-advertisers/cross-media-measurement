@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -28,7 +30,8 @@ class DataProvidersService(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val authorization: Authorization,
   private val apiAuthenticationKey: String,
-) : DataProvidersCoroutineImplBase() {
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : DataProvidersCoroutineImplBase(coroutineContext) {
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     authorization.check(Authorization.ROOT_RESOURCE_NAME, GET_DATA_PROVIDER_PERMISSIONS)
     return dataProvidersStub.withAuthenticationKey(apiAuthenticationKey).getDataProvider(request)

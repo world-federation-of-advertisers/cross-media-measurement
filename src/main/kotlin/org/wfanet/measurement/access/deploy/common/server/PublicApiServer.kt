@@ -19,10 +19,13 @@ package org.wfanet.measurement.access.deploy.common.server
 import io.grpc.BindableService
 import java.time.Duration
 import kotlin.properties.Delegates
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.access.service.v1alpha.Services
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -33,6 +36,7 @@ private const val SERVER_NAME = "AccessApiServer"
 @CommandLine.Command(name = SERVER_NAME)
 class PublicApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
 
   @CommandLine.Option(
     names = ["--access-internal-api-target"],
@@ -78,8 +82,10 @@ class PublicApiServer : Runnable {
       buildMutualTlsChannel(internalApiTarget, clientCerts, internalApiCertHost)
         .withShutdownTimeout(channelShutdownTimeout)
         .withVerboseLogging(debugVerboseGrpcClientLogging)
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
-    val services: List<BindableService> = Services.build(internalApiChannel).toList()
+    val services: List<BindableService> =
+      Services.build(internalApiChannel, serviceDispatcher).toList()
 
     val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
     server.start().blockUntilShutdown()

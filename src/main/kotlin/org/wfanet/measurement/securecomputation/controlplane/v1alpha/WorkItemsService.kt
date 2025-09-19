@@ -19,6 +19,8 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -39,8 +41,10 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
-class WorkItemsService(private val internalWorkItemsStub: InternalWorkItemsCoroutineStub) :
-  WorkItemsCoroutineImplBase() {
+class WorkItemsService(
+  private val internalWorkItemsStub: InternalWorkItemsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : WorkItemsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
 

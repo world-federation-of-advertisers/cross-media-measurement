@@ -23,7 +23,6 @@ on:
     branches:
       - main
       - 'releases/**'
-    types: [opened, synchronize, edited]
   workflow_dispatch:
 
 concurrency:
@@ -63,9 +62,12 @@ jobs:
           build --define image_tag=latest
           build --define kingdom_public_api_target=kingdom.example.com:8443
           build --define worker1_id=worker1
+          build --define worker1_cert_name=duchies/worker1/certificates/foo
           build --define worker1_public_api_target=worker1.example.com:8443
           build --define worker2_id=worker2
+          build --define worker2_cert_name=duchies/worker2/certificates/foo
           build --define worker2_public_api_target=worker2.example.com:8443
+          build --define aggregator_cert_name=duchies/aggregator/certificates/foo
           build --define mc_name=measurementConsumers/foo
           build --define mc_api_key=foo
           build --define mc_cert_name=measurementConsumers/foo/certificates/bar
@@ -81,6 +83,8 @@ jobs:
           build --define edp5_cert_name=dataProviders/foo5/certificates/bar5
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
+          build --define pdp_name=dataProviders/foodp1
+          build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
           build --define google_cloud_project=example-project
           build --define basic_reports_enabled=true
           EOF
@@ -96,7 +100,8 @@ jobs:
         run: >
           bazel build --worker_quit_after_build
           //...
-          //src/main/k8s/dev:synthetic_generator_edp_simulators
+          //src/main/k8s/local:cmms
+          //src/main/k8s/dev:edp_simulators
 
       - name: Run tests
         id: run-tests

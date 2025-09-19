@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.deploy.common.postgres
 
 import java.time.Clock
+import kotlinx.coroutines.Dispatchers
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -58,6 +59,7 @@ class PostgresDuchyDependencyProviderRule(
         duchyName = duchyId,
         idGenerator = idGenerator,
         client = computationsDatabase,
+        coroutineContext = Dispatchers.Default,
       )
     return InProcessDuchy.DuchyDependencies(duchyDataServices, storageClient)
   }

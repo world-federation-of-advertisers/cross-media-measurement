@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -76,7 +75,7 @@ object TestRequisitionData {
 
   val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
-  private val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
+  val MC_SIGNING_KEY = loadSigningKey("${MC_ID}_cs_cert.der", "${MC_ID}_cs_private.der")
 
   private val EDP_SIGNING_KEY =
     loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
@@ -99,7 +98,6 @@ object TestRequisitionData {
   val EDP_DATA =
     DataProviderData(
       EDP_NAME,
-      EDP_DISPLAY_NAME,
       loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
       EDP_RESULT_SIGNING_KEY,
       DATA_PROVIDER_RESULT_CERTIFICATE_KEY,
@@ -107,12 +105,12 @@ object TestRequisitionData {
 
   private val MC_PUBLIC_KEY =
     loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile()).toEncryptionPublicKey()
-  private val DATA_PROVIDER_PUBLIC_KEY =
+  val DATA_PROVIDER_PUBLIC_KEY =
     loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
       .toEncryptionPublicKey()
 
-  private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
-  private val REQUISITION_SPEC = requisitionSpec {
+  const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+  val REQUISITION_SPEC = requisitionSpec {
     events =
       RequisitionSpecKt.events {
         eventGroups +=
@@ -147,7 +145,7 @@ object TestRequisitionData {
     epsilon = 1.0
     delta = 1E-12
   }
-  private val MEASUREMENT_SPEC = measurementSpec {
+  val MEASUREMENT_SPEC = measurementSpec {
     measurementPublicKey = MC_PUBLIC_KEY.pack()
     reachAndFrequency =
       MeasurementSpecKt.reachAndFrequency {
@@ -161,6 +159,8 @@ object TestRequisitionData {
         width = 1.0f
       }
     nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+    reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+    modelLine = "some-model-line"
   }
 
   val REQUISITION = requisition {

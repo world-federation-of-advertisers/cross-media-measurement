@@ -974,6 +974,7 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1019,6 +1020,7 @@ class EventGroupsServiceTest {
               descending = true
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
   }
@@ -1066,6 +1068,7 @@ class EventGroupsServiceTest {
               metadataSearchQuery = request.filter.metadataSearchQuery
             }
           limit = request.pageSize + 1
+          allowStaleReads = true
         }
       )
     val nextPageToken = ListEventGroupsPageToken.parseFrom(response.nextPageToken.base64UrlDecode())
@@ -1089,20 +1092,24 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups with page token gets the next page`() {
+    val pageToken = listEventGroupsPageToken {
+      externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+      externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
+      mediaTypesIntersect += MediaType.VIDEO
+      lastEventGroup = previousPageEnd {
+        externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+        dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
+      }
+    }
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
-        }
+      filter = filter {
+        measurementConsumerIn += MEASUREMENT_CONSUMER_NAME
+        mediaTypesIntersect += MediaType.VIDEO
       }
-      filter = filter { measurementConsumerIn += MEASUREMENT_CONSUMER_NAME }
-      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
+      this.pageToken = pageToken.toByteArray().base64UrlEncode()
     }
 
     val result =
@@ -1110,19 +1117,18 @@ class EventGroupsServiceTest {
         runBlocking { service.listEventGroups(request) }
       }
 
-    val expected = listEventGroupsResponse {
-      eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
-      val listEventGroupsPageToken = listEventGroupsPageToken {
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
+    val nextPageToken =
+      pageToken.copy {
         lastEventGroup = previousPageEnd {
           externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
         }
       }
-      nextPageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+      this.nextPageToken = nextPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupsRequest: StreamEventGroupsRequest = captureFirst {
@@ -1138,6 +1144,7 @@ class EventGroupsServiceTest {
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
               externalMeasurementConsumerIdIn += MEASUREMENT_CONSUMER_EXTERNAL_ID
+              mediaTypesIntersect += InternalMediaType.VIDEO
               after =
                 StreamEventGroupsRequestKt.FilterKt.after {
                   eventGroupKey = eventGroupKey {
@@ -1150,6 +1157,7 @@ class EventGroupsServiceTest {
               // available for at least one release.
               eventGroupKeyAfter = after.eventGroupKey
             }
+          allowStaleReads = true
         }
       )
 

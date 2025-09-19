@@ -18,18 +18,22 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
 import java.io.File
 import java.time.Clock
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
-import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
 
@@ -41,6 +45,7 @@ import picocli.CommandLine
   showDefaultValues = true,
 )
 class GCloudInternalReportingServer : AbstractInternalReportingServer() {
+  @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -57,6 +62,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
+    val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
@@ -82,7 +88,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
 
-      spannerFlags.usingSpanner { spanner ->
+      spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
         run(
           DataServices.create(
@@ -90,11 +96,22 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            disableMetricsReuse,
+            serviceDispatcher,
           )
         )
       }
     } else {
-      run(DataServices.create(idGenerator, postgresClient, null, null))
+      run(
+        DataServices.create(
+          idGenerator,
+          postgresClient,
+          null,
+          null,
+          disableMetricsReuse,
+          serviceDispatcher,
+        )
+      )
     }
   }
 }

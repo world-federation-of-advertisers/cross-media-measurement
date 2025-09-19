@@ -19,8 +19,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
+import java.time.ZoneId
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -31,8 +30,9 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** [EventQuery] that uses [SyntheticDataGeneration]. */
 abstract class SyntheticGeneratorEventQuery(
-  private val populationSpec: SyntheticPopulationSpec,
+  val populationSpec: SyntheticPopulationSpec,
   private val eventMessageDescriptor: Descriptors.Descriptor,
+  val timeZone: ZoneId,
 ) : EventQuery<DynamicMessage> {
   init {
     require(
@@ -45,10 +45,15 @@ abstract class SyntheticGeneratorEventQuery(
   constructor(
     populationSpec: SyntheticPopulationSpec,
     typeRegistry: TypeRegistry,
-  ) : this(populationSpec, typeRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl))
+    timeZone: ZoneId,
+  ) : this(
+    populationSpec,
+    typeRegistry.getDescriptorForTypeUrl(populationSpec.eventMessageTypeUrl),
+    timeZone,
+  )
 
   /** Returns the synthetic data spec for [eventGroup]. */
-  abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
+  protected abstract fun getSyntheticDataSpec(eventGroup: EventGroup): SyntheticEventGroupSpec
 
   override fun getLabeledEvents(
     eventGroupSpec: EventQuery.EventGroupSpec
@@ -57,18 +62,15 @@ abstract class SyntheticGeneratorEventQuery(
     val syntheticDataSpec: SyntheticEventGroupSpec = getSyntheticDataSpec(eventGroupSpec.eventGroup)
     val program: Program =
       EventQuery.compileProgram(eventGroupSpec.spec.filter, eventMessageDescriptor)
-    return runBlocking {
-      SyntheticDataGeneration.generateEvents(
-          DynamicMessage.getDefaultInstance(eventMessageDescriptor),
-          populationSpec,
-          syntheticDataSpec,
-          timeRange,
-        )
-        .toList()
-        .flatMap { it.impressions.toList() }
-        .filter { EventFilters.matches(it.message, program) }
-        .asSequence()
-    }
+    return SyntheticDataGeneration.generateEvents(
+        DynamicMessage.getDefaultInstance(eventMessageDescriptor),
+        populationSpec,
+        syntheticDataSpec,
+        timeRange,
+        timeZone,
+      )
+      .flatMap { it.labeledEvents }
+      .filter { EventFilters.matches(it.message, program) }
   }
 
   override fun getUserVirtualIdUniverse(): Sequence<Long> {

@@ -30,7 +30,11 @@ class SpannerPrincipalsServiceTest : PrincipalsServiceTest() {
   val spannerDatabase = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.ACCESS_CHANGELOG_PATH)
 
   override fun initService(tlsClientMapping: TlsClientPrincipalMapping, idGenerator: IdGenerator) =
-    SpannerPrincipalsService(spannerDatabase.databaseClient, tlsClientMapping, idGenerator)
+    SpannerPrincipalsService(
+      spannerDatabase.databaseClient,
+      tlsClientMapping,
+      idGenerator = idGenerator,
+    )
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

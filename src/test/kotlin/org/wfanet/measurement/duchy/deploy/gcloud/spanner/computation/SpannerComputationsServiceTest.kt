@@ -103,7 +103,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       DUCHY_ID,
-      clock,
+      clock = clock,
     )
   }
 

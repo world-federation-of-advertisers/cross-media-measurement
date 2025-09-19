@@ -62,6 +62,8 @@ message SetParticipantRequisitionParamsRequest {
     LiquidLegionsV2Params reach_only_liquid_legions_v2 = 5;
 
     HonestMajorityShareShuffleParams honest_majority_share_shuffle = 6;
+
+    TrusTeeParams trus_tee = 8;
   }
 
   // `etag` of the `ComputationParticipant`.

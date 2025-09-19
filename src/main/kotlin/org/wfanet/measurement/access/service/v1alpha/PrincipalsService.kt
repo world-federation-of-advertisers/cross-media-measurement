@@ -19,6 +19,8 @@ package org.wfanet.measurement.access.service.v1alpha
 import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.service.InvalidFieldValueException
 import org.wfanet.measurement.access.service.PrincipalAlreadyExistsException
 import org.wfanet.measurement.access.service.PrincipalKey
@@ -42,8 +44,10 @@ import org.wfanet.measurement.internal.access.deletePrincipalRequest as internal
 import org.wfanet.measurement.internal.access.getPrincipalRequest as internalGetPrincipalRequest
 import org.wfanet.measurement.internal.access.lookupPrincipalRequest as internalLookupPrincipalRequest
 
-class PrincipalsService(private val internalPrincipalsStub: InternalPrincipalsCoroutineStub) :
-  PrincipalsGrpcKt.PrincipalsCoroutineImplBase() {
+class PrincipalsService(
+  private val internalPrincipalsStub: InternalPrincipalsCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : PrincipalsGrpcKt.PrincipalsCoroutineImplBase(coroutineContext) {
   override suspend fun getPrincipal(request: GetPrincipalRequest): Principal {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")

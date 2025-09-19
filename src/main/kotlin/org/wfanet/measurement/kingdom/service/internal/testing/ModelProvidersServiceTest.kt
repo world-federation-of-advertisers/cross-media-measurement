@@ -141,7 +141,7 @@ abstract class ModelProvidersServiceTest {
     idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 2L)
     idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 2L)
     val modelProvider3 = ModelProvider.getDefaultInstance()
-    val createdModelProvider3 = modelProvidersService.createModelProvider(modelProvider3)
+    modelProvidersService.createModelProvider(modelProvider3)
 
     val response: ListModelProvidersResponse =
       modelProvidersService.listModelProviders(
@@ -163,7 +163,7 @@ abstract class ModelProvidersServiceTest {
           nextPageToken = listModelProvidersPageToken {
             after =
               ListModelProvidersPageTokenKt.after {
-                externalModelProviderId = createdModelProvider3.externalModelProviderId
+                externalModelProviderId = createdModelProvider2.externalModelProviderId
               }
           }
         }

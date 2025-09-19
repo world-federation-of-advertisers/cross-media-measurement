@@ -38,9 +38,9 @@ class SpannerPoliciesServiceTest : PoliciesServiceTest() {
   ): Services {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
     return Services(
-      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator),
-      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator),
-      SpannerRolesService(databaseClient, permissionMapping, idGenerator),
+      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
+      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
+      SpannerRolesService(databaseClient, permissionMapping, idGenerator = idGenerator),
     )
   }
 

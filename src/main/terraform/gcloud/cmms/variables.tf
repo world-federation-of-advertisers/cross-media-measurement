@@ -96,8 +96,38 @@ variable "secure_computation_storage_bucket_name" {
   nullable    = false
 }
 
+variable "edpa_config_files_bucket_name" {
+  description = "Name of Google Cloud Storage bucket for Edp Aggregator cloud functions' configs."
+  type        = string
+  nullable    = false
+}
+
 variable "terraform_service_account" {
   description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_config_file_path" {
+  description = "Path to the data watcher config file."
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_config_file_path" {
+  description = "Path to the requisition fetcher config file."
+  type        = string
+  nullable    = false
+}
+
+variable "event_data_provider_configs_file_path" {
+  description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
+  type        = string
+  nullable    = false
+}
+
+variable "results_fulfiller_population_spec_file_path" {
+  description = "Path to the requisition fetcher population spec file."
   type        = string
   nullable    = false
 }
@@ -115,4 +145,112 @@ variable "secure_computation_public_api_target" {
 variable "image_tag" {
   description = "Tag of container images"
   type        = string
+}
+
+variable "data_watcher_function_name" {
+  description = "Name of the DataWatcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_function_name" {
+  description = "Name of the RequisitionFetcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "event_group_sync_function_name" {
+  description = "Name of the EventGroupSync function"
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_env_var" {
+  description = "DataWatcher extra env variables"
+  type        = string
+}
+
+variable "data_watcher_secret_mapping" {
+  description = "DataWatcher secret mapping"
+  type        = string
+}
+
+variable "requisition_fetcher_env_var" {
+  description = "RequisitionFetcher extra env variables"
+  type        = string
+}
+
+variable "requisition_fetcher_secret_mapping" {
+  description = "RequisitionFetcher secret mapping"
+  type        = string
+}
+
+variable "event_group_env_var" {
+  description = "EventGroupSync extra env variables"
+  type        = string
+}
+
+variable "event_group_secret_mapping" {
+  description = "EventGroupSync secret mapping"
+  type        = string
+}
+
+variable "data_watcher_uber_jar_path" {
+  description = "Path to DataWatcher uber jar."
+  type = string
+}
+
+variable "requisition_fetcher_uber_jar_path" {
+  description = "Path to RequisitionFetcher uber jar."
+  type = string
+}
+
+variable "event_group_uber_jar_path" {
+  description = "Path to EventGroupSync uber jar."
+  type = string
+}
+
+variable "results_fulfiller_event_proto_descriptor_path" {
+  description = "Serialized FileDescriptorSet path for EventTemplate metadata types."
+  type = string
+}
+
+variable "results_fulfiller_event_proto_descriptor_blob_uri" {
+  description = "GCS blob uri of the FileDescriptorSet containing the event message descriptor."
+  type = string
+}
+
+variable "results_fulfiller_event_template_type_name" {
+  description = "Fully qualified name of the event template proto message"
+  type = string
+}
+
+variable "results_fulfiller_population_spec_blob_uri" {
+  description = "GCS blob uri of the Results Fulfiller population spec."
+  type = string
+}
+
+variable "duchy_worker1_id" {
+  description = "ID of duchy worker 1."
+  type = string
+}
+
+variable "duchy_worker1_target" {
+  description = "Target of duchy worker 1."
+  type = string
+}
+
+variable "duchy_worker2_id" {
+  description = "ID of duchy worker 2."
+  type = string
+}
+
+variable "duchy_worker2_target" {
+  description = "Target of duchy worker 2."
+  type = string
+}
+
+variable "results_fulfiller_trusted_root_ca_collection_file_path" {
+  description = "Trusted root CA used by the Results Fulfiller."
+  type = string
 }

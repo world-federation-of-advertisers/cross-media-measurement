@@ -23,6 +23,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deletePrincipal
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getPrincipalByResourceId
@@ -52,8 +54,9 @@ import org.wfanet.measurement.internal.access.principal
 class SpannerPrincipalsService(
   private val databaseClient: AsyncDatabaseClient,
   private val tlsClientMapping: TlsClientPrincipalMapping,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-) : PrincipalsGrpcKt.PrincipalsCoroutineImplBase() {
+) : PrincipalsGrpcKt.PrincipalsCoroutineImplBase(coroutineContext) {
   override suspend fun getPrincipal(request: GetPrincipalRequest): Principal {
     val tlsClient = tlsClientMapping.getByPrincipalResourceId(request.principalResourceId)
     if (tlsClient != null) {

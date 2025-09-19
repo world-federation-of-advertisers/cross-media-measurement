@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = ["PublicApiServer.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/service/v1alpha:services",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",

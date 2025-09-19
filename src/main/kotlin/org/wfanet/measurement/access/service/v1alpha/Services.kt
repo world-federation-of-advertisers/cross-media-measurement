@@ -18,6 +18,8 @@ package org.wfanet.measurement.access.service.v1alpha
 
 import io.grpc.BindableService
 import io.grpc.Channel
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.PoliciesGrpcKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
@@ -36,7 +38,10 @@ data class Services(
   fun toList(): List<BindableService> = listOf(principals, permissions, roles, policies)
 
   companion object {
-    fun build(internalApiChannel: Channel): Services {
+    fun build(
+      internalApiChannel: Channel,
+      coroutineContext: CoroutineContext = EmptyCoroutineContext,
+    ): Services {
       val internalPermissionsStub =
         InternalPermissionsGrpcKt.PermissionsCoroutineStub(internalApiChannel)
       val internalPrincipalsStub =
@@ -45,10 +50,10 @@ data class Services(
       val internalPoliciesStub = InternalPoliciesGrpcKt.PoliciesCoroutineStub(internalApiChannel)
 
       return Services(
-        PrincipalsService(internalPrincipalsStub),
-        PermissionsService(internalPermissionsStub),
-        RolesService(internalRolesStub),
-        PoliciesService(internalPoliciesStub),
+        PrincipalsService(internalPrincipalsStub, coroutineContext),
+        PermissionsService(internalPermissionsStub, coroutineContext),
+        RolesService(internalRolesStub, coroutineContext),
+        PoliciesService(internalPoliciesStub, coroutineContext),
       )
     }
   }

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.service
 
 import io.grpc.BindableService
+import kotlin.coroutines.CoroutineContext
 import kotlin.reflect.full.declaredMemberProperties
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
@@ -28,4 +29,8 @@ data class DuchyDataServices(
 
 fun DuchyDataServices.toList(): List<BindableService> {
   return DuchyDataServices::class.declaredMemberProperties.map { it.get(this) as BindableService }
+}
+
+interface DuchyDataServicesFactory {
+  fun create(coroutineContext: CoroutineContext): DuchyDataServices
 }

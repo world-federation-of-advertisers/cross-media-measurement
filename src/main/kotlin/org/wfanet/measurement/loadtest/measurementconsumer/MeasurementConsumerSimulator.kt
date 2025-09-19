@@ -17,10 +17,10 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
-import com.google.protobuf.TypeRegistry
+import com.google.protobuf.Descriptors
 import com.google.protobuf.util.Durations
-import com.google.type.interval
 import io.grpc.StatusException
+import java.lang.IllegalStateException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
@@ -32,10 +32,8 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
-import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -45,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -67,15 +64,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.population
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
@@ -93,7 +89,6 @@ import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Compa
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
-import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -104,17 +99,12 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toInterval
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.dataprovider.MeasurementResults
-import org.wfanet.measurement.dataprovider.MeasurementResults.computePopulation
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams as NoiserDpParams
 import org.wfanet.measurement.measurementconsumer.stats.DeterministicMethodology
 import org.wfanet.measurement.measurementconsumer.stats.FrequencyMeasurementParams
@@ -129,7 +119,6 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -144,8 +133,7 @@ data class MeasurementConsumerData(
 
 data class PopulationData(
   val populationDataProviderName: String,
-  val populationInfo: PopulationInfo,
-  val populationKey: PopulationKey,
+  val populationSpec: PopulationSpec,
 )
 
 /** Simulator for MeasurementConsumer operations on the CMMS public API. */
@@ -159,10 +147,11 @@ abstract class MeasurementConsumerSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
-  private val filterExpression: String,
-  private val eventRange: OpenEndTimeRange,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
+  private val reportName: String = "some-report-id",
+  private val modelLineName: String = "some-model-line",
+  private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -181,25 +170,19 @@ abstract class MeasurementConsumerSimulator(
     val requisitions: List<RequisitionInfo>,
   )
 
-  data class PopulationMeasurementInfo(
-    val populationInfo: PopulationInfo,
-    val typeRegistry: TypeRegistry,
-    val measurementInfo: MeasurementInfo,
-  )
-
   private data class MeasurementComputationInfo(
     val methodology: Methodology,
     val noiseMechanism: NoiseMechanism,
   )
 
-  abstract fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup>
+  protected abstract fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup>
 
-  abstract fun getFilteredVids(measurementInfo: MeasurementInfo): Flow<Long>
+  protected abstract fun getFilteredVids(measurementInfo: MeasurementInfo): Sequence<Long>
 
-  abstract fun getFilteredVids(
+  protected abstract fun getFilteredVids(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
-  ): Flow<Long>
+  ): Sequence<Long>
 
   data class ExecutionResult(
     val actualResult: Result,
@@ -213,6 +196,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
@@ -224,9 +208,12 @@ abstract class MeasurementConsumerSimulator(
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
         vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info { "Created reach and frequency Measurement $measurementName" }
+
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
@@ -247,6 +234,10 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less than tolerance")
+    }
+
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
         .isEqualTo(ProtocolConfig.Protocol.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE)
@@ -283,6 +274,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -294,11 +286,14 @@ abstract class MeasurementConsumerSimulator(
           ::newInvalidReachAndFrequencyMeasurementSpec,
           requiredCapabilities,
           vidSamplingInterval,
+          eventGroupFilter = eventGroupFilter,
         )
         .measurement
     logger.info(
       "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
     )
+
+    onMeasurementsCreated?.invoke()
 
     var failure = getFailure(invalidMeasurement.name)
     var attempts = 0
@@ -316,27 +311,44 @@ abstract class MeasurementConsumerSimulator(
   /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
+   * 1. Requisitions are all created before results are checked for any since requistions may be
+   *    grouped.
+   * 2. Poll for requisition results.
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachAndFrequency(runId: String, numMeasurements: Int) {
+  suspend fun testDirectReachAndFrequency(
+    runId: String,
+    numMeasurements: Int,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    (1..numMeasurements).map { measurementNumber ->
-      val measurementInfo =
-        createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newReachAndFrequencyMeasurementSpec,
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-          DEFAULT_VID_SAMPLING_INTERVAL,
-          measurementNumber.toDouble() / numMeasurements,
-          1,
-        )
-      val measurementName = measurementInfo.measurement.name
-      logger.info("Created direct reach and frequency measurement $measurementName.")
+    logger.info("Creating measurements...")
+    val measurementInfos =
+      (1..numMeasurements).map { measurementNumber ->
+        val measurementInfo =
+          createMeasurement(
+            measurementConsumer,
+            runId,
+            ::newReachAndFrequencyMeasurementSpec,
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            DEFAULT_VID_SAMPLING_INTERVAL,
+            measurementNumber.toDouble() / numMeasurements,
+            1,
+            eventGroupFilter = eventGroupFilter,
+          )
+        val measurementName = measurementInfo.measurement.name
+        logger.info("Created direct reach and frequency measurement $measurementName.")
+        measurementInfo
+      }
 
+    onMeasurementsCreated?.invoke()
+
+    measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
+      val measurementName = measurementInfo.measurement.name
       // Get the CMMS computed result and compare it with the expected result.
+      logger.info("Polling for result for $measurementNumber/$numMeasurements: $measurementInfo")
       val reachAndFrequencyResult = pollForResult { getReachAndFrequencyResult(measurementName) }
       logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
@@ -359,6 +371,10 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less than tolerance")
+      }
+
       assertThat(reachAndFrequencyResult)
         .reachValue()
         .isWithin(reachTolerance)
@@ -388,23 +404,34 @@ abstract class MeasurementConsumerSimulator(
    *
    * @numMeasurements - The number of incremental measurements to request within the time period.
    */
-  suspend fun testDirectReachOnly(runId: String, numMeasurements: Int) {
-    // Create a new measurement on behalf of the measurement consumer.
+  suspend fun testDirectReachOnly(
+    runId: String,
+    numMeasurements: Int,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
+    // Create new measurements on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    (1..numMeasurements).map { measurementNumber ->
-      val measurementInfo =
-        createMeasurement(
-          measurementConsumer,
-          runId,
-          ::newReachMeasurementSpec,
-          DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-          DEFAULT_VID_SAMPLING_INTERVAL,
-          measurementNumber.toDouble() / numMeasurements,
-          1,
-        )
+    logger.info("Creating measurements...")
+    val measurementInfos =
+      (1..numMeasurements).map { measurementNumber ->
+        val measurementInfo =
+          createMeasurement(
+            measurementConsumer,
+            runId,
+            ::newReachMeasurementSpec,
+            DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+            DEFAULT_VID_SAMPLING_INTERVAL,
+            measurementNumber.toDouble() / numMeasurements,
+            1,
+            eventGroupFilter = eventGroupFilter,
+          )
+        val measurementName = measurementInfo.measurement.name
+        logger.info("Created direct reach measurement $measurementName.")
+        measurementInfo
+      }
+    onMeasurementsCreated?.invoke()
+    measurementInfos.forEachIndexed { measurementNumber, measurementInfo ->
       val measurementName = measurementInfo.measurement.name
-      logger.info("Created direct reach measurement $measurementName.")
-
       // Get the CMMS computed result and compare it with the expected result.
       val reachResult = pollForResult { getReachResult(measurementName) }
       logger.info("Got direct reach result from Kingdom: $reachResult")
@@ -422,9 +449,11 @@ abstract class MeasurementConsumerSimulator(
           protocol,
         )
       val reachTolerance = computeErrorMargin(reachVariance)
+      if (expectedResult.reach.value.toDouble() < reachTolerance) {
+        throw IllegalStateException("Expected result cannot be less than tolerance")
+      }
 
       assertThat(reachResult).reachValue().isWithin(reachTolerance).of(expectedResult.reach.value)
-
       assertThat(reachResult.reach.hasDeterministicCountDistinct()).isTrue()
       assertThat(reachResult.reach.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(reachResult.hasFrequency()).isFalse()
@@ -440,6 +469,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -449,15 +479,18 @@ abstract class MeasurementConsumerSimulator(
         runId,
         ::newReachOnlyMeasurementSpec,
         requiredCapabilities,
-        DEFAULT_VID_SAMPLING_INTERVAL,
+        vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-only measurement $measurementName.")
 
+    onMeasurementsCreated?.invoke()
+
     // Get the CMMS computed result and compare it with the expected result.
     var reachOnlyResult = getReachResult(measurementName)
     var attemptCount = 0
-    while (reachOnlyResult == null && (attemptCount < 4)) {
+    while (reachOnlyResult == null && (attemptCount < 6)) {
       attemptCount++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $attemptCount")
       delay(Duration.ofSeconds(30))
@@ -474,6 +507,7 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): ExecutionResult {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -484,9 +518,12 @@ abstract class MeasurementConsumerSimulator(
         ::newReachAndFrequencyMeasurementSpec,
         requiredCapabilities,
         vidSamplingInterval = vidSamplingInterval,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created reach-and-frequency measurement $measurementName.")
+
+    onMeasurementsCreated?.invoke()
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult = getReachAndFrequencyResult(measurementName)
@@ -511,8 +548,11 @@ abstract class MeasurementConsumerSimulator(
     requiredCapabilities: DataProvider.Capabilities =
       DataProvider.Capabilities.getDefaultInstance(),
     vidSamplingInterval: VidSamplingInterval = DEFAULT_VID_SAMPLING_INTERVAL,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ) {
-    val result = executeReachOnly(runId, requiredCapabilities, vidSamplingInterval)
+    logger.info { "Creating reach only Measurement..." }
+    val result =
+      executeReachOnly(runId, requiredCapabilities, vidSamplingInterval, eventGroupFilter)
 
     val protocol = result.measurementInfo.measurement.protocolConfig.protocolsList.first()
 
@@ -524,6 +564,9 @@ abstract class MeasurementConsumerSimulator(
         protocol,
       )
     val reachTolerance = computeErrorMargin(reachVariance)
+    if (result.expectedResult.reach.value.toDouble() < reachTolerance) {
+      throw IllegalStateException("Expected result cannot be less than tolerance")
+    }
 
     if (requiredCapabilities.honestMajorityShareShuffleSupported) {
       assertThat(protocol.protocolCase)
@@ -536,7 +579,6 @@ abstract class MeasurementConsumerSimulator(
       .reachValue()
       .isWithin(reachTolerance)
       .of(result.expectedResult.reach.value)
-
     logger.info("Actual result: ${result.actualResult}")
     logger.info("Expected result: ${result.expectedResult}")
 
@@ -548,7 +590,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun testImpression(runId: String) {
+  suspend fun testImpression(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -559,9 +601,12 @@ abstract class MeasurementConsumerSimulator(
         ::newImpressionMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
         DEFAULT_VID_SAMPLING_INTERVAL,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created impression Measurement $measurementName.")
+
+    onMeasurementsCreated?.invoke()
 
     val impressionResults: List<Measurement.ResultOutput> = pollForResults {
       getImpressionResults(measurementName)
@@ -579,6 +624,9 @@ abstract class MeasurementConsumerSimulator(
 
       val variance = computeImpressionVariance(result, measurementInfo.measurementSpec, protocol)
       val tolerance = computeErrorMargin(variance)
+      if (expectedResult.impression.value.toDouble() < tolerance) {
+        throw IllegalStateException("Expected impressions cannot be less than tolerance")
+      }
       assertThat(result.impression.hasDeterministicCount()).isTrue()
       assertThat(result.impression.noiseMechanism).isEqualTo(expectedDirectNoiseMechanism)
       assertThat(result).impressionValue().isWithin(tolerance).of(expectedResult.impression.value)
@@ -587,7 +635,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun testDuration(runId: String) {
+  suspend fun testDuration(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -598,9 +646,12 @@ abstract class MeasurementConsumerSimulator(
         ::newDurationMeasurementSpec,
         DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
         DEFAULT_VID_SAMPLING_INTERVAL,
+        eventGroupFilter = eventGroupFilter,
       )
     val measurementName = measurementInfo.measurement.name
     logger.info("Created duration Measurement $measurementName.")
+
+    onMeasurementsCreated?.invoke()
 
     val durationResults = pollForResults { getDurationResults(measurementName) }
 
@@ -629,30 +680,36 @@ abstract class MeasurementConsumerSimulator(
     populationData: PopulationData,
     modelLineName: String,
     populationFilterExpression: String,
-    typeRegistry: TypeRegistry,
+    eventMessageDescriptor: Descriptors.Descriptor,
   ) {
     logger.info { "Creating population Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     populationModelLineName = modelLineName
-    val populationMeasurementInfo: PopulationMeasurementInfo =
+    val measurementInfo: MeasurementInfo =
       createPopulationMeasurement(
         measurementConsumer,
         runId,
         populationData,
         populationFilterExpression,
-        typeRegistry,
         ::newPopulationMeasurementSpec,
       )
 
-    val measurementName = populationMeasurementInfo.measurementInfo.measurement.name
+    onMeasurementsCreated?.invoke()
+
+    val measurementName = measurementInfo.measurement.name
     logger.info { "Created population Measurement $measurementName" }
 
     // Get the CMMS computed result and compare it with the expected result.
     val populationResult: Result = pollForResult { getPopulationResult(measurementName) }
     logger.info("Got population result from Kingdom: $populationResult")
 
-    val expectedResult = getExpectedPopulationResult(populationMeasurementInfo)
+    val expectedResult =
+      getExpectedPopulationResult(
+        measurementInfo,
+        populationData.populationSpec,
+        eventMessageDescriptor,
+      )
     logger.info("Expected result: $expectedResult")
 
     assertThat(populationResult.population.value).isEqualTo(expectedResult.population.value)
@@ -792,6 +849,9 @@ abstract class MeasurementConsumerSimulator(
           protocol.honestMajorityShareShuffle.noiseMechanism,
         )
       }
+      ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
+        error("TrusTEE is not implemented.")
+      }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")
       }
@@ -818,6 +878,7 @@ abstract class MeasurementConsumerSimulator(
     vidSamplingInterval: VidSamplingInterval,
     timePercentage: Double = 1.0,
     maxDataProviders: Int = 20,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): MeasurementInfo {
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name).filterEventGroups().toList()
@@ -831,6 +892,7 @@ abstract class MeasurementConsumerSimulator(
 
     val requisitions: List<RequisitionInfo> =
       eventGroups
+        .filter { eventGroupFilter?.invoke(it) ?: true }
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .filter {
@@ -843,7 +905,7 @@ abstract class MeasurementConsumerSimulator(
         }
         .take(maxDataProviders)
         .map { (dataProviderKey, eventGroups) ->
-          val nonce = Random.Default.nextLong()
+          val nonce = Random.nextLong()
           nonceHashes.add(Hashing.hashSha256(nonce))
           val dataProvider = keyToDataProviderMap.getValue(dataProviderKey)
           buildRequisitionInfo(
@@ -854,10 +916,8 @@ abstract class MeasurementConsumerSimulator(
             timePercentage,
           )
         }
-
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
-
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
 
@@ -866,11 +926,10 @@ abstract class MeasurementConsumerSimulator(
     runId: String,
     populationData: PopulationData,
     populationFilterExpression: String,
-    typeRegistry: TypeRegistry,
     newMeasurementSpec:
       (packedMeasurementPublicKey: ProtoAny, nonceHashes: List<ByteString>) -> MeasurementSpec,
-  ): PopulationMeasurementInfo {
-    val nonce = Random.Default.nextLong()
+  ): MeasurementInfo {
+    val nonce = Random.nextLong()
     val nonceHashes = mutableListOf<ByteString>()
     nonceHashes.add(Hashing.hashSha256(nonce))
     val populationDataProvider = getDataProvider(populationData.populationDataProviderName)
@@ -885,9 +944,7 @@ abstract class MeasurementConsumerSimulator(
       )
     val measurementSpec = newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes)
 
-    val measurementInfo =
-      createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
-    return PopulationMeasurementInfo(populationData.populationInfo, typeRegistry, measurementInfo)
+    return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
   }
 
   private suspend fun createMeasurementInfo(
@@ -985,7 +1042,7 @@ abstract class MeasurementConsumerSimulator(
         throw Exception("Error fetching measurement $measurementName", e)
       }
 
-    logger.info("Current Measurement state is: " + measurement.state)
+    logger.info("Current Measurement ${measurement.name} state is: " + measurement.state)
 
     return measurement
   }
@@ -1008,7 +1065,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the failure of an invalid [Measurement] if it is failed */
-  protected suspend fun getFailure(measurementName: String): Failure? {
+  private suspend fun getFailure(measurementName: String): Failure? {
     val measurement = getMeasurement(measurementName)
     if (measurement.state != Measurement.State.FAILED) {
       return null
@@ -1046,7 +1103,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
-  private suspend fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedResult(measurementInfo: MeasurementInfo): Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementInfo.measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH -> getExpectedReachResult(measurementInfo)
@@ -1065,7 +1122,7 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** Gets the expected result of impression from a specific data provider. */
-  private suspend fun getExpectedImpressionResultByDataProvider(
+  private fun getExpectedImpressionResultByDataProvider(
     measurementInfo: MeasurementInfo,
     targetDataProviderId: String,
   ): Result {
@@ -1081,55 +1138,34 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend fun getExpectedPopulationResult(
-    populationMeasurementInfo: PopulationMeasurementInfo
+  private fun getExpectedPopulationResult(
+    measurementInfo: MeasurementInfo,
+    populationSpec: PopulationSpec,
+    eventMessageDescriptor: Descriptors.Descriptor,
   ): Result {
-    val measurementInfo = populationMeasurementInfo.measurementInfo
     val requisition = measurementInfo.requisitions[0]
     val requisitionSpec = requisition.requisitionSpec
     val requisitionFilterExpression = requisitionSpec.population.filter.expression
 
-    val operativeFields =
-      populationMeasurementInfo.populationInfo.eventMessageDescriptor.fields
-        .flatMap { templateField ->
-          templateField.messageType.fields.map { templateFieldDescriptor ->
-            if (
-              templateFieldDescriptor.options
-                .getExtension(EventAnnotationsProto.templateField)
-                .populationAttribute
-            ) {
-              "${templateField.name}.${templateFieldDescriptor.name}"
-            } else null
-          }
-        }
-        .filterNotNull()
-        .toSet()
-    val eventMessageDescriptor = populationMeasurementInfo.populationInfo.eventMessageDescriptor
-    val program: Program =
-      EventFilters.compileProgram(
-        eventMessageDescriptor,
-        requisitionFilterExpression,
-        operativeFields,
-      )
     return result {
       population =
         MeasurementKt.ResultKt.population {
           value =
-            computePopulation(
-              populationMeasurementInfo.populationInfo,
-              program,
-              populationMeasurementInfo.typeRegistry,
+            MeasurementResults.computePopulation(
+              populationSpec,
+              requisitionFilterExpression,
+              eventMessageDescriptor,
             )
         }
     }
   }
 
-  private suspend fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedReachResult(measurementInfo: MeasurementInfo): Result {
     val reach = MeasurementResults.computeReach(getFilteredVids(measurementInfo))
     return result { this.reach = reach { value = reach.toLong() } }
   }
 
-  private suspend fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
+  private fun getExpectedReachAndFrequencyResult(measurementInfo: MeasurementInfo): Result {
     val (reach, relativeFrequencyDistribution) =
       MeasurementResults.computeReachAndFrequency(
         getFilteredVids(measurementInfo),
@@ -1166,6 +1202,8 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.reportingMetadata = reportingMetadata { report = reportName }
+      this.modelLine = modelLineName
     }
   }
 
@@ -1183,6 +1221,8 @@ abstract class MeasurementConsumerSimulator(
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
@@ -1196,6 +1236,7 @@ abstract class MeasurementConsumerSimulator(
       reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1231,10 +1272,11 @@ abstract class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       impression = impression {
         privacyParams = outputDpParams
-        maximumFrequencyPerUser = 10
+        maximumFrequencyPerUser = 2
       }
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1250,6 +1292,7 @@ abstract class MeasurementConsumerSimulator(
         maximumWatchDurationPerUser = Durations.fromMinutes(1)
       }
       this.nonceHashes += nonceHashes
+      this.modelLine = modelLineName
     }
   }
 
@@ -1261,7 +1304,7 @@ abstract class MeasurementConsumerSimulator(
       measurementPublicKey = packedMeasurementPublicKey
       population = MeasurementSpecKt.population {}
       this.nonceHashes += nonceHashes
-      modelLine = populationModelLineName
+      this.modelLine = populationModelLineName
     }
   }
 
@@ -1302,65 +1345,13 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private fun buildRequisitionInfo(
+  protected abstract fun buildRequisitionInfo(
     dataProvider: DataProvider,
     eventGroups: List<EventGroup>,
     measurementConsumer: MeasurementConsumer,
     nonce: Long,
     percentage: Double = 1.0,
-  ): RequisitionInfo {
-    val requisitionSpec = requisitionSpec {
-      for (eventGroup in eventGroups) {
-        events =
-          RequisitionSpecKt.events {
-            this.eventGroups += eventGroupEntry {
-              key = eventGroup.name
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  if (!eventGroup.hasDataAvailabilityInterval()) {
-                    collectionInterval = eventRange.toInterval()
-                  } else {
-                    collectionInterval = interval {
-                      startTime =
-                        if (
-                          eventRange.start <
-                            eventGroup.dataAvailabilityInterval.startTime.toInstant()
-                        )
-                          eventGroup.dataAvailabilityInterval.startTime
-                        else eventRange.start.toProtoTime()
-                      val durationMillis =
-                        Duration.between(
-                            eventGroup.dataAvailabilityInterval.startTime.toInstant(),
-                            eventGroup.dataAvailabilityInterval.endTime.toInstant(),
-                          )
-                          .toMillis() * percentage
-                      val requisitionEndTime =
-                        (eventGroup.dataAvailabilityInterval.startTime
-                            .toInstant()
-                            .plusMillis(durationMillis.toLong()))
-                          .toProtoTime()
-
-                      endTime =
-                        if (eventRange.endExclusive > requisitionEndTime.toInstant())
-                          requisitionEndTime
-                        else eventRange.endExclusive.toProtoTime()
-                    }
-                  }
-                  filter = eventFilter { expression = filterExpression }
-                }
-            }
-          }
-      }
-      measurementPublicKey = measurementConsumer.publicKey.message
-      this.nonce = nonce
-    }
-    val signedRequisitionSpec =
-      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
-    val dataProviderEntry =
-      dataProvider.toDataProviderEntry(signedRequisitionSpec, Hashing.hashSha256(nonce))
-
-    return RequisitionInfo(dataProviderEntry, requisitionSpec, eventGroups)
-  }
+  ): RequisitionInfo
 
   private fun buildPopulationMeasurementRequisitionInfo(
     dataProvider: DataProvider,
@@ -1381,7 +1372,7 @@ abstract class MeasurementConsumerSimulator(
     return RequisitionInfo(dataProviderEntry, requisitionSpec, listOf())
   }
 
-  private fun DataProvider.toDataProviderEntry(
+  protected fun DataProvider.toDataProviderEntry(
     signedRequisitionSpec: SignedMessage,
     nonceHash: ByteString,
   ): DataProviderEntry {

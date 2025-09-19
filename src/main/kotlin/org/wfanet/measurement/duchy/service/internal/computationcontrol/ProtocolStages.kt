@@ -24,6 +24,7 @@ import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 
 class IllegalStageException(val computationStage: ComputationStage, buildMessage: () -> String) :
   IllegalArgumentException(buildMessage())
@@ -52,6 +53,7 @@ sealed class ProtocolStages(val stageType: ComputationStage.StageCase) {
           ReachOnlyLiquidLegionsV2Stages()
         ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HonestMajorityShareShuffleStages()
+        ComputationStage.StageCase.TRUS_TEE -> TrusTeeStages()
         ComputationStage.StageCase.STAGE_NOT_SET -> null
       }
     }
@@ -285,6 +287,30 @@ class HonestMajorityShareShuffleStages() :
       HonestMajorityShareShuffle.Stage.UNRECOGNIZED ->
         throw IllegalStageException(stage) {
           "Next $stageType stage invalid for $protocolStage, $role"
+        }
+    }.toProtocolStage()
+  }
+}
+
+/** [ProtocolStages] for the TrusTEE protocol. */
+class TrusTeeStages() : ProtocolStages(ComputationStage.StageCase.TRUS_TEE) {
+  override fun outputBlob(
+    token: ComputationToken,
+    dataOrigin: String,
+  ): ComputationStageBlobMetadata = error("TrusTEE protocol does not have output blobs")
+
+  override fun nextStage(stage: ComputationStage, role: RoleInComputation): ComputationStage {
+    require(stage.stageCase == ComputationStage.StageCase.TRUS_TEE)
+
+    return when (val protocolStage = stage.trusTee) {
+      TrusTee.Stage.INITIALIZED -> TrusTee.Stage.WAIT_TO_START
+      TrusTee.Stage.WAIT_TO_START -> TrusTee.Stage.COMPUTING
+      TrusTee.Stage.COMPUTING -> TrusTee.Stage.COMPLETE
+      TrusTee.Stage.COMPLETE,
+      TrusTee.Stage.STAGE_UNSPECIFIED,
+      TrusTee.Stage.UNRECOGNIZED ->
+        throw IllegalStageException(stage) {
+          "Next $stageType stage unknown for $protocolStage, $role"
         }
     }.toProtocolStage()
   }

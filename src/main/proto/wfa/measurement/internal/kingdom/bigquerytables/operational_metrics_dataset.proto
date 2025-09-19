@@ -60,6 +60,9 @@ message RequisitionsTableRow {
   bool is_direct = 5;
   MeasurementType measurement_type = 6;
 
+  string build_label = 12;
+  repeated string warnings = 13;
+
   enum State {
     STATE_UNSPECIFIED = 0;
     FULFILLED = 1;

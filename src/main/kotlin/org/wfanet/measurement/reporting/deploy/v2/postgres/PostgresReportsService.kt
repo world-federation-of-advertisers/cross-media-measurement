@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -41,7 +43,9 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
 class PostgresReportsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : ReportsGrpcKt.ReportsCoroutineImplBase() {
+  private val disableMetricsReuse: Boolean = false,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ReportsGrpcKt.ReportsCoroutineImplBase(coroutineContext) {
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequire(request.externalReportId.isNotEmpty()) { "External report ID is not set." }
     grpcRequire(
@@ -57,7 +61,7 @@ class PostgresReportsService(
     }
 
     return try {
-      CreateReport(request).execute(client, idGenerator)
+      CreateReport(request, disableMetricsReuse).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "Reporting Set not found.")
     } catch (e: MetricCalculationSpecNotFoundException) {

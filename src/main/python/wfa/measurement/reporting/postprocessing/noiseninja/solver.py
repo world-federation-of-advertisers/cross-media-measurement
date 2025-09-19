@@ -21,6 +21,7 @@ from qpsolvers import Problem
 from qpsolvers import Solution
 from qpsolvers import solve_problem
 
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
   report_post_processor_result_pb2
@@ -146,6 +147,31 @@ class Solver:
         self._add_parent_gt_child_term(
             variable_index_by_set_id[measured_set],
             variable_index_by_set_id[subset])
+
+  def _add_ordered_sets(self, set_measurement_spec: SetMeasurementsSpec,
+      variable_index_by_set_id: dict[int, int]):
+    logging.infor("Adding ordered sets constraints.")
+    ordered_sets: list[OrderedSets] = set_measurement_spec.get_ordered_sets()
+    for i in range(len(ordered_sets)):
+      if len(ordered_sets[i].larger_set) == 0 or len(
+          ordered_sets[i].smaller_set) == 0:
+        raise ValueError(
+            f'The {i}-th ordered set {ordered_sets[i]} has empty larger set or '
+            f'empty smaller set.'
+        )
+
+      if len(ordered_pair.larger_set) != len(ordered_pair.smaller_set):
+        raise ValueError(
+            f'The {i}-th ordered set {ordered_sets[i]} has sets of different '
+            f'length.'
+        )
+
+      variables = np.zeros(self.num_variables)
+      for id in ordered_pair.larger_set:
+        variables[variable_index_by_set_id[id]] = -1
+      for id in ordered_pair.smaller_set:
+        variables[variable_index_by_set_id[id]] = 1
+      self._add_gt_term(variables)
 
   def _add_covers(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):

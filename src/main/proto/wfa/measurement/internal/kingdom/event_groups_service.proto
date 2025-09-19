@@ -115,6 +115,9 @@ message StreamEventGroupsRequest {
   }
   // How results should be ordered.
   OrderBy order_by = 3;
+
+  // Whether to allow stale rather than strong reads.
+  bool allow_stale_reads = 4;
 }
 
 message EventGroupKey {

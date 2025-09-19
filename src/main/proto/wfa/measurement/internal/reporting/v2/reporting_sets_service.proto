@@ -55,6 +55,7 @@ message StreamReportingSetsRequest {
     string cmms_measurement_consumer_id = 1;
     // Skips to results with a resource id greater than this.
     string external_reporting_set_id_after = 2;
+    string external_campaign_group_id = 3;
   }
   Filter filter = 1;
 

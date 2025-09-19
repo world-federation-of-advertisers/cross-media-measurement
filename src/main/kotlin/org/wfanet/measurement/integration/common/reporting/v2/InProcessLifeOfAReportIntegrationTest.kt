@@ -32,7 +32,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.BeforeClass
@@ -58,16 +57,15 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -93,7 +91,6 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
-import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -112,12 +109,13 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval as interna
 import org.wfanet.measurement.internal.reporting.v2.resultGroup as internalResultGroup
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EventQuery
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -243,6 +241,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
+          TestEvent.getDescriptor(),
           verboseGrpcLogging = false,
         )
       }
@@ -268,6 +267,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       reportingDataServicesProviderRule,
       reportingServerRule,
     )
+
+  private val syntheticEventQuery: SyntheticGeneratorEventQuery
+    get() = inProcessCmmsComponents.eventQuery
 
   private lateinit var credentials: TrustedPrincipalAuthInterceptor.Credentials
 
@@ -363,10 +365,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
   }
 
-  private val publicEventGroupMetadataDescriptorsClient by lazy {
-    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
-  }
-
   private val publicEventGroupsClient by lazy {
     EventGroupsCoroutineStub(reportingServer.publicApiChannel)
   }
@@ -395,17 +393,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     MeasurementsCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
   }
 
-  suspend fun listMeasurements(): List<Measurement> {
+  private suspend fun listMeasurements(): List<Measurement> {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
 
-    val measurements: List<Measurement> = runBlocking {
-      publicMeasurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
-        .measurementsList
-    }
-
-    return measurements
+    return publicMeasurementsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
+      .measurementsList
   }
 
   @Test
@@ -1985,35 +1979,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
-    val eventGroups = listEventGroups()
-
-    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
-
-    val descriptors =
-      publicEventGroupMetadataDescriptorsClient
-        .withCallCredentials(credentials)
-        .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
-        )
-        .eventGroupMetadataDescriptorsList
-
-    assertThat(descriptors).hasSize(descriptorNames.size)
-
-    val retrievedDescriptorNames = mutableSetOf<String>()
-    for (descriptor in descriptors) {
-      retrievedDescriptorNames.add(descriptor.name)
-    }
-
-    for (eventGroup in eventGroups) {
-      assertThat(
-          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
-        )
-        .isTrue()
-    }
-  }
-
-  @Test
   fun `getBasicReport returns basic report inserted via internal API`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2092,7 +2057,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   metricFrequencySpec = internalMetricFrequencySpec { weekly = DayOfWeek.MONDAY }
                   dimensionSpecSummary =
                     InternalResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                      grouping = internalEventTemplateField {
+                      groupings += internalEventTemplateField {
                         path = "common.gender"
                         value = InternalEventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                       }
@@ -2178,7 +2143,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                               impressions = 2
                               grps = 0.2f
                             }
-                          uniqueReach = 5
+                          nonCumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
+                          cumulativeUnique =
+                            InternalResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                         }
                     }
                   componentIntersections +=
@@ -2236,6 +2204,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
+          state = BasicReport.State.SUCCEEDED
 
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             custom =
@@ -2275,7 +2244,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     dimensionSpecSummary =
                       ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                        grouping = eventTemplateField {
+                        groupings += eventTemplateField {
                           path = "common.gender"
                           value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
                         }
@@ -2366,7 +2335,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                                 impressions = 2
                                 grps = 0.2f
                               }
-                            uniqueReach = 5
+                            nonCumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
+                            cumulativeUnique =
+                              ResultGroupKt.MetricSetKt.uniqueMetricSet { reach = 2 }
                           }
                       }
                     componentIntersections +=
@@ -2555,31 +2527,25 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun calculateExpectedReachMeasurementResult(
+  private fun calculateExpectedReachMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>
   ): Measurement.Result {
     val reach =
       MeasurementResults.computeReach(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow()
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) }
       )
     return MeasurementKt.result {
       this.reach = MeasurementKt.ResultKt.reach { value = reach.toLong() }
     }
   }
 
-  private suspend fun calculateExpectedReachAndFrequencyMeasurementResult(
+  private fun calculateExpectedReachAndFrequencyMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val reachAndFrequency =
       MeasurementResults.computeReachAndFrequency(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow(),
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) },
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2593,16 +2559,13 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  private suspend fun calculateExpectedImpressionMeasurementResult(
+  private fun calculateExpectedImpressionMeasurementResult(
     eventGroupSpecs: Iterable<EventQuery.EventGroupSpec>,
     maxFrequency: Int,
   ): Measurement.Result {
     val impression =
       MeasurementResults.computeImpression(
-        eventGroupSpecs
-          .asSequence()
-          .flatMap { SYNTHETIC_EVENT_QUERY.getUserVirtualIds(it) }
-          .asFlow(),
+        eventGroupSpecs.asSequence().flatMap { syntheticEventQuery.getUserVirtualIds(it) },
         maxFrequency,
       )
     return MeasurementKt.result {
@@ -2622,7 +2585,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     val encryptedCmmsMetadata =
       encryptMetadata(cmmsMetadata, InProcessCmmsComponents.MC_ENTITY_CONTENT.encryptionPublicKey)
-    val cmmsEventGroup = cmmsEventGroup { encryptedMetadata = encryptedCmmsMetadata }
+    val cmmsEventGroup = cmmsEventGroup {
+      name = eventGroup.cmmsEventGroup
+      encryptedMetadata = encryptedCmmsMetadata
+    }
 
     val eventFilter = RequisitionSpecKt.eventFilter { expression = filter }
 
@@ -2653,12 +2619,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
 
     private const val MC_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
-
-    private val SYNTHETIC_EVENT_QUERY =
-      MetadataSyntheticGeneratorEventQuery(
-        SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL,
-        InProcessCmmsComponents.MC_ENCRYPTION_PRIVATE_KEY,
-      )
 
     private val EVENT_RANGE =
       OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 17))

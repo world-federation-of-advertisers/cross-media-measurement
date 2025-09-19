@@ -19,6 +19,7 @@ configMapGenerator:
   - open_id_providers_config.json
   - encryption_key_pair_config.textproto
   - metric_spec_config.textproto
+  - basic_report_metric_spec_config.textproto
   - synthetic_population_spec_small.textproto
   - synthetic_event_group_spec_small_1.textproto
   - synthetic_event_group_spec_small_2.textproto

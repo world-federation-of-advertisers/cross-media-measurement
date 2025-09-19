@@ -39,9 +39,9 @@ class SpannerPermissionsServiceTest : PermissionsServiceTest() {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
     return Services(
       SpannerPermissionsService(databaseClient, permissionMapping, tlsClientMapping),
-      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator),
-      SpannerRolesService(databaseClient, permissionMapping, idGenerator),
-      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator),
+      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
+      SpannerRolesService(databaseClient, permissionMapping, idGenerator = idGenerator),
+      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
     )
   }
 

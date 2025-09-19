@@ -4,8 +4,14 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__",
     ],
+)
+
+filegroup(
+    name = "config",
+    srcs = ["data-watcher-config.textproto"],
 )
 
 java_binary(
@@ -14,7 +20,6 @@ java_binary(
     resources = [
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
-        "//src/main/resources/securecomputation/datawatcher:config",
     ],
     runtime_deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",

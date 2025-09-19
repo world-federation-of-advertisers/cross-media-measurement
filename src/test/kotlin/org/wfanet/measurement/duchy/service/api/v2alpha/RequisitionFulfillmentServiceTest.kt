@@ -23,6 +23,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.onStart
@@ -165,6 +166,7 @@ class RequisitionFulfillmentServiceTest {
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
         requisitionStore,
+        Dispatchers.Default,
       )
   }
 

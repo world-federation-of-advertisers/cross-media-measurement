@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_project" "project" {}
+
 locals {
   database_name = var.database_name == null ? "${var.name}-duchy" : var.database_name
 }
@@ -24,12 +26,24 @@ module "storage_user" {
   iam_service_account_description = "${var.name} Duchy storage."
 }
 
+resource "google_project_iam_member" "storage_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.storage_user.iam_service_account.member
+}
+
 module "internal_server_user" {
   source = "../workload-identity-user"
 
   k8s_service_account_name        = "internal-server"
   iam_service_account_name        = "${var.name}-duchy-internal"
   iam_service_account_description = "${var.name} internal API server."
+}
+
+resource "google_project_iam_member" "internal_server_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.internal_server_user.iam_service_account.member
 }
 
 resource "google_spanner_database" "db" {
@@ -72,9 +86,9 @@ resource "google_compute_address" "system_v1alpha" {
 }
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_files)
+  for_each = toset(var.dashboard_json_files)
 
-  dashboard_json  = templatefile("${path.module}/${each.value}", {
+  dashboard_json = templatefile("${path.module}/${each.value}", {
     duchy_name = var.name
   })
 }

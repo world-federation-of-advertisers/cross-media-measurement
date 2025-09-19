@@ -12,24 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -46,10 +28,10 @@ variable "requisition_fulfiller_config" {
       single_instance_assignment    = number
       min_replicas                  = number
       max_replicas                  = number
-      app_args                      = list(string)
       machine_type                  = string
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
+      app_flags                     = list(string)
     })
   })
 }
@@ -99,8 +81,8 @@ variable "secure_computation_root_ca" {
   })
 }
 
-variable "kingdom_root_ca" {
-  description = "Kingdom root CA"
+variable "trusted_root_ca_collection" {
+  description = "Collection of certificates for each Duchy and the Kingdom"
   type = object({
     secret_id         = string
     secret_local_path = string
@@ -152,8 +134,54 @@ variable "edp_aggregator_bucket_name" {
   nullable    = false
 }
 
-variable "edp_aggregator_bucket_location" {
-  description = "Location of the Storage bucket used by the Edp Aggregator."
+variable "config_files_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket used to store configuration."
+  type        = string
+  nullable    = false
+}
+
+variable "data_watcher_config" {
+  description = "An object containing the local path of the data watcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "requisition_fetcher_config" {
+  description = "An object containing the local path of the requisition fetcher config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "edps_config" {
+  description = "An object containing the local path of the edps config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "results_fulfiller_event_descriptor" {
+  description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "results_fulfiller_population_spec" {
+  description = "An object containing the local path of the results fulfiller population spec file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "edp_aggregator_buckets_location" {
+  description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
   nullable    = false
 }
@@ -194,10 +222,14 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
-variable "event_group_sync_function_location" {
-  description = "The location of the EventGroupSync cloud function."
-  type        = string
-  nullable    = false
+variable "cloud_function_configs" {
+  type = map(object({
+    function_name       = string
+    entry_point         = string
+    extra_env_vars      = string
+    secret_mappings     = string
+    uber_jar_path       = string
+  }))
 }
 
 variable "requisition_fetcher_scheduler_config" {
@@ -209,4 +241,10 @@ variable "requisition_fetcher_scheduler_config" {
     function_url = string
   })
   nullable = false
+}
+
+variable "results_fulfiller_disk_image_family" {
+  description = "The boot disk image family."
+  type        = string
+  default     = "confidential-space"
 }
