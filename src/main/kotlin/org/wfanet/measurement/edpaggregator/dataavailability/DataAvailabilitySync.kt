@@ -19,33 +19,32 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
-import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
 import com.google.type.interval
 import io.grpc.StatusException
+import java.security.MessageDigest
+import java.util.UUID
+import java.util.logging.Logger
+import kotlin.text.Charsets.UTF_8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient
-import java.util.UUID
-import kotlin.text.Charsets.UTF_8
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.BlobUri
-import java.security.MessageDigest
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Synchronizes impression data availability between Cloud Storage and the Kingdom.
@@ -109,7 +108,8 @@ class DataAvailabilitySync(
     }
 
     val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> = storageClient.listBlobs(doneBlobFolderPath)
+    val impressionMetadataBlobs: Flow<StorageClient.Blob> =
+      storageClient.listBlobs(doneBlobFolderPath)
 
     // 1. Retrieve blob details from storage and build a map and validate them
     val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
