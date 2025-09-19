@@ -377,7 +377,7 @@ resource "google_dns_managed_zone" "private_gcs" {
 
   private_visibility_config {
     networks {
-      network_url = "projects/${data.google_project.project.project_id}/global/networks/default" }
+      network_url = "projects/${data.google_project.project.project_id}/global/networks/default"
     }
   }
 }
