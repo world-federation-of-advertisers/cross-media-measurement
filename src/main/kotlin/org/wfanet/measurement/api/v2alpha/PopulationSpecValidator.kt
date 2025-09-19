@@ -117,12 +117,9 @@ object PopulationSpecValidator {
     eventMessageDescriptor: Descriptors.Descriptor,
   ): List<PopulationSpecValidationException.PopulationFieldNotSetDetail> {
     val typeRegistry = TypeRegistry.newBuilder().add(eventMessageDescriptor).build()
-    val populationFields: List<Descriptors.FieldDescriptor> =
-      getPopulationFields(eventMessageDescriptor)
-
     val populationFieldsByTemplateType:
       Map<Descriptors.Descriptor, List<Descriptors.FieldDescriptor>> =
-      populationFields.groupBy { it.containingType }
+      EventTemplates.getPopulationFieldsByTemplateType(eventMessageDescriptor)
     return buildList {
       populationSpec.subpopulationsList.forEachIndexed { subPopulationIndex, subPopulation ->
         for ((templateType, populationFields) in populationFieldsByTemplateType) {
@@ -152,23 +149,6 @@ object PopulationSpecValidator {
               }
             }
           }
-        }
-      }
-    }
-  }
-
-  private fun getPopulationFields(
-    eventMessageDescriptor: Descriptors.Descriptor
-  ): List<Descriptors.FieldDescriptor> = buildList {
-    for (field in eventMessageDescriptor.fields) {
-      require(field.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate)) {
-        "${eventMessageDescriptor.fullName} is not a valid event message type"
-      }
-      for (templateField in field.messageType.fields) {
-        val templateFieldDescriptor: EventFieldDescriptor =
-          templateField.options.getExtension(EventAnnotationsProto.templateField)
-        if (templateFieldDescriptor.populationAttribute) {
-          add(templateField)
         }
       }
     }
