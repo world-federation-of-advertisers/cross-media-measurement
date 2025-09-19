@@ -67,7 +67,7 @@ class ImpressionMetadataService(
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
-            ImpressionMetadataNotFoundException(request.name, e)
+            ImpressionMetadataNotFoundException(key.dataProviderId, key.impressionMetadataId, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
@@ -155,7 +155,7 @@ class ImpressionMetadataService(
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
-          ImpressionMetadataNotFoundException(request.name, e)
+          ImpressionMetadataNotFoundException(key.dataProviderId, key.impressionMetadataId, e)
             .asStatusRuntimeException(e.status.code)
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
