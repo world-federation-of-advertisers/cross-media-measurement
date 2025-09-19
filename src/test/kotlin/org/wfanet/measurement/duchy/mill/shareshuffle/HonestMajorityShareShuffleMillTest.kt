@@ -1574,6 +1574,78 @@ class HonestMajorityShareShuffleMillTest {
     assertThat(advanceComputationRequests).isEmpty()
   }
 
+  @Test
+  fun `throw transient error when the next duchy is before the expected phase`() = runBlocking {
+    val unfulfilledRequisition1 =
+      TEST_REACH_AND_FREQUENCY_REQUISITION_1.toRequisitionMetadata(
+        Requisition.State.UNFULFILLED,
+        DUCHY_ONE_ID,
+      )
+    val fulfilledRequisition2 =
+      TEST_REACH_AND_FREQUENCY_REQUISITION_1.toRequisitionMetadata(
+          Requisition.State.FULFILLED,
+          DUCHY_TWO_ID,
+        )
+        .copy {
+          details =
+            details.copy {
+              protocol =
+                RequisitionDetailsKt.requisitionProtocol {
+                  honestMajorityShareShuffle = honestMajorityShareShuffle {
+                    secretSeedCiphertext = "secret_seed_2".toByteStringUtf8()
+                    registerCount = 100
+                    dataProviderCertificate = "DataProviders/2/Certificates/2"
+                  }
+                }
+            }
+          path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
+        }
+    val unfulfilledRequisition3 =
+      TEST_REACH_AND_FREQUENCY_REQUISITION_3.toRequisitionMetadata(
+        Requisition.State.UNFULFILLED,
+        DUCHY_ONE_ID,
+      )
+
+    val requisitions =
+      listOf(unfulfilledRequisition1, fulfilledRequisition2, unfulfilledRequisition3)
+    val computationDetails =
+      getReachAndFrequencyHmssComputationDetails(RoleInComputation.SECOND_NON_AGGREGATOR)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.SETUP_PHASE.toProtocolStage(),
+      computationDetails = computationDetails,
+      requisitions = requisitions,
+    )
+    mockComputationControl.stub {
+      onBlocking { getComputationStage(any()) }
+        .thenReturn(
+          computationStage {
+            honestMajorityShareShuffleStage = honestMajorityShareShuffleStage {
+              // The expected phase should be WAIT_ON_SHUFFLE_INPUT_PHASE_TWO
+              stage = HonestMajorityShareShuffleStage.Stage.SETUP_PHASE
+            }
+          }
+        )
+    }
+
+    val mill = createHmssMill(DUCHY_TWO_ID)
+    mill.claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          computationStage = Stage.SETUP_PHASE.toProtocolStage()
+          attempt = 1
+          version = 2
+          this.computationDetails = computationDetails
+          this.requisitions += requisitions
+        }
+      )
+    assertThat(fakeComputationDb.claimedComputations).isEmpty()
+  }
+
   fun getComputationRequestHeader(): AdvanceComputationRequest.Header =
     advanceComputationRequests.first().header
 
