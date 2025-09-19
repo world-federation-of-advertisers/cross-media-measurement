@@ -232,17 +232,6 @@ variable "cloud_function_configs" {
   }))
 }
 
-variable "requisition_fetcher_scheduler_config" {
-  description = "Configuration for requisition fetcher scheduler"
-  type = object({
-    schedule     = string
-    time_zone    = string
-    name_prefix  = string
-    function_url = string
-  })
-  nullable = false
-}
-
 variable "results_fulfiller_disk_image_family" {
   description = "The boot disk image family."
   type        = string
