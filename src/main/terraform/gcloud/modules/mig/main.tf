@@ -105,9 +105,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-    network    = var.network_name
     subnetwork = var.subnetwork_name
-    # No access_config block - instances use Cloud NAT for outbound internet
   }
 
   metadata = merge(

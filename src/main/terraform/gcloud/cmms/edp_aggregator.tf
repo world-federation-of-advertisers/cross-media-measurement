@@ -199,5 +199,5 @@ module "edp_aggregator" {
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
   results_fulfiller_disk_image_family       = "confidential-space-debug"
-  private_network_location                  = data.google_client_config.default.region
+  dns_managed_zone_name                     = "googleapis-private"
 }

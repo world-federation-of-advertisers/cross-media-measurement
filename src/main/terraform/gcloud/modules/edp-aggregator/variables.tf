@@ -238,18 +238,6 @@ variable "results_fulfiller_disk_image_family" {
   default     = "confidential-space"
 }
 
-variable "private_network_location" {
-  description = "The region used for the private network"
-  type        = string
-  nullable    = false
-}
-
-variable "private_network_name" {
-  description = "The name of the VPC network for the MIG instances."
-  type        = string
-  default     = "private-network"
-}
-
 variable "private_subnetwork_name" {
   description = "The name of the subnetwork for the MIG instances."
   type        = string
@@ -268,3 +256,8 @@ variable "nat_name" {
   default     = "nat-gateway"
 }
 
+variable "dns_managed_zone_name" {
+  description = "The name for Google DNS Managed Zone."
+  type        = string
+  default     = "nat-gateway"
+}
