@@ -923,7 +923,7 @@ abstract class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `refuseRequisitionMetadata fails when workItem is missing`() = runBlocking {
+  fun `refuseRequisitionMetadata fails when refusalMessage is missing`() = runBlocking {
     val requisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }

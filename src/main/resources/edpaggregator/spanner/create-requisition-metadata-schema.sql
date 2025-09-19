@@ -70,7 +70,7 @@ CREATE UNIQUE INDEX RequisitionMetadataByResourceId
   ON RequisitionMetadata(DataProviderResourceId, RequisitionMetadataResourceId);
 
 -- Index for idempotency check on creation.
-CREATE UNIQUE INDEX RequisitionMetadataByCreateRequestId
+CREATE UNIQUE NULL_FILTERED INDEX RequisitionMetadataByCreateRequestId
   ON RequisitionMetadata(DataProviderResourceId, CreateRequestId);
 
 -- Index for looking up by CMMS requisition.
