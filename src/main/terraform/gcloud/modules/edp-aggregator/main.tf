@@ -127,9 +127,10 @@ locals {
   ]...)
 
   service_accounts = {
-    "data_watcher"        = module.data_watcher_cloud_function.cloud_function_service_account.email
-    "requisition_fetcher" = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
-    "event_group_sync"    = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   }
 }
 
