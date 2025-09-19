@@ -66,6 +66,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
@@ -667,6 +668,38 @@ class ModelRolloutsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listModelRollouts succeeds when filtering by ModelRelease across ModelLines`() {
+    val request = listModelRolloutsRequest {
+      parent = "$MODEL_SUITE_NAME/modelLines/-"
+      filter = filter { modelReleaseIn += MODEL_RELEASE_NAME }
+    }
+
+    runBlocking {
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) { service.listModelRollouts(request) }
+    }
+
+    val internalRequest: StreamModelRolloutsRequest =
+      verifyAndCapture(
+        internalModelRolloutsMock,
+        ModelRolloutsCoroutineImplBase::streamModelRollouts,
+      )
+    assertThat(internalRequest)
+      .isEqualTo(
+        internalStreamModelRolloutsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              // ModelLine not specified in order to list across them.
+
+              externalModelReleaseIdIn += EXTERNAL_MODEL_RELEASE_ID
+            }
+        }
+      )
   }
 
   @Test

@@ -217,6 +217,7 @@ message ListModelRolloutsPageToken {
   fixed64 external_model_suite_id = 3;
   fixed64 external_model_line_id = 4;
   google.type.Interval rollout_period_overlapping = 5;
+  repeated fixed64 external_model_release_id_in = 7;
   message PreviousPageEnd {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;

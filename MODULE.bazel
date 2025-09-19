@@ -408,12 +408,12 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
-# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#252): Use version.
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#253): Use version.
 archive_override(
     module_name = "cross-media-measurement-api",
-    integrity = "sha256-1/DnGd2/Qjs+QLr4rQDQGvFMjg48XLKDtqfXgEF0RTE=",
-    strip_prefix = "cross-media-measurement-api-9b1b661fb7bb9723f9017895d542a90bad063fa2",
+    integrity = "sha256-qWT6NuVo1Gy2t0jnCpx8ddi6UxyAFBgxhoMvVgIkjmI=",
+    strip_prefix = "cross-media-measurement-api-53f0f6be7d26751114b69adc114bbb0b4096a452",
     urls = [
-        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/9b1b661fb7bb9723f9017895d542a90bad063fa2.tar.gz",
+        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/53f0f6be7d26751114b69adc114bbb0b4096a452.tar.gz",
     ],
 )
