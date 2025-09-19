@@ -22,7 +22,6 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.8.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +36,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.119.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -134,7 +132,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "8.7.1",
+    version = "8.15.2",
 )
 bazel_dep(
     name = "rules_jvm_external",
@@ -282,6 +280,14 @@ maven.install(
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
+    known_contributing_modules = [
+        "any-sketch-java",
+        "bazel_worker_java",
+        "common-jvm",
+        "cross-media-measurement-system",
+        "rules_kotlin_jvm",
+        "virtual-people-common",
+    ],
     lock_file = "//:maven_install.json",
     resolver = "maven",
     strict_visibility = True,
@@ -407,4 +413,22 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/rules_kotlin_jvm#16): Use version.
+archive_override(
+    module_name = "rules_kotlin_jvm",
+    strip_prefix = "rules_kotlin_jvm-e14d3141ab7950955319798ca953127d51f1c3e3",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/archive/e14d3141ab7950955319798ca953127d51f1c3e3.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#341): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-4aa9132862819082fdc28352af8563284654deef",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/4aa9132862819082fdc28352af8563284654deef.tar.gz",
+    ],
 )
