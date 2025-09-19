@@ -604,10 +604,10 @@ class Report:
     )
 
     if corrected_report:
-      for measurement_id in self._measurement_name_to_measurement.keys():
-        measurement = self.get_measurement_from_name(measurement_id)
+      for measurement_name in self._measurement_name_to_measurement.keys():
+        measurement = self.get_measurement_from_name(measurement_name)
         corrected_measurement = corrected_report.get_measurement_from_name(
-            measurement_id
+            measurement_name
         )
         if measurement is None or corrected_measurement is None:
           continue
@@ -620,7 +620,7 @@ class Report:
             f"sigma={measurement.sigma}."
           )
           report_post_processor_result.large_corrections.add(
-            measurement_id=measurement_id,
+            name=measurement_name,
             original_value=round(measurement.value),
             corrected_value=round(corrected_measurement.value),
             sigma=measurement.sigma,

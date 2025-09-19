@@ -161,8 +161,8 @@ message ReportPostProcessorResult {
   // Contains details about a measurement where the correction applied was
   // statistically out of bound (e.g. |corrected_value - value| > 7*sigma).
   message LargeCorrection {
-    // The unique name of the measurement.
-    string measurement_id = 1;
+    // The unique name of the measurement that was corrected.
+    string name = 1;
 
     // The original value of the measurement before correction.
     int64 original_value = 2;

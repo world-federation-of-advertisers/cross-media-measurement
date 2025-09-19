@@ -3056,13 +3056,13 @@ class TestReport(unittest.TestCase):
         report_post_processor_result.large_corrections,
         [
             LargeCorrection(
-                measurement_id="measurement_04",
+                name="measurement_04",
                 original_value=2,
                 corrected_value=25,
                 sigma=1.0
             ),
             LargeCorrection(
-                measurement_id="measurement_02",
+                name="measurement_02",
                 original_value=48,
                 corrected_value=25,
                 sigma=1.0
