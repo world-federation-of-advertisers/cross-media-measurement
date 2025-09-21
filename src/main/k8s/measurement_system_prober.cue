@@ -20,13 +20,7 @@ import ("strings")
 	_mcName:            string
 	_privateKeyDerFile: string
 	_apiKey:            string
-	_edp1Name:          string
-	_edp2Name:          string
-	_edp3Name:          string
-	_edp4Name:          string
-	_edp5Name:          string
-	_edp6Name:          string
-	_edpResourceNames: [_edp1Name, _edp2Name, _edp3Name, _edp4Name, _edp5Name, _edp6Name]
+	_edpResourceNames: [...string]
 	_verboseGrpcClientLogging: bool | *false
 	_kingdomPublicApiTarget:   string
 	_secretName:               string
@@ -79,14 +73,25 @@ import ("strings")
 				_kingdomPublicApiCertHostFlag,
 				"--measurement-lookback-duration=1d",
 				"--duration-between-measurements=1d",
-				"--data-provider=\(_edp1Name)",
-				"--data-provider=\(_edp2Name)",
-				"--data-provider=\(_edp3Name)",
-				"--data-provider=\(_edp4Name)",
-				"--data-provider=\(_edp5Name)",
-				"--data-provider=\(_edp6Name)",
+				"--measurement-update-lookback-duration=2h",
+				for edp in _edpResourceNames {
+					"--data-provider=\(edp)"
+				},
 			]
 			spec: schedule: "* * * * *"
+		}
+	}
+
+	networkPolicies: [Name=_]: #NetworkPolicy & {
+		_name: Name
+	}
+
+	networkPolicies: {
+		"measurement-system-prober": {
+			_app_label: "measurement-system-prober-app"
+			_destinationMatchLabels: [
+				"v2alpha-public-api-server-app",
+			]
 		}
 	}
 }
