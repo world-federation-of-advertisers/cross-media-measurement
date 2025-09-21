@@ -116,6 +116,8 @@ class RequisitionMetadataService(
           Errors.Reason.ETAG_MISMATCH,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -151,6 +153,8 @@ class RequisitionMetadataService(
           Errors.Reason.ETAG_MISMATCH,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -198,6 +202,8 @@ class RequisitionMetadataService(
           Errors.Reason.ETAG_MISMATCH,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -228,6 +234,8 @@ class RequisitionMetadataService(
         Errors.Reason.ETAG_MISMATCH,
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
         Errors.Reason.INVALID_FIELD_VALUE,
+        Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+        Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -271,6 +279,8 @@ class RequisitionMetadataService(
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -311,6 +321,8 @@ class RequisitionMetadataService(
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -351,6 +363,8 @@ class RequisitionMetadataService(
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -396,6 +410,8 @@ class RequisitionMetadataService(
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
           Errors.Reason.INVALID_FIELD_VALUE,
+          Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
