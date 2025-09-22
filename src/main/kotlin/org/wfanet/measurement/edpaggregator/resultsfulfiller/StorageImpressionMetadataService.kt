@@ -164,12 +164,12 @@ class StorageImpressionMetadataService(
 
   }
 
-  private fun mapHashTypeCloneToTink(hashType: EdpAggregatorHashType): HashType =
-    when (hashType) {
+  private fun EdpAggregatorHashType.mapHashTypeCloneToTink(): HashType =
+    when (this) {
       EdpAggregatorHashType.SHA1 -> HashType.SHA1
       EdpAggregatorHashType.SHA256 -> HashType.SHA256
       EdpAggregatorHashType.SHA512 -> HashType.SHA512
-      else -> throw IllegalArgumentException("Unsupported hkdf_hash_type: $hashType")
+      else -> throw IllegalArgumentException("Unsupported hkdf_hash_type: $this")
     }
 
   private fun synthesizeEncryptedKeyset(
@@ -191,7 +191,7 @@ class StorageImpressionMetadataService(
     // Map params into a proper Tink AesGcmHkdfStreamingParams
     val params = AesGcmHkdfStreamingParams.newBuilder()
       .setDerivedKeySize(aesKey.params.derivedKeySize)
-      .setHkdfHashType(mapHashTypeCloneToTink(aesKey.params.hkdfHashType))
+      .setHkdfHashType(aesKey.params.hkdfHashType.mapHashTypeCloneToTink())
       .setCiphertextSegmentSize(aesKey.params.ciphertextSegmentSize)
       .build()
 
