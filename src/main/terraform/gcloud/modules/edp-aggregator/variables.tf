@@ -251,3 +251,27 @@ variable "requisition_fetcher_scheduler_config" {
   })
   nullable = false
 }
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "dns_managed_zone_name" {
+  description = "The name for Google DNS Managed Zone."
+  type        = string
+  default     = "nat-gateway"
+}
