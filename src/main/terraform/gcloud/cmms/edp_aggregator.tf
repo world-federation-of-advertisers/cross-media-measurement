@@ -120,6 +120,16 @@ locals {
     }
   }
 
+  requisition_fetcher_scheduler_config = {
+    schedule                    = "* * * * *"  # Every minute
+    time_zone                   = "UTC"
+    name                        = "requisition-fetcher-scheduler"
+    function_url                = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${var.requisition_fetcher_function_name}"
+    scheduler_sa_display_name   = "Requisition Fetcher Scheduler"
+    scheduler_sa_description    = "Service account for Cloud Scheduler to trigger requisition fetcher"
+    scheduler_job_description   = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
+  }
+
   data_watcher_config = {
     local_path  = var.data_watcher_config_file_path
     destination = "data-watcher-config.textproto"
@@ -205,6 +215,7 @@ module "edp_aggregator" {
   secure_computation_root_ca                    = local.secure_computation_root_ca
   trusted_root_ca_collection                    = local.trusted_root_ca_collection
   edps_certs                                    = local.edps_certs
+  requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config
   cloud_function_configs                        = local.cloud_function_configs
   results_fulfiller_disk_image_family           = "confidential-space"
 }

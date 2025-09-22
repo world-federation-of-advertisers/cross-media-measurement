@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
@@ -222,6 +223,13 @@ module "requisition_fetcher_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+}
+
+module "requisition_fetcher_cloud_scheduler" {
+  source                        = "../cloud-scheduler"
+  terraform_service_account     = var.terraform_service_account
+  scheduler_config              = var.requisition_fetcher_scheduler_config
+  depends_on                    = [module.requisition_fetcher_cloud_function]
 }
 
 module "event_group_sync_cloud_function" {

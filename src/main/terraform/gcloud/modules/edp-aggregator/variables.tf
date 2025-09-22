@@ -243,3 +243,17 @@ variable "results_fulfiller_disk_image_family" {
   type        = string
   default     = "confidential-space"
 }
+
+variable "requisition_fetcher_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
+  type = object({
+    schedule                    = string
+    time_zone                   = string
+    name                        = string
+    function_url                = string
+    scheduler_sa_display_name   = string
+    scheduler_sa_description    = string
+    scheduler_job_description   = string
+  })
+  nullable = false
+}
