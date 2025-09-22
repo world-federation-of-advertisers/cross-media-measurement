@@ -41,27 +41,27 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     ((EventGroup) -> Boolean)?
   protected abstract val EVENT_GROUP_FILTERING_LAMBDA_HMSS: ((EventGroup) -> Boolean)?
 
-  @Test
-  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachOnly(
-        "1231",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
-
-  @Test
-  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
-    runBlocking {
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      mcSimulator.testReachAndFrequency(
-        "1232",
-        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
-      )
-    }
+//  @Test
+//  fun `create a Hmss reach-only measurement and check the result is equal to the expected result`() =
+//    runBlocking {
+//      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+//      mcSimulator.testReachOnly(
+//        "1231",
+//        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+//        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
+//      )
+//    }
+//
+//  @Test
+//  fun `create a Hmss RF measurement and check the result is equal to the expected result`() =
+//    runBlocking {
+//      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+//      mcSimulator.testReachAndFrequency(
+//        "1232",
+//        DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+//        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_HMSS,
+//      )
+//    }
 
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =

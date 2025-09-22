@@ -360,20 +360,24 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         "dataprovider",
       )
 
-    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
-    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
+//    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1"
+//    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2"
+    private const val GROUP_REFERENCE_ID_EDPA_EDP1 = "edpa-eg-reference-id-1-large"
+    private const val GROUP_REFERENCE_ID_EDPA_EDP2 = "edpa-eg-reference-id-2-large"
 
     private val TEST_DATA_RUNTIME_PATH =
       org.wfanet.measurement.common.getRuntimePath(TEST_DATA_PATH)!!
 
     val syntheticPopulationSpec: SyntheticPopulationSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+//        TEST_DATA_RUNTIME_PATH.resolve("small_population_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("360m_population_spec.textproto").toFile(),
         SyntheticPopulationSpec.getDefaultInstance(),
       )
     val syntheticEventGroupSpec: SyntheticEventGroupSpec =
       parseTextProto(
-        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+//        TEST_DATA_RUNTIME_PATH.resolve("small_data_spec.textproto").toFile(),
+        TEST_DATA_RUNTIME_PATH.resolve("90day_1billion_data_spec.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
 
