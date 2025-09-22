@@ -124,8 +124,6 @@ abstract class InProcessEventGroupsTest(
           ResourceSetup(
             internalAccountsClient = kingdom.internalAccountsClient,
             internalDataProvidersClient = kingdom.internalDataProvidersClient,
-            internalModelProvidersClient = kingdom.internalModelProvidersClient,
-            internalPopulationsClient = kingdom.internalPopulationsClient,
             internalCertificatesClient = kingdom.internalCertificatesClient,
             accountsClient = cmmsAccountsStub,
             apiKeysClient = cmmsApiKeysStub,

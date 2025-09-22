@@ -268,12 +268,18 @@ class HonestMajorityShareShuffleMill(
         "Skipping advanceComputation for next duchy $peerDuchyId. " +
           "expected_stage=${peerDuchyExpectedStage}, actual_stage=${peerDuchyStage}"
       }
-    } else {
+    } else if (peerDuchyStage == peerDuchyExpectedStage) {
       sendAdvanceComputationRequest(
         header = advanceComputationHeader(headerDescription, token.globalComputationId),
         content = addLoggingHook(token, flowOf(shufflePhaseInput.toByteString())),
         stub = peerDuchyStub,
       )
+    } else {
+      val message =
+        "Peer duchy's stage $peerDuchyStage is before expected stage " +
+          "$peerDuchyExpectedStage. Wait for peer duchy to catch up"
+      logger.log(Level.WARNING, message)
+      throw TransientErrorException(message)
     }
 
     return dataClients.transitionComputationToStage(
@@ -611,6 +617,9 @@ class HonestMajorityShareShuffleMill(
 
   private fun Stage.isSequencedAfter(other: Stage): Boolean =
     stageSequence.indexOf(this) > stageSequence.indexOf(other)
+
+  private fun Stage.isSequenceBefore(other: Stage): Boolean =
+    stageSequence.indexOf(this) < stageSequence.indexOf(other)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

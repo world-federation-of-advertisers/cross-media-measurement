@@ -16,13 +16,23 @@
 
 package org.wfanet.measurement.dataprovider
 
+import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.toSet
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.populationdataprovider.PopulationInfo
-import org.wfanet.measurement.populationdataprovider.PopulationRequisitionFulfiller
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
+import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
+import org.wfanet.measurement.api.v2alpha.EventTemplates
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.size
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 /** Utilities for computing Measurement results. */
 object MeasurementResults {
@@ -126,12 +136,66 @@ object MeasurementResults {
     return eventsPerVid.values.sumOf { count -> count.coerceAtMost(maxFrequency).toLong() }
   }
 
-  /** Computes population using the "deterministic count" methodology. */
+  /**
+   * Computes the size of the sub-populations with the specified [filterExpression] using the
+   * "deterministic count" methodology.
+   *
+   * @param populationSpec specification of the population
+   * @param filterExpression CEL filter expression identifying the sub-populations
+   * @param eventMessageDescriptor protobuf descriptor of the event message
+   * @throws EventFilterValidationException if [filterExpression] is not valid
+   */
   fun computePopulation(
-    populationInfo: PopulationInfo,
-    program: Program,
-    typeRegistry: TypeRegistry,
+    populationSpec: PopulationSpec,
+    filterExpression: String,
+    eventMessageDescriptor: Descriptors.Descriptor,
   ): Long {
-    return PopulationRequisitionFulfiller.computePopulation(populationInfo, program, typeRegistry)
+    val operativeFieldPaths: Set<String> = getPopulationOperativeFields(eventMessageDescriptor)
+    val program: Program =
+      EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFieldPaths)
+    return populationSpec.subpopulationsList
+      .filter { EventFilters.matches(it.toEventMessage(eventMessageDescriptor), program) }
+      .sumOf { it.vidRangesList.sumOf { vidRange -> vidRange.size() } }
+  }
+
+  /**
+   * Returns the field paths of the operative fields for the specified [eventMessageDescriptor].
+   *
+   * Operative fields are those for which [EventFieldDescriptor.populationAttribute] is `true`.
+   */
+  private fun getPopulationOperativeFields(
+    eventMessageDescriptor: Descriptors.Descriptor
+  ): Set<String> {
+    return EventTemplates.getPopulationFields(eventMessageDescriptor)
+      .map { field ->
+        val templateName =
+          field.containingType.options.getExtension(EventAnnotationsProto.eventTemplate).name
+        "${templateName}.${field.name}"
+      }
+      .toSet()
+  }
+
+  /** Builds an event message for the sub-population attributes using [eventMessageDescriptor]. */
+  private fun PopulationSpec.SubPopulation.toEventMessage(
+    eventMessageDescriptor: Descriptors.Descriptor
+  ): Message {
+    val typeRegistry = TypeRegistry.newBuilder().add(eventMessageDescriptor).build()
+    return DynamicMessage.newBuilder(eventMessageDescriptor)
+      .apply {
+        for (attribute: ProtoAny in attributesList) {
+          val attributeDescriptor: Descriptors.Descriptor =
+            checkNotNull(typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)) {
+              "Attribute type ${attribute.typeUrl} not found in event message types"
+            }
+          val templateDescriptor: EventTemplateDescriptor =
+            attributeDescriptor.options.getExtension(EventAnnotationsProto.eventTemplate)
+          val field: Descriptors.FieldDescriptor =
+            checkNotNull(eventMessageDescriptor.findFieldByName(templateDescriptor.name)) {
+              "Field with name ${templateDescriptor.name} not found in event message"
+            }
+          setField(field, DynamicMessage.parseFrom(attributeDescriptor, attribute.value))
+        }
+      }
+      .build()
   }
 }

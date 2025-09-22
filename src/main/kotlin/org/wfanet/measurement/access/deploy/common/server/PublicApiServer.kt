@@ -28,7 +28,7 @@ import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.edpaggregator.service.api.v1alpha.Services
+import org.wfanet.measurement.access.service.v1alpha.Services
 import picocli.CommandLine
 
 private const val SERVER_NAME = "AccessApiServer"

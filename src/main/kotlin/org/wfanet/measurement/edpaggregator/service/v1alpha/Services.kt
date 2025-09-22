@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Cross-Media Measurement Authors
+ * Copyright 2026 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,30 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.service.api.v1alpha
+package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import io.grpc.BindableService
 import io.grpc.Channel
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 
 data class Services(
-  val requisitionMetadata:
-    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+  val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase
 ) {
   fun toList(): List<BindableService> = listOf(requisitionMetadata)
 
   companion object {
-    fun build(internalApiChannel: Channel): Services {
-      val internalRequisitionMetadataStub =
-        InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
-          internalApiChannel
-        )
-      return Services(RequisitionMetadataService(internalRequisitionMetadataStub))
+    fun build(
+      internalApiChannel: Channel,
+      coroutineContext: CoroutineContext = EmptyCoroutineContext,
+    ): Services {
+      val internalRequisitionMetadataStub = InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(internalApiChannel)
+
+      return Services(
+        RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
+      )
     }
   }
 }

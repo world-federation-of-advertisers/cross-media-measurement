@@ -78,7 +78,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
-import org.wfanet.measurement.edpaggregator.service.api.v1alpha.Services
+import org.wfanet.measurement.access.service.v1alpha.Services
 
 abstract class InProcessAccessCliTest(
   private val accessServicesFactory: AccessServicesFactory,
