@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
+import kotlinx.coroutines.flow.emptyFlow
 import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
@@ -68,7 +69,7 @@ class EventGroupSyncFunction() : HttpFunction {
     val eventGroups = runBlocking {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-      MesosRecordIoStorageClient(
+      val storageClient = MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
             rootDirectory =
@@ -78,9 +79,23 @@ class EventGroupSyncFunction() : HttpFunction {
             projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
           )
         )
-        .getBlob(eventGroupsBlobUri.key)!!
-        .read()
-        .map { EventGroup.parseFrom(it) }
+
+      val blob = storageClient.getBlob(eventGroupsBlobUri.key) ?: return@runBlocking emptyFlow<EventGroup>()
+
+      when {
+        eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
+          blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
+        }
+        eventGroupsBlobUri.key.endsWith(JSON_FILE_SUFFIX) -> {
+          val parser = JsonFormat.parser()
+          blob.read().map { bytes ->
+            val builder = EventGroup.newBuilder()
+            parser.merge(bytes.toStringUtf8(), builder)
+            builder.build()
+          }
+        }
+        else -> error("Unsupported EventGroup file format: ${eventGroupsBlobUri.key}")
+      }
     }
     val eventGroupSync =
       EventGroupSync(
@@ -122,5 +137,7 @@ class EventGroupSyncFunction() : HttpFunction {
           ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
       )
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
+    private const val PROTO_FILE_SUFFIX = ".binpb"
+    private const val JSON_FILE_SUFFIX = ".json"
   }
 }
