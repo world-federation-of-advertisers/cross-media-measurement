@@ -152,6 +152,7 @@ class StorageImpressionMetadataService(
         )
 
     val bytes: ByteString = blob.read().flatten()
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing logic based on file extension
     return try {
       BlobDetails.parseFrom(bytes)
     } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
