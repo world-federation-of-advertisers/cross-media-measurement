@@ -14,7 +14,6 @@
 
 data "google_client_config" "default" {}
 data "google_project" "project" {}
-data "google_client_config" "default" {}
 
 locals {
 
