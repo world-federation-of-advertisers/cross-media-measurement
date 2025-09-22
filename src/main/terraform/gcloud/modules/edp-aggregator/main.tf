@@ -17,6 +17,8 @@ data "google_client_config" "default" {}
 
 locals {
 
+  # IP addresses for private.googleapis.com (Private Google Access default VIPs)
+  # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
   private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
 
   common_secrets_to_access = [
