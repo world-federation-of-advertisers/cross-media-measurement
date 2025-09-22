@@ -89,6 +89,18 @@ class ModelLinesService(
       }
     }
 
+    if (!request.modelLine.hasActiveStartTime()) {
+      throw Status.INVALID_ARGUMENT.withDescription("active_start_time not set")
+        .asRuntimeException()
+    }
+    if (
+      request.modelLine.hasActiveEndTime() &&
+        Timestamps.compare(request.modelLine.activeStartTime, request.modelLine.activeEndTime) > 0
+    ) {
+      throw Status.INVALID_ARGUMENT.withDescription("active_end_time is before active_start_time")
+        .asRuntimeException()
+    }
+
     val createModelLineRequest = request.modelLine.toInternal(parentKey)
     return try {
       internalClient.createModelLine(createModelLineRequest).toModelLine()
