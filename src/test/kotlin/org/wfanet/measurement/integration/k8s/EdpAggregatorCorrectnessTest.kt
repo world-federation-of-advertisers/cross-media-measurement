@@ -186,6 +186,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
+          println("------------------------------- end time: $endTime")
           eventGroup {
             this.eventGroupReferenceId = eventGroupReferenceId
             measurementConsumer = TEST_CONFIG.measurementConsumer
