@@ -105,4 +105,4 @@ proto_descriptor_set(
         ":impression_metadata_state_proto",
         ":requisition_metadata_state_proto",
     ],
-    )
+)
