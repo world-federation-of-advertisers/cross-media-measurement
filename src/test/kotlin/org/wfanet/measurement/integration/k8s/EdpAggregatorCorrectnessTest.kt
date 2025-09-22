@@ -180,8 +180,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             LocalDate.of(
                 dateRange.endExclusive.year,
                 dateRange.endExclusive.month,
-                dateRange.endExclusive.day - 1,
+                dateRange.endExclusive.day,
               )
+              .minusDays(1)
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
