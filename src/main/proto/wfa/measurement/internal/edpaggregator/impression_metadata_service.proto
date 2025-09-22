@@ -44,7 +44,7 @@ service ImpressionMetadataService {
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata);
+      returns (google.protobuf.Empty);
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
@@ -113,7 +113,8 @@ message ListImpressionMetadataPageToken {
 }
 
 message DeleteImpressionMetadataRequest {
-  string impression_metadata_resource_id = 1;
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
 }
 
 message BatchDeleteImpressionMetadataRequest {
