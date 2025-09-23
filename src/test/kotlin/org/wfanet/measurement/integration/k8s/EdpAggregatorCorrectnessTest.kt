@@ -183,7 +183,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                 dateRange.endExclusive.day,
               )
 //              .minusDays(1)
-              .minusDays(2)
+              .minusDays(1)
               .atTime(23, 59, 59)
               .atZone(ZONE_ID)
               .toInstant()
