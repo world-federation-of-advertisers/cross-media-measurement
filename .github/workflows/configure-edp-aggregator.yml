@@ -126,12 +126,12 @@ jobs:
     - name: Extract secret files archive
       run: >
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secret"
 
     - name: Copy secret generator
       run: >
-        cp src/main/k8s/testing/secretfiles/edp_aggregator_secrets_kustomization.yaml
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets/kustomization.yaml"
+        cp src/main/k8s/testing/secretfiles/edp_aggregator_secret_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secret/kustomization.yaml"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV
