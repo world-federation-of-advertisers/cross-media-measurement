@@ -21,9 +21,9 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.access.service.internal.Services as InternalServices
+import org.wfanet.measurement.access.service.v1alpha.Services
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.access.service.v1alpha.Services
 
 class InProcessAccess(
   verboseGrpcLogging: Boolean,

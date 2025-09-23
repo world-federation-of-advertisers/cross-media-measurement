@@ -21,6 +21,7 @@ import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
+import org.wfanet.measurement.access.service.v1alpha.Services
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -28,7 +29,6 @@ import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.access.service.v1alpha.Services
 import picocli.CommandLine
 
 private const val SERVER_NAME = "AccessApiServer"

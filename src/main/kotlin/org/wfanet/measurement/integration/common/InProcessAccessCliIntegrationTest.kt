@@ -41,6 +41,7 @@ import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.tools.Access
 import org.wfanet.measurement.access.service.Errors
 import org.wfanet.measurement.access.service.internal.PermissionMapping
+import org.wfanet.measurement.access.service.v1alpha.Services
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.ListRolesResponse
@@ -78,7 +79,6 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
-import org.wfanet.measurement.access.service.v1alpha.Services
 
 abstract class InProcessAccessCliTest(
   private val accessServicesFactory: AccessServicesFactory,

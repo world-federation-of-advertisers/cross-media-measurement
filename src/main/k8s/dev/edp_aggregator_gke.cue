@@ -41,8 +41,8 @@ objectSets: [
 
 edpAggregator: #EdpAggregator & {
 
-	_edpAggregatorSecretName: _secretName
-	_verboseGrpcServerLogging:    true
+	_edpAggregatorSecretName:  _secretName
+	_verboseGrpcServerLogging: true
 
 	_spannerConfig: database: "edp-aggregator"
 

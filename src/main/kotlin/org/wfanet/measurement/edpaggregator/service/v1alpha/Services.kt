@@ -23,9 +23,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
 
-data class Services(
-  val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase
-) {
+data class Services(val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase) {
   fun toList(): List<BindableService> = listOf(requisitionMetadata)
 
   companion object {
@@ -33,11 +31,12 @@ data class Services(
       internalApiChannel: Channel,
       coroutineContext: CoroutineContext = EmptyCoroutineContext,
     ): Services {
-      val internalRequisitionMetadataStub = InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(internalApiChannel)
+      val internalRequisitionMetadataStub =
+        InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
+          internalApiChannel
+        )
 
-      return Services(
-        RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
-      )
+      return Services(RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext))
     }
   }
 }
