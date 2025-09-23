@@ -33,6 +33,7 @@ _systemApiAddressName: "edp-aggregator-system"
 objectSets: [
 	defaultNetworkPolicies,
 	edpAggregator.serviceAccounts,
+	edpAggregator.configMaps,
 	edpAggregator.deployments,
 	edpAggregator.services,
 	edpAggregator.networkPolicies,

@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-22.04
     ########### Branch Test ##########
     env:
-      MY_IMAGE_TAG: "fa38f4800cb797c0d61948d6f3ae3d0436d09cba"
+      MY_IMAGE_TAG: "ff201ada207145506a2a82c386e4ccd0915efa3f"
       MY_APPLY_FLAG: "true"
     #################################
 
