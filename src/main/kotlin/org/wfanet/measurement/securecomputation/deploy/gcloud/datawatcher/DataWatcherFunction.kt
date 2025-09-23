@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 /*
@@ -133,6 +134,9 @@ class DataWatcherFunction : CloudEventsFunction {
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
+    // DO_NOT_SUBMIT (Replace with correct channel once deployed)
+    private val requisitionMetadataStub by lazy { RequisitionMetadataServiceCoroutineStub(publicChannel) }
+
     private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
       runBlocking {
@@ -146,6 +150,7 @@ class DataWatcherFunction : CloudEventsFunction {
     private val dataWatcher by lazy {
       DataWatcher(
         workItemsStub = workItemsStub,
+        requisitionMetadataStub = requisitionMetadataStub,
         dataWatcherConfigs = dataWatcherConfig.watchedPathsList,
       )
     }

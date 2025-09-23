@@ -41,18 +41,25 @@ import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectMeasurementResultFactory
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 
 /**
  * A class responsible for fulfilling results.
  *
+ * @param dataProvider [DataProvider] resource name.
  * @param privateEncryptionKey Handle to the private encryption key.
  * @param requisitionsStub Stub for requisitions gRPC coroutine.
  * @param requisitionFulfillmentStub Stub for requisitionFulfillment gRPC coroutine.
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param dataProviderCertificateKey Data provider certificate key.
  * @param dataProviderSigningKeyHandle Handle to the data provider signing key.
  * @param typeRegistry Type registry instance.
@@ -66,10 +73,12 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * TODO(2347) - Support additional differential privacy and k-anonymization.
  */
 class ResultsFulfiller(
+  private val dataProvider: String,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubMap:
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val requisitionsBlobUri: String,
@@ -94,6 +103,11 @@ class ResultsFulfiller(
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val typeRegistry = TypeRegistry.newBuilder().add(modelInfo.eventDescriptor).build()
     for (requisition in requisitions) {
+
+      // Update the Requisition status on the ImpressionMetadataStorage
+      val requisitionMetadata = getRequisitionMetadata()
+      signalRequisitionStartProcessing(requisitionMetadata)
+
       logger.info("Processing requisition: ${requisition.name}")
       val signedRequisitionSpec: SignedMessage =
         try {
@@ -159,7 +173,31 @@ class ResultsFulfiller(
           throw Exception("Protocol not supported")
         }
       fulfiller.fulfillRequisition()
+      signalRequisitionFulfilled(requisitionMetadata)
     }
+  }
+
+  private suspend fun getRequisitionMetadata(): RequisitionMetadata {
+    val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
+      parent = dataProvider
+      blobUri = requisitionsBlobUri
+    }
+    return requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
+  }
+  private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata) {
+    val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    requisitionMetadataStub.startProcessingRequisitionMetadata(startProcessingRequisitionMetadataRequest)
+  }
+
+  private suspend fun signalRequisitionFulfilled(requisitionMetadata: RequisitionMetadata) {
+    val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
   }
 
   /**

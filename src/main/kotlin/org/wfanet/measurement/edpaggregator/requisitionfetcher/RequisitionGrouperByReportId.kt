@@ -31,6 +31,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 
 /**
  * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
@@ -40,8 +41,9 @@ class RequisitionGrouperByReportId(
   private val requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
+  requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, requisitionMetadataClient, throttler) {
 
   /**
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event

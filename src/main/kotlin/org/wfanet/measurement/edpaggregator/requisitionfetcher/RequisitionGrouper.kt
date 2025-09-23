@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
@@ -37,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 
 /**
  * An interface to group a list of requisitions.
@@ -47,12 +49,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * @param requisitionValidator: The [RequisitionValidator] to use to validate the requisition.
  * @param eventGroupsClient The gRPC client used to interact with event groups.
  * @param requisitionsClient The gRPC client used to interact with requisitions.
+ * @param requisitionsClient used to sync [Requisition]s with RequisitionMetadataStorage
  * @param throttler used to throttle gRPC requests
  */
 abstract class RequisitionGrouper(
   private val requisitionValidator: RequisitionsValidator,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
+  requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub,
   private val throttler: Throttler,
 ) {
 
@@ -65,7 +69,7 @@ abstract class RequisitionGrouper(
    * @param requisitions A list of [Requisition] objects to be grouped.
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
-  suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+  suspend fun groupRequisitions(requisitions: List<Requisition>, dataProvider: String): List<GroupedRequisitions> {
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
     return combineGroupedRequisitions(mappedRequisitions)
   }
@@ -123,6 +127,23 @@ abstract class RequisitionGrouper(
           this.refusal = RequisitionKt.refusal { justification = refusal.justification }
         }
         requisitionsClient.refuseRequisition(request)
+
+        val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
+              parent = config.dataProvider
+              blobUri = path
+            }
+        val requisitionMetadata = requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
+        //    val queueRequisitionMetadataRequest = queueRequisitionMetadataRequest {
+        //      name = requisitionMetadata.name
+        //      etag = requisitionMetadata.etag
+        //      workItem = createdWorkItem.name
+        //    }
+        //    requisitionMetadataStub.queueRequisitionMetadata(queueRequisitionMetadataRequest)
+        val refuseRequisitionMetadataRequest = refuseRequisitionMetadataRequest {
+
+        }
+        requisitionMetadataClient.refuseRequisitionMetadata(refuseRequisitionMetadataRequest)
+
       }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)

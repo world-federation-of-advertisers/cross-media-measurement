@@ -49,6 +49,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
@@ -228,6 +229,8 @@ class ResultsFulfillerAppRunner : Runnable {
         secureComputationPublicApiCertHost,
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
+    // DO_NOT_SUBMIT (Replace with correct channel once deployed)
+    val requisitionMetadataStub by lazy { RequisitionMetadataServiceCoroutineStub(publicChannel) }
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
@@ -250,6 +253,7 @@ class ResultsFulfillerAppRunner : Runnable {
         parser = parser,
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
+        requisitionMetadataStub = requisitionMetadataStub,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
         getImpressionsMetadataStorageConfig = getImpressionsStorageConfig,

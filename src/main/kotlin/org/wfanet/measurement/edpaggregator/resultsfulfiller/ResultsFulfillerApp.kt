@@ -40,6 +40,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -54,6 +55,7 @@ import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
@@ -69,6 +71,7 @@ class ResultsFulfillerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
@@ -160,10 +163,13 @@ class ResultsFulfillerApp(
       } else {
         null
       }
+
     ResultsFulfiller(
+        fulfillerParams.dataProvider,
         loadPrivateKey(encryptionPrivateKeyFile),
         requisitionsStub,
         requisitionFulfillmentStubsMap,
+        requisitionMetadataStub,
         dataProviderCertificateKey,
         dataProviderResultSigningKeyHandle,
         requisitionsBlobUri = requisitionsBlobUri,
@@ -175,5 +181,7 @@ class ResultsFulfillerApp(
         kAnonymityParams = kAnonymityParams,
       )
       .fulfillRequisitions()
+
+
   }
 }

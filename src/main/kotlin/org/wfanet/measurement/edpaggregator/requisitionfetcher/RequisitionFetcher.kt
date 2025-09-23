@@ -17,38 +17,50 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
+import com.google.protobuf.Timestamp
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
  *
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param storageClient client used to store [Requisition]s
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
  * @param storagePathPrefix the blob key prefix to use when storing a [Requisition]
+ * @param requisitionBlobPrefix the blob key prefix including schema and bucket name
  * @param requisitionGrouper the instance of [RequisitionGrouper] to use to group requisitions
  * @param groupedRequisitionsIdGenerator deterministic ID generator
  * @param responsePageSize
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
+  private val requisitionBlobPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
   val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
@@ -93,8 +105,15 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
+    // Filter requisitions excluding those that have not been written into RequisitionMetadataStorage yet.
+    val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
+      parent = dataProviderName
+    }
+    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
+
+    // Filter requisitions that have been persisted already
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
+      requisitionGrouper.groupRequisitions(requisitions.filterNewerThan(latestCmmsCreateTime).toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -114,13 +133,43 @@ class RequisitionFetcher(
       val groupedRequisitionId = groupedRequisitionsIdGenerator(groupedRequisition)
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
-      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped
-      // requisitions were stored already.
       if (
         groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
       ) {
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
+        val requisitionBlobUri = "$requisitionBlobPrefix/$blobKey"
+        val firstReq = groupedRequisition.requisitionsList.first().requisition
+        val report: String = firstReq
+          .unpack(Requisition::class.java)
+          .measurementSpec
+          .unpack<MeasurementSpec>()
+          .reportingMetadata
+          .report
+
+        groupedRequisition.requisitionsList.forEach { entry ->
+          val requisition = entry.requisition.unpack(Requisition::class.java)
+
+          val metadata = requisitionMetadata {
+            cmmsRequisition = requisition.name
+            blobUri = requisitionBlobUri
+            blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
+            groupId = groupedRequisitionId
+            cmmsCreateTime = requisition.updateTime
+            this.report = report
+          }
+
+          // TODO(@marcopremier): replace with batch create once the method is available
+          val request = createRequisitionMetadataRequest {
+            parent = dataProviderName
+            requisitionMetadata = metadata
+            requestId = groupedRequisitionId
+          }
+
+          requisitionMetadataStub.createRequisitionMetadata(request)
+          logger.info("Created RequisitionMetadata for ${requisition.name}")
+        }
+
         storedGroupedRequisitions += 1
       }
     }
@@ -128,7 +177,21 @@ class RequisitionFetcher(
     return storedGroupedRequisitions
   }
 
+  fun Flow<Requisition>.filterNewerThan(reference: Timestamp): Flow<Requisition> =
+    this.filter { requisition ->
+      requisition.updateTime.isAfter(reference)
+    }
+
+  fun Timestamp.isAfter(other: Timestamp): Boolean {
+    return when {
+      this.seconds > other.seconds -> true
+      this.seconds < other.seconds -> false
+      else -> this.nanos > other.nanos
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val GROUPED_REQUISITION_BLOB_TYPE_URL = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.GroupedRequisitions"
   }
 }

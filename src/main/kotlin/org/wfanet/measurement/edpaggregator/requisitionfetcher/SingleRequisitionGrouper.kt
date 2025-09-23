@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 
 /**
  * Naively does not combine a set of requisition. Generally not recommended for production use
@@ -30,8 +31,9 @@ class SingleRequisitionGrouper(
   requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
+  requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, requisitionMetadataClient, throttler) {
 
   override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
