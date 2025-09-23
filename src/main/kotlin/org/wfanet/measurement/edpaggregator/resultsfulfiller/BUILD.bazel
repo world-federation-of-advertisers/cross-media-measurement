@@ -13,9 +13,9 @@ package(
 kt_jvm_library(
     name = "results_fulfiller",
     srcs = [
-        "ResultsFulfiller.kt",
-        "FulfillerSelector.kt",
         "DefaultFulfillerSelector.kt",
+        "FulfillerSelector.kt",
+        "ResultsFulfiller.kt",
     ],
     deps = [
         ":continuous_gaussian_noiser_selector",
@@ -351,6 +351,7 @@ java_image(
     binary = ":ResultsFulfiller",
     labels = {
         "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET",
+        "tee.launch_policy.allow_env_override": "JAVA_TOOL_OPTIONS",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
