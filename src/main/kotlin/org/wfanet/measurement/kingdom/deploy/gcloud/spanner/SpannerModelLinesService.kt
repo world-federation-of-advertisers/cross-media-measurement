@@ -28,7 +28,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
@@ -59,26 +58,18 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
-    val now = clock.instant()
     if (!request.hasActiveStartTime()) {
       throw RequiredFieldNotSetException("active_start_time")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val activeStartTime = request.activeStartTime.toInstant()
-    if (activeStartTime <= now) {
-      throw InvalidFieldValueException("active_start_time") { fieldName ->
-          "$fieldName must be in the future"
+    if (
+      request.hasActiveEndTime() &&
+        Timestamps.compare(request.activeStartTime, request.activeEndTime) > 0
+    ) {
+      throw InvalidFieldValueException("active_end_time") { fieldName ->
+          "$fieldName is before active_start_time"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.hasActiveEndTime()) {
-      val activeEndTime = request.activeEndTime.toInstant()
-      if (activeEndTime < activeStartTime) {
-        throw InvalidFieldValueException("active_end_time") { fieldName ->
-            "$fieldName must be at least active_start_time"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     }
     if (request.externalHoldbackModelLineId != 0L && request.type != ModelLine.Type.PROD) {
       throw InvalidFieldValueException("external_holdback_model_line_id") { fieldName ->

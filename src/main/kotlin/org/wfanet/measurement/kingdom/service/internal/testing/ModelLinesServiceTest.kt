@@ -146,33 +146,6 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
-  fun `createModelLine fails when activeStartTime is in the past`() = runBlocking {
-    val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
-
-    val modelLine = modelLine {
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      externalModelProviderId = modelSuite.externalModelProviderId
-      activeStartTime = Instant.now().minusSeconds(100L).toProtoTime()
-      type = ModelLine.Type.PROD
-      displayName = "display name"
-      description = "description"
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { modelLinesService.createModelLine(modelLine) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = KingdomInternalException.DOMAIN
-          reason = ErrorCode.INVALID_FIELD_VALUE.name
-          metadata["field_name"] = "active_start_time"
-        }
-      )
-  }
-
-  @Test
   fun `createModelLine fails when activeEndTime is before activeStartTime`() = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 

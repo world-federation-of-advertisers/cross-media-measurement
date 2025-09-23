@@ -177,6 +177,13 @@ locals {
       secret_mappings     = var.event_group_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
     }
+    data_availability_sync = {
+      function_name       = var.data_availability_sync_function_name
+      entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
+      extra_env_vars      = var.data_availability_env_var
+      secret_mappings     = var.data_availability_secret_mapping
+      uber_jar_path       = var.data_availability_uber_jar_path
+    }
   }
 
 }
@@ -184,31 +191,32 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
-  requisition_fulfiller_config              = local.requisition_fulfiller_config
-  pubsub_iam_service_account_member         = module.secure_computation.secure_computation_internal_iam_service_account_member
-  edp_aggregator_bucket_name                = var.secure_computation_storage_bucket_name
-  config_files_bucket_name                  = var.edpa_config_files_bucket_name
-  edp_aggregator_buckets_location           = local.storage_bucket_location
-  data_watcher_service_account_name         = "edpa-data-watcher"
-  data_watcher_trigger_service_account_name = "edpa-data-watcher-trigger"
-  terraform_service_account                 = var.terraform_service_account
-  requisition_fetcher_service_account_name  = "edpa-requisition-fetcher"
-  data_watcher_config                       = local.data_watcher_config
-  requisition_fetcher_config                = local.requisition_fetcher_config
-  edps_config                               = local.edps_config
-  results_fulfiller_event_descriptor        = local.results_fulfiller_event_descriptor
-  results_fulfiller_population_spec         = local.results_fulfiller_population_spec
-  event_group_sync_service_account_name     = "edpa-event-group-sync"
-  event_group_sync_function_name            = "event-group-sync"
-  edpa_tee_app_tls_key                      = local.edpa_tee_app_tls_key
-  edpa_tee_app_tls_pem                      = local.edpa_tee_app_tls_pem
-  data_watcher_tls_key                      = local.data_watcher_tls_key
-  data_watcher_tls_pem                      = local.data_watcher_tls_pem
-  secure_computation_root_ca                = local.secure_computation_root_ca
-  trusted_root_ca_collection                = local.trusted_root_ca_collection
-  edps_certs                                = local.edps_certs
-  requisition_fetcher_scheduler_config      = local.requisition_fetcher_scheduler_config
-  cloud_function_configs                    = local.cloud_function_configs
-  results_fulfiller_disk_image_family       = "confidential-space-debug"
-  dns_managed_zone_name                     = "googleapis-private"
+  requisition_fulfiller_config                  = local.requisition_fulfiller_config
+  pubsub_iam_service_account_member             = module.secure_computation.secure_computation_internal_iam_service_account_member
+  edp_aggregator_bucket_name                    = var.secure_computation_storage_bucket_name
+  config_files_bucket_name                      = var.edpa_config_files_bucket_name
+  edp_aggregator_buckets_location               = local.storage_bucket_location
+  data_watcher_service_account_name             = "edpa-data-watcher"
+  data_watcher_trigger_service_account_name     = "edpa-data-watcher-trigger"
+  terraform_service_account                     = var.terraform_service_account
+  requisition_fetcher_service_account_name      = "edpa-requisition-fetcher"
+  data_availability_sync_service_account_name   = "edpa-data-availability-sync"
+  data_watcher_config                           = local.data_watcher_config
+  requisition_fetcher_config                    = local.requisition_fetcher_config
+  edps_config                                   = local.edps_config
+  results_fulfiller_event_descriptor            = local.results_fulfiller_event_descriptor
+  results_fulfiller_population_spec             = local.results_fulfiller_population_spec
+  event_group_sync_service_account_name         = "edpa-event-group-sync"
+  event_group_sync_function_name                = "event-group-sync"
+  edpa_tee_app_tls_key                          = local.edpa_tee_app_tls_key
+  edpa_tee_app_tls_pem                          = local.edpa_tee_app_tls_pem
+  data_watcher_tls_key                          = local.data_watcher_tls_key
+  data_watcher_tls_pem                          = local.data_watcher_tls_pem
+  secure_computation_root_ca                    = local.secure_computation_root_ca
+  trusted_root_ca_collection                    = local.trusted_root_ca_collection
+  edps_certs                                    = local.edps_certs
+  requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config
+  cloud_function_configs                        = local.cloud_function_configs
+  results_fulfiller_disk_image_family           = "confidential-space-debug"
+  dns_managed_zone_name                         = "googleapis-private"
 }

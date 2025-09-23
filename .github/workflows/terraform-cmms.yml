@@ -67,6 +67,25 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        build --remote_download_outputs=all
+        EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
@@ -126,6 +145,7 @@ jobs:
         coords[data-watcher]="org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher:data-watcher:$ARTIFACT_VERSION:jar"
         coords[requisition-fetcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher:requisition-fetcher:$ARTIFACT_VERSION:jar"
         coords[event-group-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups:event-group-sync:$ARTIFACT_VERSION:jar"
+        coords[data-availability-sync]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability:data-availability-sync:$ARTIFACT_VERSION:jar"
         
         LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
 
@@ -184,12 +204,15 @@ jobs:
         DATA_WATCHER_FUNCTION_NAME: ${{ vars.DATA_WATCHER_FUNCTION_NAME }}
         REQUISITION_FETCHER_FUNCTION_NAME: ${{ vars.REQUISITION_FETCHER_FUNCTION_NAME }}
         EVENT_GROUP_FUNCTION_NAME: ${{ vars.EVENT_GROUP_FUNCTION_NAME }}
+        DATA_AVAILABILITY_FUNCTION_NAME: ${{ vars.DATA_AVAILABILITY_FUNCTION_NAME }}
         DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
         DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
         REQUISITION_FETCHER_ENV_VAR: ${{ vars.REQUISITION_FETCHER_ENV_VAR }}
         REQUISITION_FETCHER_SECRET_MAPPING: ${{ vars.REQUISITION_FETCHER_SECRET_MAPPING }}
         EVENT_GROUP_ENV_VAR: ${{ vars.EVENT_GROUP_ENV_VAR }}
         EVENT_GROUP_SECRET_MAPPING: ${{ vars.EVENT_GROUP_SECRET_MAPPING }}
+        DATA_AVAILABILITY_ENV_VAR: ${{ vars.DATA_AVAILABILITY_ENV_VAR }}
+        DATA_AVAILABILITY_SECRET_MAPPING: ${{ vars.DATA_AVAILABILITY_SECRET_MAPPING }}
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
         RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME: ${{ vars.RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME }}
         RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI }}
@@ -218,15 +241,19 @@ jobs:
         -var="data_watcher_function_name=$DATA_WATCHER_FUNCTION_NAME"
         -var="requisition_fetcher_function_name=$REQUISITION_FETCHER_FUNCTION_NAME"
         -var="event_group_sync_function_name=$EVENT_GROUP_FUNCTION_NAME"
+        -var="data_availability_sync_function_name=$DATA_AVAILABILITY_FUNCTION_NAME"
         -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
         -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
         -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
         -var="requisition_fetcher_secret_mapping=$REQUISITION_FETCHER_SECRET_MAPPING"
         -var="event_group_env_var=$EVENT_GROUP_ENV_VAR"
         -var="event_group_secret_mapping=$EVENT_GROUP_SECRET_MAPPING"
+        -var="data_availability_env_var=$DATA_AVAILABILITY_ENV_VAR"
+        -var="data_availability_secret_mapping=$DATA_AVAILABILITY_SECRET_MAPPING"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"
         -var="requisition_fetcher_uber_jar_path=${{ steps.download-uber-jars.outputs.requisition_fetcher_source_path }}"
         -var="event_group_uber_jar_path=${{ steps.download-uber-jars.outputs.event_group_sync_source_path }}"
+        -var="data_availability_uber_jar_path=${{ steps.download-uber-jars.outputs.data_availability_sync_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_event_proto_descriptor_blob_uri=$RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI"
