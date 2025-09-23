@@ -61,13 +61,12 @@ jobs:
     runs-on: ubuntu-22.04
     ########### Branch Test ##########
     env:
-      MY_ENVIRONMENT: "dev"
       MY_IMAGE_TAG: "your-test-tag"
       MY_APPLY_FLAG: "false"
     #################################
 
 #    environment: ${{ inputs.environment }}
-    environment: ${{ env.MY_ENVIRONMENT }}
+    environment: "dev"
     steps:
     - uses: actions/checkout@v4
 
