@@ -258,6 +258,9 @@ SECRET_FILES = [
     "secure_computation_root.pem",
     "secure_computation_tls.key",
     "secure_computation_tls.pem",
+    "edp_aggregator_root.pem",
+    "edp_aggregator_tls.pem",
+    "edp_aggregator_tls.key",
 ]
 
 filegroup(

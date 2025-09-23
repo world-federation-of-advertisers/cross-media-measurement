@@ -322,3 +322,34 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
+
+module "edp_aggregator_internal" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name        = "internal-edp-aggregator-server"
+  iam_service_account_name        = var.edp_aggregator_service_account_name
+  iam_service_account_description = "Edp Aggregator internal API server."
+}
+
+resource "google_project_iam_member" "edp_aggregator_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_spanner_database" "edp_aggregator" {
+  instance         = var.spanner_instance.name
+  name             = var.spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
+}
+
+resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
+  instance = google_spanner_database.edp_aggregator.instance
+  database = google_spanner_database.edp_aggregator.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.edp_aggregator_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.edp_aggregator_internal.id]
+  }
+}

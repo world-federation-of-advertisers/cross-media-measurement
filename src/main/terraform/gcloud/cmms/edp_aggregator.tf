@@ -199,4 +199,6 @@ module "edp_aggregator" {
   edps_certs                                = local.edps_certs
   cloud_function_configs                    = local.cloud_function_configs
   results_fulfiller_disk_image_family       = "confidential-space"
+  edp_aggregator_service_account_name       = "edp-aggregator-internal"
+  spanner_instance                          = google_spanner_instance.spanner_instance
 }
