@@ -147,6 +147,30 @@ variable "image_tag" {
   type        = string
 }
 
+variable "data_watcher_function_name" {
+  description = "Name of the DataWatcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "requisition_fetcher_function_name" {
+  description = "Name of the RequisitionFetcher function"
+  type        = string
+  nullable    = false
+}
+
+variable "event_group_sync_function_name" {
+  description = "Name of the EventGroupSync function"
+  type        = string
+  nullable    = false
+}
+
+variable "data_availability_sync_function_name" {
+  description = "Name of the DataAvailabilitySync function"
+  type        = string
+  nullable    = false
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
