@@ -627,7 +627,7 @@ cue_dump(
 )
 
 kustomization_dir(
-    name = "secure_computation_secret",
+    name = "edp_aggregator_secret",
 )
 
 kustomization_dir(
