@@ -35,9 +35,9 @@ on:
         required: true
         type: choice
         options:
-          - dev
-          - qa
-          - head
+        - dev
+        - qa
+        - head
       image-tag:
         description: "Tag of container images"
         type: string
@@ -54,88 +54,88 @@ env:
   KUSTOMIZATION_PATH: "k8s/edp_aggregator"
 
 jobs:
-  update-secure-computation-control-plane:
+  update-edp-aggregator-control-plane:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
-      - name: Write auth.bazelrc
-        env:
-          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          cat << EOF > auth.bazelrc
-          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
-          EOF
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
 
-      - name: Write ~/.bazelrc
-        env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
-          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
-        run: |
-          cat << EOF > ~/.bazelrc
-          common --config=ci
-          build --remote_download_outputs=toplevel
-          common --config=ghcr
-          build --define "image_tag=$IMAGE_TAG"
-          build --define "google_cloud_project=$GCLOUD_PROJECT"
-          build --define "spanner_instance=$SPANNER_INSTANCE"
-          EOF
+    - name: Write ~/.bazelrc
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        build --remote_download_outputs=toplevel
+        common --config=ghcr
+        build --define "image_tag=$IMAGE_TAG"
+        build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "spanner_instance=$SPANNER_INSTANCE"
+        EOF
 
-      - name: Export BAZEL_BIN
-        run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-      - name: Get GKE cluster credentials
-        uses: google-github-actions/get-gke-credentials@v2
-        with:
-          cluster_name: kingdom
-          location: ${{ vars.GCLOUD_ZONE }}
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: kingdom
+        location: ${{ vars.GCLOUD_ZONE }}
 
-      - name: Generate archives
-        run: >
-          bazelisk build
-          //src/main/k8s/dev:edp_aggregator.tar
-          //src/main/k8s/testing/secretfiles:archive
+    - name: Generate archives
+      run: >
+        bazelisk build
+        //src/main/k8s/dev:edp_aggregator.tar
+        //src/main/k8s/testing/secretfiles:archive
 
-      - name: Make Kustomization dir
-        run: mkdir -p "$KUSTOMIZATION_PATH"
+    - name: Make Kustomization dir
+      run: mkdir -p "$KUSTOMIZATION_PATH"
 
-      - name: Extract Kustomization archive
-        run: >
-          tar -xf "$BAZEL_BIN/src/main/k8s/dev/edp_aggregator.tar"
-          -C "$KUSTOMIZATION_PATH"
+    - name: Extract Kustomization archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/edp_aggregator.tar"
+        -C "$KUSTOMIZATION_PATH"
 
-      - name: Extract secret files archive
-        run: >
-          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets"
+    - name: Extract secret files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets"
 
-      - name: Copy secret generator
-        run: >
-          cp src/main/k8s/testing/secretfiles/edp_aggregator_secrets_kustomization.yaml
-          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets/kustomization.yaml"
+    - name: Copy secret generator
+      run: >
+        cp src/main/k8s/testing/secretfiles/edp_aggregator_secrets_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secrets/kustomization.yaml"
 
-      - name: Export KUSTOMIZE_PATH
-        run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV
+    - name: Export KUSTOMIZE_PATH
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV
 
-      - name: kubectl diff
-        id: kubectl-diff
-        run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+    - name: kubectl diff
+      id: kubectl-diff
+      run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
 
-      - name: kubectl apply
-        if: ${{ inputs.apply }}
-        run: kubectl apply -k "$KUSTOMIZE_PATH"
+    - name: kubectl apply
+      if: ${{ inputs.apply }}
+      run: kubectl apply -k "$KUSTOMIZE_PATH"
 
-      - name: Wait for rollout
-        if: ${{ inputs.apply }}
-        run: |
-          for deployment in $(kubectl get deployments -o name); do
-            kubectl rollout status "$deployment" --timeout=5m
-          done
+    - name: Wait for rollout
+      if: ${{ inputs.apply }}
+      run: |
+        for deployment in $(kubectl get deployments -o name); do
+          kubectl rollout status "$deployment" --timeout=5m
+        done
