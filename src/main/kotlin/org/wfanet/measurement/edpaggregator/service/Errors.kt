@@ -273,24 +273,20 @@ class InvalidFieldValueException(
   )
 
 class ImpressionMetadataNotFoundException(
-  dataProviderResourceName: String,
   impressionMetadataResourceName: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-    "ImpressionMetadata with Impression Metadata Resource Name $impressionMetadataResourceName for DataProvider with resource Name $dataProviderResourceName not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
-      Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName,
-    ),
+    "ImpressionMetadata $impressionMetadataResourceName not found",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
     cause,
   )
 
-class ImpressionMetadataAlreadyExistsException(name: String, cause: Throwable? = null) :
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-    "ImpressionMetadata $name already exists",
-    mapOf(Errors.Metadata.IMPRESSION_METADATA to name),
+    "ImpressionMetadata with blobUri $blobUri already exists",
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )

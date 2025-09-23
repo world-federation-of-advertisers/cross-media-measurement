@@ -51,7 +51,7 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val key =
+    val impressionMetadatakey =
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -60,14 +60,14 @@ class ImpressionMetadataService(
       try {
         internalImpressionMetadataStub.getImpressionMetadata(
           internalGetImpressionMetadataRequest {
-            dataProviderResourceId = key.dataProviderId
-            impressionMetadataResourceId = key.impressionMetadataId
+            dataProviderResourceId = impressionMetadatakey.dataProviderId
+            impressionMetadataResourceId = impressionMetadatakey.impressionMetadataId
           }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
-            ImpressionMetadataNotFoundException(key.dataProviderId, key.impressionMetadataId, e)
+            ImpressionMetadataNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
@@ -103,22 +103,12 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val impressionMetadatakey =
-      if (request.impressionMetadata.name.isNotEmpty()) {
-        ImpressionMetadataKey.fromName(request.impressionMetadata.name)
-          ?: throw InvalidFieldValueException("impression_metadata.name")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } else {
-        null
-      }
-
     ModelLineKey.fromName(request.impressionMetadata.modelLine)
       ?: throw InvalidFieldValueException("impression_metadata.model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalCreateRequest = internalCreateImpressionMetadataRequest {
-      impressionMetadata =
-        request.impressionMetadata.toInternal(dataProviderKey, impressionMetadatakey)
+      impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
       requestId = request.requestId
     }
 
@@ -128,7 +118,7 @@ class ImpressionMetadataService(
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-            ImpressionMetadataAlreadyExistsException(request.impressionMetadata.name, e)
+            ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri, e)
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -165,7 +155,7 @@ class ImpressionMetadataService(
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
-          ImpressionMetadataNotFoundException(key.dataProviderId, key.impressionMetadataId, e)
+          ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -188,7 +178,8 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
   val source = this
   return impressionMetadata {
     name =
-      "dataProviders/${source.dataProviderResourceId}/impressionMetadata/${source.impressionMetadataResourceId}"
+      ImpressionMetadataKey(source.dataProviderResourceId, source.impressionMetadataResourceId)
+        .toName()
     blobUri = source.blobUri
     blobTypeUrl = source.blobTypeUrl
     eventGroupReferenceId = source.eventGroupReferenceId
@@ -197,7 +188,6 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
-    etag = source.etag
   }
 }
 

@@ -86,7 +86,7 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `createImpressionMetadata with requestId returns a ImpressionMetadata successfully`() =
+  fun `createImpressionMetadata with requestId returns an ImpressionMetadata successfully`() =
     runBlocking {
       val startTime = Instant.now()
       val request = createImpressionMetadataRequest {
@@ -105,11 +105,10 @@ class ImpressionMetadataServiceTest {
       assertThat(requisitionMetadataKey.impressionMetadataId).isNotEmpty()
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
-      assertThat(impressionMetadata.etag).isNotEmpty()
     }
 
   @Test
-  fun `createImpressionMetadata without requestId returns a ImpressionMetadata successfully`() =
+  fun `createImpressionMetadata without requestId returns an ImpressionMetadata successfully`() =
     runBlocking {
       val startTime = Instant.now()
       val request = createImpressionMetadataRequest {
@@ -127,7 +126,6 @@ class ImpressionMetadataServiceTest {
       assertThat(impressionMetadataKey.impressionMetadataId).isNotEmpty()
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
-      assertThat(impressionMetadata.etag).isNotEmpty()
     }
 
   @Test
@@ -225,19 +223,20 @@ class ImpressionMetadataServiceTest {
             request.copy { requestId = UUID.randomUUID().toString() }
           )
         }
+
       assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
       assertThat(exception.errorInfo)
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
-            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.impressionMetadata.name
+            metadata[Errors.Metadata.BLOB_URI.key] = request.impressionMetadata.blobUri
           }
         )
     }
 
   @Test
-  fun `getImpressionMetadata returns a ImpressionMetadata successfully`() = runBlocking {
+  fun `getImpressionMetadata returns an ImpressionMetadata successfully`() = runBlocking {
     val createdImpressionMetadata =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
@@ -291,17 +290,16 @@ class ImpressionMetadataServiceTest {
     val request = getImpressionMetadataRequest {
       name = "dataProviders/asdf/impressionMetadata/123"
     }
-    val key = ImpressionMetadataKey.fromName(request.name)
     val exception =
       assertFailsWith<StatusRuntimeException> { service.getImpressionMetadata(request) }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo)
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-          metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
-          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
+          metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
         }
       )
   }
@@ -367,18 +365,16 @@ class ImpressionMetadataServiceTest {
       val request = deleteImpressionMetadataRequest {
         name = "dataProviders/data-provider-1/impressionMetadata/impression-metadata-1"
       }
-
-      val key = ImpressionMetadataKey.fromName(request.name)
       val exception =
         assertFailsWith<StatusRuntimeException> { service.deleteImpressionMetadata(request) }
+
       assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
       assertThat(exception.errorInfo)
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
-            metadata[Errors.Metadata.DATA_PROVIDER.key] = key!!.dataProviderId
-            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = key!!.impressionMetadataId
+            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
           }
         )
     }
