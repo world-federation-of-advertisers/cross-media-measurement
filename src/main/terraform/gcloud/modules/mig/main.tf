@@ -22,6 +22,7 @@ locals {
         "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
+        "tee-env-JAVA_TOOL_OPTIONS"  = "-Xmx300g"
       },
       var.config_storage_bucket == null ? {} : {
         "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
