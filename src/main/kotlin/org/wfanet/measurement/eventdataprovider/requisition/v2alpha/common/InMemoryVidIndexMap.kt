@@ -257,12 +257,18 @@ private constructor(
         Arrays.parallelSort(hashesArray)
 
         for ((index, vidAndHash) in hashesArray.withIndex()) {
+          if (index % 10_000_000 == 0 && index > 0) {
+            println("Inserted $index entries in parallel into indexMap...")
+          }
           indexMap[vidAndHash.vid] = index
         }
       } else {
         hashes.sortWith(compareBy { it })
 
         for ((index, vidAndHash) in hashes.withIndex()) {
+          if (index % 10_000_000 == 0 && index > 0) {
+            println("Inserted $index entries into indexMap...")
+          }
           indexMap[vidAndHash.vid] = index
         }
       }
