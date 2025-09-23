@@ -15,6 +15,9 @@
 name: "Configure Edp Aggregator Services"
 
 on:
+  push:
+    branches:
+      - "renjie-requisition-metadata-server"
   workflow_call:
     inputs:
       environment:
