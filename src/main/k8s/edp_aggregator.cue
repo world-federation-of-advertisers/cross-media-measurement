@@ -80,7 +80,6 @@ package k8s
 						"--cert-collection-file=/var/run/secrets/files/edp_aggregator_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/edp_aggregator_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/edp_aggregator_tls.key",
-						"--google-project-id=" + #GCloudProject,
 			] + _spannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
