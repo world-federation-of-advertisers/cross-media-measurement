@@ -376,6 +376,6 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   member   = module.edp_aggregator_internal.iam_service_account.member
 
   lifecycle {
-    replace_triggered_by = [google_spanner_database.edp_aggregator_internal.id]
+    replace_triggered_by = [google_spanner_database.edp_aggregator.id]
   }
 }
