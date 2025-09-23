@@ -16,6 +16,19 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.crypto.tink.CleartextKeysetHandle
+import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.proto.AesGcmHkdfStreamingParams
+import com.google.crypto.tink.proto.HashType
+import com.google.crypto.tink.proto.KeyData
+import com.google.crypto.tink.proto.KeyStatusType
+import com.google.crypto.tink.proto.Keyset
+import com.google.crypto.tink.proto.OutputPrefixType
+import com.google.crypto.tink.proto.AesGcmHkdfStreamingKey
+import com.google.crypto.tink.BinaryKeysetReader
+import com.google.protobuf.ByteString
+import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import com.google.type.interval
 import java.time.LocalDate
@@ -28,7 +41,12 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.HashType as EdpAggregatorHashType
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptionKey
+import java.security.SecureRandom
+import kotlin.math.absoluteValue
 
 /**
  * Storage-backed [ImpressionMetadataService].
@@ -63,6 +81,7 @@ class StorageImpressionMetadataService(
     modelLine: String,
     eventGroupReferenceId: String,
     period: Interval,
+    kmsClient: KmsClient
   ): List<ImpressionDataSource> {
     val startDate = LocalDate.ofInstant(period.startTime.toInstant(), zoneIdForDates)
     val endDateInclusive =
@@ -73,7 +92,7 @@ class StorageImpressionMetadataService(
 
     return dates.map { date ->
       val path = resolvePath(modelLine, date, eventGroupReferenceId)
-      val blobDetails = readBlobDetails(path)
+      val blobDetails = readBlobDetails(path).normalizeDek(kmsClient)
 
       val dayStartUtc = date.atStartOfDay(ZoneOffset.UTC).toInstant()
       val dayEndUtc = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -131,8 +150,122 @@ class StorageImpressionMetadataService(
           ImpressionReadException.Code.BLOB_NOT_FOUND,
           "BlobDetails metadata not found",
         )
-    return BlobDetails.parseFrom(blob.read().flatten())
+
+    val bytes: ByteString = blob.read().flatten()
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing logic based on file extension
+    return try {
+      BlobDetails.parseFrom(bytes)
+    } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
+      val builder = BlobDetails.newBuilder()
+      JsonFormat.parser().ignoringUnknownFields()
+        .merge(bytes.toString(Charsets.UTF_8), builder)
+      builder.build()
+    }
+
   }
+
+  private fun EdpAggregatorHashType.mapHashTypeCloneToTink(): HashType =
+    when (this) {
+      EdpAggregatorHashType.SHA1 -> HashType.SHA1
+      EdpAggregatorHashType.SHA256 -> HashType.SHA256
+      EdpAggregatorHashType.SHA512 -> HashType.SHA512
+      else -> throw IllegalArgumentException("Unsupported hkdf_hash_type: $this")
+    }
+
+  private fun synthesizeEncryptedKeyset(
+    encryptionKey: EncryptionKey,
+    kekUri: String,
+    kmsClient: KmsClient
+  ): ByteString {
+    val kmsAead = kmsClient.getAead(kekUri)
+
+    val aesKey = when (encryptionKey.keyCase) {
+      EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY ->
+        encryptionKey.aesGcmHkdfStreamingKey
+      EncryptionKey.KeyCase.KEY_NOT_SET ->
+        throw IllegalArgumentException("EncryptionKey has no key_type set")
+    }
+
+    val rawKeyBytes = aesKey.keyValue.toByteArray()
+
+    // Map params into a proper Tink AesGcmHkdfStreamingParams
+    val params = AesGcmHkdfStreamingParams.newBuilder()
+      .setDerivedKeySize(aesKey.params.derivedKeySize)
+      .setHkdfHashType(aesKey.params.hkdfHashType.mapHashTypeCloneToTink())
+      .setCiphertextSegmentSize(aesKey.params.ciphertextSegmentSize)
+      .build()
+
+    val tinkKey = AesGcmHkdfStreamingKey.newBuilder()
+      .setParams(params)
+      .setKeyValue(ByteString.copyFrom(rawKeyBytes))
+      .setVersion(aesKey.version)
+      .build()
+
+
+    val keyData = KeyData.newBuilder()
+      .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey")
+      .setKeyMaterialType(KeyData.KeyMaterialType.SYMMETRIC)
+      .setValue(tinkKey.toByteString())
+      .build()
+
+    val keyId = SecureRandom().nextInt().absoluteValue
+    val ks = Keyset.newBuilder()
+      .setPrimaryKeyId(keyId)
+      .addKey(
+        Keyset.Key.newBuilder()
+          .setKeyId(keyId)
+          .setStatus(KeyStatusType.ENABLED)
+          .setOutputPrefixType(OutputPrefixType.RAW)
+          .setKeyData(keyData)
+      )
+      .build()
+
+    val handle = CleartextKeysetHandle.read(
+      BinaryKeysetReader.withBytes(ks.toByteArray())
+    )
+
+    // Encrypt the keyset again with KMS
+    val enc = TinkProtoKeysetFormat.serializeEncryptedKeyset(
+      handle,
+      kmsAead,
+      byteArrayOf()
+    )
+
+    return ByteString.copyFrom(enc)
+
+  }
+
+  private fun BlobDetails.normalizeDek(kmsClient: KmsClient): BlobDetails {
+    val ed = this.encryptedDek
+    return when (ed.protobufFormat) {
+      EncryptedDek.ProtobufFormat.BINARY -> this
+      EncryptedDek.ProtobufFormat.JSON -> {
+        // 1. Decrypt ciphertext to get EncryptionKey (JSON)
+        val kmsAead = kmsClient.getAead(ed.kekUri)
+        val decrypted = kmsAead.decrypt(ed.ciphertext.toByteArray(), byteArrayOf())
+
+        val encryptionKey = EncryptionKey.newBuilder()
+        when (ed.protobufFormat) {
+          EncryptedDek.ProtobufFormat.JSON -> {
+            JsonFormat.parser().ignoringUnknownFields()
+              .merge(decrypted.toString(Charsets.UTF_8), encryptionKey)
+          }
+          else -> throw IllegalArgumentException("Unsupported protobuf_format")
+        }
+
+        val encKs = synthesizeEncryptedKeyset(encryptionKey.build(), ed.kekUri, kmsClient)
+        this.toBuilder()
+          .setEncryptedDek(ed.toBuilder()
+            .setCiphertext(encKs)
+            .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
+            .build()
+          )
+          .build()
+      }
+      else -> throw IllegalArgumentException("Unsupported protobuf_format: ${ed.protobufFormat}")
+    }
+  }
+
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
