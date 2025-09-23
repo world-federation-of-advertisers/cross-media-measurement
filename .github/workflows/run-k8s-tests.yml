@@ -59,6 +59,8 @@ jobs:
         EDP4_NAME: ${{ vars.EDP4_NAME }}
         EDP5_NAME: ${{ vars.EDP5_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
+        PDP_NAME: ${{ vars.PDP_NAME }}
+        MP_NAME: ${{ vars.MP_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -74,6 +76,8 @@ jobs:
         build --define "edp4_name=$EDP4_NAME"
         build --define "edp5_name=$EDP5_NAME"
         build --define "edp6_name=$EDP6_NAME"
+        build --define "pdp_name=$PDP_NAME"
+        build --define "mp_name=$MP_NAME"
         test --test_output=streamed
         test --test_timeout=3600
         EOF
