@@ -582,7 +582,7 @@ kustomization_dir(
     name = "secure_computation_config_files",
     testonly = True,
     srcs = [
-        "secure_computation_secret_kustomization.yaml",
+        "secure_computation_config_files_kustomization.yaml",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_config.textproto",
     ],
     renames = {"secure_computation_config_files_kustomization.yaml": "kustomization.yaml"},
