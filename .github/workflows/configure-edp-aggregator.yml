@@ -59,6 +59,7 @@ env:
 jobs:
   update-edp-aggregator-services:
     runs-on: ubuntu-22.04
+    # DO_NOT_SUBMIT: Remove fixed values.
     ########### Branch Test ##########
     env:
       MY_IMAGE_TAG: "ff201ada207145506a2a82c386e4ccd0915efa3f"
