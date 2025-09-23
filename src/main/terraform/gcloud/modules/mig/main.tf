@@ -99,7 +99,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     boot            = true
     source_image    = data.google_compute_image.confidential_space.self_link
     disk_type       = "hyperdisk-balanced"
-    disk_size_gb    = 10
+    disk_size_gb    = 20
   }
 
   shielded_instance_config {
