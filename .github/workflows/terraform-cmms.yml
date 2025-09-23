@@ -67,6 +67,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
