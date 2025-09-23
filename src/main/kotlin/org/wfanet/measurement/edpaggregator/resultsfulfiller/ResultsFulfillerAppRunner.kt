@@ -207,6 +207,7 @@ class ResultsFulfillerAppRunner : Runnable {
     createKmsClients()
 
     val queueSubscriber = createQueueSubscriber()
+    logger.info("Created DefaultGooglePubSubclient for: ${googleProjectId}.")
     val parser = createWorkItemParser()
 
     // Get client certificates from server flags
@@ -231,7 +232,9 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
     val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
+    logger.info("Creating DuchyMap.")
     val duchiesMap = buildDuchyMap()
+    logger.info("Created DuchyMap.")
 
     val requisitionStubFactory =
       RequisitionStubFactoryImpl(
@@ -241,7 +244,9 @@ class ResultsFulfillerAppRunner : Runnable {
         duchies = duchiesMap,
       )
 
+    logger.info("Creating ModelLinesMap.")
     val modelLinesMap = runBlocking { buildModelLineMap() }
+    logger.info("Created ModelLinesMap.")
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -290,12 +295,15 @@ class ResultsFulfillerAppRunner : Runnable {
 
   suspend fun buildModelLineMap(): Map<String, ModelLineInfo> {
     return modelLines.associate { it: ModelLineFlags ->
+      logger.info("Reading population spec: ${it.populationSpecFileBlobUri}.")
       val configContent: ByteArray =
         getResultsFulfillerConfigAsByteArray(googleProjectId, it.populationSpecFileBlobUri)
+      logger.info("Paring population spec")
       val populationSpec =
         configContent.inputStream().reader(Charsets.UTF_8).use { reader ->
           parseTextProto(reader, PopulationSpec.getDefaultInstance())
         }
+      logger.info("Population spec has been parsed succesfully.")
       val eventDescriptorBytes =
         getResultsFulfillerConfigAsByteArray(googleProjectId, it.eventTemplateDescriptorBlobUri)
       val fileDescriptorSet =
