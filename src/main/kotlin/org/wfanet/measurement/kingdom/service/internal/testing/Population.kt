@@ -289,12 +289,25 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelLinesService.createModelLine(modelLine)
   }
 
+  /**
+   * Creates a [ModelProvider] and [ModelSuite].
+   *
+   * Prefer creating the [ModelProvider] separately rather than calling this overload.
+   */
   suspend fun createModelSuite(
     modelProvidersService: ModelProvidersCoroutineImplBase,
     modelSuitesService: ModelSuitesCoroutineImplBase,
   ): ModelSuite {
 
     val modelProvider = modelProvidersService.createModelProvider(modelProvider {})
+    return createModelSuite(modelSuitesService, modelProvider)
+  }
+
+  /** Creates a [ModelSuite] under [modelProvider]. */
+  suspend fun createModelSuite(
+    modelSuitesService: ModelSuitesCoroutineImplBase,
+    modelProvider: ModelProvider,
+  ): ModelSuite {
     return modelSuitesService.createModelSuite(
       modelSuite {
         externalModelProviderId = modelProvider.externalModelProviderId
