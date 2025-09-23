@@ -314,10 +314,11 @@ class ResultsFulfillerAppRunner : Runnable {
       val eventDescriptor =
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
+      logger.info("Building VID Index map")
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
-          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          vidIndexMap = InMemoryVidIndexMap.build(populationSpec, true),
           eventDescriptor = eventDescriptor,
         )
     }
