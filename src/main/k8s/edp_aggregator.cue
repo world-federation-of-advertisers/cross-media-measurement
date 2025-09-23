@@ -89,9 +89,6 @@ package k8s
 			}
 
 			spec: template: spec: {
-				_mounts: {
-					"config-files": #ConfigMapMount
-				}
 				_initContainers: {
 					"update-edp-aggregator-schema": _updateSchemaContainer
 				}
