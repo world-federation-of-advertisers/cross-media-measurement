@@ -44,7 +44,7 @@ edpAggregator: #EdpAggregator & {
 	_edpAggregatorSecretName:  _secretName
 	_verboseGrpcServerLogging: true
 
-	_spannerConfig: database: "edp-aggregator"
+	_spannerConfig: database: "edp_aggregator"
 
 	serviceAccounts: {
 		"\(#InternalEdpAggregatorServerServiceAccount)": #WorkloadIdentityServiceAccount & {
