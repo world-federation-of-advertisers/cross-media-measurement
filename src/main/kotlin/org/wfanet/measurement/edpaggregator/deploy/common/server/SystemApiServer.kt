@@ -21,6 +21,7 @@ import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
@@ -88,5 +89,9 @@ class SystemApiServer : Runnable {
 
     val server: CommonServer = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
     server.start().blockUntilShutdown()
+  }
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(SystemApiServer(), args)
   }
 }

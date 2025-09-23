@@ -90,9 +90,6 @@ package k8s
 			}
 
 			spec: template: spec: {
-				_mounts: {
-					"config-files": #ConfigMapMount
-				}
 				_initContainers: {
 					"update-edp-aggregator-schema": _updateSchemaContainer
 				}
@@ -137,10 +134,6 @@ package k8s
 				}
 			}
 		}
-	}
-
-	configMaps: [Name=string]: #ConfigMap & {
-		metadata: name: Name
 	}
 
 	serviceAccounts: [Name=string]: #ServiceAccount & {
