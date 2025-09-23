@@ -50,6 +50,7 @@ jobs:
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
+          build --remote_download_outputs=all
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
