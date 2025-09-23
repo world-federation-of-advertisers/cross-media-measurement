@@ -80,7 +80,8 @@ class EventGroupSyncFunction() : HttpFunction {
           )
         )
 
-      val blob = storageClient.getBlob(eventGroupsBlobUri.key) ?: return@runBlocking emptyFlow<EventGroup>()
+      val blob = storageClient.getBlob(eventGroupsBlobUri.key)
+        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
 
       when {
         eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
