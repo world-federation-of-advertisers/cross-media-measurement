@@ -70,7 +70,7 @@ message ImpressionMetadata {
   // The resource name of the ModelLine associated with these impressions.
   string model_line = 5 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
   ];
 
   // The time interval that the impressions in the blob cover.
@@ -81,9 +81,9 @@ message ImpressionMetadata {
 
   // The timestamp when this metadata entry was created.
   google.protobuf.Timestamp create_time = 8
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when this metadata entry was last updated (e.g., deleted).
   google.protobuf.Timestamp update_time = 9
-  [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
