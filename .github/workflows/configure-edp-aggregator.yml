@@ -59,7 +59,15 @@ env:
 jobs:
   update-edp-aggregator-services:
     runs-on: ubuntu-22.04
-    environment: ${{ inputs.environment }}
+    ########### Branch Test ##########
+    env:
+      MY_ENVIRONMENT: "dev"
+      MY_IMAGE_TAG: "your-test-tag"
+      MY_APPLY_FLAG: "false"
+    #################################
+
+#    environment: ${{ inputs.environment }}
+    environment: ${{ env.MY_ENVIRONMENT }}
     steps:
     - uses: actions/checkout@v4
 
@@ -79,7 +87,8 @@ jobs:
 
     - name: Write ~/.bazelrc
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+#        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.MY_IMAGE_TAG }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: |
@@ -133,11 +142,13 @@ jobs:
       run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
 
     - name: kubectl apply
-      if: ${{ inputs.apply }}
+#      if: ${{ inputs.apply }}
+      if: ${{ env.MY_APPLY_FLAG == 'true' }}
       run: kubectl apply -k "$KUSTOMIZE_PATH"
 
     - name: Wait for rollout
-      if: ${{ inputs.apply }}
+#      if: ${{ inputs.apply }}
+      if: ${{ env.MY_APPLY_FLAG == 'true' }}
       run: |
         for deployment in $(kubectl get deployments -o name); do
           kubectl rollout status "$deployment" --timeout=5m
