@@ -216,6 +216,12 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_service_account_name" {
+  description = "Name of the DataAvailabilitySync service account."
+  type        = string
+  nullable    = false
+}
+
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
   type        = string
@@ -236,6 +242,20 @@ variable "results_fulfiller_disk_image_family" {
   description = "The boot disk image family."
   type        = string
   default     = "confidential-space"
+}
+
+variable "requisition_fetcher_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
+  type = object({
+    schedule                    = string
+    time_zone                   = string
+    name                        = string
+    function_url                = string
+    scheduler_sa_display_name   = string
+    scheduler_sa_description    = string
+    scheduler_job_description   = string
+  })
+  nullable = false
 }
 
 variable "edp_aggregator_service_account_name" {
