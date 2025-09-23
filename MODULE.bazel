@@ -22,7 +22,7 @@ K8S_CLIENT_VERSION = "21.0.1"
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.8.0",
+    version = "0.9.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.119.0",
+    version = "0.120.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -134,7 +134,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_java",
-    version = "8.7.1",
+    version = "8.15.2",
 )
 bazel_dep(
     name = "rules_jvm_external",
@@ -148,7 +148,7 @@ bazel_dep(
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "29.3",
+    version = "29.5",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
@@ -192,7 +192,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "bazel_jar_jar",
-    version = "0.1.0",
+    version = "0.1.7",
 )
 bazel_dep(
     name = "riegeli",
@@ -282,6 +282,14 @@ maven.install(
     ],
     fail_if_repin_required = True,
     fetch_sources = True,  # For IDE integration.
+    known_contributing_modules = [
+        "any-sketch-java",
+        "bazel_worker_java",
+        "common-jvm",
+        "cross-media-measurement-system",
+        "rules_kotlin_jvm",
+        "virtual-people-common",
+    ],
     lock_file = "//:maven_install.json",
     resolver = "maven",
     strict_visibility = True,
