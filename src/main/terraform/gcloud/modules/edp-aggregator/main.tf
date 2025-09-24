@@ -408,13 +408,6 @@ resource "google_dns_managed_zone" "private_gcs" {
     }
   }
 }
-#
-# resource "google_dns_managed_zone_iam_member" "terraform_dns_admin" {
-#   project      = data.google_project.project.project_id
-#   managed_zone = google_dns_managed_zone.private_gcs.name
-#   role         = "roles/dns.admin"
-#   member       = "serviceAccount:${var.terraform_service_account}"
-# }
 
 # A record points storage.googleapis.com to our PSC endpoint IP
 # Instances in this VPC will resolve GCS to 10.0.0.100 instead of public IPs
