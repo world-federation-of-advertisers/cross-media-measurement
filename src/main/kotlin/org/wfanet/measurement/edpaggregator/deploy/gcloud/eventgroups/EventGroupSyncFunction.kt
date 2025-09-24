@@ -68,7 +68,8 @@ class EventGroupSyncFunction() : HttpFunction {
     val eventGroups = runBlocking {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-      MesosRecordIoStorageClient(
+      val storageClient =
+        MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
             rootDirectory =
@@ -78,9 +79,25 @@ class EventGroupSyncFunction() : HttpFunction {
             projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
           )
         )
-        .getBlob(eventGroupsBlobUri.key)!!
-        .read()
-        .map { EventGroup.parseFrom(it) }
+
+      val blob =
+        storageClient.getBlob(eventGroupsBlobUri.key)
+          ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
+
+      when {
+        eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
+          blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
+        }
+        eventGroupsBlobUri.key.endsWith(JSON_FILE_SUFFIX) -> {
+          val parser = JsonFormat.parser()
+          blob.read().map { bytes ->
+            val builder = EventGroup.newBuilder()
+            parser.merge(bytes.toStringUtf8(), builder)
+            builder.build()
+          }
+        }
+        else -> error("Unsupported EventGroup file format: ${eventGroupsBlobUri.key}")
+      }
     }
     val eventGroupSync =
       EventGroupSync(
@@ -122,5 +139,7 @@ class EventGroupSyncFunction() : HttpFunction {
           ?: KINGDOM_SHUTDOWN_DURATION_SECONDS
       )
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
+    private const val PROTO_FILE_SUFFIX = ".binpb"
+    private const val JSON_FILE_SUFFIX = ".json"
   }
 }

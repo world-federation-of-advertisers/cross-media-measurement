@@ -37,7 +37,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlin.test.assertFails
@@ -117,7 +116,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
@@ -153,7 +151,7 @@ class ResultsFulfillerAppTest {
           val request = invocation.getArgument<GetEventGroupRequest>(0)
           eventGroup {
             name = request.name
-            eventGroupReferenceId = "some-event-group-reference-id"
+            eventGroupReferenceId = EVENT_GROUP_NAME
           }
         }
     }
@@ -253,6 +251,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -264,7 +263,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -377,6 +375,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -388,7 +387,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -493,6 +491,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -504,7 +503,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -585,6 +583,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -596,8 +595,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -687,6 +684,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -698,7 +696,6 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
-    val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
     val app =
       ResultsFulfillerApp(
@@ -795,6 +792,7 @@ class ResultsFulfillerAppTest {
         LABELED_IMPRESSION.copy {
           vid = (it % 80 + 1).toLong()
           eventTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          event = TEST_EVENT.pack()
         }
       }
 
@@ -834,6 +832,12 @@ class ResultsFulfillerAppTest {
   private suspend fun writeImpressionMetadata(tmpPath: File, serializedEncryptionKey: ByteString) {
     // Create the impressions metadata store
     Files.createDirectories(tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).toPath())
+    // Create symlink so both impression-metadata-bucket/ds and impression-metadata-bucketds paths
+    // work
+    val bucketDsPath = tmpPath.resolve("${IMPRESSIONS_METADATA_BUCKET}ds").toPath()
+    val bucketWithDsPath = tmpPath.resolve(IMPRESSIONS_METADATA_BUCKET).resolve("ds").toPath()
+    Files.createDirectories(bucketWithDsPath.parent)
+    Files.createSymbolicLink(bucketDsPath, bucketWithDsPath)
     val impressionsMetadataStorageClient =
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
@@ -842,6 +846,7 @@ class ResultsFulfillerAppTest {
     val blobDetails = blobDetails {
       this.blobUri = IMPRESSIONS_FILE_URI
       this.encryptedDek = encryptedDek
+      this.eventGroupReferenceId = EVENT_GROUP_NAME
     }
     logger.info("Writing Blob $IMPRESSION_METADATA_BLOB_KEY")
     impressionsMetadataStorageClient.writeBlob(
@@ -1110,10 +1115,8 @@ class ResultsFulfillerAppTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
-    private const val EVENT_GROUP_REFERENCE_ID = "some-event-group-reference-id"
-    private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val IMPRESSION_METADATA_BLOB_KEY =
-      "ds/${FIRST_EVENT_DATE}/event-group-reference-id/$EVENT_GROUP_REFERENCE_ID/metadata"
+      "ds/${FIRST_EVENT_DATE}/model-line/some-model-line/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
 
     private val IMPRESSIONS_METADATA_FILE_URI =
       "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"

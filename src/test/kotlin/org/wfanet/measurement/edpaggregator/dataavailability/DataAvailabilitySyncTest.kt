@@ -434,7 +434,7 @@ class DataAvailabilitySyncTest {
 
       val filename =
         when (encoding) {
-          BlobEncoding.PROTO -> "metadata-$index.pb"
+          BlobEncoding.PROTO -> "metadata-$index.binpb"
           BlobEncoding.JSON -> "metadata-$index.json"
           BlobEncoding.EMPTY -> "metadata-$index"
         }

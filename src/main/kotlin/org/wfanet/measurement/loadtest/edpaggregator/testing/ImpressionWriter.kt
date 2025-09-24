@@ -116,7 +116,7 @@ class ImpressionsWriter(
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
-        this.eventGroupReferenceId = eventGroupReferenceId
+        this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
