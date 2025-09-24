@@ -137,6 +137,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -837,8 +838,13 @@ class ResultsFulfillerAppTest {
     val impressionsMetadataStorageClient =
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(KEK_URI).setEncryptedDek(serializedEncryptionKey).build()
+    val encryptedDek = encryptedDek {
+      this.kekUri = kekUri
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
+
     val blobDetails = blobDetails {
       this.blobUri = IMPRESSIONS_FILE_URI
       this.encryptedDek = encryptedDek

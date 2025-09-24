@@ -170,7 +170,6 @@ class StorageEventSource(
             modelLine,
             details.eventGroupReferenceId,
             interval,
-            kmsClient
           )
         }
       }

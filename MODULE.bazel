@@ -40,6 +40,14 @@ bazel_dep(
     version = "0.119.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-f75418b6733291adfb4a7e5129a2573c9a5775a1",
+    urls = "https://github.com/world-federation-of-advertisers/common-jvm/archive/f75418b6733291adfb4a7e5129a2573c9a5775a1.tar.gz",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.13.0",

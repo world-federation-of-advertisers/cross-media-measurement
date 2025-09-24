@@ -77,6 +77,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMem
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 /**
  * End-to-end integration tests for event processing with requisitions and event groups.
@@ -1303,9 +1304,7 @@ class EventProcessingIntegrationTest {
     val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
 
     // Create empty encrypted DEK since we're not using encryption
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri("").setEncryptedDek(ByteString.EMPTY).build()
-
+    val encryptedDek = encryptedDek {}
     val blobDetails = blobDetails {
       blobUri = "file:///impressions/$date/$eventGroup"
       this.encryptedDek = encryptedDek

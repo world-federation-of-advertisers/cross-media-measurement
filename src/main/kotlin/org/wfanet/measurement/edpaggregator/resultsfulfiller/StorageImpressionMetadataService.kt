@@ -81,7 +81,6 @@ class StorageImpressionMetadataService(
     modelLine: String,
     eventGroupReferenceId: String,
     period: Interval,
-    kmsClient: KmsClient
   ): List<ImpressionDataSource> {
     val startDate = LocalDate.ofInstant(period.startTime.toInstant(), zoneIdForDates)
     val endDateInclusive =
@@ -92,7 +91,7 @@ class StorageImpressionMetadataService(
 
     return dates.map { date ->
       val path = resolvePath(modelLine, date, eventGroupReferenceId)
-      val blobDetails = readBlobDetails(path).normalizeDek(kmsClient)
+      val blobDetails = readBlobDetails(path)
 
       val dayStartUtc = date.atStartOfDay(ZoneOffset.UTC).toInstant()
       val dayEndUtc = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -162,108 +161,6 @@ class StorageImpressionMetadataService(
       builder.build()
     }
 
-  }
-
-  private fun EdpAggregatorHashType.mapHashTypeCloneToTink(): HashType =
-    when (this) {
-      EdpAggregatorHashType.SHA1 -> HashType.SHA1
-      EdpAggregatorHashType.SHA256 -> HashType.SHA256
-      EdpAggregatorHashType.SHA512 -> HashType.SHA512
-      else -> throw IllegalArgumentException("Unsupported hkdf_hash_type: $this")
-    }
-
-  private fun synthesizeEncryptedKeyset(
-    encryptionKey: EncryptionKey,
-    kekUri: String,
-    kmsClient: KmsClient
-  ): ByteString {
-    val kmsAead = kmsClient.getAead(kekUri)
-
-    val aesKey = when (encryptionKey.keyCase) {
-      EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY ->
-        encryptionKey.aesGcmHkdfStreamingKey
-      EncryptionKey.KeyCase.KEY_NOT_SET ->
-        throw IllegalArgumentException("EncryptionKey has no key_type set")
-    }
-
-    val rawKeyBytes = aesKey.keyValue.toByteArray()
-
-    // Map params into a proper Tink AesGcmHkdfStreamingParams
-    val params = AesGcmHkdfStreamingParams.newBuilder()
-      .setDerivedKeySize(aesKey.params.derivedKeySize)
-      .setHkdfHashType(aesKey.params.hkdfHashType.mapHashTypeCloneToTink())
-      .setCiphertextSegmentSize(aesKey.params.ciphertextSegmentSize)
-      .build()
-
-    val tinkKey = AesGcmHkdfStreamingKey.newBuilder()
-      .setParams(params)
-      .setKeyValue(ByteString.copyFrom(rawKeyBytes))
-      .setVersion(aesKey.version)
-      .build()
-
-
-    val keyData = KeyData.newBuilder()
-      .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey")
-      .setKeyMaterialType(KeyData.KeyMaterialType.SYMMETRIC)
-      .setValue(tinkKey.toByteString())
-      .build()
-
-    val keyId = SecureRandom().nextInt().absoluteValue
-    val ks = Keyset.newBuilder()
-      .setPrimaryKeyId(keyId)
-      .addKey(
-        Keyset.Key.newBuilder()
-          .setKeyId(keyId)
-          .setStatus(KeyStatusType.ENABLED)
-          .setOutputPrefixType(OutputPrefixType.RAW)
-          .setKeyData(keyData)
-      )
-      .build()
-
-    val handle = CleartextKeysetHandle.read(
-      BinaryKeysetReader.withBytes(ks.toByteArray())
-    )
-
-    // Encrypt the keyset again with KMS
-    val enc = TinkProtoKeysetFormat.serializeEncryptedKeyset(
-      handle,
-      kmsAead,
-      byteArrayOf()
-    )
-
-    return ByteString.copyFrom(enc)
-
-  }
-
-  private fun BlobDetails.normalizeDek(kmsClient: KmsClient): BlobDetails {
-    val ed = this.encryptedDek
-    return when (ed.protobufFormat) {
-      EncryptedDek.ProtobufFormat.BINARY -> this
-      EncryptedDek.ProtobufFormat.JSON -> {
-        // 1. Decrypt ciphertext to get EncryptionKey (JSON)
-        val kmsAead = kmsClient.getAead(ed.kekUri)
-        val decrypted = kmsAead.decrypt(ed.ciphertext.toByteArray(), byteArrayOf())
-
-        val encryptionKey = EncryptionKey.newBuilder()
-        when (ed.protobufFormat) {
-          EncryptedDek.ProtobufFormat.JSON -> {
-            JsonFormat.parser().ignoringUnknownFields()
-              .merge(decrypted.toString(Charsets.UTF_8), encryptionKey)
-          }
-          else -> throw IllegalArgumentException("Unsupported protobuf_format")
-        }
-
-        val encKs = synthesizeEncryptedKeyset(encryptionKey.build(), ed.kekUri, kmsClient)
-        this.toBuilder()
-          .setEncryptedDek(ed.toBuilder()
-            .setCiphertext(encKs)
-            .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
-            .build()
-          )
-          .build()
-      }
-      else -> throw IllegalArgumentException("Unsupported protobuf_format: ${ed.protobufFormat}")
-    }
   }
 
 

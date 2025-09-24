@@ -55,6 +55,5 @@ interface ImpressionMetadataService {
     modelLine: String,
     eventGroupReferenceId: String,
     period: Interval,
-    kmsClient: KmsClient
   ): List<ImpressionDataSource>
 }

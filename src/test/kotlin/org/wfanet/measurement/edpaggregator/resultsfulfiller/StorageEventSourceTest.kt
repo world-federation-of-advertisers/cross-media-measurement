@@ -203,7 +203,7 @@ class StorageEventSourceTest {
           "blobUri": "file:///impressions/$date/$eventGroupRef",
           "encryptedDek": {
             "kekUri": "$kekUri",
-            "typeUrl": "type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey",
+            "typeUrl": "type.googleapis.com/google.crypto.tink.Keyset",
             "protobufFormat": "JSON",
             "ciphertext": "$jsonSerializedEncryptionKey"
           },
@@ -220,7 +220,7 @@ class StorageEventSourceTest {
         // 👇 Binary protobuf mode (existing behavior)
         val encryptedDek = encryptedDek {
           this.kekUri = this@StorageEventSourceTest.kekUri
-          typeUrl = "type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey"
+          typeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey"
           protobufFormat = EncryptedDek.ProtobufFormat.BINARY
           ciphertext = serializedEncryptionKey
         }

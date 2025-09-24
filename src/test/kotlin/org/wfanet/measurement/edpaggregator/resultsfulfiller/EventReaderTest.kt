@@ -60,6 +60,7 @@ class EventReaderTest {
   private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
+  private lateinit var encryptedDek: EncryptedDek
 
   init {
     AeadConfig.register()
@@ -83,6 +84,13 @@ class EventReaderTest {
         kekUri,
         tinkKeyTemplateType = "AES128_GCM_HKDF_1MB",
       )
+
+    encryptedDek = encryptedDek {
+      this.kekUri = this@EventReaderTest.kekUri
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
   }
 
   @Test
@@ -99,7 +107,7 @@ class EventReaderTest {
         impressionsStorageClient,
         kmsClient,
         kekUri,
-        serializedEncryptionKey,
+        encryptedDek,
       )
 
     // Create test impressions

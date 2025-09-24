@@ -138,6 +138,7 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {
@@ -436,8 +437,13 @@ class ResultsFulfillerTest {
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, metadataTmpPath)
 
-      val encryptedDek =
-        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val encryptedDek = encryptedDek {
+        this.kekUri = kekUri
+        typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+        protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+        ciphertext = serializedEncryptionKey
+      }
+
       val blobDetails =
         BlobDetails.newBuilder()
           .setBlobUri(IMPRESSIONS_FILE_URI)
