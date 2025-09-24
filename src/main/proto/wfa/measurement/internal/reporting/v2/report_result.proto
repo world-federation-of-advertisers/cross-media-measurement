@@ -64,7 +64,7 @@ message ReportResult {
     // The event template dimensions the result is grouped by
     // Each event template field path may exist at most once in this list.
     repeated EventTemplateField groupings = 6;
-    // The filters, sans the IQF criteria, that was applied to these results.
+    // The filters, sans the IQF criteria, that were applied to these results.
     repeated EventFilter event_filters = 7;
     int32 population_size = 8;
     // Represents the results for a reporting window with respect to a
