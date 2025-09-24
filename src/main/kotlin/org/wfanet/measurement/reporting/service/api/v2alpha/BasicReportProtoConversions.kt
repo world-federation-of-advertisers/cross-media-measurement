@@ -93,7 +93,8 @@ fun BasicReport.toInternal(
   basicReportId: String,
   campaignGroupId: String,
   createReportRequestId: String,
-  internalReportingImpressionQualificationFilters: List<InternalReportingImpressionQualificationFilter>,
+  internalReportingImpressionQualificationFilters:
+    List<InternalReportingImpressionQualificationFilter>,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -579,8 +580,12 @@ fun InternalReportingImpressionQualificationFilter.toReportingImpressionQualific
   }
 }
 
-/** Converts the internal [InternalImpressionQualificationFilterSpec] to the public [ImpressionQualificationFilterSpec]. */
-fun InternalImpressionQualificationFilterSpec.toImpressionQualificationFilterSpec(): ImpressionQualificationFilterSpec {
+/**
+ * Converts the internal [InternalImpressionQualificationFilterSpec] to the public
+ * [ImpressionQualificationFilterSpec].
+ */
+fun InternalImpressionQualificationFilterSpec.toImpressionQualificationFilterSpec():
+  ImpressionQualificationFilterSpec {
   val source = this
   return impressionQualificationFilterSpec {
     mediaType = source.mediaType.toMediaType()

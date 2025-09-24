@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -60,6 +61,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as i
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -91,8 +93,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
-import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -157,8 +157,11 @@ class BasicReportsService(
     }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists: MutableList<List<ImpressionQualificationFilterSpec>> = mutableListOf()
-    val internalReportingImpressionQualificationFilters: List<InternalReportingImpressionQualificationFilter> =
+    val impressionQualificationFilterSpecsLists:
+      MutableList<List<ImpressionQualificationFilterSpec>> =
+      mutableListOf()
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter> =
       buildList {
         for (impressionQualificationFilter in
           request.basicReport.impressionQualificationFiltersList) {
@@ -171,19 +174,23 @@ class BasicReportsService(
               val internalImpressionQualificationFilter =
                 internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
                   getImpressionQualificationFilterRequest {
-                    externalImpressionQualificationFilterId =
-                      key!!.impressionQualificationFilterId
+                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
                   }
                 )
 
               add(
                 reportingImpressionQualificationFilter {
-                  externalImpressionQualificationFilterId = internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+                  externalImpressionQualificationFilterId =
+                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
                   filterSpecs += internalImpressionQualificationFilter.filterSpecsList
                 }
               )
 
-              impressionQualificationFilterSpecsLists.add(internalImpressionQualificationFilter.toImpressionQualificationFilter().filterSpecsList)
+              impressionQualificationFilterSpecsLists.add(
+                internalImpressionQualificationFilter
+                  .toImpressionQualificationFilter()
+                  .filterSpecsList
+              )
             } catch (e: StatusException) {
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
@@ -202,7 +209,9 @@ class BasicReportsService(
               }
             }
           } else if (impressionQualificationFilter.hasCustom()) {
-            impressionQualificationFilterSpecsLists.add(impressionQualificationFilter.custom.filterSpecList)
+            impressionQualificationFilterSpecsLists.add(
+              impressionQualificationFilter.custom.filterSpecList
+            )
           }
         }
       }
@@ -219,7 +228,8 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
-                internalReportingImpressionQualificationFilters = internalReportingImpressionQualificationFilters,
+                internalReportingImpressionQualificationFilters =
+                  internalReportingImpressionQualificationFilters,
               )
             requestId = request.requestId
           }

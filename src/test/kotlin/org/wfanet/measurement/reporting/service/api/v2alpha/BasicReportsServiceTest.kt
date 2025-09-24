@@ -1594,7 +1594,8 @@ class BasicReportsServiceTest {
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             details =
               MetricCalculationSpecKt.details {
-                filter = "((has(banner_ad) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                filter =
+                  "((has(banner_ad) && banner_ad.viewable == true)) && (person.age_group == 1)"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
                     weekly =
@@ -1641,7 +1642,8 @@ class BasicReportsServiceTest {
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             details =
               MetricCalculationSpecKt.details {
-                filter = "((has(banner_ad) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                filter =
+                  "((has(banner_ad) && banner_ad.viewable == true)) && (person.age_group == 1)"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
                     weekly =

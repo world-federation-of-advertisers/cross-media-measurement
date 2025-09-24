@@ -2613,7 +2613,8 @@ class BasicReportTransformationsTest {
         buildList {
           add(
             MetricCalculationSpecKt.details {
-              filter = "((has(banner_ad) && banner_ad.viewable == true) || (has(video_ad) && video_ad.viewed_fraction == 1.0))"
+              filter =
+                "((has(banner_ad) && banner_ad.viewable == true) || (has(video_ad) && video_ad.viewed_fraction == 1.0))"
               metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
             }
           )

@@ -40,11 +40,11 @@ class EventMessageFlags {
   @CommandLine.Option(
     names = ["--event-message-descriptor-set"],
     description =
-    [
-      "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
-        "dependencies.",
-      "This can be specified multiple times.",
-    ],
+      [
+        "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
+          "dependencies.",
+        "This can be specified multiple times.",
+      ],
     required = false,
   )
   var eventMessageDescriptorSetFiles: List<File> = emptyList()
@@ -52,10 +52,7 @@ class EventMessageFlags {
 
   val eventDescriptor: EventDescriptor? =
     // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
-    if (
-      eventMessageTypeUrl.isNotEmpty() &&
-      eventMessageDescriptorSetFiles.isNotEmpty()
-    ) {
+    if (eventMessageTypeUrl.isNotEmpty() && eventMessageDescriptorSetFiles.isNotEmpty()) {
       val eventDescriptor: Descriptors.Descriptor =
         checkNotNull(
           buildTypeRegistry(eventMessageDescriptorSetFiles)

@@ -46,10 +46,12 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
@@ -61,8 +63,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoSe
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
-import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -79,7 +79,7 @@ private fun run(
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
   @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
-  ) {
+) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
