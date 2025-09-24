@@ -526,14 +526,17 @@ class ResultsFulfillerTest {
     return (6 * stddev).toLong()
   }
 
-  /**
-   * Loads grouped requisitions from the test storage.
-   */
-  private suspend fun loadGroupedRequisitions(requisitionsTmpPath: File): org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions {
-    val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
-    val requisitionBytes = requisitionsStorageClient.getBlob(REQUISITIONS_BLOB_KEY)?.read()?.flatten()
-      ?: throw Exception("Requisitions blob not found")
-    return Any.parseFrom(requisitionBytes).unpack(org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions::class.java)
+  /** Loads grouped requisitions from the test storage. */
+  private suspend fun loadGroupedRequisitions(
+    requisitionsTmpPath: File
+  ): org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions {
+    val requisitionsStorageClient =
+      SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
+    val requisitionBytes =
+      requisitionsStorageClient.getBlob(REQUISITIONS_BLOB_KEY)?.read()?.flatten()
+        ?: throw Exception("Requisitions blob not found")
+    return Any.parseFrom(requisitionBytes)
+      .unpack(org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions::class.java)
   }
 
   init {

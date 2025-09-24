@@ -100,9 +100,10 @@ class ResultsFulfillerApp(
     val requisitionsStorageConfig = getRequisitionsStorageConfig(storageParams)
     val impressionsMetadataStorageConfig = getImpressionsMetadataStorageConfig(storageParams)
     val impressionsStorageConfig = getImpressionsStorageConfig(storageParams)
-    
+
     // Load grouped requisitions from storage
-    val groupedRequisitions = loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
+    val groupedRequisitions =
+      loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
 
     val requisitionFulfillmentStubsMap =
@@ -170,14 +171,15 @@ class ResultsFulfillerApp(
         null
       }
 
-    val fulfillerSelector = DefaultFulfillerSelector(
-      requisitionsStub = requisitionsStub,
-      requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
-      dataProviderCertificateKey = dataProviderCertificateKey,
-      dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
-      noiserSelector = noiseSelector,
-      kAnonymityParams = kAnonymityParams,
-    )
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = requisitionFulfillmentStubsMap,
+        dataProviderCertificateKey = dataProviderCertificateKey,
+        dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
+        noiserSelector = noiseSelector,
+        kAnonymityParams = kAnonymityParams,
+      )
 
     ResultsFulfiller(
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
@@ -191,7 +193,7 @@ class ResultsFulfillerApp(
       )
       .fulfillRequisitions()
   }
-  
+
   /**
    * Loads [GroupedRequisitions] from blob storage using the provided URI.
    *
@@ -204,7 +206,7 @@ class ResultsFulfillerApp(
    */
   private suspend fun loadGroupedRequisitions(
     requisitionsBlobUri: String,
-    requisitionsStorageConfig: StorageConfig
+    requisitionsStorageConfig: StorageConfig,
   ): GroupedRequisitions {
     val storageClientUri = SelectedStorageClient.parseBlobUri(requisitionsBlobUri)
     val requisitionsStorageClient =

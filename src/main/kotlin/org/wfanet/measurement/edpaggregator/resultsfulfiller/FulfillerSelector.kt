@@ -22,7 +22,9 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 
-/** Interface for selecting the appropriate MeasurementFulfiller based on protocol and requirements. */
+/**
+ * Interface for selecting the appropriate MeasurementFulfiller based on protocol and requirements.
+ */
 interface FulfillerSelector {
   /**
    * Selects the appropriate MeasurementFulfiller for the given requisition and data.
