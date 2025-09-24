@@ -188,7 +188,7 @@ class BasicReportsReportsJobTest {
               groupingPredicates += "person.gender == 1"
               groupingPredicates += "person.age_group == 1"
               filter =
-                "((has(banner_ad) && banner_ad.viewable == true) || (has(video_ad) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
+                "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
             }
 
           metricCalculationResults +=
@@ -250,7 +250,7 @@ class BasicReportsReportsJobTest {
                   groupingPredicates += "person.gender == 1"
                   groupingPredicates += "person.age_group == 2"
                   filter =
-                    "((has(banner_ad) && banner_ad.viewable == true) || (has(video_ad) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
                   metricSpec = metricSpec {
                     impressionCount = MetricSpecKt.impressionCountParams {}
                   }
@@ -341,7 +341,7 @@ class BasicReportsReportsJobTest {
                   groupingPredicates += "person.age_group == 1"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   filter =
-                    "((has(banner_ad) && banner_ad.viewable == true) || (has(video_ad) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 2)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 2)"
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
                     endTime = timestamp { seconds = 1736755200 }
@@ -655,7 +655,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -682,7 +682,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -727,7 +727,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -775,7 +775,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -845,7 +845,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -913,7 +913,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -996,7 +996,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1023,7 +1023,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(video_ad) && video_ad.viewed_fraction == 1.0))"
+                filter = "((has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1068,7 +1068,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1116,7 +1116,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1165,7 +1165,7 @@ class BasicReportsReportsJobTest {
                 groupingPredicates += "person.gender == 1"
                 groupingPredicates += "person.age_group == 1"
                 groupingPredicates += "person.social_grade_group == 1"
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1225,7 +1225,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1306,7 +1306,7 @@ class BasicReportsReportsJobTest {
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   filter =
-                    "((has(banner_ad) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (person.age_group == 1)"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1385,7 +1385,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1431,7 +1431,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1441,7 +1441,7 @@ class BasicReportsReportsJobTest {
               }
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1453,7 +1453,7 @@ class BasicReportsReportsJobTest {
               }
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec {
                   reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
                 }
@@ -1484,7 +1484,7 @@ class BasicReportsReportsJobTest {
               }
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1567,7 +1567,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1594,7 +1594,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1670,7 +1670,7 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -1739,7 +1739,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
@@ -1750,7 +1750,7 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad) && banner_ad.viewable == true))"
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736755200 }

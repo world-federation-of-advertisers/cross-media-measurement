@@ -148,12 +148,7 @@ fun createImpressionQualificationFilterSpecsFilter(
       impressionQualificationFilterSpec.filtersList
         // To normalize the filter string
         .sortedBy { it.termsList.first().path }
-        .joinToString(
-          prefix =
-            "(has(${impressionQualificationFilterSpec.filtersList.first().termsList.first().path.split(".")[0]}) && ",
-          postfix = ")",
-          separator = " && ",
-        ) {
+        .joinToString(prefix = "(", postfix = ")", separator = " && ") {
           val term = it.termsList.first()
           val termValue =
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -172,7 +167,7 @@ fun createImpressionQualificationFilterSpecsFilter(
               EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
                 throw IllegalArgumentException("Selector not set")
             }
-          "${term.path} == $termValue"
+          "has(${term.path}) && ${term.path} == $termValue"
         }
       // To normalize the filter string
     }
