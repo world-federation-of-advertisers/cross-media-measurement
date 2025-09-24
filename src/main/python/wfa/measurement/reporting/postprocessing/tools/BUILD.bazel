@@ -26,9 +26,6 @@ py_binary(
     deps = [
         "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_v2_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
-        requirement("absl-py"),
-        requirement("protobuf"),
-        requirement("google-cloud-core"),
     ],
 )
 
