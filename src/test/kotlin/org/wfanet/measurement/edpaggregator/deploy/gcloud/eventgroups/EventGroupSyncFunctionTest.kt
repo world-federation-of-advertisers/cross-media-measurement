@@ -234,7 +234,10 @@ class EventGroupSyncFunctionTest() {
 
     runBlocking {
       MesosRecordIoStorageClient(storageClient)
-        .writeBlob("some/path/campaigns-blob-uri.binpb", testCampaigns.map { it.toByteString() }.asFlow())
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -271,7 +274,8 @@ class EventGroupSyncFunctionTest() {
 
   @Test
   fun `sync registersUnregisteredEventGroups using JSON format`() {
-    val newCampaign = """
+    val newCampaign =
+      """
       {
         "eventGroupReferenceId": "reference-id-4",
         "eventGroupMetadata": {
@@ -289,7 +293,8 @@ class EventGroupSyncFunctionTest() {
         "measurementConsumer": "measurement-consumer-2",
         "mediaTypes": ["OTHER"]
       }
-    """.trimIndent()
+    """
+        .trimIndent()
 
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
@@ -323,7 +328,10 @@ class EventGroupSyncFunctionTest() {
 
     runBlocking {
       MesosRecordIoStorageClient(storageClient)
-        .writeBlob("some/path/campaigns-blob-uri.json", flowOf(ByteString.copyFromUtf8(newCampaign)))
+        .writeBlob(
+          "some/path/campaigns-blob-uri.json",
+          flowOf(ByteString.copyFromUtf8(newCampaign)),
+        )
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -346,12 +354,7 @@ class EventGroupSyncFunctionTest() {
         .toList()
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
-    assertThat(mappedData)
-      .isEqualTo(
-        listOf(
-          "reference-id-4" to "resource-name-for-reference-id-4",
-        )
-      )
+    assertThat(mappedData).isEqualTo(listOf("reference-id-4" to "resource-name-for-reference-id-4"))
   }
 
   companion object {

@@ -20,7 +20,6 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
-import kotlinx.coroutines.flow.emptyFlow
 import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
@@ -69,7 +68,8 @@ class EventGroupSyncFunction() : HttpFunction {
     val eventGroups = runBlocking {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-      val storageClient = MesosRecordIoStorageClient(
+      val storageClient =
+        MesosRecordIoStorageClient(
           SelectedStorageClient(
             blobUri = eventGroupsBlobUri,
             rootDirectory =
@@ -80,8 +80,9 @@ class EventGroupSyncFunction() : HttpFunction {
           )
         )
 
-      val blob = storageClient.getBlob(eventGroupsBlobUri.key)
-        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
+      val blob =
+        storageClient.getBlob(eventGroupsBlobUri.key)
+          ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
 
       when {
         eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {

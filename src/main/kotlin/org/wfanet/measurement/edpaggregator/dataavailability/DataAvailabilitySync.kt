@@ -199,7 +199,8 @@ class DataAvailabilitySync(
    *
    * For each blob:
    * - Determines the format based on the file extension:
-   *     - If the file name ends with `.binpb`, parses the content as a binary `BlobDetails` protobuf.
+   *     - If the file name ends with `.binpb`, parses the content as a binary `BlobDetails`
+   *       protobuf.
    *     - If the file name ends with `.json`, parses the content as JSON using [JsonFormat.parser]
    *       with `ignoringUnknownFields()`
    *     - Ignore otherwise
