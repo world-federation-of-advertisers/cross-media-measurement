@@ -71,14 +71,16 @@ class ReportSummaryV2Processor:
         """Builds a Report object from the report summary data."""
         logging.info("Building a report from the report summary v2.")
 
-        # Process all union results from the input proto.
+        # Processes all union results from the input proto.
         self._process_union_results()
 
+        # Gets all impression filters.
         all_impression_filters = (
             set(self._weekly_cumulative_reaches.keys()) |
             set(self._weekly_non_cumulative_measurements.keys()) |
             set(self._whole_campaign_measurements.keys()))
 
+        # Builds metric reports.
         metric_reports = {}
         for impression_filter in all_impression_filters:
             metric_reports[impression_filter] = MetricReport(
@@ -96,17 +98,12 @@ class ReportSummaryV2Processor:
         if "custom" in all_impression_filters:
             children_metrics.append("custom")
 
-        # Builds the report based on the extracted primitive results.
-        # The parent-child relationship between "ami" and other filters is
-        # hardcoded for now as it's a common use case.
-        report = Report(
+        return Report(
             metric_reports,
             metric_subsets_by_parent={"ami": children_metrics}
             if children_metrics else {},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
-
-        return report
 
     def _process_union_results(self):
         """Extracts all union results from the report summary v2."""
@@ -114,6 +111,9 @@ class ReportSummaryV2Processor:
 
         for report_summary_set_result in (
                 self._report_summary.report_summary_set_results):
+            if report_summary_set_result.set_operation != "union":
+                continue
+
             impression_filter = report_summary_set_result.impression_filter
             edp_combination = frozenset(
                 report_summary_set_result.data_providers)

@@ -567,21 +567,18 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         )
 
     def test_report_is_built_from_report_summary_v2_correctly(self):
-        # 1. Setup: Load the sample data.
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.json'
         )
         reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
+
         edp1 = frozenset({'EDP_ONE'})
         edp2 = frozenset({'EDP_TWO'})
         edp3 = frozenset({'EDP_THREE'})
         edp12 = frozenset({'EDP_ONE', 'EDP_TWO'})
         edp123 = frozenset({'EDP_ONE', 'EDP_TWO', 'EDP_THREE'})
 
-        # 2. Execution
         report = reportSummaryProcessor._build_report()
-
-        # 3. Verification
 
         expected_report = Report(
             metric_reports={

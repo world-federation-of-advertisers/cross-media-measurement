@@ -20,7 +20,7 @@ option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportSummaryV2Proto";
 
-// Represents a summary of a report, containing information such as the filtered
+// Represents a report summary, containing information such as the filtered
 // demographic groups, the corresponding total population size, and a list of
 // metric results.
 message ReportSummaryV2 {
