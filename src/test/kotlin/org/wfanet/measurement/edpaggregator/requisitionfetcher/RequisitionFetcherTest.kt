@@ -22,6 +22,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.timestamp
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -33,6 +34,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.flatten
@@ -42,6 +44,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import java.util.UUID
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
 class RequisitionFetcherTest {
@@ -50,8 +54,21 @@ class RequisitionFetcherTest {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceImplBase =
+    mockService {
+      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requsitionMetadata {})
+      onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
+
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(requisitionMetadataServiceMock)
+  }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
+    RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val requisitionMetadataStub: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
 
@@ -61,18 +78,31 @@ class RequisitionFetcherTest {
 
   @Test
   fun `fetchAndStoreRequisitions stores single GroupedRequisition`() = runBlocking {
-    whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(listOf(GROUPED_REQUISITIONS))
+    whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(
+      listOf(
+        RequisitionGrouper.GroupedRequisitionsWrapper(
+          reportId = "some-report-id",
+          groupedRequisitions = GROUPED_REQUISITIONS,
+          requisitions = listOf(
+            RequisitionGrouper.RequisitionWrapper(
+              requisition = REQUISITION,
+              status = RequisitionGrouper.RequisitionValidationStatus.VALID
+            )
+          )
+        )
+      )
+    )
 
     val storageClient = FileSystemStorageClient(tempFolder.root)
-    val blobKey = "$STORAGE_PATH_PREFIX/${createDeterministicId(GROUPED_REQUISITIONS)}"
+    val blobKey = "$STORAGE_PATH_PREFIX/${UUID.randomUUID()}"
     val fetcher =
       RequisitionFetcher(
         requisitionsStub,
+        requisitionMetadataStub,
         storageClient,
         DATA_PROVIDER_NAME,
         STORAGE_PATH_PREFIX,
         requisitionGrouper,
-        ::createDeterministicId,
       )
     val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
 
@@ -98,11 +128,11 @@ class RequisitionFetcherTest {
       val fetcher =
         RequisitionFetcher(
           requisitionsStub,
+          requisitionMetadataStub,
           storageClient,
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,
           requisitionGrouper,
-          ::createDeterministicId,
         )
 
       val expectedResult = groupedRequisitionsList.map { Any.pack(it) }

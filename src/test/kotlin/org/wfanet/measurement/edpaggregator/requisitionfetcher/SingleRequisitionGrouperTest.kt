@@ -36,7 +36,6 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
@@ -90,14 +89,14 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
 
   @Test
   fun `able to map Requisition to GroupedRequisitions`() {
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
+    val groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper> = runBlocking {
       requisitionGrouper.groupRequisitions(
         listOf(TestRequisitionData.REQUISITION, TestRequisitionData.REQUISITION)
       )
     }
-    assertThat(groupedRequisitions).hasSize(2)
-    groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      assertThat(groupedRequisition.eventGroupMapList.single())
+    assertThat(groupedRequisitionsWrappers).hasSize(2)
+    groupedRequisitionsWrappers.forEach { groupedRequisitionWrapper: RequisitionGrouper.GroupedRequisitionsWrapper ->
+      assertThat(groupedRequisitionWrapper.groupedRequisitions?.eventGroupMapList?.single())
         .isEqualTo(
           eventGroupMapEntry {
             eventGroup = "dataProviders/someDataProvider/eventGroups/name"
@@ -114,9 +113,7 @@ class SingleRequisitionGrouperTest : AbstractRequisitionGrouperTest() {
           }
         )
       assertThat(
-          groupedRequisition.requisitionsList
-            .map { it.requisition.unpack(Requisition::class.java) }
-            .single()
+        groupedRequisitionWrapper.groupedRequisitions?.requisitionsList?.map { it.requisition.unpack(Requisition::class.java) }?.single()
         )
         .isEqualTo(TestRequisitionData.REQUISITION)
     }

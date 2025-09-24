@@ -43,11 +43,9 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import java.util.UUID
 
 /**
  * A Google Cloud Function that fetches and stores requisitions for each configured data provider.
@@ -138,7 +136,6 @@ class RequisitionFetcherFunction : HttpFunction {
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
       requisitionBlobPrefix = requisitionBlobPrefix,
       requisitionGrouper = requisitionGrouper,
-      groupedRequisitionsIdGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
     )
   }
@@ -207,27 +204,6 @@ class RequisitionFetcherFunction : HttpFunction {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
       }
-    }
-
-    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-      val requisitionNames =
-        groupedRequisition.requisitionsList
-          .mapNotNull { entry ->
-            val requisition = entry.requisition.unpack(Requisition::class.java)
-            requisition.name
-          }
-          .sorted()
-
-      val concatenated = requisitionNames.joinToString(separator = "|")
-
-      val bytes = MessageDigest.getInstance("SHA-256")
-        .digest(concatenated.toByteArray())
-        .copyOfRange(0, 16)
-
-      bytes[6] = (bytes[6].toInt() and 0x0f or 0x40).toByte()
-      bytes[8] = (bytes[8].toInt() and 0x3f or 0x80).toByte()
-
-      return UUID.nameUUIDFromBytes(bytes).toString()
     }
 
     /**

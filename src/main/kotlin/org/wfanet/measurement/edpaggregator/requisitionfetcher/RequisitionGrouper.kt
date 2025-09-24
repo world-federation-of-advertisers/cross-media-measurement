@@ -18,18 +18,15 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import io.grpc.StatusException
-import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -38,7 +35,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 
 /**
  * An interface to group a list of requisitions.
@@ -56,9 +52,22 @@ abstract class RequisitionGrouper(
   private val requisitionValidator: RequisitionsValidator,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
-  requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub,
   private val throttler: Throttler,
 ) {
+
+  enum class RequisitionValidationStatus { VALID, INVALID }
+
+  data class RequisitionWrapper(
+    val requisition: Requisition,
+    val status: RequisitionValidationStatus,
+    val refusal: Requisition.Refusal? = null
+  )
+
+  data class GroupedRequisitionsWrapper(
+    val reportId: String,
+    val groupedRequisitions: GroupedRequisitions? = null,
+    val requisitions: List<RequisitionWrapper>
+  )
 
   /**
    * Groups a list of disparate [Requisition] objects for execution.
@@ -69,31 +78,47 @@ abstract class RequisitionGrouper(
    * @param requisitions A list of [Requisition] objects to be grouped.
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
-  suspend fun groupRequisitions(requisitions: List<Requisition>, dataProvider: String): List<GroupedRequisitions> {
-    val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
+  suspend fun groupRequisitions(
+    requisitions: List<Requisition>
+  ): List<GroupedRequisitionsWrapper> {
+    val mappedRequisitions: List<GroupedRequisitionsWrapper> = requisitions.mapNotNull { mapRequisition(it) }
     return combineGroupedRequisitions(mappedRequisitions)
   }
 
   /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
   protected suspend abstract fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
-  ): List<GroupedRequisitions>
+    groupedRequisitions: List<GroupedRequisitionsWrapper>
+  ): List<GroupedRequisitionsWrapper>
 
-  /* Maps a single [Requisition] to a single [GroupedRequisition]. */
-  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
+    /* Maps a single [Requisition] to a single [GroupedRequisition]. */
+  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitionsWrapper? {
     val measurementSpec: MeasurementSpec =
       try {
         requisitionValidator.validateMeasurementSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        logger.severe(
+          "Exception getting measurement spec for requisition ${requisition.name}: ${e.message}"
+        )
+        // Cannot be grouped since MeasurementSpec is invalid, therefore no groupID available to create the RequisitionMetadata.
         return null
       }
+
+    val reportId = getReportId(requisition)
+
     val requisitionSpec: RequisitionSpec =
       try {
         requisitionValidator.validateRequisitionSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
-        return null
+        val groupedRequisitions = groupedRequisitions {
+          this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+        }
+        return GroupedRequisitionsWrapper(
+          reportId = reportId,
+          groupedRequisitions,
+          requisitions = listOf(
+            RequisitionWrapper(requisition, RequisitionValidationStatus.INVALID, e.refusal)
+          )
+        )
       }
     val eventGroupMapEntries =
       try {
@@ -105,7 +130,7 @@ abstract class RequisitionGrouper(
         // For now, we skip this requisition. However, we could refuse it in the future.
         return null
       }
-    return groupedRequisitions {
+    val groupedRequisitions = groupedRequisitions {
       modelLine = measurementSpec.modelLine
       this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
       this.eventGroupMap +=
@@ -116,38 +141,13 @@ abstract class RequisitionGrouper(
           }
         }
     }
-  }
-
-  protected suspend fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
-    try {
-      throttler.onReady {
-        logger.info("Requisition ${requisition.name} was refused. $refusal")
-        val request = refuseRequisitionRequest {
-          this.name = requisition.name
-          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
-        }
-        requisitionsClient.refuseRequisition(request)
-
-        val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
-              parent = config.dataProvider
-              blobUri = path
-            }
-        val requisitionMetadata = requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
-        //    val queueRequisitionMetadataRequest = queueRequisitionMetadataRequest {
-        //      name = requisitionMetadata.name
-        //      etag = requisitionMetadata.etag
-        //      workItem = createdWorkItem.name
-        //    }
-        //    requisitionMetadataStub.queueRequisitionMetadata(queueRequisitionMetadataRequest)
-        val refuseRequisitionMetadataRequest = refuseRequisitionMetadataRequest {
-
-        }
-        requisitionMetadataClient.refuseRequisitionMetadata(refuseRequisitionMetadataRequest)
-
-      }
-    } catch (e: Exception) {
-      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
-    }
+    return GroupedRequisitionsWrapper(
+      reportId = reportId,
+      groupedRequisitions,
+      requisitions = listOf(
+        RequisitionWrapper(requisition, RequisitionValidationStatus.VALID)
+      )
+    )
   }
 
   private suspend fun getEventGroup(name: String): EventGroup {
@@ -184,6 +184,11 @@ abstract class RequisitionGrouper(
       }
     }
     return eventGroupMap
+  }
+
+  private fun getReportId(requisition: Requisition): String {
+    return requisition.measurementSpec
+      .unpack<MeasurementSpec>().reportingMetadata.report
   }
 
   companion object {

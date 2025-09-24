@@ -16,12 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 
 /**
  * Naively does not combine a set of requisition. Generally not recommended for production use
@@ -31,17 +28,25 @@ class SingleRequisitionGrouper(
   requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
-  requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, requisitionMetadataClient, throttler) {
+) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
   override suspend fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
-  ): List<GroupedRequisitions> {
+    groupedRequisitions: List<GroupedRequisitionsWrapper>
+  ): List<GroupedRequisitionsWrapper> {
+    if (groupedRequisitions.size > 0) {
+      val groupedRequisitionWrapper = groupedRequisitions.first()
+      if (groupedRequisitionWrapper.requisitions.first().status == RequisitionValidationStatus.INVALID) {
+        return listOf(
+          GroupedRequisitionsWrapper(
+            reportId = groupedRequisitionWrapper.reportId,
+            groupedRequisitions = null,
+            requisitions = groupedRequisitionWrapper.requisitions
+          )
+        )
+      }
+    }
     return groupedRequisitions
   }
 
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
 }
