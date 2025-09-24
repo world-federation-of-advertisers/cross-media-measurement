@@ -82,8 +82,8 @@ import org.wfanet.measurement.internal.kingdom.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest as internalStreamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutOlderThanPreviousException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -1056,7 +1056,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { createModelRollout(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),
@@ -1150,7 +1150,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { scheduleModelRolloutFreeze(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),
@@ -1241,7 +1241,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { deleteModelRollout(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),

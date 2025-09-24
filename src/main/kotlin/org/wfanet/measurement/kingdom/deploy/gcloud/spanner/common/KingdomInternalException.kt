@@ -18,6 +18,7 @@ import com.google.rpc.errorInfo
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Instant
 import org.wfanet.measurement.common.grpc.Errors
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -190,20 +191,50 @@ class ModelRolloutNotFoundException(
       )
 }
 
-class ModelRolloutInvalidArgsException(
+class ModelRolloutOlderThanPreviousException(
   val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
-  val externalModelRolloutId: ExternalId? = null,
-  provideDescription: () -> String = { "ModelRollout invalid rollout period time arguments" },
-) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_INVALID_ARGS, provideDescription) {
+  val previousExternalModelRolloutId: ExternalId,
+  message: String = "Rollout period start is older than that of previous ModelRollout for ModelLine",
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_OLDER_THAN_PREVIOUS, message) {
   override val context
     get() =
       mapOf(
         "external_model_provider_id" to externalModelProviderId.value.toString(),
         "external_model_suite_id" to externalModelSuiteId.value.toString(),
         "external_model_line_id" to externalModelLineId.value.toString(),
-        "external_model_rollout_id" to externalModelRolloutId?.value.toString(),
+        "previous_external_model_rollout_id" to previousExternalModelRolloutId.value.toString(),
+      )
+}
+
+class ModelRolloutAlreadyStartedException(
+  val rolloutPeriodStartTime: Instant,
+  message: String = "Rollout already started at $rolloutPeriodStartTime",
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_ALREADY_STARTED, message) {
+  override val context: Map<String, String>
+    get() = mapOf("rolloutPeriodStartTime" to rolloutPeriodStartTime.toString())
+}
+
+class ModelRolloutFreezeScheduledException(
+  val rolloutFreezeTime: Instant,
+  message: String = "Rollout scheduled for freeze at $rolloutFreezeTime",
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_FREEZE_SCHEDULED, message) {
+  override val context: Map<String, String>
+    get() = mapOf("rolloutFreezeTime" to rolloutFreezeTime.toString())
+}
+
+class ModelRolloutFreezeTimeOutOfRangeException(
+  val rolloutPeriodStartTime: Instant,
+  val rolloutPeriodEndTime: Instant,
+  message: String =
+    "Rollout freeze time outside of rollout period [$rolloutPeriodStartTime, $rolloutPeriodEndTime)",
+) : KingdomInternalException(ErrorCode.MODEL_ROLLOUT_FREEZE_TIME_OUT_OF_RANGE, message) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "rolloutPeriodStartTime" to rolloutPeriodStartTime.toString(),
+        "rolloutPeriodEndTime" to rolloutPeriodEndTime.toString(),
       )
 }
 
