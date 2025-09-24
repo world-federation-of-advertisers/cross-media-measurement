@@ -144,30 +144,40 @@ private fun createImpressionQualificationFilterSpecsFilter(
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): String {
   return impressionQualificationFilterSpecs
-    .flatMap { it.filtersList }
-    // To normalize the filter string
-    .sortedBy { it.termsList.first().path }
-    .joinToString(prefix = "(", postfix = ")", separator = " && ") {
-      val term = it.termsList.first()
-      val termValue =
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (term.value.selectorCase) {
-          EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-          EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-            eventTemplateFieldsMap
-              .getValue(term.path)
-              .enumType
-              ?.findValueByName(term.value.enumValue)
-              ?.number
-          }
+    .map { impressionQualificationFilterSpec ->
+      impressionQualificationFilterSpec.filtersList
+        // To normalize the filter string
+        .sortedBy { it.termsList.first().path }
+        .joinToString(
+          prefix =
+            "(has(${impressionQualificationFilterSpec.filtersList.first().termsList.first().path.split(".")[0]}) && ",
+          postfix = ")",
+          separator = " && ",
+        ) {
+          val term = it.termsList.first()
+          val termValue =
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+            when (term.value.selectorCase) {
+              EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
+              EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+                eventTemplateFieldsMap
+                  .getValue(term.path)
+                  .enumType
+                  ?.findValueByName(term.value.enumValue)
+                  ?.number
+              }
 
-          EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
-          EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
-          EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
-            throw IllegalArgumentException("Selector not set")
+              EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
+              EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
+              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
+                throw IllegalArgumentException("Selector not set")
+            }
+          "${term.path} == $termValue"
         }
-      "${term.path} == $termValue"
+      // To normalize the filter string
     }
+    .sorted()
+    .joinToString(prefix = "(", postfix = ")", separator = " || ")
 }
 
 /**
