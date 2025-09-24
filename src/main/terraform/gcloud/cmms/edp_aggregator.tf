@@ -217,6 +217,6 @@ module "edp_aggregator" {
   edps_certs                                    = local.edps_certs
   requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config
   cloud_function_configs                        = local.cloud_function_configs
-  results_fulfiller_disk_image_family           = "confidential-space"
+  results_fulfiller_disk_image_family           = "confidential-space-debug"
   dns_managed_zone_name                         = "googleapis-private"
 }
