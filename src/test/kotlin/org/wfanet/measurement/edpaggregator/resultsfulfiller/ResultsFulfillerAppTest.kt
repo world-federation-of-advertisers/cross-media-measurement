@@ -839,7 +839,7 @@ class ResultsFulfillerAppTest {
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
     val encryptedDek = encryptedDek {
-      this.kekUri = kekUri
+      this.kekUri = KEK_URI
       typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
       protobufFormat = EncryptedDek.ProtobufFormat.BINARY
       ciphertext = serializedEncryptionKey
