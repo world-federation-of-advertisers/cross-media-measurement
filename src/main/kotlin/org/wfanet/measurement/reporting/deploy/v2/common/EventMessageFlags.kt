@@ -50,7 +50,7 @@ class EventMessageFlags {
   var eventMessageDescriptorSetFiles: List<File> = emptyList()
     private set
 
-  val eventDescriptor: EventDescriptor? =
+  val eventDescriptor: EventDescriptor? by lazy {
     // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
     if (eventMessageTypeUrl.isNotEmpty() && eventMessageDescriptorSetFiles.isNotEmpty()) {
       val eventDescriptor: Descriptors.Descriptor =
@@ -65,6 +65,7 @@ class EventMessageFlags {
     } else {
       null
     }
+  }
 
   private fun buildTypeRegistry(descriptorSetFiles: List<File>): TypeRegistry {
     val descriptorSets: List<DescriptorProtos.FileDescriptorSet> =
