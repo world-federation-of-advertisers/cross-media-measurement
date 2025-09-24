@@ -61,6 +61,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoSe
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -76,7 +78,8 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
-) {
+  @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
+  ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = commonServerFlags.tlsFlags.certFile,
@@ -193,6 +196,10 @@ private fun run(
       measurementConsumerConfigs,
       InternalBasicReportsCoroutineStub(channel),
       ReportsCoroutineStub(inProcessReportsChannel),
+      InternalReportingSetsCoroutineStub(channel),
+      InternalMetricCalculationSpecsCoroutineStub(channel),
+      ReportResultsCoroutineStub(channel),
+      eventMessageFlags.eventDescriptor,
     )
 
   runBlocking { basicReportsReportsJob.execute() }

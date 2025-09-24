@@ -91,6 +91,8 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -155,7 +157,8 @@ class BasicReportsService(
     }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>> =
+    val impressionQualificationFilterSpecsLists: MutableList<List<ImpressionQualificationFilterSpec>> = mutableListOf()
+    val internalReportingImpressionQualificationFilters: List<InternalReportingImpressionQualificationFilter> =
       buildList {
         for (impressionQualificationFilter in
           request.basicReport.impressionQualificationFiltersList) {
@@ -165,17 +168,22 @@ class BasicReportsService(
                 impressionQualificationFilter.impressionQualificationFilter
               )
             try {
+              val internalImpressionQualificationFilter =
+                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+                  getImpressionQualificationFilterRequest {
+                    externalImpressionQualificationFilterId =
+                      key!!.impressionQualificationFilterId
+                  }
+                )
+
               add(
-                internalImpressionQualificationFiltersStub
-                  .getImpressionQualificationFilter(
-                    getImpressionQualificationFilterRequest {
-                      externalImpressionQualificationFilterId =
-                        key!!.impressionQualificationFilterId
-                    }
-                  )
-                  .toImpressionQualificationFilter()
-                  .filterSpecsList
+                reportingImpressionQualificationFilter {
+                  externalImpressionQualificationFilterId = internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+                }
               )
+
+              impressionQualificationFilterSpecsLists.add(internalImpressionQualificationFilter.toImpressionQualificationFilter().filterSpecsList)
             } catch (e: StatusException) {
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
@@ -194,7 +202,7 @@ class BasicReportsService(
               }
             }
           } else if (impressionQualificationFilter.hasCustom()) {
-            add(impressionQualificationFilter.custom.filterSpecList)
+            impressionQualificationFilterSpecsLists.add(impressionQualificationFilter.custom.filterSpecList)
           }
         }
       }
@@ -211,6 +219,7 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
+                internalReportingImpressionQualificationFilters = internalReportingImpressionQualificationFilters,
               )
             requestId = request.requestId
           }
