@@ -52,7 +52,7 @@ import org.wfanet.measurement.storage.StorageClient
  * This class coordinates the workflow that occurs after impression data has been fully uploaded to
  * Cloud Storage and signaled by the presence of a "done" blob in the relevant folder. It handles:
  * - Crawling the folder where the "done" blob resides to find and parse impression metadata files
- *   (`.pb` or `.json`).
+ *   (`.binpb` or `.json`).
  * - Validating and storing impression metadata records via the
  *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
@@ -199,7 +199,7 @@ class DataAvailabilitySync(
    *
    * For each blob:
    * - Determines the format based on the file extension:
-   *     - If the file name ends with `.pb`, parses the content as a binary `BlobDetails` protobuf.
+   *     - If the file name ends with `.binpb`, parses the content as a binary `BlobDetails` protobuf.
    *     - If the file name ends with `.json`, parses the content as JSON using [JsonFormat.parser]
    *       with `ignoringUnknownFields()`
    *     - Ignore otherwise
