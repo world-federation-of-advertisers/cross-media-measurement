@@ -150,7 +150,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
         .sortedBy { it.termsList.first().path }
         .joinToString(
           prefix =
-            "(has(${impressionQualificationFilterSpec.filtersList.first().termsList.first().path.split(".")[0]}) && ",
+            "(",
           postfix = ")",
           separator = " && ",
         ) {
@@ -172,7 +172,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
               EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
                 throw IllegalArgumentException("Selector not set")
             }
-          "${term.path} == $termValue"
+          "has(${term.path}) && ${term.path} == $termValue"
         }
       // To normalize the filter string
     }
