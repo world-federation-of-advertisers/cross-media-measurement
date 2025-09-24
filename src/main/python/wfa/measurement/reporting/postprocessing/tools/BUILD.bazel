@@ -21,6 +21,18 @@ filegroup(
 )
 
 py_binary(
+    name = "post_process_report_summary_v2",
+    srcs = ["post_process_report_summary_v2.py"],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_v2_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+        requirement("absl-py"),
+        requirement("protobuf"),
+        requirement("google-cloud-core"),
+    ],
+)
+
+py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],
     deps = [
