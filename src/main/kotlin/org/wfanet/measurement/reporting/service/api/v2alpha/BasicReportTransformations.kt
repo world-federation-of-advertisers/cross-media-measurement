@@ -148,12 +148,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
       impressionQualificationFilterSpec.filtersList
         // To normalize the filter string
         .sortedBy { it.termsList.first().path }
-        .joinToString(
-          prefix =
-            "(",
-          postfix = ")",
-          separator = " && ",
-        ) {
+        .joinToString(prefix = "(", postfix = ")", separator = " && ") {
           val term = it.termsList.first()
           val termValue =
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.

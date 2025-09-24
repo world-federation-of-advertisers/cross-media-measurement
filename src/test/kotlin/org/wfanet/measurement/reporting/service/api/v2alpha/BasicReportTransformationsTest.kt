@@ -2627,7 +2627,7 @@ class BasicReportTransformationsTest {
                 value = EventTemplateFieldKt.fieldValue { boolValue = true }
               }
             }
-          },
+          }
         )
       )
     }
