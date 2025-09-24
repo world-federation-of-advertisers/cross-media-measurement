@@ -16,6 +16,11 @@ data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
+
+  # IP addresses for private.googleapis.com (Private Google Access default VIPs)
+  # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
+  private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
+
   common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
@@ -105,10 +110,16 @@ locals {
     local.edp_tls_keys
   )
 
+  data_availability_sync_secrets_access = concat(
+      ["trusted_root_ca_collection"],
+      local.edp_tls_keys
+    )
+
   cloud_function_secret_pairs = tomap({
-    data_watcher        = local.data_watcher_secrets_access,
-    requisition_fetcher = local.requisition_fetcher_secrets_access,
-    event_group_sync    = local.event_group_sync_secrets_access,
+    data_watcher            = local.data_watcher_secrets_access,
+    requisition_fetcher     = local.requisition_fetcher_secrets_access,
+    event_group_sync        = local.event_group_sync_secrets_access,
+    data_availability_sync  = local.data_availability_sync_secrets_access,
   })
 
   secret_access_map = merge([
@@ -122,9 +133,10 @@ locals {
   ]...)
 
   service_accounts = {
-    "data_watcher"        = module.data_watcher_cloud_function.cloud_function_service_account.email
-    "requisition_fetcher" = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
-    "event_group_sync"    = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_watcher"              = module.data_watcher_cloud_function.cloud_function_service_account.email
+    "requisition_fetcher"       = module.requisition_fetcher_cloud_function.cloud_function_service_account.email
+    "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
+    "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   }
 }
 
@@ -237,13 +249,24 @@ module "event_group_sync_cloud_function" {
   uber_jar_path                             = var.cloud_function_configs.event_group_sync.uber_jar_path
 }
 
+module "data_availability_sync_cloud_function" {
+  source    = "../http-cloud-function"
+
+  http_cloud_function_service_account_name  = var.data_availability_sync_service_account_name
+  terraform_service_account                 = var.terraform_service_account
+  function_name                             = var.cloud_function_configs.data_availability_sync.function_name
+  entry_point                               = var.cloud_function_configs.data_availability_sync.entry_point
+  extra_env_vars                            = var.cloud_function_configs.data_availability_sync.extra_env_vars
+  secret_mappings                           = var.cloud_function_configs.data_availability_sync.secret_mappings
+  uber_jar_path                             = var.cloud_function_configs.data_availability_sync.uber_jar_path
+}
+
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   depends_on = [module.secrets]
   for_each = local.secret_access_map
   secret_id = local.all_secrets[each.value.secret_key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${local.service_accounts[each.value.function_name]}"
-
 }
 
 module "result_fulfiller_queue" {
@@ -281,6 +304,7 @@ module "result_fulfiller_tee_app" {
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
   edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }
@@ -329,4 +353,77 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   service  = var.event_group_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_compute_subnetwork" "private_subnetwork" {
+  name                     = var.private_subnetwork_name
+  region                   = data.google_client_config.default.region
+  network                  = "default"
+  ip_cidr_range            = "10.0.0.0/24"
+  private_ip_google_access = true
+}
+
+
+# Cloud Router for NAT gateway
+resource "google_compute_router" "nat_router" {
+  name    = var.private_router_name
+  region  = data.google_client_config.default.region
+  network = "default"
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "nat_gateway" {
+  name                               = var.nat_name
+  router                             = google_compute_router.nat_router.name
+  region                             = google_compute_router.nat_router.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private_subnetwork.self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  enable_endpoint_independent_mapping = true
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+# DNS configuration for storage.googleapis.com
+# Configures DNS so storage.googleapis.com resolves to the private endpoint
+# All GCS bucket access will automatically use this private path
+resource "google_dns_managed_zone" "private_gcs" {
+  name        = var.dns_managed_zone_name
+  dns_name    = "googleapis.com."
+  description = "Private DNS zone for Google APIs via PSC"
+
+  visibility = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = "projects/${data.google_project.project.project_id}/global/networks/default"
+    }
+  }
+}
+
+# A record points storage.googleapis.com to our PSC endpoint IP
+# Instances in this VPC will resolve GCS to 10.0.0.100 instead of public IPs
+resource "google_dns_record_set" "gcs_a_record" {
+  name         = "private.googleapis.com."
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.private_gcs.name
+  rrdatas      = local.private_googleapis_ipv4
+}
+
+# Wildcard CNAME so any *.googleapis.com goes to the private VIPs
+resource "google_dns_record_set" "googleapis_wildcard_cname" {
+  name         = "*.googleapis.com."
+  type         = "CNAME"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.private_gcs.name
+  rrdatas      = ["private.googleapis.com."]
 }
