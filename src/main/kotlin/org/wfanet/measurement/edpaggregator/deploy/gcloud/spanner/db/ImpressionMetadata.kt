@@ -22,8 +22,10 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
+import com.google.type.interval
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
@@ -41,6 +43,8 @@ data class ImpressionMetadataResult(
   val impressionMetadata: ImpressionMetadata,
   val impressionMetadataId: Long,
 )
+
+data class DataAvailabilityResult(val cmmsModelLine: String, val availability: Interval)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -124,13 +128,15 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataResourceId: String,
   state: State,
   impressionMetadata: ImpressionMetadata,
-  createRequestId: String? = null,
+  createRequestId: String,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("ImpressionMetadataResourceId").to(impressionMetadataResourceId)
-    set("CreateRequestId").to(createRequestId)
+    if (createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(createRequestId)
+    }
     set("BlobUri").to(impressionMetadata.blobUri)
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
     set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
@@ -210,6 +216,45 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   return executeQuery(query, Options.tag("action=readImpressionMetadata")).map { row ->
     ImpressionMetadataEntity.buildImpressionMetadataResult(row)
   }
+}
+
+suspend fun AsyncDatabaseClient.ReadContext.readDataAvailabilityIntervals(
+  dataProviderResourceId: String,
+  cmmsModelLines: List<String>,
+): List<DataAvailabilityResult> {
+  val sql =
+    """
+      SELECT
+        DataProviderResourceId,
+        CmmsModelLine,
+        MIN(IntervalStartTime) AS StartTime,
+        MAX(IntervalEndTime) AS EndTime
+      FROM
+        ImpressionMetadata
+      WHERE
+        DataProviderResourceId = @dataProviderResourceId
+        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+      GROUP BY
+        DataProviderResourceId,
+        CmmsModelLine
+      """
+      .trimIndent()
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("cmmsModelLines").toStringArray(cmmsModelLines)
+    }
+  return executeQuery(query, Options.tag("action=ReadDataAvailabilityIntervals"))
+    .map { row ->
+      DataAvailabilityResult(
+        row.getString("CmmsModelLine"),
+        interval {
+          startTime = row.getTimestamp("StartTime").toProto()
+          endTime = row.getTimestamp("EndTime").toProto()
+        },
+      )
+    }
+    .toList()
 }
 
 private object ImpressionMetadataEntity {

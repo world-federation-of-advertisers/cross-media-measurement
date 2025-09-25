@@ -35,9 +35,13 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponseKt.modelLineAvailability
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityRequest
+import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
@@ -209,6 +213,35 @@ abstract class ImpressionMetadataServiceTest {
 
       assertThat(impressionMetadata2).isEqualTo(impressionMetadata)
     }
+
+  @Test
+  fun `multiple createImpressionMetadata return multiple impression metadata`() = runBlocking {
+    val impressionMetadata1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = CMMS_MODEL_LINE_1
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/1"
+            }
+        }
+      )
+    val impressionMetadata2 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = CMMS_MODEL_LINE_1
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/2"
+            }
+        }
+      )
+
+    assertThat(impressionMetadata1.impressionMetadataResourceId)
+      .isNotEqualTo(impressionMetadata2.impressionMetadataResourceId)
+  }
 
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if dataProviderId not set`() = runBlocking {
@@ -411,6 +444,172 @@ abstract class ImpressionMetadataServiceTest {
         )
     }
 
+  @Test
+  fun `computeModelLinesAvailability returns availabilities`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = CMMS_MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = CMMS_MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 300 }
+              endTime = timestamp { seconds = 400 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/2"
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = CMMS_MODEL_LINE_2
+            interval = interval {
+              startTime = timestamp { seconds = 500 }
+              endTime = timestamp { seconds = 700 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/3"
+          }
+      }
+    )
+
+    val request = computeModelLinesAvailabilityRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      cmmsModelLine += CMMS_MODEL_LINE_1
+      cmmsModelLine += CMMS_MODEL_LINE_2
+    }
+    val response = service.computeModelLinesAvailability(request)
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        computeModelLinesAvailabilityResponse {
+          modelLineAvailabilities += modelLineAvailability {
+            cmmsModelLine = CMMS_MODEL_LINE_1
+            availability = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 400 }
+            }
+          }
+          modelLineAvailabilities += modelLineAvailability {
+            cmmsModelLine = CMMS_MODEL_LINE_2
+            availability = interval {
+              startTime = timestamp { seconds = 500 }
+              endTime = timestamp { seconds = 700 }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT if dataProviderResourceId not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest {
+              // dataProviderResourceId not set
+              cmmsModelLine += CMMS_MODEL_LINE_1
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT if cmmsModelLine not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              // cmmsModelLine not set
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `computeModelLinesAvailability returns empty for non-existent model lines`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = CMMS_MODEL_LINE_1
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
+          }
+      }
+    )
+
+    val request = computeModelLinesAvailabilityRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      cmmsModelLine += "non-existent-model-line"
+    }
+    val response = service.computeModelLinesAvailability(request)
+
+    assertThat(response).isEqualTo(ComputeModelLinesAvailabilityResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `computeModelLinesAvailability returns partial for mix of existing and non-existent`() =
+    runBlocking {
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = CMMS_MODEL_LINE_1
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/1"
+            }
+        }
+      )
+
+      val request = computeModelLinesAvailabilityRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        cmmsModelLine += CMMS_MODEL_LINE_1
+        cmmsModelLine += "non-existent-model-line"
+      }
+      val response = service.computeModelLinesAvailability(request)
+      assertThat(response)
+        .isEqualTo(
+          computeModelLinesAvailabilityResponse {
+            modelLineAvailabilities += modelLineAvailability {
+              cmmsModelLine = CMMS_MODEL_LINE_1
+              availability = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+            }
+          }
+        )
+    }
+
   private suspend fun createImpressionMetadata(
     service: ImpressionMetadataServiceCoroutineImplBase,
     count: Int,
@@ -432,8 +631,10 @@ abstract class ImpressionMetadataServiceTest {
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val IMPRESSION_METADATA_RESOURCE_ID = "impression-metadata-1"
-    private const val CMMS_MODEL_LINE =
+    private const val CMMS_MODEL_LINE_1 =
       "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
+    private const val CMMS_MODEL_LINE_2 =
+      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-2"
     private const val BLOB_URI = "path/to/blob"
     private const val BLOB_TYPE_URL = "blob.type.url"
     private const val EVENT_GROUP_REFERENCE_ID = "group-1"
@@ -443,7 +644,7 @@ abstract class ImpressionMetadataServiceTest {
     private val IMPRESSION_METADATA = impressionMetadata {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-      cmmsModelLine = CMMS_MODEL_LINE
+      cmmsModelLine = CMMS_MODEL_LINE_1
       blobUri = BLOB_URI
       blobTypeUrl = BLOB_TYPE_URL
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID

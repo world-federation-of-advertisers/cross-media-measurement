@@ -25,10 +25,12 @@ import io.grpc.Status
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.DataAvailabilityResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
@@ -36,17 +38,22 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataIdByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDataAvailabilityIntervals
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityRequest
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponseKt.modelLineAvailability
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 
 class SpannerImpressionMetadataService(
@@ -137,6 +144,7 @@ class SpannerImpressionMetadataService(
             this.impressionMetadataResourceId = impressionMetadataResourceId
             clearCreateTime()
             clearUpdateTime()
+            clearEtag()
           }
         }
       } catch (e: SpannerException) {
@@ -185,6 +193,34 @@ class SpannerImpressionMetadataService(
     }
 
     return Empty.getDefaultInstance()
+  }
+
+  override suspend fun computeModelLinesAvailability(
+    request: ComputeModelLinesAvailabilityRequest
+  ): ComputeModelLinesAvailabilityResponse {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.cmmsModelLineList.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val results: List<DataAvailabilityResult> =
+      databaseClient
+        .singleUse()
+        .readDataAvailabilityIntervals(request.dataProviderResourceId, request.cmmsModelLineList)
+
+    return computeModelLinesAvailabilityResponse {
+      modelLineAvailabilities +=
+        results.map { result ->
+          modelLineAvailability {
+            cmmsModelLine = result.cmmsModelLine
+            availability = result.availability
+          }
+        }
+    }
   }
 
   /**
