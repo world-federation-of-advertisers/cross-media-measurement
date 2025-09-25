@@ -308,7 +308,7 @@ class MetricReport:
     if len(periods) > 1:
       raise ValueError("All weekly measurements must have the same number of periods.")
 
-    self._num_periods = next(iter(periods)) if len(periods) == 1 else 0
+    self._num_periods = periods.pop() if len(periods) == 1 else 0
 
     frequencies = set()
     for edp_combination in whole_campaign_measurements.keys():
@@ -325,7 +325,7 @@ class MetricReport:
     if len(frequencies) > 1:
       raise ValueError("All k-reach measurements must have the same number of frequencies.")
 
-    self._num_frequencies = next(iter(frequencies)) if len(frequencies) == 1 else 0
+    self._num_frequencies = frequencies.pop() if len(frequencies) == 1 else 0
 
     self._weekly_cumulative_reaches = weekly_cumulative_reaches
     self._whole_campaign_measurements = whole_campaign_measurements
@@ -639,7 +639,7 @@ class Report:
     if len(periods) > 1:
       raise ValueError("All weekly measurements must have the same number of periods.")
 
-    self._num_periods = next(iter(periods)) if len(periods) == 1 else 0
+    self._num_periods = periods.pop() if len(periods) == 1 else 0
 
     frequencies = set()
     for metric in metric_reports.keys():
@@ -649,7 +649,7 @@ class Report:
     if len(frequencies) > 1:
       raise ValueError("All k-reach measurements must have the same number of frequencies.")
 
-    self._num_frequencies = next(iter(frequencies)) if len(frequencies) == 1 else 0
+    self._num_frequencies = frequencies.pop() if len(frequencies) == 1 else 0
 
     # Assigns an index to each measurement and keeps track of the max standard
     # deviation. This max standard deviation will be used to normalized the
@@ -1037,6 +1037,53 @@ class Report:
 
     return OrderedSets(set(greater_set), set(smaller_set))
 
+  def _get_ordered_sets(
+      self,
+      union_getter_smaller: callable,
+      singles_getter_smaller: callable,
+      union_getter_greater: callable,
+      singles_getter_greater: callable,
+  ) -> OrderedSets:
+    """Creates an OrderedSets object representing an overlap constraint.
+
+    This function constructs two sets of measurement indices, a "smaller" set
+    and a "greater" set.
+
+    Let A_1, ..., A_k be one collection of sets and B_1, ..., B_k be another,
+    where A_i is a subset of B_i for all i. The overlap constraint is:
+    sum(|A_i|) - |union(A_i)| <= sum(|B_i|) - |union(B_i)|
+
+    This can be rearranged to:
+    sum(|A_i|) + |union(B_i)| <= sum(|B_i|) + |union(A_i)|
+
+    This function builds the 'smaller_set' (left side) and 'greater_set'
+    (right side) of this inequality.
+
+    Args:
+        union_getter_smaller: A function that returns the measurement for the
+          union of the smaller collection (A_i).
+        singles_getter_smaller: A function that returns the list of measurements
+          for each individual set in the smaller collection.
+        union_getter_greater: A function that returns the measurement for the
+          union of the greater collection (B_i).
+        singles_getter_greater: A function that returns the list of
+          measurements for each individual set in the greater collection.
+
+    Returns:
+        An OrderedSets object representing the constraint.
+    """
+    smaller_set = [self._get_measurement_index(union_getter_greater())]
+    smaller_set.extend(
+        self._get_measurement_index(measurement)
+        for measurement in singles_getter_smaller()
+    )
+    greater_set = [self._get_measurement_index(union_getter_smaller())]
+    greater_set.extend(
+        self._get_measurement_index(measurement)
+        for measurement in singles_getter_greater()
+    )
+    return OrderedSets(set(greater_set), set(smaller_set))
+
   def _add_overlap_relations_to_spec(self, spec: SetMeasurementsSpec):
     # Overlap constraints within a metric.
     for metric in self._metric_reports:
@@ -1059,11 +1106,23 @@ class Report:
           continue
 
         for period in range(0, self._num_periods - 1):
-          ordered_sets = \
-            self._get_ordered_sets_for_cumulative_measurements_within_metric(
-                metric_report, edp_combination, edps, period
-            )
-          spec.add_ordered_sets_relation(ordered_sets)
+          spec.add_ordered_sets_relation(
+              self._get_ordered_sets(
+                  union_getter_smaller=lambda: metric_report.get_weekly_cumulative_reach_measurement(
+                      edp_combination, period
+                  ),
+                  singles_getter_smaller=lambda: [
+                      metric_report.get_weekly_cumulative_reach_measurement(edp, period)
+                      for edp in edps
+                  ],
+                  union_getter_greater=lambda: metric_report.get_weekly_cumulative_reach_measurement(
+                      edp_combination, period + 1
+                  ),
+                  singles_getter_greater=lambda: [
+                      metric_report.get_weekly_cumulative_reach_measurement(edp, period + 1)
+                      for edp in edps
+                  ],
+              ))
 
   def _add_cumulative_whole_campaign_relations_to_spec(self,
       spec: SetMeasurementsSpec):
@@ -1257,165 +1316,6 @@ class Report:
                         edp_combination, period))
             )
 
-
-  def _get_ordered_sets_for_cumulative_measurements_across_metric(
-      self,
-      parent_metric_report: MetricReport,
-      child_metric_report: MetricReport,
-      edp_combination: EdpCombination,
-      edps: list[EdpCombination],
-      period: int,
-  ) -> OrderedSets:
-    """Gets ordered sets for cumulative measurements across metric.
-
-    Let X_{1, i}, ..., X_{k, i} be the child cumulative measurements and
-    Y_{1, i}, ..., Y_{k, i} be the parent cumulative measurements at the i-th
-    period. As X_{j, i} is a subset of Y_{j, i} for j in [1, k], we have:
-    |X_{1, i}| + ... + |X_{k, i}| - |X_{1, i} U ... U X_{k, i}| <=
-    |Y_{1, i}| + ... + |Y_{k, i}| - |Y_{1, i} U ... U Y_{k, i}|.
-    This produces an ordered pair:
-    (X_{1, i}, ..., X_{k, i}, {Y_{1, i} U ... U Y_{k, i}) and
-    (Y_{1, i}, ..., Y_{k, i}, {X_{1, i} U ... U X_{k, i}).
-
-    Args:
-        parent_metric_report: Containing the measurements for parent metric.
-        child_metric_report: Containing the measurements for child metric.
-        edp_combination: The set of EDPs used in the measurements.
-        edps: A list of all single EDP obtained from the above edp combination.
-        period: The time period of the cumulative measurements.
-
-    Returns:
-        An OrderedSets instance containing a larger set and a smaller set.
-    """
-
-    smaller_set: set[int] = \
-      [
-          self._get_measurement_index(
-              parent_metric_report.get_weekly_cumulative_reach_measurement(
-                  edp_combination, period
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              child_metric_report.get_weekly_cumulative_reach_measurement(
-                  edp, period
-              )
-          ) for edp in edps
-      ]
-
-    greater_set: set[int] = \
-      [
-          self._get_measurement_index(
-              child_metric_report.get_weekly_cumulative_reach_measurement(
-                  edp_combination, period
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              parent_metric_report.get_weekly_cumulative_reach_measurement(
-                  edp, period
-              )
-          ) for edp in edps
-      ]
-
-    return OrderedSets(set(greater_set), set(smaller_set))
-
-  def _get_ordered_sets_for_whole_campaign_measurements_across_metric(
-      self,
-      parent_metric_report: MetricReport,
-      child_metric_report: MetricReport,
-      edp_combination: EdpCombination,
-      edps: list[EdpCombination],
-  ) -> OrderedSets:
-    """Gets ordered sets for whole campaign measurements across metric.
-
-    Let X_1, ..., X_k be the child total campaign measurements and Y_1, ..., Y_k
-    be the parent total campaign measurements at the i-th period. As X_j is a
-    subset of Y_j for j in [1, k], we have:
-    |X_1| + ... + |X_k| - |X_1 U ... U X_k| <=
-    |Y_1| + ... + |Y_k| - |Y_1 U ... U Y_k|.
-    This produces an ordered pair:
-    (X_1, ..., X_k, {Y_1 U ... U Y_k}) and (Y_1, ..., Y_k, {X_1 U ... U X_k}).
-
-    Args:
-        parent_metric_report: Containing the measurements for parent metric.
-        child_metric_report: Containing the measurements for child metric.
-        edp_combination: The set of EDPs used in the measurements.
-        edps: A list of all single EDP obtained from the above edp combination.
-
-    Returns:
-        An OrderedSets instance containing a larger set and a smaller set.
-    """
-    smaller_set: list[int] = \
-      [
-          self._get_measurement_index(
-              parent_metric_report.get_whole_campaign_reach_measurement(
-                  edp_combination
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              child_metric_report.get_whole_campaign_reach_measurement(edp)
-          ) for edp in edps
-      ]
-
-    greater_set: list[int] = \
-      [
-          self._get_measurement_index(
-              child_metric_report.get_whole_campaign_reach_measurement(
-                  edp_combination
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              parent_metric_report.get_whole_campaign_reach_measurement(edp)
-          )
-          for edp in edps
-      ]
-
-    return OrderedSets(set(greater_set), set(smaller_set))
-
-  def _get_ordered_sets_for_weekly_non_cumulative_measurements_across_metric(
-      self,
-      parent_metric_report: MetricReport,
-      child_metric_report: MetricReport,
-      edp_combination: EdpCombination,
-      edps: list[EdpCombination],
-      period: int,
-  ) -> OrderedSets:
-    """Gets ordered sets for weekly non-cumulative measurements across metric."""
-    smaller_set: list[int] = [
-        self._get_measurement_index(
-            parent_metric_report.get_weekly_non_cumulative_reach_measurement(
-                edp_combination, period
-            )
-        )
-    ] + [
-        self._get_measurement_index(
-            child_metric_report.get_weekly_non_cumulative_reach_measurement(
-                edp, period
-            )
-        )
-        for edp in edps
-    ]
-
-    greater_set: list[int] = [
-        self._get_measurement_index(
-            child_metric_report.get_weekly_non_cumulative_reach_measurement(
-                edp_combination, period
-            )
-        )
-    ] + [
-        self._get_measurement_index(
-            parent_metric_report.get_weekly_non_cumulative_reach_measurement(
-                edp, period
-            )
-        )
-        for edp in edps
-    ]
-
-    return OrderedSets(set(greater_set), set(smaller_set))
-
   def _add_metric_relations_to_spec(self, spec: SetMeasurementsSpec):
     # metric1>=metric#2
     for parent_metric in self._metric_subsets_by_parent:
@@ -1463,12 +1363,22 @@ class Report:
             continue
 
           for period in range(0, self._num_periods):
-            ordered_sets = \
-              self._get_ordered_sets_for_cumulative_measurements_across_metric(
-                  parent_metric_report, child_metric_report, edp_combination,
-                  edps, period
-              )
-            spec.add_ordered_sets_relation(ordered_sets)
+            spec.add_ordered_sets_relation(self._get_ordered_sets(
+                union_getter_smaller=lambda: child_metric_report.get_weekly_cumulative_reach_measurement(
+                    edp_combination, period
+                ),
+                singles_getter_smaller=lambda: [
+                    child_metric_report.get_weekly_cumulative_reach_measurement(edp, period)
+                    for edp in edps
+                ],
+                union_getter_greater=lambda: parent_metric_report.get_weekly_cumulative_reach_measurement(
+                    edp_combination, period
+                ),
+                singles_getter_greater=lambda: [
+                    parent_metric_report.get_weekly_cumulative_reach_measurement(edp, period)
+                    for edp in edps
+                ],
+            ))
 
         # Enforce that for any EDP combination, the child metric's whole
         # campaign reach is is less than or equal to the parent's.
@@ -1503,11 +1413,22 @@ class Report:
             )
             continue
 
-          ordered_sets = \
-            self._get_ordered_sets_for_whole_campaign_measurements_across_metric(
-                parent_metric_report, child_metric_report, edp_combination, edps
-            )
-          spec.add_ordered_sets_relation(ordered_sets)
+          spec.add_ordered_sets_relation(self._get_ordered_sets(
+              union_getter_smaller=lambda: child_metric_report.get_whole_campaign_reach_measurement(
+                  edp_combination
+              ),
+              singles_getter_smaller=lambda: [
+                  child_metric_report.get_whole_campaign_reach_measurement(edp)
+                  for edp in edps
+              ],
+              union_getter_greater=lambda: parent_metric_report.get_whole_campaign_reach_measurement(
+                  edp_combination
+              ),
+              singles_getter_greater=lambda: [
+                  parent_metric_report.get_whole_campaign_reach_measurement(edp)
+                  for edp in edps
+              ],
+          ))
 
         # Enforce that for any EDP combination, the child metric's impression
         # is less than or equal to the parent's.
@@ -1561,14 +1482,22 @@ class Report:
             continue
 
           for period in range(self._num_periods):
-            ordered_sets = self._get_ordered_sets_for_weekly_non_cumulative_measurements_across_metric(
-                parent_metric_report,
-                child_metric_report,
-                edp_combination,
-                edps,
-                period,
-            )
-            spec.add_ordered_sets_relation(ordered_sets)
+            spec.add_ordered_sets_relation(self._get_ordered_sets(
+                union_getter_smaller=lambda: child_metric_report.get_weekly_non_cumulative_reach_measurement(
+                    edp_combination, period
+                ),
+                singles_getter_smaller=lambda: [
+                    child_metric_report.get_weekly_non_cumulative_reach_measurement(edp, period)
+                    for edp in edps
+                ],
+                union_getter_greater=lambda: parent_metric_report.get_weekly_non_cumulative_reach_measurement(
+                    edp_combination, period
+                ),
+                singles_getter_greater=lambda: [
+                    parent_metric_report.get_weekly_non_cumulative_reach_measurement(edp, period)
+                    for edp in edps
+                ],
+            ))
 
         # Enforce that for any EDP combination, the child metric's weekly
         # non-cumulative impression is less than or equal to the parent's.
