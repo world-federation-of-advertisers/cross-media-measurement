@@ -299,6 +299,6 @@ variable "spanner_instance" {
 variable "spanner_database_name" {
   description = "Name of the Spanner database for Edp Aggregator."
   type        = string
-  default     = "edp-aggregator"
+  default     = "edp_aggregator"
   nullable    = false
 }
