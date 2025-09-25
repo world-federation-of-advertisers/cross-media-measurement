@@ -88,8 +88,8 @@ CREATE TABLE ReportingSetResults(
  -- prior to fingerprinting. It does not include any filters implied by the IQF.
  -- This field is NULL if no filters were applied.
  FilterFingerprint INT64,
- -- The actual filter used
- EventFilter `wfa.measurement.internal.reporting.v2.EventFilter`,
+ -- The actual filters used
+ EventFilters ARRAY<`wfa.measurement.internal.reporting.v2.EventFilter`>,
  -- The population size associated with the results
  PopulationSize INT64 NOT NULL,
  -- The creation time of this row.
