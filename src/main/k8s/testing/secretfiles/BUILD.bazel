@@ -362,7 +362,7 @@ EDP_AGGREGATOR_TLS_RENAMES = {
 
 pkg_files(
     name = "edp_aggregator_tls_files",
-    srcs = EDP_AGGREGAGTOR_TLS_SRCS,
+    srcs = EDP_AGGREGATOR_TLS_SRCS,
     renames = EDP_AGGREGATOR_TLS_RENAMES,
     visibility = ["//visibility:private"],
 )
