@@ -14,6 +14,8 @@
 
 package k8s
 
+let MountRoot = "/etc/\(#AppName)/edp-aggregator"
+
 #EdpAggregator: {
 
 	_verboseGrpcServerLogging: bool | *false
@@ -77,9 +79,9 @@ package k8s
 		"edp-aggregator-internal-api-server": {
 			_container: args: [
 						_debugVerboseGrpcServerLoggingFlag,
-						"--cert-collection-file=/var/run/secrets/files/edp_aggregator_root.pem",
-						"--tls-cert-file=/var/run/secrets/files/edp_aggregator_tls.pem",
-						"--tls-key-file=/var/run/secrets/files/edp_aggregator_tls.key",
+						"--cert-collection-file=\(MountRoot)/tls/root.crt",
+						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
+						"--tls-key-file=\(MountRoot)/tls/tls.key",
 			] + _spannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
@@ -92,6 +94,11 @@ package k8s
 				_initContainers: {
 					"update-edp-aggregator-schema": _updateSchemaContainer
 				}
+				_mounts: {
+					"edp-aggregator-tls": #SecretMount & {
+						volumeMount: mountPath: "\(MountRoot)/tls"
+					}
+				}
 			}
 		}
 
@@ -99,12 +106,17 @@ package k8s
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
-						"--cert-collection-file=/var/run/secrets/files/edp_aggregator_root.pem",
-						"--tls-cert-file=/var/run/secrets/files/edp_aggregator_tls.pem",
-						"--tls-key-file=/var/run/secrets/files/edp_aggregator_tls.key",
+						"--cert-collection-file=\(MountRoot)/tls/root.crt",
+						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
+						"--tls-key-file=\(MountRoot)/tls/tls.key",
 			] + _edpAggregatorInternalApiTarget.args
 			spec: template: spec: {
 				_dependencies: ["edp-aggregator-internal-api-server"]
+				_mounts: {
+					"edp-aggregator-tls": #SecretMount & {
+						volumeMount: mountPath: "\(MountRoot)/tls"
+					}
+				}
 			}
 		}
 

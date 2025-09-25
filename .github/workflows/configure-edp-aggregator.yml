@@ -15,6 +15,7 @@
 name: "Configure Edp Aggregator Services"
 
 on:
+  # DO_NOT_SUBMIT: Remove push trigger before merge.
   push:
     branches:
       - "renjie-requisition-metadata-server"
@@ -114,7 +115,7 @@ jobs:
       run: >
         bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
-        //src/main/k8s/testing/secretfiles:archive
+        //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
@@ -124,15 +125,15 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/dev/edp_aggregator.tar"
         -C "$KUSTOMIZATION_PATH"
 
-    - name: Extract secret files archive
+    - name: Extract tls files archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
-        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secret"
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_tls_files.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls"
 
     - name: Copy secret generator
       run: >
-        cp src/main/k8s/testing/secretfiles/edp_aggregator_secret_kustomization.yaml
-        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_secret/kustomization.yaml"
+        cp src/main/k8s/testing/secretfiles/edp_aggregator_tls_kustomization.yaml
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls/kustomization.yaml"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV

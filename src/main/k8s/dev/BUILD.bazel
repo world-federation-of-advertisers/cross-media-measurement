@@ -627,7 +627,11 @@ cue_dump(
 )
 
 kustomization_dir(
-    name = "edp_aggregator_secret",
+    name = "edp_aggregator_tls",
+    srcs = ["edp_aggregator_tls_kustomization.yaml"],
+    renames = {
+        "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
+    },
 )
 
 kustomization_dir(
@@ -640,6 +644,6 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":edp_aggregator_secret",
+        ":edp_aggregator_tls",
     ],
 )
