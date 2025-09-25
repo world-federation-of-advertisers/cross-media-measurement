@@ -87,8 +87,64 @@ message ReportResult {
           DENOISED = 2;
         }
         ResultType result_type = 2;
-        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
-        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
+
+        message NoisyMetricSet {
+          // Statistics of a scalar value
+          message UnivariateStatistics {
+            // The standard deviation of the associated scalar variable value.
+            //
+            // Can be used to find different confidence intervals.
+            double standard_deviation = 1;
+          }
+
+          message ReachResult {
+            int64 value = 1;
+            UnivariateStatistics univariate_statistics = 2;
+          }
+
+          message HistogramResult {
+            message BinResult {
+              double value = 1;
+            }
+            message Bin {
+              BinResult bin_result = 1;
+              UnivariateStatistics result_univariate_statistics = 2;
+              // Univariate statistics of the relative result at this bin.
+              //
+              // Relative result = (bin value) / (sum of all bin values)
+              UnivariateStatistics relative_univariate_statistics = 3;
+              // Univariate statistics of the k+ count from the current bin
+              // (i.e. k-th bin, inclusive) to the last bin (inclusive).
+              //
+              // A K+ count is the sum of the values from the k-th bin to the
+              // last bin.
+              UnivariateStatistics k_plus_univariate_statistics = 4;
+              // Univariate statistics of the relative k+ count from the current
+              // bin (i.e. k-th bin, inclusive) to the last bin (inclusive).
+              //
+              // A relative K+ count = (K+ count) / (sum of all bin values)
+              UnivariateStatistics relative_k_plus_univariate_statistics = 5;
+            }
+            repeated Bin bins = 1;
+          }
+
+          message ImpressionCountResult {
+            int64 value = 1;
+            UnivariateStatistics univariate_statistics = 2;
+          }
+
+          message PopulationCountResult {
+            int64 value = 1;
+          }
+
+          ReachResult reach = 1;
+          HistogramResult frequencyHistogram = 2;
+          ImpressionCountResult impression_count = 3;
+          PopulationCountResult population_count = 4;
+        }
+
+        NoisyMetricSet cumulative_results = 3;
+        NoisyMetricSet non_cumulative_results = 4;
       }
       ReportResultValues report_result_values = 3;
     }
