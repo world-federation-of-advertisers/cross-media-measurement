@@ -611,7 +611,6 @@ cue_dump(
     name = "edp_aggregator_gke",
     srcs = ["edp_aggregator_gke.cue"],
     cue_tags = {
-        #        "secret_name": SECRET_NAME,
         "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
