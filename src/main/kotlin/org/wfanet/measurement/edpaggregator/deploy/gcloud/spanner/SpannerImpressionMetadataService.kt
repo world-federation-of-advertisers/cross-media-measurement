@@ -77,22 +77,14 @@ class SpannerImpressionMetadataService(
     }
 
     return try {
-      val result =
-        databaseClient.singleUse().use { txn ->
-          txn
-            .getImpressionMetadataByResourceId(
-              request.dataProviderResourceId,
-              request.impressionMetadataResourceId,
-            )
-            .impressionMetadata
-        }
-      if (result.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-        throw ImpressionMetadataNotFoundException(
-          request.dataProviderResourceId,
-          request.impressionMetadataResourceId,
-        )
+      databaseClient.singleUse().use { txn ->
+        txn
+          .getImpressionMetadataByResourceId(
+            request.dataProviderResourceId,
+            request.impressionMetadataResourceId,
+          )
+          .impressionMetadata
       }
-      result
     } catch (e: ImpressionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -153,6 +145,7 @@ class SpannerImpressionMetadataService(
             this.impressionMetadataResourceId = impressionMetadataResourceId
             clearCreateTime()
             clearUpdateTime()
+            clearEtag()
           }
         }
       } catch (e: SpannerException) {
@@ -261,6 +254,7 @@ class SpannerImpressionMetadataService(
           result.impressionMetadata.copy {
             state = State.IMPRESSION_METADATA_STATE_DELETED
             clearUpdateTime()
+            clearEtag()
           }
         }
       } catch (e: ImpressionMetadataNotFoundException) {
@@ -270,7 +264,10 @@ class SpannerImpressionMetadataService(
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return deletedImpressionMetadata.copy { updateTime = commitTimestamp }
+    return deletedImpressionMetadata.copy {
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
   }
 
   /**

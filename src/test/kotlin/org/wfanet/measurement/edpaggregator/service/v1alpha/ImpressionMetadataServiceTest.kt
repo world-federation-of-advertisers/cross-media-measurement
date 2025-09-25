@@ -260,6 +260,38 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `getImpressionMetadata returns a deleted ImpressionMetadata successfully`() = runBlocking {
+    val createdImpressionMetadata =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val deleted =
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest { name = createdImpressionMetadata.name }
+      )
+
+    val got =
+      service.getImpressionMetadata(
+        getImpressionMetadataRequest { name = createdImpressionMetadata.name }
+      )
+
+    assertThat(got)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        createdImpressionMetadata.copy {
+          state = ImpressionMetadata.State.DELETED
+          clearUpdateTime()
+        }
+      )
+    assertThat(got.updateTime.toInstant()).isEqualTo(deleted.updateTime.toInstant())
+  }
+
+  @Test
   fun `getRequisitionMetadata throws REQUIRED_FIELD_NOT_SET when name is not set`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
