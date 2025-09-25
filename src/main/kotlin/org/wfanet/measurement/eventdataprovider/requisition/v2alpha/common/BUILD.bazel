@@ -16,6 +16,7 @@ kt_jvm_library(
     srcs = [
         "FrequencyVectorBuilder.kt",
         "InMemoryVidIndexMap.kt",
+        "ParallelInMemoryVidIndexMap.kt",
         "VidIndexMap.kt",
     ],
     tags = ["maven_coordinates=" + MAVEN_COORDINATES],
@@ -26,6 +27,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/eventdataprovider/shareshuffle:vid_index_map_entry_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@maven//:it_unimi_dsi_fastutil",
     ],
 )
 

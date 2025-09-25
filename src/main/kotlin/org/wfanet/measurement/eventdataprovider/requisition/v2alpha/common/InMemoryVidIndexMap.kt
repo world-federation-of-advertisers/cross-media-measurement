@@ -73,7 +73,8 @@ class InconsistentIndexMapAndPopulationSpecException(
 }
 
 /**
- * An implementation of [VidIndexMap] that holds the Map in memory.
+ * An implementation of [VidIndexMap] that holds the map in memory and performs all work
+ * sequentially.
  *
  * This constructor is private. See build methods in the companion object.
  *
@@ -121,18 +122,14 @@ private constructor(
     private val SALT = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
 
     /**
-     * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
+     * Create an [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function.
      *
      * @param[populationSpec] The [PopulationSpec] represented by this map
-     * @param[useParallelSorting] whether to perform sorting on multiple threads
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
     @JvmStatic
-    fun build(
-      populationSpec: PopulationSpec,
-      useParallelSorting: Boolean = false,
-    ): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash, useParallelSorting)
+    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
+      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash)
     }
 
     /**
@@ -218,8 +215,8 @@ private constructor(
      *
      * The bytearray is converted to a long in little endian order, which is then returned.
      *
-     * @param [vid] the vid to hash
-     * @param [salt] the value concatenated to the [vid] prior to hashing
+     * @param vid the vid to hash
+     * @param salt the value concatenated to the vid prior to hashing
      * @returns the hash of the vid
      */
     private fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
@@ -236,38 +233,62 @@ private constructor(
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
-      useParallelSorting: Boolean,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
       val indexMap = hashMapOf<Int, Int>()
+      val hashes = generateHashesList(populationSpec, hashFunction)
+
+      hashes.sortWith(compareBy { it })
+
+      for ((index, vidAndHash) in hashes.withIndex()) {
+        indexMap[vidAndHash.vid] = index
+      }
+      return InMemoryVidIndexMap(populationSpec, indexMap)
+    }
+
+    @VisibleForTesting
+    fun generateHashesList(
+      populationSpec: PopulationSpec,
+      hashFunction: (Long, ByteString) -> Long,
+    ): MutableList<VidAndHash> {
       val hashes = mutableListOf<VidAndHash>()
+      val vidData = collectVids(populationSpec)
+      for (i in 0 until vidData.count) {
+        val vid = vidData.vids[i].toLong()
+        hashes.add(VidAndHash(vidData.vids[i], hashFunction(vid, SALT)))
+      }
+      return hashes
+    }
+
+    @VisibleForTesting
+    fun collectVids(populationSpec: PopulationSpec): CollectedVids {
+      val totalVidCount =
+        populationSpec.subpopulationsList.fold(0L) { acc, subPop ->
+          acc +
+            subPop.vidRangesList.fold(0L) { rangeAcc, range ->
+              rangeAcc + (range.endVidInclusive - range.startVid + 1)
+            }
+        }
+
+      require(totalVidCount <= Int.MAX_VALUE) { "Total VID count exceeds supported maximum." }
+      val totalVidCountInt = totalVidCount.toInt()
+      val vids = IntArray(totalVidCountInt)
+      var writeIndex = 0
       for (subPop in populationSpec.subpopulationsList) {
         for (range in subPop.vidRangesList) {
           for (vid in range.startVid..range.endVidInclusive) {
             require(vid < Integer.MAX_VALUE) {
               "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
             }
-            hashes.add(VidAndHash(vid.toInt(), hashFunction(vid, SALT)))
+            vids[writeIndex++] = vid.toInt()
           }
         }
       }
-
-      if (useParallelSorting) {
-        val hashesArray: Array<VidAndHash> = hashes.toTypedArray()
-        Arrays.parallelSort(hashesArray)
-
-        for ((index, vidAndHash) in hashesArray.withIndex()) {
-          indexMap[vidAndHash.vid] = index
-        }
-      } else {
-        hashes.sortWith(compareBy { it })
-
-        for ((index, vidAndHash) in hashes.withIndex()) {
-          indexMap[vidAndHash.vid] = index
-        }
-      }
-      return InMemoryVidIndexMap(populationSpec, indexMap)
+      return CollectedVids(vids, totalVidCountInt)
     }
+
+    @VisibleForTesting
+    data class CollectedVids(val vids: IntArray, val count: Int)
   }
 
   /** An iterator over the VidIndexMapEntries of this VidIndexMap */
