@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/impression_metadata.proto";
@@ -44,7 +43,7 @@ service ImpressionMetadataService {
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (google.protobuf.Empty);
+      returns (ImpressionMetadata);
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
@@ -90,7 +89,6 @@ message ListImpressionMetadataRequest {
     google.type.Interval interval_overlaps = 3;
     ImpressionMetadataState state = 4;
     google.protobuf.Timestamp create_time_after = 5;
-    bool show_deleted = 6;
   }
   Filter filter = 4;
 }
@@ -108,8 +106,6 @@ message ListImpressionMetadataPageToken {
     string impression_metadata_resource_id = 2;
   }
   After after = 2;
-
-  ListImpressionMetadataRequest.Filter filter = 3;
 }
 
 message DeleteImpressionMetadataRequest {
