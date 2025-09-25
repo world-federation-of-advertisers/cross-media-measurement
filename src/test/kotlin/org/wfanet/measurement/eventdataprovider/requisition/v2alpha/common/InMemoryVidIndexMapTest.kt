@@ -17,6 +17,8 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.Collections
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -130,6 +132,7 @@ class InMemoryVidIndexMapTest {
 
       assertThat(vidIndexMap.size).isEqualTo(1)
       assertThat(vidIndexMap.get(1L)).isEqualTo(2)
+      assertFailsWith<VidNotFoundException> { vidIndexMap.get(2L) }
     }
 
   @Test
@@ -182,6 +185,197 @@ class InMemoryVidIndexMapTest {
         assertThat(entry.value.unitIntervalValue)
           .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
       }
+    }
+  }
+
+  @Test
+  fun `buildInternal with parallel sorting assigns contiguous indexes`() {
+    val vidCount = 1_024
+    val testPopulationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = vidCount.toLong()
+        }
+      }
+    }
+    val hashFunction = { vid: Long, _: ByteString -> vid }
+
+    val vidIndexMap = InMemoryVidIndexMap.buildInternal(testPopulationSpec, hashFunction, true)
+
+    assertThat(vidIndexMap.size).isEqualTo(vidCount.toLong())
+    for (vid in 1..vidCount) {
+      assertThat(vidIndexMap.get(vid.toLong())).isEqualTo(vid - 1)
+    }
+  }
+
+  @Test
+  fun `parallel hash generation matches sequential for contiguous ranges`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 10
+        }
+      }
+    }
+
+    val hashFunction = { vid: Long, _: ByteString -> vid * 17 }
+
+    val parallel =
+      InMemoryVidIndexMap.generateHashesParallel(populationSpec, hashFunction = hashFunction)
+    val sequential = InMemoryVidIndexMap.generateHashesSequential(populationSpec, hashFunction)
+
+    assertThat(parallel.toList()).containsExactlyElementsIn(sequential.toList()).inOrder()
+  }
+
+  @Test
+  fun `parallel hash generation matches sequential for disjoint ranges`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 100
+          endVidInclusive = 105
+        }
+      }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1_000
+          endVidInclusive = 1_005
+        }
+      }
+    }
+
+    val hashFunction =
+      { vid: Long, salt: ByteString -> vid.xor(salt.toLong(ByteOrder.BIG_ENDIAN)) }
+
+    val parallel =
+      InMemoryVidIndexMap.generateHashesParallel(populationSpec, hashFunction = hashFunction)
+    val sequential = InMemoryVidIndexMap.generateHashesSequential(populationSpec, hashFunction)
+
+    assertThat(parallel.toList()).containsExactlyElementsIn(sequential.toList()).inOrder()
+  }
+
+  @Test
+  fun `parallel hash generation honors custom partition count`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 32
+        }
+      }
+    }
+
+    val hashFunction = { vid: Long, _: ByteString -> vid * vid }
+
+    val defaultParallel =
+      InMemoryVidIndexMap.generateHashesParallel(populationSpec, hashFunction = hashFunction)
+    val sequential = InMemoryVidIndexMap.generateHashesSequential(populationSpec, hashFunction)
+    val forcedParallel =
+      InMemoryVidIndexMap.generateHashesParallel(
+        populationSpec,
+        hashFunction = hashFunction,
+        partitionCount = 4,
+      )
+
+    assertThat(defaultParallel.toList()).containsExactlyElementsIn(sequential.toList()).inOrder()
+    assertThat(forcedParallel.toList()).containsExactlyElementsIn(sequential.toList()).inOrder()
+  }
+
+  @Test
+  fun `applyPartitioned executes task for each partition`() {
+    // `segments` is mutated from multiple coroutine workers; guard it to avoid lost writes.
+    val segments = Collections.synchronizedList(mutableListOf<List<Int>>())
+    InMemoryVidIndexMap.applyPartitioned(10, 3) { bounds ->
+      segments += (bounds.startIndex until bounds.endIndexExclusive).toList()
+    }
+
+    // Partition execution order is nondeterministic; sort so we assert on coverage only.
+    val flattened = segments.flatten().sorted()
+    assertThat(flattened).containsExactlyElementsIn((0 until 10).toList()).inOrder()
+    assertThat(segments.count { it.isNotEmpty() }).isEqualTo(3)
+  }
+
+  @Test
+  fun `applyPartitioned returns empty when there is no work`() {
+    var invocationCount = 0
+    InMemoryVidIndexMap.applyPartitioned(0, 4) { invocationCount++ }
+
+    assertThat(invocationCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `generateHashesParallel hashes every vid`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 3
+        }
+      }
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 10
+          endVidInclusive = 12
+        }
+      }
+    }
+
+    val hashes =
+      InMemoryVidIndexMap.generateHashesParallel(
+        populationSpec,
+        hashFunction = { vid: Long, _: ByteString -> vid * 2 },
+      )
+
+    assertThat(hashes.map { it.vid }).containsExactly(1, 2, 3, 10, 11, 12).inOrder()
+    assertThat(hashes.map { it.hash }).containsExactly(2L, 4L, 6L, 20L, 22L, 24L).inOrder()
+  }
+
+  @Test
+  fun `generateHashesSequential hashes every vid`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 5
+          endVidInclusive = 7
+        }
+      }
+    }
+
+    val hashes =
+      InMemoryVidIndexMap.generateHashesSequential(
+        populationSpec,
+        hashFunction = { vid: Long, _: ByteString -> vid * 3 },
+      )
+
+    assertThat(hashes.map { it.vid }).containsExactly(5, 6, 7).inOrder()
+    assertThat(hashes.map { it.hash }).containsExactly(15L, 18L, 21L).inOrder()
+  }
+
+  @Test
+  fun `populateIndexMapPartitionMerge merges partial results`() {
+    val populationSpec = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 6
+        }
+      }
+    }
+
+    val hashes =
+      InMemoryVidIndexMap.generateHashesParallel(
+        populationSpec,
+        hashFunction = { vid: Long, _: ByteString -> 100 - vid },
+      )
+    val sorted = hashes.copyOf().also { it.sort() }
+    val indexMap = Int2IntOpenHashMap().apply { defaultReturnValue(-1) }
+
+    InMemoryVidIndexMap.populateIndexMapPartitionMerge(sorted, indexMap, partitionCount = 2)
+
+    for ((index, vidAndHash) in sorted.withIndex()) {
+      assertThat(indexMap.get(vidAndHash.vid)).isEqualTo(index)
     }
   }
 }
