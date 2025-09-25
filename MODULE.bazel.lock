@@ -449,8 +449,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cc/0.0.9/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cc/0.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cc/0.1.1/MODULE.bazel": "not found",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cue/0.4.0/MODULE.bazel": "bb8f958f35c70b2eb031df0b3143bccdf4acaa4d9d50028d6a00be0f3646870a",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cue/0.4.0/source.json": "652017131db9769f6ec6e48e5e14550193fe9e21acaae0ffa01c0c233a382510",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cue/0.4.1/MODULE.bazel": "0270a0b6e66ce10a9e51e8de56b2f011528b02570ed5f0edbc83a9037b19e894",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_cue/0.4.1/source.json": "41b7dea1aa4cc30b95bb11d5f380c4445703131b43ce74488c9676abc96155c8",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_foreign_cc/0.9.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_fuzzing/0.5.2/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/rules_go/0.33.0/MODULE.bazel": "not found",
@@ -2161,8 +2161,8 @@
     },
     "@@rules_cue~//cue/internal:non_module_deps.bzl%non_module_deps": {
       "general": {
-        "bzlTransitiveDigest": "CEn9DkALIg1PIIcEKD+ZHvlU/Nsvwz5+wzyCQbtVSPY=",
-        "usagesDigest": "onqp7ZK/c9wL0omP0xMEkBEhHWFaHgPQ7G0Jei4EqP0=",
+        "bzlTransitiveDigest": "LG7LWn5BeH+kmAfbck8fu/xxRiA48PhUMlIGSxN29LQ=",
+        "usagesDigest": "sgdt4lbDmvlojhjaLN+ou2AtjEj9sehzmCGMRNBL2RM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2182,7 +2182,7 @@
             "attributes": {
               "platform": "darwin_amd64",
               "version": "0.5.0",
-              "sha256": "00fc991977232240893ae36dc852366af859214d6e1b2b9e03e93b8f9f0991a7"
+              "sha256": "e2cede1965afa66dc52de7c1cd461227f4ff924f7a2adc9791cf1a699485409f"
             }
           }
         },
