@@ -66,7 +66,7 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `getImpressionMetadata returns a impression metadata`() = runBlocking {
+  fun `getImpressionMetadata returns an impression metadata`() = runBlocking {
     val startTime = Instant.now()
     service.createImpressionMetadata(
       createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
@@ -89,6 +89,41 @@ abstract class ImpressionMetadataServiceTest {
       .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_ACTIVE })
     assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
+    assertThat(impressionMetadata.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `getImpressionMetadata returns a deleted impression metadata`() = runBlocking {
+    val startTime = Instant.now()
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+
+    val deleted =
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
+
+    val impressionMetadata =
+      service.getImpressionMetadata(
+        getImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
+
+    assertThat(impressionMetadata)
+      .ignoringFields(
+        ImpressionMetadata.CREATE_TIME_FIELD_NUMBER,
+        ImpressionMetadata.UPDATE_TIME_FIELD_NUMBER,
+        ImpressionMetadata.ETAG_FIELD_NUMBER,
+      )
+      .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_DELETED })
+    assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
+    assertThat(impressionMetadata.updateTime).isEqualTo(deleted.updateTime)
     assertThat(impressionMetadata.etag).isNotEmpty()
   }
 
@@ -393,6 +428,7 @@ abstract class ImpressionMetadataServiceTest {
         created.copy {
           state = State.IMPRESSION_METADATA_STATE_DELETED
           clearUpdateTime()
+          clearEtag()
         }
       )
   }
@@ -687,9 +723,7 @@ abstract class ImpressionMetadataServiceTest {
         )
 
       assertThat(response)
-        .isEqualTo(
-          listImpressionMetadataResponse { impressionMetadata += created2.copy { clearEtag() } }
-        )
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created2 })
     }
 
   @Test
