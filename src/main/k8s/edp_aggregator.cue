@@ -21,9 +21,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_spannerConfig: #SpannerConfig & {
-		database: "edp-aggregator"
-	}
+	_spannerConfig: #SpannerConfig
 
 	_edpAggregatorInternalApiTarget: #GrpcTarget & {
 		serviceName:           "edp-aggregator-internal-api-server"
