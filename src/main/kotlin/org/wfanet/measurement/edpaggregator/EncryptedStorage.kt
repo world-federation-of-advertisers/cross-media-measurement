@@ -31,6 +31,13 @@ import org.wfanet.measurement.storage.StorageClient
 
 /** Useful functions for interacting with encrypted storage. */
 object EncryptedStorage {
+
+  private const val TYPE_URL_ENCRYPTION_KEY =
+    "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey"
+
+  private const val TYPE_URL_TINK_KEYSET =
+    "type.googleapis.com/google.crypto.tink.Keyset"
+
   /** Generates a serialized encrypted keyset using a [KmsClient]. */
   fun generateSerializedEncryptionKey(
     kmsClient: KmsClient,
@@ -57,24 +64,24 @@ object EncryptedStorage {
     encryptedDek: EncryptedDek
   ): MesosRecordIoStorageClient {
 
-    val aeadStorageClient = when (encryptedDek.protobufFormat) {
-      EncryptedDek.ProtobufFormat.BINARY -> {
+    val aeadStorageClient = when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
+      TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY -> {
         storageClient.withEnvelopeEncryption(
           kmsClient = kmsClient,
           kekUri = kekUri,
           encryptedDek = encryptedDek.ciphertext
         )
       }
-      EncryptedDek.ProtobufFormat.JSON -> {
+      TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON -> {
         storageClient.withEnvelopeEncryption(
           kmsClient = kmsClient,
           kekUri = kekUri,
           encryptedDek = encryptedDek.ciphertext,
-          keysetParser = ::parseJsonEncryptedKey
+          parseEncryptedKeyset = ::parseJsonEncryptedKey
         )
       }
       else -> throw IllegalArgumentException(
-        "Unsupported protobuf_format: ${encryptedDek.protobufFormat}"
+        "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
       )
     }
 
@@ -111,4 +118,5 @@ object EncryptedStorage {
       this.encryptedDek = encryptedDek
     }
   }
+
 }

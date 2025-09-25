@@ -220,7 +220,7 @@ class EventReaderTest {
 
     val encryptedDek = encryptedDek {
       this.kekUri = this@EventReaderTest.kekUri
-      typeUrl = "type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey"
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
       protobufFormat = EncryptedDek.ProtobufFormat.BINARY
       ciphertext = serializedEncryptionKey
     }

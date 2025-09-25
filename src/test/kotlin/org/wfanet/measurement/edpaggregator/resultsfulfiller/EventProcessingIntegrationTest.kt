@@ -1303,11 +1303,8 @@ class EventProcessingIntegrationTest {
     Files.createDirectories(deksBucketDir.toPath())
     val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
 
-    // Create empty encrypted DEK since we're not using encryption
-    val encryptedDek = encryptedDek {}
     val blobDetails = blobDetails {
       blobUri = "file:///impressions/$date/$eventGroup"
-      this.encryptedDek = encryptedDek
     }
 
     impressionsDekStorageClient.writeBlob(

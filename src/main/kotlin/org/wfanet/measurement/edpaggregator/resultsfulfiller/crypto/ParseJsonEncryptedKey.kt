@@ -1,10 +1,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.crypto
 
+import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.KmsClient
-import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.crypto.tink.proto.AesGcmHkdfStreamingParams
 import com.google.crypto.tink.proto.AesGcmHkdfStreamingKey
@@ -19,22 +18,21 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptionKey
 import org.wfanet.measurement.edpaggregator.v1alpha.HashType as EdpAggregatorHashType
 
 fun parseJsonEncryptedKey(
-    kmsClient: KmsClient,
-    kekUri: String,
-    encryptedDek: ByteString
+    encryptedDek: ByteArray,
+    kekAead: Aead,
+    associatedData: ByteArray?
 ): KeysetHandle {
-    val kmsAead = kmsClient.getAead(kekUri)
-    val decrypted = kmsAead.decrypt(encryptedDek.toByteArray(), byteArrayOf())
+    val decrypted = kekAead.decrypt(encryptedDek, associatedData ?: byteArrayOf())
 
     val builder = EncryptionKey.newBuilder()
-    JsonFormat.parser().ignoringUnknownFields()
+    JsonFormat.parser()
+        .ignoringUnknownFields()
         .merge(decrypted.toString(Charsets.UTF_8), builder)
 
     val encryptionKey = builder.build()
 
     val aesKey = when (encryptionKey.keyCase) {
-        EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY ->
-            encryptionKey.aesGcmHkdfStreamingKey
+        EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY -> encryptionKey.aesGcmHkdfStreamingKey
         EncryptionKey.KeyCase.KEY_NOT_SET ->
             throw IllegalArgumentException("EncryptionKey has no key_type set")
     }
