@@ -22,7 +22,8 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 
 object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
@@ -30,6 +31,7 @@ object Errors {
   enum class Reason {
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
+    IMPRESSION_METADATA_STATE_INVALID,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -46,6 +48,7 @@ object Errors {
     REQUISITION_METADATA_RESOURCE_ID("requisitionMetadataResourceId"),
     CMMS_REQUISITION("cmmsRequisition"),
     BLOB_URI("blobUri"),
+    IMPRESSION_METADATA_STATE("impressionMetadataState"),
     REQUISITION_METADATA_STATE("requisitionMetadataState"),
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
@@ -129,6 +132,24 @@ class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
     cause,
   )
 
+class ImpressionMetadataInvalidStateException(
+  dataProviderResourceId: String,
+  impressionMetadataResourceId: String,
+  actualState: ImpressionMetadataState,
+  expectedStates: Set<ImpressionMetadataState>,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+    "ImpressionMetadata is in state $actualState, expected one of $expectedStates",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
+      Errors.Metadata.IMPRESSION_METADATA_STATE to actualState.name,
+    ),
+    cause,
+  )
+
 class RequisitionMetadataNotFoundException(
   dataProviderResourceId: String,
   requisitionMetadataResourceId: String,
@@ -185,8 +206,8 @@ class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
 class RequisitionMetadataInvalidStateException(
   dataProviderResourceId: String,
   requisitionMetadataResourceId: String,
-  actualState: State,
-  expectedStates: Set<State>,
+  actualState: RequisitionMetadataState,
+  expectedStates: Set<RequisitionMetadataState>,
   cause: Throwable? = null,
 ) :
   ServiceException(
