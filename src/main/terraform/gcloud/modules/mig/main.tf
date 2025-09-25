@@ -121,8 +121,6 @@ resource "google_compute_instance_template" "confidential_vm_template" {
         "https://www.googleapis.com/auth/pubsub"
     ]
   }
-  # DO_NOT_SUBMIT: remove before merge.
-  deletion_protection = false
 }
 
 resource "google_compute_region_instance_group_manager" "mig" {
@@ -135,6 +133,8 @@ resource "google_compute_region_instance_group_manager" "mig" {
   lifecycle {
     create_before_destroy = true
   }
+  # DO_NOT_SUBMIT: remove before merge.
+  deletion_protection = false
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
