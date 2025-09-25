@@ -35,13 +35,13 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * Reads labeled events from impression blobs in storage.
  *
  * Streams [LabeledImpression] records from a storage blob and parses them into [LabeledEvent]
- * messages of the provided [descriptor]. When [kmsClient] is present, data is decrypted using the
- * DEK in [blobDetails].
+ * messages by decoding the embedded event with the provided dynamic [descriptor]. When [kmsClient]
+ * is present, data is decrypted using the DEK in [blobDetails].
  *
  * @property blobDetails metadata describing how to access and decrypt the blob.
  * @property kmsClient KMS client for DEK decryption. If null, reads unencrypted data.
  * @property impressionsStorageConfig configuration for accessing impression blobs.
- * @property descriptor protobuf descriptor for the event message contained in each impression.
+ * @property descriptor protobuf descriptor for dynamic parsing of the embedded event.
  * @property batchSize maximum number of events per emitted batch.
  * @property bufferCapacity number of upstream records to prefetch and buffer between I/O and
  *   parsing.
@@ -54,7 +54,12 @@ class StorageEventReader(
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int = DEFAULT_BATCH_SIZE,
   private val bufferCapacity: Int = DEFAULT_BUFFER_CAPACITY,
-) : EventReader {
+) : EventReader<Message> {
+
+  /** Returns the underlying blob details. */
+  fun getBlobDetails(): BlobDetails {
+    return blobDetails
+  }
 
   /**
    * Reads events from the configured blob and emits batches.
@@ -75,13 +80,9 @@ class StorageEventReader(
    * ## Processing Pipeline
    * 1. **Storage Setup**: Configures encrypted or plain storage based on [kmsClient]
    * 2. **Streaming**: Reads [LabeledImpression] messages as a stream
-   * 3. **Parsing**: Converts impressions to [LabeledEvent] with [DynamicMessage]
+   * 3. **Parsing**: Converts impressions to [LabeledEvent] using [descriptor]
    * 4. **Batching**: Accumulates events until [batchSize] is reached
    * 5. **Emission**: Emits complete batches through the flow
-   *
-   * ## Optimization Strategies
-   * - **Streaming Processing**: Never loads entire blob into memory
-   * - **Batch Buffering**: Minimizes flow emissions for efficiency
    *
    * @param blobDetails metadata containing encryption keys and blob configuration
    * @return cold [Flow] emitting batched lists of [LabeledEvent] instances
@@ -132,7 +133,6 @@ class StorageEventReader(
             timestamp = impression.eventTime.toInstant(),
             vid = impression.vid,
             message = eventMessage,
-            eventGroupReferenceId = impression.eventGroupReferenceId,
           )
 
         currentBatch.add(labeledEvent)

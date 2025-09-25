@@ -53,6 +53,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property schema The URI schema for storage paths, defaulting to "file:///".
  */
 class ImpressionsWriter(
+  private val eventGroupReferenceId: String,
   private val eventGroupPath: String,
   private val kekUri: String,
   private val kmsClient: KmsClient,
@@ -115,6 +116,7 @@ class ImpressionsWriter(
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
+        this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,

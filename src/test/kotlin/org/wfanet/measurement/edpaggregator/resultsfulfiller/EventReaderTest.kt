@@ -109,7 +109,6 @@ class EventReaderTest {
           eventTime = TIME_RANGE.start.toProtoTime()
           vid = index.toLong()
           event = TEST_EVENT.pack()
-          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
 
@@ -129,7 +128,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with paths
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = kmsClient,
@@ -165,7 +164,6 @@ class EventReaderTest {
           eventTime = TIME_RANGE.start.toProtoTime()
           vid = index.toLong()
           event = TEST_EVENT.pack()
-          eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
         }
       }
 
@@ -182,7 +180,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with kmsClient = null to indicate unencrypted data
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = null,
@@ -217,7 +215,7 @@ class EventReaderTest {
     }
 
     // Create EventReader with paths
-    val eventReader: EventReader =
+    val eventReader =
       StorageEventReader(
         blobDetails = blobDetails,
         kmsClient = kmsClient,

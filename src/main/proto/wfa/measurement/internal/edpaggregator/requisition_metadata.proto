@@ -38,6 +38,9 @@ message RequisitionMetadata {
   // The blob storage URI of the GroupedRequisitions file this entry belongs to.
   string blob_uri = 4;
 
+  // Type URL of the blob.
+  string blob_type_url = 14;
+
   // An identifier for the group of requisitions this entry belongs to.
   string group_id = 5;
 
@@ -62,6 +65,9 @@ message RequisitionMetadata {
 
   // Human-readable message associated with refusal.
   string refusal_message = 12;
+
+  // The etag of RequisitionMetadata
+  string etag = 13;
 }
 
 // Internal representation of a RequisitionMetadataAction.

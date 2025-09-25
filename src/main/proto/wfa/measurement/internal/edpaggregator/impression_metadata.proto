@@ -42,4 +42,7 @@ message ImpressionMetadata {
 
   google.protobuf.Timestamp create_time = 9;
   google.protobuf.Timestamp update_time = 10;
+
+  // The etag of ImpressionMetadata
+  string etag = 11;
 }

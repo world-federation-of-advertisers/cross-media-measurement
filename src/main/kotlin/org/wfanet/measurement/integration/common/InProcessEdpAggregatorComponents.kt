@@ -366,7 +366,8 @@ class InProcessEdpAggregatorComponents(
         )
       val impressionWriter =
         ImpressionsWriter(
-          "event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          mappedEventGroup.eventGroupReferenceId,
+          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",

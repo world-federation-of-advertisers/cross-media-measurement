@@ -216,6 +216,12 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_service_account_name" {
+  description = "Name of the DataAvailabilitySync service account."
+  type        = string
+  nullable    = false
+}
+
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
   type        = string
@@ -236,4 +242,42 @@ variable "results_fulfiller_disk_image_family" {
   description = "The boot disk image family."
   type        = string
   default     = "confidential-space"
+}
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "dns_managed_zone_name" {
+  description = "The name for Google DNS Managed Zone."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "requisition_fetcher_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
+  type = object({
+    schedule                    = string
+    time_zone                   = string
+    name                        = string
+    function_url                = string
+    scheduler_sa_display_name   = string
+    scheduler_sa_description    = string
+    scheduler_job_description   = string
+  })
+  nullable = false
 }

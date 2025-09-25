@@ -19,9 +19,14 @@ kt_jvm_library(
     srcs = ["MeasurementResults.kt"],
     deps = [
         "//imports/java/org/projectnessie/cel",
-        "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

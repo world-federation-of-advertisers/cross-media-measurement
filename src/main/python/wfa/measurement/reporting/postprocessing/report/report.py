@@ -657,6 +657,7 @@ class Report:
     measurement_index = 0
     self._measurement_name_to_index = {}
     self._index_to_measurement_name = {}
+    self._measurement_name_to_measurement = {}
     self._max_standard_deviation = UNIT_SCALING_FACTOR
     for metric in metric_reports.keys():
       metric_report = metric_reports[metric]
@@ -666,6 +667,7 @@ class Report:
           edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
         self._index_to_measurement_name[measurement_index] = measurement.name
+        self._measurement_name_to_measurement[measurement.name] = measurement
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
@@ -677,6 +679,7 @@ class Report:
             edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._index_to_measurement_name[measurement_index] = measurement.name
+          self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
@@ -688,6 +691,7 @@ class Report:
                   edp_combination, frequency)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._index_to_measurement_name[measurement_index] = measurement.name
+          self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
@@ -698,6 +702,7 @@ class Report:
           edp_combination)
         self._measurement_name_to_index[measurement.name] = measurement_index
         self._index_to_measurement_name[measurement_index] = measurement.name
+        self._measurement_name_to_measurement[measurement.name] = measurement
         self._max_standard_deviation = max(self._max_standard_deviation,
                                            measurement.sigma)
         measurement_index += 1
@@ -738,6 +743,11 @@ class Report:
 
     self._num_vars = measurement_index
 
+  def get_measurement_from_name(self, measurement_name: str) -> Measurement:
+    if measurement_name not in self._measurement_name_to_measurement:
+      return None
+    return self._measurement_name_to_measurement[measurement_name]
+
   def get_metric_report(self, metric: str) -> "MetricReport":
     return self._metric_reports[metric]
 
@@ -761,13 +771,37 @@ class Report:
         else ReportQuality()
     )
 
-    return corrected_report, \
-      ReportPostProcessorResult(
-          updated_measurements={},
-          status=report_post_processor_status,
-          pre_correction_quality=pre_correction_quality,
-          post_correction_quality=post_correction_quality,
-      )
+    report_post_processor_result = ReportPostProcessorResult(
+        updated_measurements={},
+        status=report_post_processor_status,
+        pre_correction_quality=pre_correction_quality,
+        post_correction_quality=post_correction_quality,
+    )
+
+    if corrected_report:
+      for measurement_name in self._measurement_name_to_measurement.keys():
+        measurement = self.get_measurement_from_name(measurement_name)
+        corrected_measurement = corrected_report.get_measurement_from_name(
+            measurement_name
+        )
+        if measurement is None or corrected_measurement is None:
+          continue
+
+        difference = abs(corrected_measurement.value - measurement.value)
+        if difference > STANDARD_DEVIATION_TEST_THRESHOLD*measurement.sigma:
+          logging.warning(
+            f"Measurement {measurement.name} has a large correction: original="
+            f"{measurement.value}, corrected={corrected_measurement.value}, "
+            f"sigma={measurement.sigma}."
+          )
+          report_post_processor_result.large_corrections.add(
+            metric_title=measurement_name,
+            original_value=round(measurement.value),
+            corrected_value=round(corrected_measurement.value),
+            sigma=measurement.sigma,
+          )
+
+    return corrected_report, report_post_processor_result
 
   def report_from_solution(self, solution: Solution) -> Optional["Report"]:
     logging.info("Generating the adjusted report from the solution.")

@@ -18,6 +18,7 @@ locals {
 
   metadata_map = merge(
       {
+        "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
       },
@@ -103,8 +104,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-    network = "default"
-    access_config { }
+    subnetwork = var.subnetwork_name
   }
 
   metadata = merge(

@@ -19,12 +19,11 @@
 -- Cloud Spanner database schema for the EDP Aggregator.
 
 -- Set protobuf FileDescriptorSet as a base64 string.
-SET PROTO_DESCRIPTORS =
-'Ct8DCkd3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9yZXF1aXNpdGlvbl9tZXRhZGF0YV9zdGF0ZS5wcm90bxImd2ZhLm1lYXN1cmVtZW50LmludGVybmFsLmVkcGFnZ3JlZ2F0b3IqkQIKGFJlcXVpc2l0aW9uTWV0YWRhdGFTdGF0ZRIqCiZSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1NUT1JFRBABEiUKIVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1FVRVVFRBACEikKJVJFUVVJU0lUSU9OX01FVEFEQVRBX1NUQVRFX1BST0NFU1NJTkcQAxIoCiRSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9GVUxGSUxMRUQQBBImCiJSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9SRUZVU0VEEAVCUAotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQh1SZXF1aXNpdGlvbk1ldGFkYXRhU3RhdGVQcm90b1ABYgZwcm90bzM='
+SET PROTO_DESCRIPTORS = 'Ct0CCkZ3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvZWRwYWdncmVnYXRvci9pbXByZXNzaW9uX21ldGFkYXRhX3N0YXRlLnByb3RvEiZ3ZmEubWVhc3VyZW1lbnQuaW50ZXJuYWwuZWRwYWdncmVnYXRvciqRAQoXSW1wcmVzc2lvbk1ldGFkYXRhU3RhdGUSKQolSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9VTlNQRUNJRklFRBAAEiQKIElNUFJFU1NJT05fTUVUQURBVEFfU1RBVEVfQUNUSVZFEAESJQohSU1QUkVTU0lPTl9NRVRBREFUQV9TVEFURV9ERUxFVEVEEAJCTwotb3JnLndmYW5ldC5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yQhxJbXByZXNzaW9uTWV0YWRhdGFTdGF0ZVByb3RvUAFiBnByb3RvMwrfAwpHd2ZhL21lYXN1cmVtZW50L2ludGVybmFsL2VkcGFnZ3JlZ2F0b3IvcmVxdWlzaXRpb25fbWV0YWRhdGFfc3RhdGUucHJvdG8SJndmYS5tZWFzdXJlbWVudC5pbnRlcm5hbC5lZHBhZ2dyZWdhdG9yKpECChhSZXF1aXNpdGlvbk1ldGFkYXRhU3RhdGUSKgomUkVRVUlTSVRJT05fTUVUQURBVEFfU1RBVEVfVU5TUEVDSUZJRUQQABIlCiFSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9TVE9SRUQQARIlCiFSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9RVUVVRUQQAhIpCiVSRVFVSVNJVElPTl9NRVRBREFUQV9TVEFURV9QUk9DRVNTSU5HEAMSKAokUkVRVUlTSVRJT05fTUVUQURBVEFfU1RBVEVfRlVMRklMTEVEEAQSJgoiUkVRVUlTSVRJT05fTUVUQURBVEFfU1RBVEVfUkVGVVNFRBAFQlAKLW9yZy53ZmFuZXQubWVhc3VyZW1lbnQuaW50ZXJuYWwuZWRwYWdncmVnYXRvckIdUmVxdWlzaXRpb25NZXRhZGF0YVN0YXRlUHJvdG9QAWIGcHJvdG8z';
 
 START BATCH DDL;
 
-ALTER PROTO BUNDLE INSERT (
+CREATE PROTO BUNDLE (
   `wfa.measurement.internal.edpaggregator.RequisitionMetadataState`,
 );
 
@@ -42,6 +41,8 @@ CREATE TABLE RequisitionMetadata (
   CmmsRequisition STRING(MAX) NOT NULL,
   -- The URI of the encrypted data blob.
   BlobUri STRING(MAX) NOT NULL,
+  -- The URL of the encrypted data bloe type.
+  BlobTypeUrl STRING(MAX) NOT NULL,
   -- An identifier for a group of related requisitions.
   GroupId STRING(MAX) NOT NULL,
   -- The creation time of the requisition in the CMMS.
@@ -69,7 +70,7 @@ CREATE UNIQUE INDEX RequisitionMetadataByResourceId
   ON RequisitionMetadata(DataProviderResourceId, RequisitionMetadataResourceId);
 
 -- Index for idempotency check on creation.
-CREATE UNIQUE INDEX RequisitionMetadataByCreateRequestId
+CREATE UNIQUE NULL_FILTERED INDEX RequisitionMetadataByCreateRequestId
   ON RequisitionMetadata(DataProviderResourceId, CreateRequestId);
 
 -- Index for looking up by CMMS requisition.
@@ -99,7 +100,7 @@ CREATE INDEX RequisitionMetadataByUpdateTime
 -- Stores the history of actions taken on a RequisitionMetadata entry.
 CREATE TABLE RequisitionMetadataActions (
   -- The resource ID of the DataProvider that owns this requisition.
-  DataProviderResourceId STRING(MAX) NOT NULL,
+  DataProviderResourceId STRING(63) NOT NULL,
   -- The internal ID of the parent RequisitionMetadata.
   RequisitionMetadataId INT64 NOT NULL,
   -- A unique ID for the action taken on the RequisitionMetadata.

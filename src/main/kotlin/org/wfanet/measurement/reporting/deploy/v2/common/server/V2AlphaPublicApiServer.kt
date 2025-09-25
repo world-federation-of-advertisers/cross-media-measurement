@@ -18,6 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
@@ -39,11 +41,13 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.PrincipalsGrpcKt
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ProtoReflection
@@ -81,6 +85,7 @@ import org.wfanet.measurement.reporting.service.api.CelEnvCacheProvider
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
@@ -93,6 +98,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
 private object V2AlphaPublicApiServer {
@@ -260,15 +266,59 @@ private object V2AlphaPublicApiServer {
       )
 
     startInProcessServerWithService(
-      IN_PROCESS_SERVER_NAME,
+      "$IN_PROCESS_SERVER_NAME-metrics",
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
     )
-    val inProcessChannel =
-      InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
+
+    val inProcessMetricsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-metrics")
         .directExecutor()
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val reportsService =
+      ReportsService(
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessMetricsChannel),
+        metricSpecConfig,
+        authorization,
+        SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.allowSamplingIntervalWrapping,
+        serviceDispatcher,
+      )
+
+    startInProcessServerWithService(
+      "$IN_PROCESS_SERVER_NAME-reports",
+      commonServerFlags,
+      reportsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+    )
+
+    val inProcessReportsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-reports")
+        .directExecutor()
+        .build()
+        .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val eventDescriptor: EventDescriptor? =
+      // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
+      if (
+        v2AlphaPublicServerFlags.eventMessageTypeUrl.isNotEmpty() &&
+          v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles.isNotEmpty()
+      ) {
+        val eventDescriptor: Descriptors.Descriptor =
+          checkNotNull(
+            buildTypeRegistry(v2AlphaPublicServerFlags.eventMessageDescriptorSetFiles)
+              .getDescriptorForTypeUrl(v2AlphaPublicServerFlags.eventMessageTypeUrl)
+          ) {
+            "--event-message-type-url is invalid"
+          }
+
+        EventDescriptor(eventDescriptor)
+      } else {
+        null
+      }
 
     val services: List<ServerServiceDefinition> =
       listOf(
@@ -302,17 +352,7 @@ private object V2AlphaPublicApiServer {
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
-        ReportsService(
-            InternalReportsCoroutineStub(channel),
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            MetricsCoroutineStub(inProcessChannel),
-            metricSpecConfig,
-            authorization,
-            SecureRandom().asKotlinRandom(),
-            reportingApiServerFlags.allowSamplingIntervalWrapping,
-            serviceDispatcher,
-          )
-          .withInterceptor(principalAuthInterceptor),
+        reportsService.withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(
             InternalReportSchedulesCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
@@ -343,9 +383,11 @@ private object V2AlphaPublicApiServer {
             InternalBasicReportsCoroutineStub(channel),
             InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
-            // TODO(@tristanvuong2021#2761): Switch to non-null value using flags
-            null,
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            ReportsCoroutineStub(inProcessReportsChannel),
+            eventDescriptor,
             basicReportMetricSpecConfig,
+            SecureRandom().asKotlinRandom(),
             authorization,
             serviceDispatcher,
           )
@@ -416,7 +458,55 @@ private object V2AlphaPublicApiServer {
 
     lateinit var knownEventGroupMetadataTypes: List<Descriptors.FileDescriptor>
       private set
+
+    @CommandLine.Option(
+      names = ["--event-message-type-url"],
+      description = ["Fully qualified name of the event message type."],
+      required = false,
+      defaultValue = "",
+    )
+    lateinit var eventMessageTypeUrl: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--event-message-descriptor-set"],
+      description =
+        [
+          "Path to a serialized FileDescriptorSet containing an event message type and/or its " +
+            "dependencies.",
+          "This can be specified multiple times.",
+        ],
+      required = false,
+    )
+    var eventMessageDescriptorSetFiles: List<File> = emptyList()
+      private set
   }
+
+  private fun buildTypeRegistry(descriptorSetFiles: List<File>): TypeRegistry {
+    val descriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      descriptorSetFiles.map {
+        it.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+
+    return TypeRegistry.newBuilder()
+      .add(ProtoReflection.buildDescriptors(descriptorSets, KNOWN_TYPES))
+      .build()
+  }
+
+  private val KNOWN_TYPES =
+    ProtoReflection.WELL_KNOWN_TYPES +
+      EventAnnotationsProto.getDescriptor() +
+      MediaTypeProto.getDescriptor()
+
+  private val EXTENSION_REGISTRY =
+    ExtensionRegistry.newInstance()
+      .apply {
+        add(EventAnnotationsProto.eventTemplate)
+        add(EventAnnotationsProto.templateField)
+      }
+      .unmodifiable
 }
 
 fun main(args: Array<String>) = commandLineMain(V2AlphaPublicApiServer::run, args)

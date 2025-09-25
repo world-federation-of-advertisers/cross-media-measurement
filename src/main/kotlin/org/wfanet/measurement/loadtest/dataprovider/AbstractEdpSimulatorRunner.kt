@@ -30,7 +30,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -78,7 +78,6 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
     DataProviderData(
       flags.dataProviderResourceName,
-      flags.dataProviderDisplayName,
       loadPrivateKey(flags.edpEncryptionPrivateKeyset),
       signingKeyHandle,
       certificateKey,
@@ -93,9 +92,11 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
   open val additionalMessageTypes: Collection<Descriptors.Descriptor> = emptyList()
 
   abstract fun buildEdpSimulator(
+    edpDisplayName: String,
     measurementConsumerName: String,
     kingdomPublicApiChannel: ManagedChannel,
-    requisitionFulfillmentStubsByDuchyId: Map<String, RequisitionFulfillmentCoroutineStub>,
+    requisitionFulfillmentStubsByDuchyId:
+      Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
     trustedCertificates: Map<ByteString, X509Certificate>,
     eventQuery: SyntheticGeneratorEventQuery,
     vidIndexMap: InMemoryVidIndexMap?,
@@ -132,13 +133,13 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     val requisitionFulfillmentStubsByDuchyId =
       flags.requisitionFulfillmentServiceFlags.associate {
         val channel = buildMutualTlsChannel(it.target, clientCerts, it.certHost)
-        val stub = RequisitionFulfillmentCoroutineStub(channel)
+        val stub = RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub(channel)
         it.duchyId to stub
       }
 
     val vidIndexMap: InMemoryVidIndexMap? =
       if (flags.supportHmss) {
-        InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpec())
+        InMemoryVidIndexMap.build(syntheticPopulationSpec.toPopulationSpecWithoutAttributes())
       } else {
         null
       }
@@ -156,7 +157,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
     val eventQuery =
       EventQuery(
-        edpData.displayName,
+        flags.dataProviderDisplayName,
         syntheticPopulationSpec,
         syntheticDataTimeZone,
         typeRegistry.getDescriptorForTypeUrl(syntheticPopulationSpec.eventMessageTypeUrl),
@@ -179,6 +180,7 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
 
     val edpSimulator: AbstractEdpSimulator =
       buildEdpSimulator(
+        flags.dataProviderDisplayName,
         flags.mcResourceName,
         kingdomPublicApiChannel,
         requisitionFulfillmentStubsByDuchyId,
