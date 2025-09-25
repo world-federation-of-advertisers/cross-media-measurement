@@ -19,12 +19,14 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
-import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.util.*
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
@@ -33,10 +35,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionM
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataIdByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
+import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataInvalidStateException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
@@ -47,7 +50,12 @@ import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataReques
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
 
 class SpannerImpressionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
@@ -69,14 +77,22 @@ class SpannerImpressionMetadataService(
     }
 
     return try {
-      databaseClient.singleUse().use { txn ->
-        txn
-          .getImpressionMetadataByResourceId(
-            request.dataProviderResourceId,
-            request.impressionMetadataResourceId,
-          )
-          .impressionMetadata
+      val result =
+        databaseClient.singleUse().use { txn ->
+          txn
+            .getImpressionMetadataByResourceId(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+            )
+            .impressionMetadata
+        }
+      if (result.state == State.IMPRESSION_METADATA_STATE_DELETED) {
+        throw ImpressionMetadataNotFoundException(
+          request.dataProviderResourceId,
+          request.impressionMetadataResourceId,
+        )
       }
+      result
     } catch (e: ImpressionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -159,7 +175,64 @@ class SpannerImpressionMetadataService(
     }
   }
 
-  override suspend fun deleteImpressionMetadata(request: DeleteImpressionMetadataRequest): Empty {
+  override suspend fun listImpressionMetadata(
+    request: ListImpressionMetadataRequest
+  ): ListImpressionMetadataResponse {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+
+    val after = if (request.hasPageToken()) request.pageToken.after else null
+
+    databaseClient.singleUse().use { txn ->
+      val impressionMetadataList: Flow<ImpressionMetadata> =
+        txn
+          .readImpressionMetadata(
+            request.dataProviderResourceId,
+            request.filter,
+            pageSize + 1,
+            after,
+          )
+          .map { it.impressionMetadata }
+      return listImpressionMetadataResponse {
+        impressionMetadataList.collectIndexed { index, impressionMetadata ->
+          if (index == pageSize) {
+            nextPageToken = listImpressionMetadataPageToken {
+              dataProviderResourceId = impressionMetadata.dataProviderResourceId
+              this.after =
+                ListImpressionMetadataPageTokenKt.after {
+                  impressionMetadataResourceId =
+                    this@listImpressionMetadataResponse.impressionMetadata
+                      .last()
+                      .impressionMetadataResourceId
+                }
+            }
+          } else {
+            this.impressionMetadata += impressionMetadata
+          }
+        }
+      }
+    }
+  }
+
+  override suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -170,21 +243,34 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    try {
-      databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata")).run { txn
-        ->
-        val impressionMetadataId =
-          txn.getImpressionMetadataIdByResourceId(
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata"))
+
+    val deletedImpressionMetadata =
+      try {
+        transactionRunner.run { txn ->
+          val result =
+            txn.getImpressionMetadataByResourceId(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+            )
+          txn.deleteImpressionMetadata(
             request.dataProviderResourceId,
             request.impressionMetadataResourceId,
           )
-        txn.deleteImpressionMetadata(request.dataProviderResourceId, impressionMetadataId)
+          result.impressionMetadata.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+          }
+        }
+      } catch (e: ImpressionMetadataNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ImpressionMetadataInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
-    } catch (e: ImpressionMetadataNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-    }
 
-    return Empty.getDefaultInstance()
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return deletedImpressionMetadata.copy { updateTime = commitTimestamp }
   }
 
   /**
