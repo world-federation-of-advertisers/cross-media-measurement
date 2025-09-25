@@ -102,6 +102,9 @@ jobs:
         build --define "spanner_instance=$SPANNER_INSTANCE"
         EOF
 
+    - name: Set up Bazel
+      uses: world-federation-of-advertisers/actions/setup-bazel@v2
+
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
