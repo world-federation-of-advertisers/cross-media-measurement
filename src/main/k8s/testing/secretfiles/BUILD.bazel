@@ -376,7 +376,7 @@ pkg_tar(
 kustomization_dir(
     name = "edp_aggregator_tls",
     srcs = [
-        edp_aggregator_tls_kustomization.yaml,
+        "edp_aggregator_tls_kustomization.yaml",
     ] + EDP_AGGREGATOR_TLS_SRCS,
     renames = {
         "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
