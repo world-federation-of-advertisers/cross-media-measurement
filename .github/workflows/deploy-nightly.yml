@@ -32,7 +32,7 @@ jobs:
       run: |
         set -euo pipefail
         date_string="$(TZ='America/Los_Angeles' date +'%Y%m%d')"
-        tags=$(gh api "/repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/nightly/${date_string}" --jq '.[].ref' | grep -E '^refs/tags/nightly/[0-9]{8}\.[0-9]+$' || true | sort -V)
+        tags=$(gh api "/repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/nightly/${date_string}" --jq '.[].ref' | (grep -E '^refs/tags/nightly/[0-9]{8}\.[0-9]+$' || true) | sort -V)
         printf "Got tags:\n%s\n" "${tags}"
         last_tag=$(tail -n1 <<< "${tags}")
         declare next_tag
