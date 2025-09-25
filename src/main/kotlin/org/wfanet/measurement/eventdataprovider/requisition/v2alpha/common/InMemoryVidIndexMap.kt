@@ -14,16 +14,12 @@
 
 package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
-import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
-import java.nio.ByteOrder
-import java.util.Arrays
 import kotlin.collections.withIndex
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
-import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMapCommon.collectVids
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
@@ -73,7 +69,8 @@ class InconsistentIndexMapAndPopulationSpecException(
 }
 
 /**
- * An implementation of [VidIndexMap] that holds the Map in memory.
+ * An implementation of [VidIndexMap] that holds the map in memory and performs all work
+ * sequentially.
  *
  * This constructor is private. See build methods in the companion object.
  *
@@ -106,33 +103,10 @@ private constructor(
   /** Get an Iterator for the VidIndexMapEntries of this VidIndexMap. */
   override operator fun iterator(): Iterator = Iterator()
 
-  /** A data class for a VID and its hash value. */
-  data class VidAndHash(val vid: Int, val hash: Long) : Comparable<VidAndHash> {
-    override operator fun compareTo(other: VidAndHash): Int =
-      compareValuesBy(this, other, { it.hash }, { it.vid })
-  }
-
   companion object {
-    /**
-     * A salt value to ensure the output of the hash used by the VidIndexMap is different from other
-     * functions that hash VIDs (e.g. the labeler). These are the first several digits of phi (the
-     * golden ratio) added to the date this value was created.
-     */
-    private val SALT = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
-
-    /**
-     * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
-     *
-     * @param[populationSpec] The [PopulationSpec] represented by this map
-     * @param[useParallelSorting] whether to perform sorting on multiple threads
-     * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
-     */
     @JvmStatic
-    fun build(
-      populationSpec: PopulationSpec,
-      useParallelSorting: Boolean = false,
-    ): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash, useParallelSorting)
+    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
+      return buildInternal(populationSpec, VidIndexMapCommon::hashVidToLongWithFarmHash)
     }
 
     /**
@@ -152,7 +126,7 @@ private constructor(
       populationSpec: PopulationSpec,
       indexMapEntries: Flow<VidIndexMapEntry>,
     ): InMemoryVidIndexMap {
-      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      VidIndexMapCommon.validatePopulationSpec(populationSpec)
 
       val indexMap = hashMapOf<Int, Int>()
 
@@ -209,25 +183,6 @@ private constructor(
     }
 
     /**
-     * Hash a VID with FarmHash and return the output as a [Long]
-     *
-     * The input of the hash function is determined by converting the [vid] to a byte array with big
-     * endian ordering and concatenating the [salt] to it.
-     *
-     * This input is passed to farmHashFingerprint64() whose output is a byte array.
-     *
-     * The bytearray is converted to a long in little endian order, which is then returned.
-     *
-     * @param [vid] the vid to hash
-     * @param [salt] the value concatenated to the [vid] prior to hashing
-     * @returns the hash of the vid
-     */
-    private fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString): Long {
-      val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
-      return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
-    }
-
-    /**
      * Same as the build function above that takes a populationSpec with the addition that this
      * function allows the client to specify the VID hash function. This function is exposed for
      * testing and should not be used by client code.
@@ -236,37 +191,25 @@ private constructor(
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
-      useParallelSorting: Boolean,
     ): InMemoryVidIndexMap {
-      PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
+      VidIndexMapCommon.validatePopulationSpec(populationSpec)
       val indexMap = hashMapOf<Int, Int>()
-      val hashes = mutableListOf<VidAndHash>()
-      for (subPop in populationSpec.subpopulationsList) {
-        for (range in subPop.vidRangesList) {
-          for (vid in range.startVid..range.endVidInclusive) {
-            require(vid < Integer.MAX_VALUE) {
-              "VIDs must be less than ${Integer.MAX_VALUE}. Got ${vid}"
-            }
-            hashes.add(VidAndHash(vid.toInt(), hashFunction(vid, SALT)))
-          }
-        }
-      }
+      val hashes = generateHashes(populationSpec, hashFunction).sortedBy { it }
 
-      if (useParallelSorting) {
-        val hashesArray: Array<VidAndHash> = hashes.toTypedArray()
-        Arrays.parallelSort(hashesArray)
-
-        for ((index, vidAndHash) in hashesArray.withIndex()) {
-          indexMap[vidAndHash.vid] = index
-        }
-      } else {
-        hashes.sortWith(compareBy { it })
-
-        for ((index, vidAndHash) in hashes.withIndex()) {
-          indexMap[vidAndHash.vid] = index
-        }
+      for ((index, vidAndHash) in hashes.withIndex()) {
+        indexMap[vidAndHash.vid] = index
       }
       return InMemoryVidIndexMap(populationSpec, indexMap)
+    }
+
+    @VisibleForTesting
+    fun generateHashes(
+      populationSpec: PopulationSpec,
+      hashFunction: (Long, ByteString) -> Long,
+    ): List<VidAndHash> {
+      return collectVids(populationSpec).map { vid ->
+        VidAndHash(vid, hashFunction(vid.toLong(), VidIndexMapCommon.HASH_SALT))
+      }
     }
   }
 
