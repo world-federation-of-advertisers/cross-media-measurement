@@ -1010,67 +1010,6 @@ class Report:
 
     logging.info("Finished adding subset relations to spec.")
 
-  def _get_ordered_sets_for_cumulative_measurements_within_metric(
-      self,
-      metric_report: MetricReport,
-      edp_combination: EdpCombination,
-      edps: list[EdpCombination],
-      period: int,
-  ) -> OrderedSets:
-    """Gets ordered sets for cumulative measurements within the same metric.
-
-    Let X_{1, i}, X_{2, i}, ..., X_{k, i} be cumulative measurements at
-    period i and X_{1, i + 1}, X_{2, i + 1}, ..., X_{k, i + 1} be
-    cumulative measurements at period (i+1). As X_{j, i} is a subset of
-    X_{j, i+1} for j in [1, k], we have:
-    |X_{1, i}| + ... + |X_{k, i}| - |X_{1, i} U ... U X_{k, i}| <=
-    |X_{1, i + 1}| + ... + |X_{k, i + 1}| -
-    |X_{1, i + 1} U ... U X_{k, i + 1}|.
-    This produces an ordered pair
-    (X_{1, i}, ..., X_{k, i}, {X_{1, i + 1} U ... U X_{1, i + 1}}) and
-    (X_{1, i + 1}, ..., X_{k, i + 1}, {X_{1, i} U ... U X_{k, i}}).
-
-    Args:
-        metric_report: Containing the measurements for a specific metric.
-        edp_combination: The set of EDPs used in the measurements.
-        edps: A list of all single EDP obtained from the above edp combination.
-        period: The time period of the cumulative measurements.
-
-    Returns:
-        An OrderedSets instance containing a larger set and a smaller set.
-    """
-    smaller_set: set[int] = \
-      [
-          self._get_measurement_index(
-              metric_report.get_weekly_cumulative_reach_measurement(
-                  edp_combination, period + 1
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              metric_report.get_weekly_cumulative_reach_measurement(
-                  edp, period
-              )
-          ) for edp in edps
-      ]
-
-    greater_set: set[int] = \
-      [
-          self._get_measurement_index(
-              metric_report.get_weekly_cumulative_reach_measurement(
-                  edp_combination, period
-              )
-          )
-      ] + [
-          self._get_measurement_index(
-              metric_report.get_weekly_cumulative_reach_measurement(
-                  edp, period + 1
-              )
-          ) for edp in edps
-      ]
-
-    return OrderedSets(set(greater_set), set(smaller_set))
-
   def _get_ordered_sets(
       self,
       union_getter_smaller: callable,
