@@ -104,9 +104,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   network_interface {
-#     subnetwork = var.subnetwork_name
-    network = "default"
-    access_config { }
+    subnetwork = var.subnetwork_name
   }
 
   metadata = merge(
