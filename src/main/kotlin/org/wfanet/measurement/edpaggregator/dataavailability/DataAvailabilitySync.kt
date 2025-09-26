@@ -163,7 +163,7 @@ class DataAvailabilitySync(
     }
   }
 
-  suspend private fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
@@ -219,7 +219,7 @@ class DataAvailabilitySync(
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
    */
-  suspend private fun createModelLineToImpressionMetadataMap(
+  private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     blobUri: BlobUri,
   ): Map<String, List<ImpressionMetadata>> {
