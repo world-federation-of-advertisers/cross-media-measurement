@@ -32,15 +32,16 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
-import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
@@ -52,6 +53,7 @@ import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
@@ -61,10 +63,12 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt as InternalAccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
@@ -91,14 +95,17 @@ private const val SLEEP_INTERVAL_MILLIS = 10000L
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
-  private val internalAccountsClient: AccountsGrpcKt.AccountsCoroutineStub,
+  private val internalAccountsClient: InternalAccountsGrpcKt.AccountsCoroutineStub,
   private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
-  private val accountsClient: AccountsCoroutineStub,
-  private val apiKeysClient: ApiKeysCoroutineStub,
   private val internalCertificatesClient: CertificatesGrpcKt.CertificatesCoroutineStub,
-  private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val accountsClient: AccountsGrpcKt.AccountsCoroutineStub,
+  private val apiKeysClient: ApiKeysGrpcKt.ApiKeysCoroutineStub,
+  private val measurementConsumersClient:
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   private val runId: String,
   private val requiredDuchies: List<String>,
+  private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
+    null,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
 ) {
@@ -112,6 +119,7 @@ class ResourceSetup(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
+    modelProviderAkid: ByteString,
   ): List<Resources.Resource> {
     logger.info("Starting with RunID: $runId ...")
     val resources = mutableListOf<Resources.Resource>()
@@ -147,27 +155,9 @@ class ResourceSetup(
 
     // Step 2: Create the EDPs.
     dataProviderContents.forEach {
-      val internalDataProvider: InternalDataProvider = createInternalDataProvider(it)
-      val dataProviderId: String = externalIdToApiId(internalDataProvider.externalDataProviderId)
-      val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
-      val certificateId: String =
-        externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
-      val dataProviderCertificateKeyName: String =
-        DataProviderCertificateKey(dataProviderId, certificateId).toName()
-      logger.info("Successfully created internal data provider: $dataProviderResourceName")
-      resources.add(
-        resource {
-          name = dataProviderResourceName
-          dataProvider =
-            ResourcesKt.ResourceKt.dataProvider {
-              displayName = it.displayName
-              certificate = dataProviderCertificateKeyName
-              // Assume signing cert uses same issuer as TLS client cert.
-              authorityKeyIdentifier =
-                checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)
-            }
-        }
-      )
+      val resource = createDataProviderResource(it)
+      logger.info("Successfully created DataProvider ${resource.name}")
+      resources.add(resource)
     }
 
     // Step 3: Create certificate for each duchy.
@@ -181,6 +171,11 @@ class ResourceSetup(
         }
       )
     }
+
+    // Step 4: Create ModelProvider.
+    val modelProviderResource = createModelProviderResource(modelProviderAkid)
+    logger.info("Successfully created ModelProvider ${modelProviderResource.name}")
+    resources.add(modelProviderResource)
 
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
@@ -204,7 +199,10 @@ class ResourceSetup(
               resource.dataProvider.authorityKeyIdentifier
             Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
               resource.measurementConsumer.authorityKeyIdentifier
-            else -> continue
+            Resources.Resource.ResourceCase.MODEL_PROVIDER ->
+              resource.modelProvider.authorityKeyIdentifier
+            Resources.Resource.ResourceCase.DUCHY_CERTIFICATE,
+            Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> continue
           }
         entries +=
           AuthorityKeyToPrincipalMapKt.entry {
@@ -285,13 +283,43 @@ class ResourceSetup(
             val duchyId = resource.duchyCertificate.duchyId
             writer.appendLine("build:$configName --define=${duchyId}_cert_name=${resource.name}")
           }
+          Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
+            writer.appendLine("build:$configName --define=mp_name=${resource.name}")
+          }
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
       }
     }
   }
 
-  /** Create an internal dataProvider, and return its corresponding public API resource name. */
+  /** Creates a DataProvider resource. */
+  suspend fun createDataProviderResource(dataProviderContent: EntityContent): Resources.Resource {
+    val internalDataProvider: InternalDataProvider = createInternalDataProvider(dataProviderContent)
+    val dataProviderId: String = externalIdToApiId(internalDataProvider.externalDataProviderId)
+    val dataProviderResourceName: String = DataProviderKey(dataProviderId).toName()
+    val certificateId: String =
+      externalIdToApiId(internalDataProvider.certificate.externalCertificateId)
+    val dataProviderCertificateKeyName: String =
+      DataProviderCertificateKey(dataProviderId, certificateId).toName()
+
+    return resource {
+      name = dataProviderResourceName
+      dataProvider =
+        ResourcesKt.ResourceKt.dataProvider {
+          displayName = dataProviderContent.displayName
+          certificate = dataProviderCertificateKeyName
+          // Assume signing cert uses same issuer as TLS client cert.
+          authorityKeyIdentifier =
+            checkNotNull(dataProviderContent.signingKey.certificate.authorityKeyIdentifier)
+        }
+    }
+  }
+
+  /**
+   * Creates an [InternalDataProvider].
+   *
+   * External callers should prefer [createDataProviderResource]
+   */
   suspend fun createInternalDataProvider(dataProviderContent: EntityContent): InternalDataProvider {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
@@ -312,6 +340,27 @@ class ResourceSetup(
       )
     } catch (e: StatusException) {
       throw Exception("Error creating DataProvider", e)
+    }
+  }
+
+  suspend fun createModelProviderResource(modelProviderAkid: ByteString): Resources.Resource {
+    val internalModelProvider: InternalModelProvider = createInternalModelProvider()
+    return resource {
+      name =
+        ModelProviderKey(ExternalId(internalModelProvider.externalModelProviderId).apiId.value)
+          .toName()
+      modelProvider =
+        ResourcesKt.ResourceKt.modelProvider { authorityKeyIdentifier = modelProviderAkid }
+    }
+  }
+
+  private suspend fun createInternalModelProvider(): InternalModelProvider {
+    checkNotNull(internalModelProvidersClient)
+
+    return try {
+      internalModelProvidersClient.createModelProvider(InternalModelProvider.getDefaultInstance())
+    } catch (e: StatusException) {
+      throw Exception("Error creating ModelProvider", e)
     }
   }
 

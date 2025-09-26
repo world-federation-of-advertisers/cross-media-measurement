@@ -39,16 +39,24 @@ class ResourceSetupFlags {
   lateinit var duchyCsCertDerFiles: Map<String, File>
     private set
 
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
-  lateinit var dataProviderParams: List<DataProviderParams>
-    private set
-
   @CommandLine.Option(
     names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
     required = true,
   )
   lateinit var mcCsCertDerFile: File
+    private set
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
+  lateinit var dataProviderParams: List<DataProviderParams>
+    private set
+
+  @CommandLine.Option(
+    names = ["--model-provider-root-cert"],
+    description = ["Path to ModelProviders's root CA certificate"],
+    required = true,
+  )
+  lateinit var modelProviderRootCertFile: File
     private set
 
   @CommandLine.Option(
