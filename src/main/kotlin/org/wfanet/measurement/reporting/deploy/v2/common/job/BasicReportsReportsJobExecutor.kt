@@ -76,6 +76,7 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+  @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
