@@ -14,13 +14,15 @@
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
-import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import java.io.IOException
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundException
@@ -32,15 +34,22 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
-import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken as InternalListImpressionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
 
 class ImpressionMetadataService(
   private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub,
@@ -74,6 +83,7 @@ class ImpressionMetadataService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -124,6 +134,7 @@ class ImpressionMetadataService(
             ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri, e)
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -139,7 +150,9 @@ class ImpressionMetadataService(
     return internalResponse.toImpressionMetadata()
   }
 
-  override suspend fun deleteImpressionMetadata(request: DeleteImpressionMetadataRequest): Empty {
+  override suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -148,19 +161,22 @@ class ImpressionMetadataService(
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    try {
-      internalImpressionMetadataStub.deleteImpressionMetadata(
-        internalDeleteImpressionMetadataRequest {
-          dataProviderResourceId = key.dataProviderId
-          impressionMetadataResourceId = key.impressionMetadataId
-        }
-      )
+    return try {
+      internalImpressionMetadataStub
+        .deleteImpressionMetadata(
+          internalDeleteImpressionMetadataRequest {
+            dataProviderResourceId = key.dataProviderId
+            impressionMetadataResourceId = key.impressionMetadataId
+          }
+        )
+        .toImpressionMetadata()
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+        InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
@@ -172,7 +188,106 @@ class ImpressionMetadataService(
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
-    return Empty.getDefaultInstance()
+  }
+
+  override suspend fun listImpressionMetadata(
+    request: ListImpressionMetadataRequest
+  ): ListImpressionMetadataResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val pageSize =
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
+
+    val internalPageToken: InternalListImpressionMetadataPageToken? =
+      if (request.pageToken.isEmpty()) {
+        null
+      } else {
+        try {
+          InternalListImpressionMetadataPageToken.parseFrom(request.pageToken.base64UrlDecode())
+        } catch (e: IOException) {
+          throw InvalidFieldValueException("page_token", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+    val internalFilter: InternalListImpressionMetadataRequest.Filter =
+      internalListImpressionMetadataRequestFilter {
+        if (request.filter.modelLine.isNotEmpty()) {
+          cmmsModelLine = request.filter.modelLine
+        }
+        if (request.filter.eventGroupReferenceId.isNotEmpty()) {
+          eventGroupReferenceId = request.filter.eventGroupReferenceId
+        }
+        if (request.filter.hasIntervalOverlaps()) {
+          intervalOverlaps = request.filter.intervalOverlaps
+        }
+
+        state =
+          if (!request.showDeleted) {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
+          } else {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
+          }
+      }
+
+    val internalResponse: InternalListImpressionMetadataResponse =
+      try {
+        internalImpressionMetadataStub.listImpressionMetadata(
+          internalListImpressionMetadataRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            this.pageSize = pageSize
+            if (internalPageToken != null) {
+              pageToken = internalPageToken
+            }
+            filter = internalFilter
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return listImpressionMetadataResponse {
+      impressionMetadata +=
+        internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
+      if (internalResponse.hasNextPageToken()) {
+        nextPageToken = internalResponse.nextPageToken.toByteArray().base64UrlEncode()
+      }
+    }
+  }
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
   }
 }
 
@@ -224,22 +339,8 @@ internal fun InternalImpressionMetadataState.toState(): ImpressionMetadata.State
       ImpressionMetadata.State.ACTIVE
     InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED ->
       ImpressionMetadata.State.DELETED
-    ImpressionMetadataState.UNRECOGNIZED,
+    InternalImpressionMetadataState.UNRECOGNIZED,
     InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_UNSPECIFIED ->
       error("Unrecognized state")
-  }
-}
-
-/**
- * Converts a public [ImpressionMetadata.State] to an internal [InternalImpressionMetadataState].
- */
-internal fun ImpressionMetadata.State.toInternal(): InternalImpressionMetadataState {
-  return when (this) {
-    ImpressionMetadata.State.ACTIVE ->
-      InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
-    ImpressionMetadata.State.DELETED ->
-      InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
-    ImpressionMetadata.State.UNRECOGNIZED,
-    ImpressionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
   }
 }
