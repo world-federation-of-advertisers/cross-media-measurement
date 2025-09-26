@@ -10,3 +10,13 @@ py_test(
         requirement("protobuf"),
     ],
 )
+
+py_test(
+    name = "report_mc_api_2_test",
+    srcs = ["report_mc_api_2_test.py"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report/testing:validate_report",
+        requirement("protobuf"),
+    ],
+)
