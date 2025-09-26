@@ -263,7 +263,7 @@ message ComputeModelLineBoundsResponse {
     // The model line resource names to get time bound for.
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string key = 1 [
-      (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"},
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
       (google.api.field_behavior) = REQUIRED
     ];
 
@@ -274,5 +274,5 @@ message ComputeModelLineBoundsResponse {
 
   // A list of ModelLine time bounds.
   repeated ModelLineBoundMapEntry model_line_bounds = 1
-  [(google.api.field_behavior) = UNORDERED_LIST];
+      [(google.api.field_behavior) = UNORDERED_LIST];
 }
