@@ -140,7 +140,6 @@ message ReportResult {
         NoisyMetricSet cumulative_results = 2;
         NoisyMetricSet non_cumulative_results = 3;
       }
-      NoisyReportResultValues noisy_report_result_values = 3;
 
       // Represents result values with respect to a ReportingWindowResult.
       //
@@ -153,7 +152,11 @@ message ReportResult {
         ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
         ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
       }
-      ReportResultValues report_result_values = 4;
+
+      oneof report_result_values {
+        NoisyReportResultValues noisy_report_result_values = 3;
+        ReportResultValues denoised_report_result_values = 4;
+      }
     }
     repeated ReportingWindowResult reporting_window_results = 9;
   }
