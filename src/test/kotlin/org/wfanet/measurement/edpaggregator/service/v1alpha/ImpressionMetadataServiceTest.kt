@@ -16,7 +16,6 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Empty
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.interval
@@ -37,6 +36,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -48,15 +48,22 @@ import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt as InternalListImpressionMetadataPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken as internalListImpressionMetadataPageToken
 
 @RunWith(JUnit4::class)
 class ImpressionMetadataServiceTest {
@@ -253,6 +260,38 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `getImpressionMetadata returns a deleted ImpressionMetadata successfully`() = runBlocking {
+    val createdImpressionMetadata =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val deleted =
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest { name = createdImpressionMetadata.name }
+      )
+
+    val got =
+      service.getImpressionMetadata(
+        getImpressionMetadataRequest { name = createdImpressionMetadata.name }
+      )
+
+    assertThat(got)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        createdImpressionMetadata.copy {
+          state = ImpressionMetadata.State.DELETED
+          clearUpdateTime()
+        }
+      )
+    assertThat(got.updateTime.toInstant()).isEqualTo(deleted.updateTime.toInstant())
+  }
+
+  @Test
   fun `getRequisitionMetadata throws REQUIRED_FIELD_NOT_SET when name is not set`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -305,8 +344,8 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `deleteRole returns empty`() = runBlocking {
-    val createdImpressionMetadata =
+  fun `deleteImpressionMetadata returns ImpressionMetadata`() = runBlocking {
+    val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
           parent = DATA_PROVIDER_KEY.toName()
@@ -315,10 +354,18 @@ class ImpressionMetadataServiceTest {
         }
       )
 
-    val request = deleteImpressionMetadataRequest { name = createdImpressionMetadata.name }
+    val request = deleteImpressionMetadataRequest { name = created.name }
     val response = service.deleteImpressionMetadata(request)
 
-    assertThat(response).isEqualTo(Empty.getDefaultInstance())
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        created.copy {
+          state = ImpressionMetadata.State.DELETED
+          clearUpdateTime()
+        }
+      )
+    assertThat(response.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
   }
 
   @Test
@@ -379,6 +426,249 @@ class ImpressionMetadataServiceTest {
         )
     }
 
+  @Test
+  fun `listImpressionMetadata returns ImpressionMetadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA)
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+      )
+
+    assertThat(response).isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
+  }
+
+  @Test
+  fun `listImpressionMetadata with page size returns ImpressionMetadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+    val sortedCreated = created.sortedBy { it.name }
+
+    val internalPageToken = internalListImpressionMetadataPageToken {
+      after =
+        InternalListImpressionMetadataPageTokenKt.after {
+          impressionMetadataResourceId =
+            ImpressionMetadataKey.fromName(sortedCreated[0].name)!!.impressionMetadataId
+        }
+    }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        listImpressionMetadataResponse {
+          impressionMetadata += sortedCreated[0]
+          nextPageToken = internalPageToken.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
+  @Test
+  fun `listImpressionMetadata with page token returns ImpressionMetadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+    val sortedCreated = created.sortedBy { it.name }
+
+    val firstResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+        }
+      )
+
+    val secondResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(secondResponse)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += sortedCreated[1] })
+  }
+
+  @Test
+  fun `listImpressionMetadata with ModelLine filter returns ImpressionMetadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListImpressionMetadataRequestKt.filter { modelLine = created[0].modelLine }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[0] })
+  }
+
+  @Test
+  fun `listImpressionMetadata with event group reference id filter returns ImpressionMetadata`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListImpressionMetadataRequestKt.filter {
+                eventGroupReferenceId = created[1].eventGroupReferenceId
+              }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[1] })
+    }
+
+  @Test
+  fun `listImpressionMetadata with interval overlaps filter returns ImpressionMetadata`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListImpressionMetadataRequestKt.filter {
+                intervalOverlaps = interval {
+                  startTime = timestamp { seconds = created[0].interval.startTime.seconds + 1 }
+                  endTime = timestamp { seconds = created[0].interval.startTime.seconds + 1 }
+                }
+              }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[0] })
+    }
+
+  @Test
+  fun `listImpressionMetadata returns deleted ImpressionMetadata when show deleted is set to true`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA)
+      val deleted =
+        service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created[0].name })
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            showDeleted = true
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted })
+    }
+
+  @Test
+  fun `listImpressionMetadata throws INVALID_ARGUMENT when parent is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listImpressionMetadata(ListImpressionMetadataRequest.getDefaultInstance())
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listImpressionMetadata throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listImpressionMetadata(listImpressionMetadataRequest { parent = "invalid-parent" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listImpressionMetadata throws INVALID_ARGUMENT when page size is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            pageSize = -1
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `listImpressionMetadata throws INVALID_ARGUMENT when page token is malformed`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listImpressionMetadata(
+            listImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              pageToken = "this-is-not-base64-or-a-proto"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+          }
+        )
+    }
+
+  private suspend fun createImpressionMetadata(
+    vararg impressionMetadata: ImpressionMetadata
+  ): List<ImpressionMetadata> {
+    return impressionMetadata.map { metadata ->
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          this.impressionMetadata = metadata
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
+  }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
@@ -386,20 +676,36 @@ class ImpressionMetadataServiceTest {
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
     private const val BLOB_URI = "path/to/blob"
     private const val BLOB_TYPE = "blob.type"
-    private const val EVENT_GROUP_REFERENCE_ID = "event-group-1"
-    private const val MODEL_LINE =
-      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
+    private const val EVENT_GROUP_REFERENCE_ID_1 = "event-group-1"
+    private const val EVENT_GROUP_REFERENCE_ID_2 = "event-group-2"
+    private const val MODEL_LINE_PREFIX =
+      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines"
+    private const val MODEL_LINE_1 = "${MODEL_LINE_PREFIX}/model-line-1"
+    private const val MODEL_LINE_2 = "${MODEL_LINE_PREFIX}/model-line-2"
     private val REQUEST_ID = UUID.randomUUID().toString()
 
     private val IMPRESSION_METADATA = impressionMetadata {
       // name not set
       blobUri = BLOB_URI
       blobTypeUrl = BLOB_TYPE
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      modelLine = MODEL_LINE
+      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_1
+      modelLine = MODEL_LINE_1
       interval = interval {
         startTime = timestamp { seconds = 1 }
-        endTime = timestamp { seconds = 2 }
+        endTime = timestamp { seconds = 9 }
+      }
+      // state not set
+    }
+
+    private val IMPRESSION_METADATA_2 = impressionMetadata {
+      // name not set
+      blobUri = "uri-2"
+      blobTypeUrl = BLOB_TYPE
+      eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
+      modelLine = MODEL_LINE_2
+      interval = interval {
+        startTime = timestamp { seconds = 10 }
+        endTime = timestamp { seconds = 20 }
       }
       // state not set
     }

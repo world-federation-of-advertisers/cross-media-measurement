@@ -43,6 +43,7 @@ kt_jvm_library(
     name = "internal_api_services",
     srcs = ["InternalApiServices.kt"],
     deps = [
+        ":spanner_impression_metadata_service",
         ":spanner_requisition_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",

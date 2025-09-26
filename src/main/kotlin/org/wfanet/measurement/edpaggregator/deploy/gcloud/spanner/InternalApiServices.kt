@@ -28,7 +28,8 @@ object InternalApiServices {
     idGenerator: IdGenerator = IdGenerator.Default,
   ): Services {
     return Services(
-      SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator)
+      SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator),
+      SpannerImpressionMetadataService(databaseClient, coroutineContext, idGenerator),
     )
   }
 }
