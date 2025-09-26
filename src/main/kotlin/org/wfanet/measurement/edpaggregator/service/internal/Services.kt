@@ -17,12 +17,14 @@
 package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
 data class Services(
   val requisitionMetadata:
-    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase,
+  val impressionMetadata: ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
 ) {
-  fun toList(): List<BindableService> = listOf(requisitionMetadata)
+  fun toList(): List<BindableService> = listOf(requisitionMetadata, impressionMetadata)
 }

@@ -17,6 +17,8 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -50,8 +52,9 @@ import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as inter
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
 
 class ImpressionMetadataService(
-  private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub
-) : ImpressionMetadataServiceCoroutineImplBase() {
+  private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ImpressionMetadataServiceCoroutineImplBase(coroutineContext) {
   override suspend fun getImpressionMetadata(
     request: GetImpressionMetadataRequest
   ): ImpressionMetadata {
