@@ -32,12 +32,12 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataInvalidStateException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
@@ -176,6 +176,14 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (
+      request.hasPageToken() &&
+        request.dataProviderResourceId != request.pageToken.dataProviderResourceId
+    ) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName ->
           "$fieldName must be non-negative"
@@ -247,9 +255,18 @@ class SpannerImpressionMetadataService(
               request.dataProviderResourceId,
               request.impressionMetadataResourceId,
             )
-          txn.deleteImpressionMetadata(
-            request.dataProviderResourceId,
-            request.impressionMetadataResourceId,
+          if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
+            throw ImpressionMetadataInvalidStateException(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+              result.impressionMetadata.state,
+              setOf(State.IMPRESSION_METADATA_STATE_ACTIVE),
+            )
+          }
+          txn.updateImpressionMetadataState(
+            result.impressionMetadata.dataProviderResourceId,
+            result.impressionMetadataId,
+            State.IMPRESSION_METADATA_STATE_DELETED,
           )
           result.impressionMetadata.copy {
             state = State.IMPRESSION_METADATA_STATE_DELETED
@@ -260,7 +277,7 @@ class SpannerImpressionMetadataService(
       } catch (e: ImpressionMetadataNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       } catch (e: ImpressionMetadataInvalidStateException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
