@@ -50,9 +50,9 @@ service ImpressionMetadataService {
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse);
 
-  // Computes the availability intervals for the given ModelLines.
-  rpc ComputeModelLinesAvailability(ComputeModelLinesAvailabilityRequest)
-      returns (ComputeModelLinesAvailabilityResponse) {}
+  // Computes the time bounds for the given ModelLines.
+  rpc ComputeModelLineBounds(ComputeModelLineBoundsRequest)
+      returns (ComputeModelLineBoundsResponse) {}
 }
 
 message CreateImpressionMetadataRequest {
@@ -132,16 +132,16 @@ message BatchDeleteImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 
-message ComputeModelLinesAvailabilityRequest {
+message ComputeModelLineBoundsRequest {
   string data_provider_resource_id = 1;
 
   repeated string cmms_model_line = 2;
 }
 
-message ComputeModelLinesAvailabilityResponse {
-  message ModelLineAvailability {
+message ComputeModelLineBoundsResponse {
+  message ModelLineBound {
     string cmms_model_line = 1;
-    google.type.Interval availability = 2;
+    google.type.Interval bound = 2;
   }
-  repeated ModelLineAvailability model_line_availabilities = 1;
+  repeated ModelLineBound model_line_bounds = 1;
 }

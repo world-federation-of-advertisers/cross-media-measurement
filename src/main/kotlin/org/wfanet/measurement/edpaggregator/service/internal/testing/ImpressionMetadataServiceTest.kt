@@ -35,13 +35,13 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
-import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponse
-import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponseKt.modelLineAvailability
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponseKt.modelLineBound
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
-import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityRequest
-import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
@@ -445,7 +445,7 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `computeModelLinesAvailability returns availabilities`() = runBlocking {
+  fun `computeModelLineBounds returns bounds`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
         impressionMetadata =
@@ -489,27 +489,27 @@ abstract class ImpressionMetadataServiceTest {
       }
     )
 
-    val request = computeModelLinesAvailabilityRequest {
+    val request = computeModelLineBoundsRequest {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       cmmsModelLine += CMMS_MODEL_LINE_1
       cmmsModelLine += CMMS_MODEL_LINE_2
     }
-    val response = service.computeModelLinesAvailability(request)
+    val response = service.computeModelLineBounds(request)
 
     assertThat(response)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        computeModelLinesAvailabilityResponse {
-          modelLineAvailabilities += modelLineAvailability {
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBound {
             cmmsModelLine = CMMS_MODEL_LINE_1
-            availability = interval {
+            bound = interval {
               startTime = timestamp { seconds = 100 }
               endTime = timestamp { seconds = 400 }
             }
           }
-          modelLineAvailabilities += modelLineAvailability {
+          modelLineBounds += modelLineBound {
             cmmsModelLine = CMMS_MODEL_LINE_2
-            availability = interval {
+            bound = interval {
               startTime = timestamp { seconds = 500 }
               endTime = timestamp { seconds = 700 }
             }
@@ -519,12 +519,12 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT if dataProviderResourceId not set`() =
+  fun `ComputeModelLineBounds throws INVALID_ARGUMENT if dataProviderResourceId not set`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest {
+          service.computeModelLineBounds(
+            computeModelLineBoundsRequest {
               // dataProviderResourceId not set
               cmmsModelLine += CMMS_MODEL_LINE_1
             }
@@ -535,23 +535,22 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT if cmmsModelLine not set`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              // cmmsModelLine not set
-            }
-          )
-        }
+  fun `ComputeModelLineBounds throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            // cmmsModelLine not set
+          }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
-  fun `computeModelLinesAvailability returns empty for non-existent model lines`() = runBlocking {
+  fun `ComputeModelLineBounds returns empty for non-existent model lines`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
         impressionMetadata =
@@ -563,17 +562,17 @@ abstract class ImpressionMetadataServiceTest {
       }
     )
 
-    val request = computeModelLinesAvailabilityRequest {
+    val request = computeModelLineBoundsRequest {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       cmmsModelLine += "non-existent-model-line"
     }
-    val response = service.computeModelLinesAvailability(request)
+    val response = service.computeModelLineBounds(request)
 
-    assertThat(response).isEqualTo(ComputeModelLinesAvailabilityResponse.getDefaultInstance())
+    assertThat(response).isEqualTo(ComputeModelLineBoundsResponse.getDefaultInstance())
   }
 
   @Test
-  fun `computeModelLinesAvailability returns partial for mix of existing and non-existent`() =
+  fun `ComputeModelLineBounds returns partial for mix of existing and non-existent`() =
     runBlocking {
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
@@ -590,18 +589,18 @@ abstract class ImpressionMetadataServiceTest {
         }
       )
 
-      val request = computeModelLinesAvailabilityRequest {
+      val request = computeModelLineBoundsRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         cmmsModelLine += CMMS_MODEL_LINE_1
         cmmsModelLine += "non-existent-model-line"
       }
-      val response = service.computeModelLinesAvailability(request)
+      val response = service.computeModelLineBounds(request)
       assertThat(response)
         .isEqualTo(
-          computeModelLinesAvailabilityResponse {
-            modelLineAvailabilities += modelLineAvailability {
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBound {
               cmmsModelLine = CMMS_MODEL_LINE_1
-              availability = interval {
+              bound = interval {
                 startTime = timestamp { seconds = 100 }
                 endTime = timestamp { seconds = 200 }
               }

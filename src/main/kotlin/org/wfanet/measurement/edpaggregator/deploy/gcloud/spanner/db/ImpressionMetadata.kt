@@ -44,7 +44,7 @@ data class ImpressionMetadataResult(
   val impressionMetadataId: Long,
 )
 
-data class DataAvailabilityResult(val cmmsModelLine: String, val availability: Interval)
+data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -218,10 +218,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   }
 }
 
-suspend fun AsyncDatabaseClient.ReadContext.readDataAvailabilityIntervals(
+suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
   dataProviderResourceId: String,
   cmmsModelLines: List<String>,
-): List<DataAvailabilityResult> {
+): List<ModelLineBoundResult> {
   val sql =
     """
       SELECT
@@ -244,9 +244,9 @@ suspend fun AsyncDatabaseClient.ReadContext.readDataAvailabilityIntervals(
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("cmmsModelLines").toStringArray(cmmsModelLines)
     }
-  return executeQuery(query, Options.tag("action=ReadDataAvailabilityIntervals"))
+  return executeQuery(query, Options.tag("action=readModelLinesBounds"))
     .map { row ->
-      DataAvailabilityResult(
+      ModelLineBoundResult(
         row.getString("CmmsModelLine"),
         interval {
           startTime = row.getTimestamp("StartTime").toProto()
