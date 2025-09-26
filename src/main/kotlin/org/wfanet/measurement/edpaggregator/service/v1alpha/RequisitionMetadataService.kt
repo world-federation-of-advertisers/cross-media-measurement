@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
@@ -57,8 +59,9 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 class RequisitionMetadataService(
-  private val internalClient: InternalRequisitionMetadataServiceCoroutineStub
-) : RequisitionMetadataServiceCoroutineImplBase() {
+  private val internalClient: InternalRequisitionMetadataServiceCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionMetadataServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun createRequisitionMetadata(
     request: CreateRequisitionMetadataRequest
