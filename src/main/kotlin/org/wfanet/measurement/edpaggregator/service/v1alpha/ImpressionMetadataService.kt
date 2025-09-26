@@ -25,22 +25,21 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundEx
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponseKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.internal.edpaggregator.ComputeModelLinesAvailabilityResponse as InternalComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
-import org.wfanet.measurement.internal.edpaggregator.computeModelLinesAvailabilityRequest as internalComputeModelLinesAvailabilityRequest
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
@@ -75,6 +74,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
             ImpressionMetadataNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -126,6 +126,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
             ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri, e)
               .asStatusRuntimeException(e.status.code)
+
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -163,6 +164,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
+
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -178,9 +180,9 @@ class ImpressionMetadataService(
     return Empty.getDefaultInstance()
   }
 
-  override suspend fun computeModelLinesAvailability(
-    request: ComputeModelLinesAvailabilityRequest
-  ): ComputeModelLinesAvailabilityResponse {
+  override suspend fun computeModelLineBounds(
+    request: ComputeModelLineBoundsRequest
+  ): ComputeModelLineBoundsResponse {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -195,16 +197,16 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    for (modelLine in request.modelLinesList) {
+    request.modelLinesList.forEachIndexed { index, modelLine ->
       ModelLineKey.fromName(modelLine)
-        ?: throw InvalidFieldValueException("model_lines.$modelLine")
+        ?: throw InvalidFieldValueException("model_lines.$index")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val internalResponse: InternalComputeModelLinesAvailabilityResponse =
+    val internalResponse: InternalComputeModelLineBoundsResponse =
       try {
-        internalImpressionMetadataStub.computeModelLinesAvailability(
-          internalComputeModelLinesAvailabilityRequest {
+        internalImpressionMetadataStub.computeModelLineBounds(
+          internalComputeModelLineBoundsRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
             cmmsModelLine += request.modelLinesList
           }
@@ -225,9 +227,13 @@ class ImpressionMetadataService(
         }
       }
 
-    return computeModelLinesAvailabilityResponse {
-      modelLineAvailabilities +=
-        internalResponse.modelLineAvailabilitiesList.map { it -> it.toModelLineAvailability() }
+    return computeModelLineBoundsResponse {
+      for ((key, value) in internalResponse.modelLineBoundsMap) {
+        modelLineBounds += modelLineBoundMapEntry {
+          this.key = key
+          this.value = value
+        }
+      }
     }
   }
 }
@@ -297,14 +303,5 @@ internal fun ImpressionMetadata.State.toInternal(): InternalImpressionMetadataSt
       InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
     ImpressionMetadata.State.UNRECOGNIZED,
     ImpressionMetadata.State.STATE_UNSPECIFIED -> error("Unrecognized state")
-  }
-}
-
-internal fun InternalComputeModelLinesAvailabilityResponse.ModelLineAvailability
-  .toModelLineAvailability(): ComputeModelLinesAvailabilityResponse.ModelLineAvailability {
-  val source = this
-  return ComputeModelLinesAvailabilityResponseKt.modelLineAvailability {
-    modelLine = source.cmmsModelLine
-    availability = source.availability
   }
 }

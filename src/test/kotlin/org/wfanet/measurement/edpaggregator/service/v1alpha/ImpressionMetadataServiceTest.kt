@@ -46,11 +46,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerImpress
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponseKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
@@ -383,7 +383,7 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `computeModelLinesAvailability returns availabilities`() = runBlocking {
+  fun `computeModelLineBounds returns bounds`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
         parent = DATA_PROVIDER_KEY.toName()
@@ -425,107 +425,101 @@ class ImpressionMetadataServiceTest {
           }
       }
     )
-    val request = computeModelLinesAvailabilityRequest {
+    val request = computeModelLineBoundsRequest {
       parent = DATA_PROVIDER_KEY.toName()
       modelLines += MODEL_LINE_1
       modelLines += MODEL_LINE_2
     }
-    val response = service.computeModelLinesAvailability(request)
+    val response = service.computeModelLineBounds(request)
 
     assertThat(response)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        computeModelLinesAvailabilityResponse {
-          modelLineAvailabilities +=
-            ComputeModelLinesAvailabilityResponseKt.modelLineAvailability {
-              modelLine = MODEL_LINE_1
-              availability = interval {
-                startTime = timestamp { seconds = 100 }
-                endTime = timestamp { seconds = 400 }
-              }
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = MODEL_LINE_1
+            value = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 400 }
             }
-          modelLineAvailabilities +=
-            ComputeModelLinesAvailabilityResponseKt.modelLineAvailability {
-              modelLine = MODEL_LINE_2
-              availability = interval {
-                startTime = timestamp { seconds = 500 }
-                endTime = timestamp { seconds = 700 }
-              }
+          }
+
+          modelLineBounds += modelLineBoundMapEntry {
+            key = MODEL_LINE_2
+            value = interval {
+              startTime = timestamp { seconds = 500 }
+              endTime = timestamp { seconds = 700 }
             }
+          }
         }
       )
   }
 
   @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when parent is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest { modelLines += MODEL_LINE_1 }
-          )
+  fun `computeModelLineBounds throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.computeModelLineBounds(computeModelLineBoundsRequest { modelLines += MODEL_LINE_1 })
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-          }
-        )
-    }
+      )
+  }
 
   @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when parent is malformed`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest {
-              parent += "invalid-name"
-              modelLines += MODEL_LINE_1
-            }
-          )
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+  fun `computeModelLineBounds throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            parent += "invalid-name"
+            modelLines += MODEL_LINE_1
           }
         )
-    }
-
-  @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when modelLines is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest { parent = DATA_PROVIDER_KEY.toName() }
-          )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines"
-          }
-        )
-    }
+      )
+  }
 
   @Test
-  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when modelLines have malformed names`() =
+  fun `computeModelLineBounds throws INVALID_ARGUMENT when modelLines is missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.computeModelLineBounds(
+          computeModelLineBoundsRequest { parent = DATA_PROVIDER_KEY.toName() }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines"
+        }
+      )
+  }
+
+  @Test
+  fun `computeModelLineBounds throws INVALID_ARGUMENT when modelLines have malformed names`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.computeModelLinesAvailability(
-            computeModelLinesAvailabilityRequest {
+          service.computeModelLineBounds(
+            computeModelLineBoundsRequest {
               parent = DATA_PROVIDER_KEY.toName()
               modelLines += "invalid-name"
             }
@@ -537,7 +531,7 @@ class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines.invalid-name"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines.0"
           }
         )
     }
@@ -550,10 +544,10 @@ class ImpressionMetadataServiceTest {
     private const val BLOB_URI = "path/to/blob"
     private const val BLOB_TYPE = "blob.type"
     private const val EVENT_GROUP_REFERENCE_ID = "event-group-1"
-    private const val MODLE_LINE_PREFIX =
+    private const val MODEL_LINE_PREFX =
       "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines"
-    private const val MODEL_LINE_1 = "$MODLE_LINE_PREFIX/model-line-1"
-    private const val MODEL_LINE_2 = "$MODLE_LINE_PREFIX/model-line-2"
+    private const val MODEL_LINE_1 = "$MODEL_LINE_PREFX/model-line-1"
+    private const val MODEL_LINE_2 = "$MODEL_LINE_PREFX/model-line-2"
     private val REQUEST_ID = UUID.randomUUID().toString()
 
     private val IMPRESSION_METADATA = impressionMetadata {
