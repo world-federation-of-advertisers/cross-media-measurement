@@ -45,7 +45,6 @@ import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSet
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
-import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponseKt.modelLineBound
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
@@ -212,13 +211,7 @@ class SpannerImpressionMetadataService(
         .readModelLinesBounds(request.dataProviderResourceId, request.cmmsModelLineList)
 
     return computeModelLineBoundsResponse {
-      modelLineBounds +=
-        results.map { result ->
-          modelLineBound {
-            cmmsModelLine = result.cmmsModelLine
-            bound = result.bound
-          }
-        }
+      modelLineBounds.putAll(results.associate { it.cmmsModelLine to it.bound })
     }
   }
 

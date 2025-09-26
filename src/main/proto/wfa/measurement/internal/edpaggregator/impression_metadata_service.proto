@@ -139,9 +139,6 @@ message ComputeModelLineBoundsRequest {
 }
 
 message ComputeModelLineBoundsResponse {
-  message ModelLineBound {
-    string cmms_model_line = 1;
-    google.type.Interval bound = 2;
-  }
-  repeated ModelLineBound model_line_bounds = 1;
+  // A map of the `cmms_model_line` to its bound of Interval.
+  map<string, google.type.Interval> model_line_bounds = 1;
 }

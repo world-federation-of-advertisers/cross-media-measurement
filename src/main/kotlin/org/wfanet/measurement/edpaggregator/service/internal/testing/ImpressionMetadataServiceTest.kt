@@ -36,7 +36,6 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
-import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponseKt.modelLineBound
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
@@ -500,20 +499,20 @@ abstract class ImpressionMetadataServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         computeModelLineBoundsResponse {
-          modelLineBounds += modelLineBound {
-            cmmsModelLine = CMMS_MODEL_LINE_1
-            bound = interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 400 }
-            }
-          }
-          modelLineBounds += modelLineBound {
-            cmmsModelLine = CMMS_MODEL_LINE_2
-            bound = interval {
-              startTime = timestamp { seconds = 500 }
-              endTime = timestamp { seconds = 700 }
-            }
-          }
+          modelLineBounds.putAll(
+            mapOf(
+              CMMS_MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 400 }
+                },
+              CMMS_MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 500 }
+                  endTime = timestamp { seconds = 700 }
+                },
+            )
+          )
         }
       )
   }
@@ -598,13 +597,15 @@ abstract class ImpressionMetadataServiceTest {
       assertThat(response)
         .isEqualTo(
           computeModelLineBoundsResponse {
-            modelLineBounds += modelLineBound {
-              cmmsModelLine = CMMS_MODEL_LINE_1
-              bound = interval {
-                startTime = timestamp { seconds = 100 }
-                endTime = timestamp { seconds = 200 }
-              }
-            }
+            modelLineBounds.putAll(
+              mapOf(
+                CMMS_MODEL_LINE_1 to
+                  interval {
+                    startTime = timestamp { seconds = 100 }
+                    endTime = timestamp { seconds = 200 }
+                  }
+              )
+            )
           }
         )
     }
