@@ -44,11 +44,13 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsPageToken
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
@@ -280,7 +282,26 @@ class ModelRolloutsService(
 
     val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
     val externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
-    val externalModelLineId = apiIdToExternalId(key.modelLineId)
+    val externalModelLineId: Long =
+      if (key.modelLineId == ResourceKey.WILDCARD_ID) {
+        0L
+      } else {
+        apiIdToExternalId(key.modelLineId)
+      }
+    val externalModelReleaseIds: List<Long> =
+      source.filter.modelReleaseInList.map { modelReleaseName ->
+        val modelReleaseKey =
+          grpcRequireNotNull(ModelReleaseKey.fromName(modelReleaseName)) {
+            "ModelRelease name invalid or unspecified"
+          }
+        if (modelReleaseKey.parentKey != key.parentKey) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "ModelRelease does not belong to ancestor ModelSuite"
+            )
+            .asRuntimeException()
+        }
+        ApiId(modelReleaseKey.modelReleaseId).externalId.value
+      }
 
     return if (source.pageToken.isNotBlank()) {
       ListModelRolloutsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
@@ -291,6 +312,9 @@ class ModelRolloutsService(
           "Arguments must be kept the same when using a page token"
         }
         grpcRequire(this.externalModelLineId == externalModelLineId) {
+          "Arguments must be kept the same when using a page token"
+        }
+        grpcRequire(this.externalModelReleaseIdIn == externalModelReleaseIds) {
           "Arguments must be kept the same when using a page token"
         }
         if (this.hasRolloutPeriodOverlapping()) {
@@ -329,7 +353,8 @@ class ModelRolloutsService(
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
         this.externalModelLineId = externalModelLineId
-        if (source.hasFilter() && source.filter.hasRolloutPeriodOverlapping()) {
+        this.externalModelReleaseIdIn += externalModelReleaseIds
+        if (source.filter.hasRolloutPeriodOverlapping()) {
           this.rolloutPeriodOverlapping = interval {
             startTime =
               source.filter.rolloutPeriodOverlapping.startDate
@@ -362,6 +387,7 @@ class ModelRolloutsService(
         externalModelProviderId = source.externalModelProviderId
         externalModelSuiteId = source.externalModelSuiteId
         externalModelLineId = source.externalModelLineId
+        externalModelReleaseIdIn += source.externalModelReleaseIdInList
         if (source.hasRolloutPeriodOverlapping()) {
           rolloutPeriod = rolloutPeriod {
             rolloutPeriodStartTime = source.rolloutPeriodOverlapping.startTime
