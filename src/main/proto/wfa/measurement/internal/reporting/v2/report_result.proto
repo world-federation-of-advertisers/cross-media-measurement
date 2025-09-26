@@ -73,20 +73,14 @@ message ReportResult {
       google.type.Date window_start_date = 1;
       google.type.Date window_end_date = 2;
 
-      // Represents result values with respect to a ReportingWindowResult.
+      // Represents noisy result values with respect to a ReportingWindowResult.
       //
       // The combination of (cmms_measurement_consumer_id,
       //                     external_report_result_id,
       //                     external_report_result_value_id)
       // is unique.
-      message ReportResultValues {
-        fixed64 external_report_result_value_id = 1;
-        enum ResultType {
-          RESULT_TYPE_UNSPECIFIED = 0;
-          NOISY = 1;
-          DENOISED = 2;
-        }
-        ResultType result_type = 2;
+      message NoisyReportResultValues {
+        fixed64 external_noisy_report_result_value_id = 1;
 
         message NoisyMetricSet {
           // Statistics of a scalar value
@@ -143,10 +137,23 @@ message ReportResult {
           PopulationCountResult population_count = 4;
         }
 
-        NoisyMetricSet cumulative_results = 3;
-        NoisyMetricSet non_cumulative_results = 4;
+        NoisyMetricSet cumulative_results = 2;
+        NoisyMetricSet non_cumulative_results = 3;
       }
-      ReportResultValues report_result_values = 3;
+      NoisyReportResultValues noisy_report_result_values = 3;
+
+      // Represents result values with respect to a ReportingWindowResult.
+      //
+      // The combination of (cmms_measurement_consumer_id,
+      //                     external_report_result_id,
+      //                     external_report_result_value_id)
+      // is unique.
+      message ReportResultValues {
+        fixed64 external_report_result_value_id = 1;
+        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
+        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
+      }
+      ReportResultValues report_result_values = 4;
     }
     repeated ReportingWindowResult reporting_window_results = 9;
   }
