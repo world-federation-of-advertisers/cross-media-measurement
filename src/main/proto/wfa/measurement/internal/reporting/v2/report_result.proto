@@ -127,14 +127,9 @@ message ReportResult {
             UnivariateStatistics univariate_statistics = 2;
           }
 
-          message PopulationCountResult {
-            int64 value = 1;
-          }
-
           ReachResult reach = 1;
           HistogramResult frequencyHistogram = 2;
           ImpressionCountResult impression_count = 3;
-          PopulationCountResult population_count = 4;
         }
 
         NoisyMetricSet cumulative_results = 2;
