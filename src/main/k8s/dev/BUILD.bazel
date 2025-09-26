@@ -634,6 +634,14 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "edp_aggregator_config",
+    srcs = ["edp_aggregator_config_kustomization.yaml"],
+    renames = {
+        "edp_aggregator_config_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
     name = "edp_aggregator",
     testonly = True,
     srcs = [
@@ -643,6 +651,7 @@ kustomization_dir(
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
+        ":edp_aggregator_config",
         ":edp_aggregator_tls",
     ],
 )

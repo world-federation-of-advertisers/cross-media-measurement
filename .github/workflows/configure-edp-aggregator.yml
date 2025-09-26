@@ -133,10 +133,10 @@ jobs:
         tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_tls_files.tar"
         -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls"
 
-#    - name: Copy secret generator
-#      run: >
-#        cp src/main/k8s/testing/secretfiles/edp_aggregator_tls_kustomization.yaml
-#        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_tls/kustomization.yaml"
+    - name: Copy trusted certs
+      run: >
+        cp "$BAZEL_BIN/src/main/k8s/testing/secretfiles/edp_aggregator_trusted_certs.pem"
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/trusted_certs.pem"
 
     - name: Export KUSTOMIZE_PATH
       run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator" >> $GITHUB_ENV

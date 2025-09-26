@@ -16,6 +16,5 @@ secretGenerator:
   - name: edp-aggregator-tls
     type: "kubernetes.io/tls"
     files:
-      - root.crt
       - tls.crt
       - tls.key

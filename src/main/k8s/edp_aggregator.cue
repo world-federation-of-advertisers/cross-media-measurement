@@ -104,7 +104,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
-						"--cert-collection-file=\(MountRoot)/tls/root.crt",
+						"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
 						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
 						"--tls-key-file=\(MountRoot)/tls/tls.key",
 			] + _edpAggregatorInternalApiTarget.args

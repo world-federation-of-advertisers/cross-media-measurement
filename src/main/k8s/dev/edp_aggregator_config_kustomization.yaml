@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-secretGenerator:
-  - name: edp-aggregator-tls
-    type: "kubernetes.io/tls"
+configMapGenerator:
+  - name: edp-aggregator-config
     files:
-      - tls.crt
-      - tls.key
+    - trusted_certs.pem
