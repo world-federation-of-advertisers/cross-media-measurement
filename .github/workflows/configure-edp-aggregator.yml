@@ -119,6 +119,7 @@ jobs:
         bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
+        //src/main/k8s/testing/secretfiles:edp_aggregator_trusted_certs.pem
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
