@@ -359,7 +359,7 @@ resource "google_compute_subnetwork" "private_subnetwork" {
   name                     = var.private_subnetwork_name
   region                   = data.google_client_config.default.region
   network                  = "default"
-  ip_cidr_range            = "10.0.0.0/24"
+  ip_cidr_range            = "192.168.0.0/16"
   private_ip_google_access = true
 }
 
