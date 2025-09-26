@@ -493,24 +493,39 @@ class BasicReportsReportsJobTest {
                         day = 13
                       }
                       noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                          cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                            reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                              value = 1
-                            }
-                            impressionCount = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.impressionCountResult {
-                              value = 1
-                            }
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .noisyReportResultValues {
+                            cumulativeResults =
+                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                .NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  reach =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .reachResult { value = 1 }
+                                  impressionCount =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .impressionCountResult { value = 1 }
+                                }
+                            nonCumulativeResults =
+                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                .NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  reach =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .reachResult { value = 1 }
+                                  impressionCount =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .impressionCountResult { value = 1 }
+                                }
                           }
-                          nonCumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                            reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                              value = 1
-                            }
-                            impressionCount = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.impressionCountResult {
-                              value = 1
-                            }
-                          }
-                        }
                     }
                   reportingWindowResults +=
                     ReportResultKt.ReportingSetResultKt.reportingWindowResult {
@@ -525,13 +540,19 @@ class BasicReportsReportsJobTest {
                         day = 20
                       }
                       noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                          nonCumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                            impressionCount = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.impressionCountResult {
-                              value = 1
-                            }
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .noisyReportResultValues {
+                            nonCumulativeResults =
+                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                .NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  impressionCount =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .impressionCountResult { value = 1 }
+                                }
                           }
-                        }
                     }
                 }
 
@@ -568,13 +589,19 @@ class BasicReportsReportsJobTest {
                         day = 13
                       }
                       noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                          nonCumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                            impressionCount = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.impressionCountResult {
-                              value = 1
-                            }
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .noisyReportResultValues {
+                            nonCumulativeResults =
+                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                .NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  impressionCount =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .impressionCountResult { value = 1 }
+                                }
                           }
-                        }
                     }
                 }
 
@@ -606,13 +633,19 @@ class BasicReportsReportsJobTest {
                         day = 13
                       }
                       noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                          cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                            reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                              value = 1
-                            }
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .noisyReportResultValues {
+                            cumulativeResults =
+                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                .NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  reach =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .reachResult { value = 1 }
+                                }
                           }
-                        }
                     }
                 }
             }
@@ -1407,30 +1440,28 @@ class BasicReportsReportsJobTest {
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
               MetricCalculationSpecKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
                 .toName()
 
             reportingSet =
               ReportingSetKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                COMPOSITE_REPORTING_SET.externalReportingSetId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  COMPOSITE_REPORTING_SET.externalReportingSetId,
+                )
                 .toName()
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-              filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
-              metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-              timeInterval = interval {
-                startTime = timestamp { seconds = 1736150400 }
-                endTime = timestamp { seconds = 1736755200 }
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
+                metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 1736150400 }
+                  endTime = timestamp { seconds = 1736755200 }
+                }
+                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
               }
-              metricResult = metricResult {
-                reach = MetricResultKt.reachResult { value = 1L }
-              }
-            }
           }
 
         metricCalculationResults +=
@@ -1539,36 +1570,76 @@ class BasicReportsReportsJobTest {
           }
           noisyReportResultValues =
             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-              cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                  value = 1
-                }
-              }
-              nonCumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                  value = 1
-                }
-                frequencyHistogram = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.histogramResult {
-                  bins += ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.bin {
-                    binResult = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.binResult {
-                      value = 2.0
-                    }
+              cumulativeResults =
+                ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                  .NoisyReportResultValuesKt
+                  .noisyMetricSet {
+                    reach =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .NoisyReportResultValuesKt
+                        .NoisyMetricSetKt
+                        .reachResult { value = 1 }
                   }
-                  bins += ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.bin {
-                    binResult = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.binResult {
-                      value = 4.0
-                    }
+              nonCumulativeResults =
+                ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                  .NoisyReportResultValuesKt
+                  .noisyMetricSet {
+                    reach =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .NoisyReportResultValuesKt
+                        .NoisyMetricSetKt
+                        .reachResult { value = 1 }
+                    frequencyHistogram =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .NoisyReportResultValuesKt
+                        .NoisyMetricSetKt
+                        .histogramResult {
+                          bins +=
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .HistogramResultKt
+                              .bin {
+                                binResult =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .HistogramResultKt
+                                    .binResult { value = 2.0 }
+                              }
+                          bins +=
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .HistogramResultKt
+                              .bin {
+                                binResult =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .HistogramResultKt
+                                    .binResult { value = 4.0 }
+                              }
+                          bins +=
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .HistogramResultKt
+                              .bin {
+                                binResult =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .HistogramResultKt
+                                    .binResult { value = 6.0 }
+                              }
+                        }
+                    impressionCount =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .NoisyReportResultValuesKt
+                        .NoisyMetricSetKt
+                        .impressionCountResult { value = 1 }
                   }
-                  bins += ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.bin {
-                    binResult = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.HistogramResultKt.binResult {
-                      value = 6.0
-                    }
-                  }
-                }
-                impressionCount = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.impressionCountResult {
-                  value = 1
-                }
-              }
             }
         }
       )
@@ -1667,16 +1738,26 @@ class BasicReportsReportsJobTest {
             }
             noisyReportResultValues =
               ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                  reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                    value = 1
-                  }
-                }
-                nonCumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                  reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                    value = 1
-                  }
-                }
+                cumulativeResults =
+                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                    .NoisyReportResultValuesKt
+                    .noisyMetricSet {
+                      reach =
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .NoisyReportResultValuesKt
+                          .NoisyMetricSetKt
+                          .reachResult { value = 1 }
+                    }
+                nonCumulativeResults =
+                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                    .NoisyReportResultValuesKt
+                    .noisyMetricSet {
+                      reach =
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .NoisyReportResultValuesKt
+                          .NoisyMetricSetKt
+                          .reachResult { value = 1 }
+                    }
               }
           }
         )
@@ -1741,11 +1822,16 @@ class BasicReportsReportsJobTest {
           }
           noisyReportResultValues =
             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-              cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                  value = 1
-                }
-              }
+              cumulativeResults =
+                ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                  .NoisyReportResultValuesKt
+                  .noisyMetricSet {
+                    reach =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .NoisyReportResultValuesKt
+                        .NoisyMetricSetKt
+                        .reachResult { value = 1 }
+                  }
             }
         }
       )
@@ -1818,11 +1904,16 @@ class BasicReportsReportsJobTest {
             }
             noisyReportResultValues =
               ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                  reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                    value = 1
-                  }
-                }
+                cumulativeResults =
+                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                    .NoisyReportResultValuesKt
+                    .noisyMetricSet {
+                      reach =
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .NoisyReportResultValuesKt
+                          .NoisyMetricSetKt
+                          .reachResult { value = 1 }
+                    }
               }
           },
           ReportResultKt.ReportingSetResultKt.reportingWindowResult {
@@ -1833,11 +1924,16 @@ class BasicReportsReportsJobTest {
             }
             noisyReportResultValues =
               ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
-                cumulativeResults = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.noisyMetricSet {
-                  reach = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.reachResult {
-                    value = 1
-                  }
-                }
+                cumulativeResults =
+                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                    .NoisyReportResultValuesKt
+                    .noisyMetricSet {
+                      reach =
+                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                          .NoisyReportResultValuesKt
+                          .NoisyMetricSetKt
+                          .reachResult { value = 1 }
+                    }
               }
           },
         )
