@@ -117,7 +117,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 					"edp-aggregator-tls": #SecretMount & {
 						volumeMount: mountPath: "\(MountRoot)/tls"
 					}
-				  "edp-aggregator-config": #ConfigMapMount & {
+					"edp-aggregator-config": #ConfigMapMount & {
 						volumeMount: mountPath: "\(MountRoot)/config"
 					}
 				}
