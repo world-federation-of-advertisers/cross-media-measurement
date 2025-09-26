@@ -16,11 +16,6 @@ data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
-
-  # IP addresses for private.googleapis.com (Private Google Access default VIPs)
-  # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
-  private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
-
   common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
@@ -304,7 +299,6 @@ module "result_fulfiller_tee_app" {
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
-  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
   edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }
