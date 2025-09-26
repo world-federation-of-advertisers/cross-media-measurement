@@ -15,10 +15,6 @@
 name: "Configure Edp Aggregator Services"
 
 on:
-  # DO_NOT_SUBMIT: Remove push trigger before merge.
-  push:
-    branches:
-      - "renjie-requisition-metadata-server"
   workflow_call:
     inputs:
       environment:
@@ -60,15 +56,8 @@ env:
 jobs:
   update-edp-aggregator-services:
     runs-on: ubuntu-22.04
-    # DO_NOT_SUBMIT: Remove fixed values.
-    ########### Branch Test ##########
-    env:
-      MY_IMAGE_TAG: "ff201ada207145506a2a82c386e4ccd0915efa3f"
-      MY_APPLY_FLAG: "true"
-    #################################
 
-#    environment: ${{ inputs.environment }}
-    environment: "dev"
+    environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@v4
 
@@ -88,8 +77,7 @@ jobs:
 
     - name: Write ~/.bazelrc
       env:
-#        IMAGE_TAG: ${{ inputs.image-tag }}
-        IMAGE_TAG: ${{ env.MY_IMAGE_TAG }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
         SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: |
@@ -147,13 +135,11 @@ jobs:
       run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
 
     - name: kubectl apply
-#      if: ${{ inputs.apply }}
-      if: ${{ env.MY_APPLY_FLAG == 'true' }}
+      if: ${{ inputs.apply }}
       run: kubectl apply -k "$KUSTOMIZE_PATH"
 
     - name: Wait for rollout
-#      if: ${{ inputs.apply }}
-      if: ${{ env.MY_APPLY_FLAG == 'true' }}
+      if: ${{ inputs.apply }}
       run: |
         for deployment in $(kubectl get deployments -o name); do
           kubectl rollout status "$deployment" --timeout=5m
