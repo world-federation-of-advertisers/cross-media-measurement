@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
@@ -76,6 +77,7 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+  @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
