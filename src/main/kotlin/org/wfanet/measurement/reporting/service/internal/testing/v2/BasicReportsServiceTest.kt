@@ -62,6 +62,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.readyNoisyResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
@@ -1219,6 +1220,163 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "external_report_id"
+          }
+        )
+    }
+
+  @Test
+  fun `readyNoisyResults updates state to NOISY_RESULTS_READY`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(
+        createBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              createReportRequestId = "1235"
+              clearResultDetails()
+            }
+        }
+      )
+
+    val readyNoisyResultsRequest = readyNoisyResultsRequest {
+      cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+      externalBasicReportId = createdBasicReport.externalBasicReportId
+      externalReportResultId = 1L
+    }
+
+    val updatedBasicReport = service.readyNoisyResults(readyNoisyResultsRequest)
+
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.NOISY_RESULTS_READY)
+    assertThat(retrievedBasicReport).isEqualTo(updatedBasicReport)
+  }
+
+  @Test
+  fun `readyNoisyResults throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest { basicReport = BASIC_REPORT })
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.readyNoisyResults(
+          readyNoisyResultsRequest {
+            cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = createdBasicReport.externalBasicReportId + "b"
+            externalReportResultId = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.BASIC_REPORT_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            createdBasicReport.cmmsMeasurementConsumerId
+          metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
+            createdBasicReport.externalBasicReportId + "b"
+        }
+      )
+  }
+
+  @Test
+  fun `readyNoisyResults throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.readyNoisyResults(
+          readyNoisyResultsRequest {
+            externalBasicReportId = "1234"
+            externalReportResultId = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
+
+  @Test
+  fun `readyNoisyResults throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.readyNoisyResults(
+            readyNoisyResultsRequest {
+              cmmsMeasurementConsumerId = "1234"
+              externalReportResultId = 1L
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "external_basic_report_id"
+          }
+        )
+    }
+
+  @Test
+  fun `readyNoisyResults throws INVALID_ARGUMENT when external_report_result_id missing`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.readyNoisyResults(
+            readyNoisyResultsRequest {
+              cmmsMeasurementConsumerId = "1234"
+              externalBasicReportId = "1234"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "external_report_result_id"
           }
         )
     }

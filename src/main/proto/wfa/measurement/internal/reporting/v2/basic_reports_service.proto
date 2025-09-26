@@ -51,6 +51,14 @@ service BasicReports {
   // * `BASIC_REPORT_NOT_FOUND`
   rpc SetExternalReportId(SetExternalReportIdRequest) returns (BasicReport);
 
+  // Transitions the `BasicReport` to the
+  // `BasicReport.State.NOISY_RESULTS_READY` state.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc ReadyNoisyResults(ReadyNoisyResultsRequest) returns (BasicReport);
+
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
   // * `BASIC_REPORT_NOT_FOUND`
@@ -81,6 +89,12 @@ message SetExternalReportIdRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
   string external_report_id = 3;
+}
+
+message ReadyNoisyResultsRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+  fixed64 external_report_result_id = 3;
 }
 
 message GetBasicReportRequest {

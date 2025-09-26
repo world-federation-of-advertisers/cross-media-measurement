@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.ReadyNoisyResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
@@ -58,6 +59,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasur
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementConsumerExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToFailed
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToNoisyResultsReady
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalReportId
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
@@ -340,6 +342,54 @@ class SpannerBasicReportsService(
         )
       externalReportId = request.externalReportId
       state = BasicReport.State.REPORT_CREATED
+    }
+  }
+
+  override suspend fun readyNoisyResults(request: ReadyNoisyResultsRequest): BasicReport {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalBasicReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_basic_report_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner = spannerClient.readWriteTransaction()
+
+    val basicReportResult: BasicReportResult =
+      try {
+        transactionRunner.run { txn ->
+          txn
+            .getBasicReportByExternalId(
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
+              externalBasicReportId = request.externalBasicReportId,
+            )
+            .also {
+              txn.setBasicReportStateToNoisyResultsReady(
+                it.measurementConsumerId,
+                it.basicReportId,
+                request.externalReportResultId,
+              )
+            }
+        }
+      } catch (e: BasicReportNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+    return basicReportResult.basicReport.copy {
+      campaignGroupDisplayName =
+        getCampaignGroupDisplayName(
+          request.cmmsMeasurementConsumerId,
+          basicReportResult.basicReport.externalCampaignGroupId,
+        )
+      state = BasicReport.State.NOISY_RESULTS_READY
     }
   }
 

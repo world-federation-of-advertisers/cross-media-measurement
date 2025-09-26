@@ -139,7 +139,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  */
-private fun createImpressionQualificationFilterSpecsFilter(
+fun createImpressionQualificationFilterSpecsFilter(
   impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): String {
@@ -242,7 +242,7 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
  * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
  */
-private fun createMetricCalculationSpecFilters(
+fun createMetricCalculationSpecFilters(
   impressionQualificationFilterSpecsFilters: List<String>,
   dimensionSpecFilters: List<EventFilter>,
   eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,

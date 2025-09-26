@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -60,6 +61,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as i
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -155,7 +157,11 @@ class BasicReportsService(
     }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>> =
+    val impressionQualificationFilterSpecsLists:
+      MutableList<List<ImpressionQualificationFilterSpec>> =
+      mutableListOf()
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter> =
       buildList {
         for (impressionQualificationFilter in
           request.basicReport.impressionQualificationFiltersList) {
@@ -165,14 +171,23 @@ class BasicReportsService(
                 impressionQualificationFilter.impressionQualificationFilter
               )
             try {
+              val internalImpressionQualificationFilter =
+                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+                  getImpressionQualificationFilterRequest {
+                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
+                  }
+                )
+
               add(
-                internalImpressionQualificationFiltersStub
-                  .getImpressionQualificationFilter(
-                    getImpressionQualificationFilterRequest {
-                      externalImpressionQualificationFilterId =
-                        key!!.impressionQualificationFilterId
-                    }
-                  )
+                reportingImpressionQualificationFilter {
+                  externalImpressionQualificationFilterId =
+                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+                }
+              )
+
+              impressionQualificationFilterSpecsLists.add(
+                internalImpressionQualificationFilter
                   .toImpressionQualificationFilter()
                   .filterSpecsList
               )
@@ -194,7 +209,9 @@ class BasicReportsService(
               }
             }
           } else if (impressionQualificationFilter.hasCustom()) {
-            add(impressionQualificationFilter.custom.filterSpecList)
+            impressionQualificationFilterSpecsLists.add(
+              impressionQualificationFilter.custom.filterSpecList
+            )
           }
         }
       }
@@ -211,6 +228,8 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
+                internalReportingImpressionQualificationFilters =
+                  internalReportingImpressionQualificationFilters,
               )
             requestId = request.requestId
           }
