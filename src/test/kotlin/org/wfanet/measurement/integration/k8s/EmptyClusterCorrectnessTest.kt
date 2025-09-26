@@ -49,10 +49,20 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
+import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -68,6 +78,7 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
@@ -119,6 +130,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     val measurementConsumerApiKey: String,
     /** Map of DataProvider display name to resource. */
     val dataProviders: Map<String, Resources.Resource>,
+    val modelProvider: String,
   ) {
     val measurementConsumerData =
       MeasurementConsumerData(
@@ -141,6 +153,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var measurementConsumerCert: String? = null
         var apiKey: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
+        var modelProvider: String? = null
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -164,6 +177,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 else -> error("Unhandled Duchy $duchyId")
               }
             }
+            Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
+              modelProvider = resource.name
+            }
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Unhandled type")
           }
         }
@@ -178,6 +194,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           measurementConsumerEncryptionKey = measurementConsumerEncryptionKey,
           measurementConsumerApiKey = requireNotNull(apiKey),
           dataProviders = dataProviders,
+          modelProvider = requireNotNull(modelProvider),
         )
       }
     }
@@ -188,7 +205,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     k8sClient: Lazy<KubernetesClient>,
     tempDir: Lazy<TemporaryFolder>,
     runId: Lazy<String>,
-  ) : TestRule, MeasurementSystem {
+  ) : TestRule, MeasurementSystem() {
     override val syntheticPopulationSpec: SyntheticPopulationSpec =
       SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_SMALL
     override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
@@ -209,6 +226,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
 
+    private lateinit var _populationDataProviderName: String
+    override val populationDataProviderName: String
+      get() = _populationDataProviderName
+
+    private lateinit var _modelLine: ModelLine
+    override val modelLine: ModelLine
+      get() = _modelLine
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -216,7 +241,28 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             runBlocking {
               withTimeout(Duration.ofMinutes(5)) {
                 val resourceInfo: ResourceInfo = populateCluster()
-                _testHarness = createTestHarness(resourceInfo)
+                _populationDataProviderName =
+                  resourceInfo.dataProviders.getValue(PDP_DISPLAY_NAME).name
+
+                val kingdomPublicApiTarget = forwardKingdomPublicApiService().toTarget()
+                val mcKingdomPublicApiChannel =
+                  buildKingdomPublicApiChannel(
+                    kingdomPublicApiTarget,
+                    MEASUREMENT_CONSUMER_SIGNING_CERTS,
+                  )
+                val mpKingdomPublicApiChannel =
+                  buildKingdomPublicApiChannel(kingdomPublicApiTarget, MP_SIGNING_CERTS)
+                val pdpKingdomPublicApiChannel =
+                  buildKingdomPublicApiChannel(kingdomPublicApiTarget, PDP_SIGNING_CERTS)
+
+                _modelLine =
+                  ensureModelLine(
+                    pdpKingdomPublicApiChannel,
+                    mpKingdomPublicApiChannel,
+                    resourceInfo.modelProvider,
+                  )
+
+                _testHarness = createTestHarness(mcKingdomPublicApiChannel, resourceInfo)
                 _reportingTestHarness =
                   createReportingUserSimulator(resourceInfo.measurementConsumerData)
               }
@@ -237,7 +283,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val duchyCerts =
         ALL_DUCHY_NAMES.map { DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")) }
-      val edpEntityContents = EDP_DISPLAY_NAMES.map { createEntityContent(it) }
+      val dataProviderContents: List<EntityContent> =
+        withContext(Dispatchers.IO) {
+          EDP_DISPLAY_NAMES.map { createEntityContent(it) } + createEntityContent(PDP_DISPLAY_NAME)
+        }
       val measurementConsumerContent =
         withContext(Dispatchers.IO) { createEntityContent(MC_DISPLAY_NAME) }
 
@@ -246,8 +295,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
       loadKingdom()
-      val resourceSetupOutput =
-        runResourceSetup(duchyCerts, edpEntityContents, measurementConsumerContent)
+      val resourceSetupOutput: ResourceSetupOutput =
+        runResourceSetup(duchyCerts, dataProviderContents, measurementConsumerContent)
       val encryptionPrivateKey: TinkPrivateKeyHandle =
         withContext(Dispatchers.IO) {
           loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
@@ -268,19 +317,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
       return resourceInfo
     }
 
-    private suspend fun createTestHarness(
-      resourceInfo: ResourceInfo
+    private fun createTestHarness(
+      publicApiChannel: Channel,
+      resourceInfo: ResourceInfo,
     ): EventQueryMeasurementConsumerSimulator {
-      val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
-
-      val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
-      portForwarders.add(publicApiForwarder)
-
-      val publicApiAddress: InetSocketAddress =
-        withContext(Dispatchers.IO) { publicApiForwarder.start() }
-      val publicApiChannel: Channel =
-        buildMutualTlsChannel(publicApiAddress.toTarget(), MEASUREMENT_CONSUMER_SIGNING_CERTS)
-          .also { channels.add(it) }
       val eventGroupsClient = EventGroupsGrpcKt.EventGroupsCoroutineStub(publicApiChannel)
 
       return EventQueryMeasurementConsumerSimulator(
@@ -295,6 +335,47 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         buildEventQuery(resourceInfo.dataProviders.values.map { it.name }),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
+    }
+
+    @Blocking
+    private fun ensureModelLine(
+      pdpKingdomPublicApiChannel: Channel,
+      mpKingdomPublicApiChannel: Channel,
+      modelProviderName: String,
+    ): ModelLine {
+      val population: Population = ensurePopulation(pdpKingdomPublicApiChannel)
+
+      val modelSuitesStub = ModelSuitesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelSuite =
+        modelSuitesStub.createModelSuite(
+          createModelSuiteRequest {
+            parent = modelProviderName
+            modelSuite = modelSuite { displayName = "K8s test" }
+          }
+        )
+
+      val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelRelease =
+        modelReleasesStub.createModelRelease(
+          createModelReleaseRequest {
+            parent = modelSuite.name
+            modelRelease = modelRelease { this.population = population.name }
+          }
+        )
+
+      return createModelLine(mpKingdomPublicApiChannel, modelSuite.name, modelRelease.name)
+    }
+
+    private suspend fun forwardKingdomPublicApiService(): InetSocketAddress {
+      val kingdomPublicPod: V1Pod = getPod(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
+
+      val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
+      portForwarders.add(publicApiForwarder)
+      return withContext(Dispatchers.IO) { publicApiForwarder.start() }
+    }
+
+    private fun buildKingdomPublicApiChannel(target: String, clientCerts: SigningCerts): Channel {
+      return buildMutualTlsChannel(target, clientCerts).also { channels.add(it) }
     }
 
     private suspend fun createReportingUserSimulator(
@@ -363,6 +444,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             configTemplate,
           )
 
+          val pdpResource: Resources.Resource =
+            resourceInfo.dataProviders.getValue(PDP_DISPLAY_NAME)
           val configContent =
             configTemplate
               .readText(StandardCharsets.UTF_8)
@@ -372,6 +455,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               .replace("{mc_name}", resourceInfo.measurementConsumer)
               .replace("{mc_api_key}", resourceInfo.measurementConsumerApiKey)
               .replace("{mc_cert_name}", resourceInfo.measurementConsumerCert)
+              .replace("{pdp_name}", pdpResource.name)
+              .replace("{pdp_cert_name}", pdpResource.dataProvider.certificate)
               .let {
                 var config = it
                 for ((displayName, resource) in resourceInfo.dataProviders) {
@@ -411,7 +496,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
     private suspend fun runResourceSetup(
       duchyCerts: List<DuchyCert>,
-      edpEntityContents: List<EntityContent>,
+      dataProviderContents: List<EntityContent>,
       measurementConsumerContent: EntityContent,
     ): ResourceSetupOutput {
       val outputDir = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
@@ -436,20 +521,29 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   AccountsGrpcKt.AccountsCoroutineStub(internalChannel),
                   org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
                     .DataProvidersCoroutineStub(internalChannel),
+                  org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
+                    .CertificatesCoroutineStub(internalChannel),
                   org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub(
                     publicChannel
                   ),
                   ApiKeysGrpcKt.ApiKeysCoroutineStub(publicChannel),
-                  org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
-                    .CertificatesCoroutineStub(internalChannel),
                   MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicChannel),
                   runId,
-                  outputDir = outputDir,
+                  internalModelProvidersClient =
+                    ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
+                  outputDir = outputDir,
                 )
               withContext(Dispatchers.IO) {
                 resourceSetup
-                  .process(edpEntityContents, measurementConsumerContent, duchyCerts)
+                  .process(
+                    dataProviderContents,
+                    measurementConsumerContent,
+                    duchyCerts,
+                    checkNotNull(
+                      MP_SIGNING_CERTS.privateKeyHandle.certificate.authorityKeyIdentifier
+                    ),
+                  )
                   .also { publicChannel.shutdown() }
               }
             }
