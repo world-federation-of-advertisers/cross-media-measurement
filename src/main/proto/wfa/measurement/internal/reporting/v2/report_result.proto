@@ -77,7 +77,7 @@ message ReportResult {
       //
       // The combination of (cmms_measurement_consumer_id,
       //                     external_report_result_id,
-      //                     external_report_result_value_id)
+      //                     external_noisy_report_result_value_id)
       // is unique.
       message NoisyReportResultValues {
         fixed64 external_noisy_report_result_value_id = 1;
