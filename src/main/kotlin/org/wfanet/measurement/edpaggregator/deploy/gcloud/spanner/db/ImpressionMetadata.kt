@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
@@ -26,7 +27,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataInvalidStateException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -145,31 +145,21 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   }
 }
 
-/** Soft Delete []ImpressionMetadata]. */
-suspend fun AsyncDatabaseClient.TransactionContext.deleteImpressionMetadata(
+/** Buffers an update to a [ImpressionMetadata] row's state and related fields. */
+fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataState(
   dataProviderResourceId: String,
-  impressionMetadataResourceId: String,
+  impressionMetadataId: Long,
+  state: State,
+  block: (Mutation.WriteBuilder.() -> Unit)? = null,
 ) {
-  val result =
-    getImpressionMetadataByResourceId(dataProviderResourceId, impressionMetadataResourceId)
-      ?: throw ImpressionMetadataNotFoundException(
-        dataProviderResourceId,
-        impressionMetadataResourceId,
-      )
-  if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-    throw ImpressionMetadataInvalidStateException(
-      dataProviderResourceId,
-      impressionMetadataResourceId,
-      result.impressionMetadata.state,
-      setOf(State.IMPRESSION_METADATA_STATE_DELETED),
-    )
-  }
   bufferUpdateMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(dataProviderResourceId)
-    set("ImpressionMetadataResourceId").to(impressionMetadataResourceId)
-    set("ImpressionMetadataId").to(result.impressionMetadataId)
-    set("State").to(State.IMPRESSION_METADATA_STATE_DELETED)
+    set("ImpressionMetadataId").to(impressionMetadataId)
+    set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    if (block != null) {
+      block()
+    }
   }
 }
 
@@ -206,37 +196,31 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   val sql = buildString {
     appendLine(ImpressionMetadataEntity.BASE_SQL)
 
-    val whereClauses = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+    val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
-      whereClauses.add("State = @state")
-    } else {
-      whereClauses.add("State = @activeState")
+      conjuncts.add("State = @state")
     }
 
     if (filter.cmmsModelLine.isNotEmpty()) {
-      whereClauses.add("CmmsModelLine = @cmmsModelLine")
+      conjuncts.add("CmmsModelLine = @cmmsModelLine")
     }
 
     if (filter.eventGroupReferenceId.isNotEmpty()) {
-      whereClauses.add("EventGroupReferenceId = @eventGroupReferenceId")
+      conjuncts.add("EventGroupReferenceId = @eventGroupReferenceId")
     }
 
     if (filter.hasIntervalOverlaps()) {
-      whereClauses.add(
+      conjuncts.add(
         "IntervalStartTime < @intervalOverlapsEndTime AND IntervalEndTime > @intervalOverlapsStartTime"
       )
     }
 
-    if (filter.hasCreateTimeAfter()) {
-      whereClauses.add("CreateTime > @createTimeAfter")
-    }
-
     if (after != null) {
-      whereClauses.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+      conjuncts.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
 
-    appendLine("WHERE " + whereClauses.joinToString(" AND "))
+    appendLine("WHERE " + conjuncts.joinToString(" AND "))
     appendLine("ORDER BY ImpressionMetadataResourceId ASC")
     appendLine("LIMIT @limit")
   }
@@ -248,8 +232,6 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
         bind("state").to(filter.state.number.toLong())
-      } else {
-        bind("activeState").to(State.IMPRESSION_METADATA_STATE_ACTIVE.number.toLong())
       }
 
       if (filter.cmmsModelLine.isNotEmpty()) {
@@ -263,10 +245,6 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       if (filter.hasIntervalOverlaps()) {
         bind("intervalOverlapsStartTime").to(filter.intervalOverlaps.startTime.toGcloudTimestamp())
         bind("intervalOverlapsEndTime").to(filter.intervalOverlaps.endTime.toGcloudTimestamp())
-      }
-
-      if (filter.hasCreateTimeAfter()) {
-        bind("createTimeAfter").to(filter.createTimeAfter.toGcloudTimestamp())
       }
 
       if (after != null) {

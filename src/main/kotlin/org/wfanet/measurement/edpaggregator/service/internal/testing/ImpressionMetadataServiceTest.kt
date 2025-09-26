@@ -457,7 +457,7 @@ abstract class ImpressionMetadataServiceTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo?.reason)
       .isEqualTo(Errors.Reason.IMPRESSION_METADATA_STATE_INVALID.name)
     assertThat(exception.errorInfo)
@@ -655,6 +655,37 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `listImpressionMetadata without state filter returns both active and deleted ImpressionMetadata`() =
+    runBlocking {
+      val (created1, created2) =
+        createImpressionMetadata(IMPRESSION_METADATA_2, IMPRESSION_METADATA_3).sortedBy {
+          it.impressionMetadataResourceId
+        }
+
+      val deleted1 =
+        service.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest {
+            dataProviderResourceId = created1.dataProviderResourceId
+            impressionMetadataResourceId = created1.impressionMetadataResourceId
+          }
+        )
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+        )
+
+      assertThat(response)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          listImpressionMetadataResponse {
+            impressionMetadata += deleted1
+            impressionMetadata += created2
+          }
+        )
+    }
+
+  @Test
   fun `listImpressionMetadata with state ACTIVE filter returns active ImpressionMetadata`() =
     runBlocking {
       val created = createImpressionMetadata(IMPRESSION_METADATA_2, IMPRESSION_METADATA_3)
@@ -701,47 +732,6 @@ abstract class ImpressionMetadataServiceTest {
       assertThat(response)
         .isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted1 })
     }
-
-  @Test
-  fun `listImpressionMetadata does not return deleted ImpressionMetadata by default`() =
-    runBlocking {
-      val (created1, created2) =
-        createImpressionMetadata(IMPRESSION_METADATA_2, IMPRESSION_METADATA_3).sortedBy {
-          it.impressionMetadataResourceId
-        }
-
-      service.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
-          dataProviderResourceId = created1.dataProviderResourceId
-          impressionMetadataResourceId = created1.impressionMetadataResourceId
-        }
-      )
-
-      val response =
-        service.listImpressionMetadata(
-          listImpressionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
-        )
-
-      assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created2 })
-    }
-
-  @Test
-  fun `listImpressionMetadata filters by createTimeAfter`(): Unit = runBlocking {
-    val (created1, created2) =
-      createImpressionMetadata(IMPRESSION_METADATA_2, IMPRESSION_METADATA_3)
-
-    val response =
-      service.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListImpressionMetadataRequestKt.filter { createTimeAfter = created1.createTime }
-        }
-      )
-
-    assertThat(response)
-      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created2 })
-  }
 
   @Test
   fun `listImpressionMetadata throws INVALID_ARGUMENT if dataProviderResourceId not set`() =
