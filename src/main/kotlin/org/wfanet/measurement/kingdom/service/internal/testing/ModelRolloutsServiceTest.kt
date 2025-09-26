@@ -41,10 +41,12 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.afterFilter
@@ -834,6 +836,64 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       .comparingExpectedFieldsOnly()
       .containsExactly(modelRollout1, modelRollout2)
       .inOrder()
+  }
+
+  @Test
+  fun `streamModelRollouts returns ModelRollouts filtered by ModelRelease`(): Unit = runBlocking {
+    val pdp = population.createDataProvider(dataProvidersService)
+    val populationResource = population.createPopulation(pdp, populationsService)
+    val modelProvider: ModelProvider = population.createModelProvider(modelProvidersService)
+    val modelSuite: ModelSuite = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelRelease1 =
+      population.createModelRelease(modelSuite, populationResource, modelReleasesService)
+    val modelRelease2 =
+      population.createModelRelease(modelSuite, populationResource, modelReleasesService)
+    val modelLine1 = population.createModelLine(modelLinesService, modelSuite)
+    val modelLine2 = population.createModelLine(modelLinesService, modelSuite)
+    val modelRollout1 =
+      modelRolloutsService.createModelRollout(
+        modelRollout {
+          externalModelProviderId = modelLine1.externalModelProviderId
+          externalModelSuiteId = modelLine1.externalModelSuiteId
+          externalModelLineId = modelLine1.externalModelLineId
+          rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+          rolloutPeriodEndTime = rolloutPeriodStartTime
+          externalModelReleaseId = modelRelease1.externalModelReleaseId
+        }
+      )
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = modelLine1.externalModelProviderId
+        externalModelSuiteId = modelLine1.externalModelSuiteId
+        externalModelLineId = modelLine1.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
+        rolloutPeriodEndTime = rolloutPeriodStartTime
+        externalModelReleaseId = modelRelease2.externalModelReleaseId
+      }
+    )
+    val modelRollout3 =
+      modelRolloutsService.createModelRollout(
+        modelRollout {
+          externalModelProviderId = modelLine2.externalModelProviderId
+          externalModelSuiteId = modelLine2.externalModelSuiteId
+          externalModelLineId = modelLine2.externalModelLineId
+          rolloutPeriodStartTime = Instant.now().plusSeconds(300L).toProtoTime()
+          rolloutPeriodEndTime = rolloutPeriodStartTime
+          externalModelReleaseId = modelRelease1.externalModelReleaseId
+        }
+      )
+    val request = streamModelRolloutsRequest {
+      filter = filter {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelReleaseIdIn += modelRelease1.externalModelReleaseId
+        // Not specifying ModelLine to list across the whole ModelSuite.
+      }
+    }
+
+    val response = modelRolloutsService.streamModelRollouts(request).toList()
+
+    assertThat(response).containsExactly(modelRollout1, modelRollout3)
   }
 
   @Test
