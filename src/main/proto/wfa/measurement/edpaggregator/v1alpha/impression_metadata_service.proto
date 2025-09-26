@@ -22,6 +22,7 @@ import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
+import "google/protobuf/empty.proto";
 import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -48,7 +49,7 @@ service ImpressionMetadataService {
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata) {}
+      returns (google.protobuf.Empty) {}
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
