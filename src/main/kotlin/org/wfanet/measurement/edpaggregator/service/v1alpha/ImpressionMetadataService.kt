@@ -17,6 +17,8 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.Empty
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
@@ -41,8 +43,9 @@ import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataReques
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 
 class ImpressionMetadataService(
-  private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub
-) : ImpressionMetadataServiceCoroutineImplBase() {
+  private val internalImpressionMetadataStub: InternalImpressionMetadataServiceCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : ImpressionMetadataServiceCoroutineImplBase(coroutineContext) {
   override suspend fun getImpressionMetadata(
     request: GetImpressionMetadataRequest
   ): ImpressionMetadata {
