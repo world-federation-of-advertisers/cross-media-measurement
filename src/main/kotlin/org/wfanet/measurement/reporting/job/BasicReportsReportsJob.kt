@@ -48,12 +48,14 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResult.VennDiagramRegi
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.addNoisyResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.readyNoisyResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
@@ -80,7 +82,8 @@ class BasicReportsReportsJob(
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val eventDescriptor: EventDescriptor?,
-) {
+  private val idGenerator: IdGenerator = IdGenerator.Default,
+  ) {
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
@@ -163,6 +166,13 @@ class BasicReportsReportsJob(
                 reportResultsStub.addNoisyResultValues(
                   addNoisyResultValuesRequest { this.reportResult = reportResult }
                 )
+                internalBasicReportsStub.readyNoisyResults(
+                  readyNoisyResultsRequest {
+                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                    externalBasicReportId = basicReport.externalBasicReportId
+                    externalReportResultId = reportResult.externalReportResultId
+                  }
+                )
               }
               Report.State.FAILED -> {
                 internalBasicReportsStub.failBasicReport(
@@ -215,6 +225,7 @@ class BasicReportsReportsJob(
 
     return reportResult {
       this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+      this.externalReportResultId = idGenerator.generateId()
       this.reportStart = reportStart
 
       // Create List of ReportResult.ReportingSetResult from Map
@@ -670,31 +681,15 @@ class BasicReportsReportsJob(
       .histogramResult {
         bins +=
           source.binsList.map {
-            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+              .NoisyReportResultValuesKt
               .NoisyMetricSetKt
               .HistogramResultKt
-              .bin {
-                binResult =
-                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                    .NoisyReportResultValuesKt
-                    .NoisyMetricSetKt
-                    .HistogramResultKt
-                    .binResult { value = it.binResult.value }
+              .binResult {
+                value = it.binResult.value
                 if (it.hasResultUnivariateStatistics()) {
-                  resultUnivariateStatistics =
+                  univariateStatistics =
                     it.resultUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
-                }
-                if (it.hasRelativeUnivariateStatistics()) {
-                  relativeUnivariateStatistics =
-                    it.relativeUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
-                }
-                if (it.hasKPlusUnivariateStatistics()) {
-                  kPlusUnivariateStatistics =
-                    it.kPlusUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
-                }
-                if (it.hasRelativeKPlusUnivariateStatistics()) {
-                  relativeKPlusUnivariateStatistics =
-                    it.relativeKPlusUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
                 }
               }
           }

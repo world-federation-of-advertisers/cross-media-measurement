@@ -78,6 +78,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.readyNoisyResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
@@ -98,12 +99,16 @@ import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 
 @RunWith(JUnit4::class)
 class BasicReportsReportsJobTest {
   private val basicReportsMock: BasicReportsCoroutineImplBase = mockService {
     onBlocking { listBasicReports(any()) }
       .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
+
+    onBlocking { readyNoisyResults(any()) }
+      .thenReturn(INTERNAL_BASIC_REPORT)
   }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
@@ -428,6 +433,9 @@ class BasicReportsReportsJobTest {
       whenever(basicReportsMock.listBasicReports(any()))
         .thenReturn(listBasicReportsResponse { basicReports += basicReport })
 
+      whenever(basicReportsMock.readyNoisyResults(any()))
+        .thenReturn(basicReport)
+
       job.execute()
 
       verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
@@ -451,206 +459,216 @@ class BasicReportsReportsJobTest {
 
       verify(basicReportsMock, times(0)).failBasicReport(any())
 
-      verifyProtoArgument(reportResultsMock, ReportResultsCoroutineImplBase::addNoisyResultValues)
+      val addNoisyResultValuesRequestCaptor = argumentCaptor<AddNoisyResultValuesRequest>()
+      verifyBlocking(reportResultsMock, times(1)) { addNoisyResultValues(addNoisyResultValuesRequestCaptor.capture()) }
+
+      assertThat(addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId).isNotEqualTo(0L)
+      assertThat(addNoisyResultValuesRequestCaptor.firstValue.reportResult)
+        .ignoringFields(ReportResult.EXTERNAL_REPORT_RESULT_ID_FIELD_NUMBER)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          addNoisyResultValuesRequest {
-            reportResult = reportResult {
-              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              reportStart = report.reportingInterval.reportStart
+          reportResult {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            reportStart = report.reportingInterval.reportStart
 
-              reportingSetResults +=
-                ReportResultKt.reportingSetResult {
-                  externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                  vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
-                  custom = true
-                  metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
-                  groupings += eventTemplateField {
+            reportingSetResults +=
+              ReportResultKt.reportingSetResult {
+                externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
+                vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
+                custom = true
+                metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
+                groupings += eventTemplateField {
+                  path = "person.age_group"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+                groupings += eventTemplateField {
+                  path = "person.gender"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                }
+                eventFilters += eventFilter {
+                  terms += eventTemplateField {
                     path = "person.age_group"
                     value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
                   }
-                  groupings += eventTemplateField {
-                    path = "person.gender"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
-                  }
-                  eventFilters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.age_group"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-                    }
-                  }
-                  populationSize = 1000
-                  reportingWindowResults +=
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      windowStartDate = date {
-                        year = 2025
-                        month = 1
-                        day = 6
-                      }
-                      windowEndDate = date {
-                        year = 2025
-                        month = 1
-                        day = 13
-                      }
-                      noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .noisyReportResultValues {
-                            cumulativeResults =
-                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                .NoisyReportResultValuesKt
-                                .noisyMetricSet {
-                                  reach =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .reachResult { value = 1 }
-                                  impressionCount =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .impressionCountResult { value = 1 }
-                                }
-                            nonCumulativeResults =
-                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                .NoisyReportResultValuesKt
-                                .noisyMetricSet {
-                                  reach =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .reachResult { value = 1 }
-                                  impressionCount =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .impressionCountResult { value = 1 }
-                                }
-                          }
-                    }
-                  reportingWindowResults +=
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      windowStartDate = date {
-                        year = 2025
-                        month = 1
-                        day = 13
-                      }
-                      windowEndDate = date {
-                        year = 2025
-                        month = 1
-                        day = 20
-                      }
-                      noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .noisyReportResultValues {
-                            nonCumulativeResults =
-                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                .NoisyReportResultValuesKt
-                                .noisyMetricSet {
-                                  impressionCount =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .impressionCountResult { value = 1 }
-                                }
-                          }
-                    }
                 }
+                populationSize = 1000
+                reportingWindowResults +=
+                  ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    windowStartDate = date {
+                      year = 2025
+                      month = 1
+                      day = 6
+                    }
+                    windowEndDate = date {
+                      year = 2025
+                      month = 1
+                      day = 13
+                    }
+                    noisyReportResultValues =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .noisyReportResultValues {
+                          cumulativeResults =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .noisyMetricSet {
+                                reach =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .reachResult { value = 1 }
+                                impressionCount =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .impressionCountResult { value = 1 }
+                              }
+                          nonCumulativeResults =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .noisyMetricSet {
+                                reach =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .reachResult { value = 1 }
+                                impressionCount =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .impressionCountResult { value = 1 }
+                              }
+                        }
+                  }
+                reportingWindowResults +=
+                  ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    windowStartDate = date {
+                      year = 2025
+                      month = 1
+                      day = 13
+                    }
+                    windowEndDate = date {
+                      year = 2025
+                      month = 1
+                      day = 20
+                    }
+                    noisyReportResultValues =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .noisyReportResultValues {
+                          nonCumulativeResults =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .noisyMetricSet {
+                                impressionCount =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .impressionCountResult { value = 1 }
+                              }
+                        }
+                  }
+              }
 
-              reportingSetResults +=
-                ReportResultKt.reportingSetResult {
-                  externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                  vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
-                  custom = true
-                  metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
-                  groupings += eventTemplateField {
+            reportingSetResults +=
+              ReportResultKt.reportingSetResult {
+                externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
+                vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
+                custom = true
+                metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
+                groupings += eventTemplateField {
+                  path = "person.age_group"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+                }
+                groupings += eventTemplateField {
+                  path = "person.gender"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                }
+                eventFilters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "person.age_group"
+                    value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                  }
+                }
+                reportingWindowResults +=
+                  ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    windowStartDate = date {
+                      year = 2025
+                      month = 1
+                      day = 6
+                    }
+                    windowEndDate = date {
+                      year = 2025
+                      month = 1
+                      day = 13
+                    }
+                    noisyReportResultValues =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .noisyReportResultValues {
+                          nonCumulativeResults =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .noisyMetricSet {
+                                impressionCount =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .impressionCountResult { value = 1 }
+                              }
+                        }
+                  }
+              }
+
+            reportingSetResults +=
+              ReportResultKt.reportingSetResult {
+                externalReportingSetId = COMPOSITE_REPORTING_SET.externalReportingSetId
+                vennDiagramRegionType = ReportResult.VennDiagramRegionType.UNION
+                custom = true
+                metricFrequencyType = ReportResult.MetricFrequencyType.TOTAL
+                groupings += eventTemplateField {
+                  path = "person.age_group"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+                groupings += eventTemplateField {
+                  path = "person.gender"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                }
+                eventFilters += eventFilter {
+                  terms += eventTemplateField {
                     path = "person.age_group"
                     value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
                   }
-                  groupings += eventTemplateField {
-                    path = "person.gender"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
-                  }
-                  eventFilters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.age_group"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-                    }
-                  }
-                  reportingWindowResults +=
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      windowStartDate = date {
-                        year = 2025
-                        month = 1
-                        day = 6
-                      }
-                      windowEndDate = date {
-                        year = 2025
-                        month = 1
-                        day = 13
-                      }
-                      noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .noisyReportResultValues {
-                            nonCumulativeResults =
-                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                .NoisyReportResultValuesKt
-                                .noisyMetricSet {
-                                  impressionCount =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .impressionCountResult { value = 1 }
-                                }
-                          }
-                    }
                 }
-
-              reportingSetResults +=
-                ReportResultKt.reportingSetResult {
-                  externalReportingSetId = COMPOSITE_REPORTING_SET.externalReportingSetId
-                  vennDiagramRegionType = ReportResult.VennDiagramRegionType.UNION
-                  custom = true
-                  metricFrequencyType = ReportResult.MetricFrequencyType.TOTAL
-                  groupings += eventTemplateField {
-                    path = "person.age_group"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-                  }
-                  groupings += eventTemplateField {
-                    path = "person.gender"
-                    value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
-                  }
-                  eventFilters += eventFilter {
-                    terms += eventTemplateField {
-                      path = "person.age_group"
-                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+                reportingWindowResults +=
+                  ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    windowEndDate = date {
+                      year = 2025
+                      month = 1
+                      day = 13
                     }
+                    noisyReportResultValues =
+                      ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        .noisyReportResultValues {
+                          cumulativeResults =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .noisyMetricSet {
+                                reach =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .reachResult { value = 1 }
+                              }
+                        }
                   }
-                  reportingWindowResults +=
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      windowEndDate = date {
-                        year = 2025
-                        month = 1
-                        day = 13
-                      }
-                      noisyReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .noisyReportResultValues {
-                            cumulativeResults =
-                              ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                .NoisyReportResultValuesKt
-                                .noisyMetricSet {
-                                  reach =
-                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                      .NoisyReportResultValuesKt
-                                      .NoisyMetricSetKt
-                                      .reachResult { value = 1 }
-                                }
-                          }
-                    }
-                }
-            }
+              }
           }
         )
+
+      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::readyNoisyResults)
+        .isEqualTo(readyNoisyResultsRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+          externalReportResultId = addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId
+        })
     }
 
   @Test
@@ -1460,7 +1478,12 @@ class BasicReportsReportsJobTest {
                   startTime = timestamp { seconds = 1736150400 }
                   endTime = timestamp { seconds = 1736755200 }
                 }
-                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+                metricResult = metricResult { reach = MetricResultKt.reachResult {
+                  value = 1L
+                  univariateStatistics = univariateStatistics {
+                    standardDeviation = 1.0
+                  }
+                } }
               }
           }
 
@@ -1489,7 +1512,12 @@ class BasicReportsReportsJobTest {
                   endTime = timestamp { seconds = 1736755200 }
                 }
                 metricResult = metricResult {
-                  impressionCount = MetricResultKt.impressionCountResult { value = 1L }
+                  impressionCount = MetricResultKt.impressionCountResult {
+                    value = 1L
+                    univariateStatistics = univariateStatistics {
+                      standardDeviation = 1.0
+                    }
+                  }
                 }
               }
             resultAttributes +=
@@ -1505,20 +1533,40 @@ class BasicReportsReportsJobTest {
                 metricResult = metricResult {
                   reachAndFrequency =
                     MetricResultKt.reachAndFrequencyResult {
-                      reach = MetricResultKt.reachResult { value = 1L }
+                      reach = MetricResultKt.reachResult {
+                        value = 1L
+                        univariateStatistics = univariateStatistics {
+                          standardDeviation = 1.0
+                        }
+                      }
                       frequencyHistogram =
                         MetricResultKt.histogramResult {
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 2.0 }
+                              binResult = MetricResultKt.HistogramResultKt.binResult {
+                                value = 2.0
+                              }
+                              resultUnivariateStatistics = univariateStatistics {
+                                standardDeviation = 1.0
+                              }
                             }
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 4.0 }
+                              binResult = MetricResultKt.HistogramResultKt.binResult {
+                                value = 4.0
+                              }
+                              resultUnivariateStatistics = univariateStatistics {
+                                standardDeviation = 1.0
+                              }
                             }
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 6.0 }
+                              binResult = MetricResultKt.HistogramResultKt.binResult {
+                                value = 6.0
+                              }
+                              resultUnivariateStatistics = univariateStatistics {
+                                standardDeviation = 1.0
+                              }
                             }
                         }
                     }
@@ -1578,7 +1626,12 @@ class BasicReportsReportsJobTest {
                       ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                         .NoisyReportResultValuesKt
                         .NoisyMetricSetKt
-                        .reachResult { value = 1 }
+                        .reachResult {
+                          value = 1
+                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                            standardDeviation = 1.0
+                          }
+                        }
                   }
               nonCumulativeResults =
                 ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
@@ -1588,7 +1641,12 @@ class BasicReportsReportsJobTest {
                       ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                         .NoisyReportResultValuesKt
                         .NoisyMetricSetKt
-                        .reachResult { value = 1 }
+                        .reachResult {
+                          value = 1
+                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                            standardDeviation = 1.0
+                          }
+                        }
                     frequencyHistogram =
                       ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                         .NoisyReportResultValuesKt
@@ -1599,46 +1657,45 @@ class BasicReportsReportsJobTest {
                               .NoisyReportResultValuesKt
                               .NoisyMetricSetKt
                               .HistogramResultKt
-                              .bin {
-                                binResult =
-                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                    .NoisyReportResultValuesKt
-                                    .NoisyMetricSetKt
-                                    .HistogramResultKt
-                                    .binResult { value = 2.0 }
+                              .binResult {
+                                value = 2.0
+                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                                  standardDeviation = 1.0
+                                }
                               }
                           bins +=
                             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                               .NoisyReportResultValuesKt
                               .NoisyMetricSetKt
                               .HistogramResultKt
-                              .bin {
-                                binResult =
-                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                    .NoisyReportResultValuesKt
-                                    .NoisyMetricSetKt
-                                    .HistogramResultKt
-                                    .binResult { value = 4.0 }
+                              .binResult {
+                                value = 4.0
+                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                                  standardDeviation = 1.0
+                                }
                               }
                           bins +=
                             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                               .NoisyReportResultValuesKt
                               .NoisyMetricSetKt
                               .HistogramResultKt
-                              .bin {
-                                binResult =
-                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                                    .NoisyReportResultValuesKt
-                                    .NoisyMetricSetKt
-                                    .HistogramResultKt
-                                    .binResult { value = 6.0 }
+                              .binResult {
+                                value = 6.0
+                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                                  standardDeviation = 1.0
+                                }
                               }
                         }
                     impressionCount =
                       ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                         .NoisyReportResultValuesKt
                         .NoisyMetricSetKt
-                        .impressionCountResult { value = 1 }
+                        .impressionCountResult {
+                          value = 1
+                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
+                            standardDeviation = 1.0
+                          }
+                        }
                   }
             }
         }
