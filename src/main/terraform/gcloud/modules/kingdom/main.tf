@@ -73,6 +73,8 @@ resource "google_bigquery_table" "measurements" {
     type  = "MONTH"
   }
 
+  clustering = ["update_time_nanoseconds"]
+
   schema = <<EOF
 [
   {
@@ -124,6 +126,12 @@ resource "google_bigquery_table" "measurements" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
+  },
+  {
+    "name": "update_time_nanoseconds",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
   }
 ]
 EOF
@@ -140,6 +148,8 @@ resource "google_bigquery_table" "requisitions" {
     field = "update_time"
     type  = "MONTH"
   }
+
+  clustering = ["update_time_nanoseconds"]
 
   schema = <<EOF
 [
@@ -204,6 +214,12 @@ resource "google_bigquery_table" "requisitions" {
     "defaultValueExpression": "0"
   },
   {
+    "name": "update_time_nanoseconds",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
+  },
+  {  
     "name": "build_label",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -228,6 +244,8 @@ resource "google_bigquery_table" "computation_participant_stages" {
     field = "stage_start_time"
     type  = "MONTH"
   }
+
+  clustering = ["computation_update_time_nanoseconds"]
 
   schema = <<EOF
 [
@@ -285,6 +303,12 @@ resource "google_bigquery_table" "computation_participant_stages" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
+  },
+  {
+    "name": "computation_update_time_nanoseconds",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "For tracking purposes"
   }
 ]
 EOF
