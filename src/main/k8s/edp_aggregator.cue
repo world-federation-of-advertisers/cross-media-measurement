@@ -77,7 +77,7 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 		"edp-aggregator-internal-api-server": {
 			_container: args: [
 						_debugVerboseGrpcServerLoggingFlag,
-						"--cert-collection-file=\(MountRoot)/tls/root.crt",
+						"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
 						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
 						"--tls-key-file=\(MountRoot)/tls/tls.key",
 			] + _spannerConfig.flags
@@ -96,6 +96,9 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 					"edp-aggregator-tls": #SecretMount & {
 						volumeMount: mountPath: "\(MountRoot)/tls"
 					}
+					"edp-aggregator-config": #ConfigMapMount & {
+						volumeMount: mountPath: "\(MountRoot)/config"
+					}
 				}
 			}
 		}
@@ -113,6 +116,9 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 				_mounts: {
 					"edp-aggregator-tls": #SecretMount & {
 						volumeMount: mountPath: "\(MountRoot)/tls"
+					}
+				  "edp-aggregator-config": #ConfigMapMount & {
+						volumeMount: mountPath: "\(MountRoot)/config"
 					}
 				}
 			}
