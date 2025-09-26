@@ -52,6 +52,8 @@ class EventMessageFlags {
 
   val eventDescriptor: EventDescriptor? by lazy {
     // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
+    // When the flags are required, this will be moved to a common location that covers
+    // PopulationRequisitionFulfillerDaemon as well.
     if (eventMessageTypeUrl.isNotEmpty() && eventMessageDescriptorSetFiles.isNotEmpty()) {
       val eventDescriptor: Descriptors.Descriptor =
         checkNotNull(
