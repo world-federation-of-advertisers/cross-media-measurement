@@ -32,7 +32,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cue",
-    version = "0.4.0",
+    version = "0.4.1",
     repo_name = "wfa_rules_cue",
 )
 bazel_dep(

@@ -108,12 +108,6 @@ variable "config_storage_bucket" {
   type        = string
 }
 
-variable "subnetwork_name" {
-  description = "The name of the subnetwork for the MIG instances."
-  type        = string
-  nullable    = false
-}
-
 variable "edpa_tee_signed_image_repo" {
   description = "Trusted container image repository for Confidential Space attestation."
   type        = string

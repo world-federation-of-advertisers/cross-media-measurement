@@ -28,6 +28,8 @@ object Errors {
   const val DOMAIN = "edpaggregator.halo-cmm.org"
 
   enum class Reason {
+    IMPRESSION_METADATA_NOT_FOUND,
+    IMPRESSION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
@@ -49,6 +51,7 @@ object Errors {
     EXPECTED_REQUISITION_METADATA_STATES("expectedRequisitionMetadataStates"),
     REQUEST_ETAG("requestEtag"),
     ETAG("etag"),
+    IMPRESSION_METADATA("impressionMetadata"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -266,5 +269,24 @@ class InvalidFieldValueException(
     Errors.Reason.INVALID_FIELD_VALUE,
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
+
+class ImpressionMetadataNotFoundException(
+  impressionMetadataResourceName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+    "ImpressionMetadata $impressionMetadataResourceName not found",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
+    cause,
+  )
+
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata with blobUri $blobUri already exists",
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )
