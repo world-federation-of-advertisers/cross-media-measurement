@@ -46,8 +46,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerImpress
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
@@ -379,6 +382,166 @@ class ImpressionMetadataServiceTest {
         )
     }
 
+  @Test
+  fun `computeModelLinesAvailability returns availabilities`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            modelLine = MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            modelLine = MODEL_LINE_1
+            blobUri = "blob-2"
+            interval = interval {
+              startTime = timestamp { seconds = 300 }
+              endTime = timestamp { seconds = 400 }
+            }
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            modelLine = MODEL_LINE_2
+            blobUri = "blob-3"
+            interval = interval {
+              startTime = timestamp { seconds = 500 }
+              endTime = timestamp { seconds = 700 }
+            }
+          }
+      }
+    )
+    val request = computeModelLinesAvailabilityRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      modelLines += MODEL_LINE_1
+      modelLines += MODEL_LINE_2
+    }
+    val response = service.computeModelLinesAvailability(request)
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        computeModelLinesAvailabilityResponse {
+          modelLineAvailabilities +=
+            ComputeModelLinesAvailabilityResponseKt.modelLineAvailability {
+              modelLine = MODEL_LINE_1
+              availability = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 400 }
+              }
+            }
+          modelLineAvailabilities +=
+            ComputeModelLinesAvailabilityResponseKt.modelLineAvailability {
+              modelLine = MODEL_LINE_2
+              availability = interval {
+                startTime = timestamp { seconds = 500 }
+                endTime = timestamp { seconds = 700 }
+              }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when parent is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest { modelLines += MODEL_LINE_1 }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+          }
+        )
+    }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when parent is malformed`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest {
+              parent += "invalid-name"
+              modelLines += MODEL_LINE_1
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+          }
+        )
+    }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when modelLines is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest { parent = DATA_PROVIDER_KEY.toName() }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines"
+          }
+        )
+    }
+
+  @Test
+  fun `computeModelLinesAvailability throws INVALID_ARGUMENT when modelLines have malformed names`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLinesAvailability(
+            computeModelLinesAvailabilityRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              modelLines += "invalid-name"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "model_lines.invalid-name"
+          }
+        )
+    }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
@@ -387,8 +550,10 @@ class ImpressionMetadataServiceTest {
     private const val BLOB_URI = "path/to/blob"
     private const val BLOB_TYPE = "blob.type"
     private const val EVENT_GROUP_REFERENCE_ID = "event-group-1"
-    private const val MODEL_LINE =
-      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
+    private const val MODLE_LINE_PREFIX =
+      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines"
+    private const val MODEL_LINE_1 = "$MODLE_LINE_PREFIX/model-line-1"
+    private const val MODEL_LINE_2 = "$MODLE_LINE_PREFIX/model-line-2"
     private val REQUEST_ID = UUID.randomUUID().toString()
 
     private val IMPRESSION_METADATA = impressionMetadata {
@@ -396,7 +561,7 @@ class ImpressionMetadataServiceTest {
       blobUri = BLOB_URI
       blobTypeUrl = BLOB_TYPE
       eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-      modelLine = MODEL_LINE
+      modelLine = MODEL_LINE_1
       interval = interval {
         startTime = timestamp { seconds = 1 }
         endTime = timestamp { seconds = 2 }
