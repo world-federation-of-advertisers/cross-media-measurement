@@ -126,6 +126,21 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
         repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
     ),
+    struct(
+        name = "edp_aggregator_system_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/common/server:system_api_server_image",
+        repository = _PREFIX + "/edp-aggregator/system-api",
+    ),
+    struct(
+        name = "edp_aggregator_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/edp-aggregator/internal-api",
+    ),
+    struct(
+        name = "edp_aggregator_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/edp-aggregator/update-schema",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.

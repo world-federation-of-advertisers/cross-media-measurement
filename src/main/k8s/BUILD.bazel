@@ -131,3 +131,13 @@ cue_library(
         ":spanner",
     ],
 )
+
+cue_library(
+    name = "edp_aggregator",
+    srcs = ["edp_aggregator.cue"],
+    deps = [
+        ":base",
+        ":config",
+        ":spanner",
+    ],
+)
