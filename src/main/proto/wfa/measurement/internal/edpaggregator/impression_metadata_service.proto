@@ -98,8 +98,6 @@ message ListImpressionMetadataResponse {
 }
 
 message ListImpressionMetadataPageToken {
-  string data_provider_resource_id = 1;
-
   message After {
     google.protobuf.Timestamp create_time = 1;
     string impression_metadata_resource_id = 2;

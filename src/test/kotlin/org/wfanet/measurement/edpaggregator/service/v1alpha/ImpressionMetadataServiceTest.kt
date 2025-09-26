@@ -444,7 +444,6 @@ class ImpressionMetadataServiceTest {
     val sortedCreated = created.sortedBy { it.name }
 
     val internalPageToken = internalListImpressionMetadataPageToken {
-      dataProviderResourceId = DATA_PROVIDER_KEY.dataProviderId
       after =
         InternalListImpressionMetadataPageTokenKt.after {
           impressionMetadataResourceId =

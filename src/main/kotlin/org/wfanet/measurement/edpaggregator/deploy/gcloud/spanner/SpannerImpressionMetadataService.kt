@@ -39,8 +39,8 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
-import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataInvalidStateException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -176,14 +176,6 @@ class SpannerImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (
-      request.hasPageToken() &&
-        request.dataProviderResourceId != request.pageToken.dataProviderResourceId
-    ) {
-      throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName ->
           "$fieldName must be non-negative"
@@ -214,7 +206,6 @@ class SpannerImpressionMetadataService(
         impressionMetadataList.collectIndexed { index, impressionMetadata ->
           if (index == pageSize) {
             nextPageToken = listImpressionMetadataPageToken {
-              dataProviderResourceId = impressionMetadata.dataProviderResourceId
               this.after =
                 ListImpressionMetadataPageTokenKt.after {
                   impressionMetadataResourceId =
@@ -256,7 +247,7 @@ class SpannerImpressionMetadataService(
               request.impressionMetadataResourceId,
             )
           if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-            throw ImpressionMetadataInvalidStateException(
+            throw ImpressionMetadataStateInvalidException(
               request.dataProviderResourceId,
               request.impressionMetadataResourceId,
               result.impressionMetadata.state,
@@ -276,7 +267,7 @@ class SpannerImpressionMetadataService(
         }
       } catch (e: ImpressionMetadataNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: ImpressionMetadataInvalidStateException) {
+      } catch (e: ImpressionMetadataStateInvalidException) {
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 

@@ -132,7 +132,7 @@ class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
     cause,
   )
 
-class ImpressionMetadataInvalidStateException(
+class ImpressionMetadataStateInvalidException(
   dataProviderResourceId: String,
   impressionMetadataResourceId: String,
   actualState: ImpressionMetadataState,
