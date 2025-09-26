@@ -221,7 +221,7 @@ internal fun InternalImpressionMetadataState.toState(): ImpressionMetadata.State
       ImpressionMetadata.State.ACTIVE
     InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED ->
       ImpressionMetadata.State.DELETED
-    ImpressionMetadataState.UNRECOGNIZED,
+    InternalImpressionMetadataState.UNRECOGNIZED,
     InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_UNSPECIFIED ->
       error("Unrecognized state")
   }
