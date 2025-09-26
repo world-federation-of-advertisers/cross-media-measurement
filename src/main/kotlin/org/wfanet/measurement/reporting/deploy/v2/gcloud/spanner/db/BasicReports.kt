@@ -272,8 +272,8 @@ fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
 }
 
 /**
- * Buffers an update mutation that sets State to NOISY_RESULTS_READY for the BasicReports table
- * and associates the BasicReport with the ReportResult.
+ * Buffers an update mutation that sets State to NOISY_RESULTS_READY for the BasicReports table and
+ * associates the BasicReport with the ReportResult.
  */
 fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToNoisyResultsReady(
   measurementConsumerId: Long,

@@ -27,6 +27,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
@@ -48,7 +49,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResult.VennDiagramRegi
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.addNoisyResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
@@ -83,7 +83,7 @@ class BasicReportsReportsJob(
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val eventDescriptor: EventDescriptor?,
   private val idGenerator: IdGenerator = IdGenerator.Default,
-  ) {
+) {
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
@@ -681,8 +681,7 @@ class BasicReportsReportsJob(
       .histogramResult {
         bins +=
           source.binsList.map {
-            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-              .NoisyReportResultValuesKt
+            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
               .NoisyMetricSetKt
               .HistogramResultKt
               .binResult {

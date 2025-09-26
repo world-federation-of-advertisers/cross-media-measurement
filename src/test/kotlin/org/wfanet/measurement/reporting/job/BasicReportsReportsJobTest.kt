@@ -65,7 +65,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportRe
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.addNoisyResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -107,8 +106,7 @@ class BasicReportsReportsJobTest {
     onBlocking { listBasicReports(any()) }
       .thenReturn(listBasicReportsResponse { basicReports += INTERNAL_BASIC_REPORT })
 
-    onBlocking { readyNoisyResults(any()) }
-      .thenReturn(INTERNAL_BASIC_REPORT)
+    onBlocking { readyNoisyResults(any()) }.thenReturn(INTERNAL_BASIC_REPORT)
   }
   private val reportsMock: ReportsCoroutineImplBase = mockService {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
@@ -433,8 +431,7 @@ class BasicReportsReportsJobTest {
       whenever(basicReportsMock.listBasicReports(any()))
         .thenReturn(listBasicReportsResponse { basicReports += basicReport })
 
-      whenever(basicReportsMock.readyNoisyResults(any()))
-        .thenReturn(basicReport)
+      whenever(basicReportsMock.readyNoisyResults(any())).thenReturn(basicReport)
 
       job.execute()
 
@@ -460,9 +457,12 @@ class BasicReportsReportsJobTest {
       verify(basicReportsMock, times(0)).failBasicReport(any())
 
       val addNoisyResultValuesRequestCaptor = argumentCaptor<AddNoisyResultValuesRequest>()
-      verifyBlocking(reportResultsMock, times(1)) { addNoisyResultValues(addNoisyResultValuesRequestCaptor.capture()) }
+      verifyBlocking(reportResultsMock, times(1)) {
+        addNoisyResultValues(addNoisyResultValuesRequestCaptor.capture())
+      }
 
-      assertThat(addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId).isNotEqualTo(0L)
+      assertThat(addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId)
+        .isNotEqualTo(0L)
       assertThat(addNoisyResultValuesRequestCaptor.firstValue.reportResult)
         .ignoringFields(ReportResult.EXTERNAL_REPORT_RESULT_ID_FIELD_NUMBER)
         .ignoringRepeatedFieldOrder()
@@ -664,11 +664,14 @@ class BasicReportsReportsJobTest {
         )
 
       verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::readyNoisyResults)
-        .isEqualTo(readyNoisyResultsRequest {
-          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-          externalBasicReportId = basicReport.externalBasicReportId
-          externalReportResultId = addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId
-        })
+        .isEqualTo(
+          readyNoisyResultsRequest {
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = basicReport.externalBasicReportId
+            externalReportResultId =
+              addNoisyResultValuesRequestCaptor.firstValue.reportResult.externalReportResultId
+          }
+        )
     }
 
   @Test
@@ -1478,12 +1481,13 @@ class BasicReportsReportsJobTest {
                   startTime = timestamp { seconds = 1736150400 }
                   endTime = timestamp { seconds = 1736755200 }
                 }
-                metricResult = metricResult { reach = MetricResultKt.reachResult {
-                  value = 1L
-                  univariateStatistics = univariateStatistics {
-                    standardDeviation = 1.0
-                  }
-                } }
+                metricResult = metricResult {
+                  reach =
+                    MetricResultKt.reachResult {
+                      value = 1L
+                      univariateStatistics = univariateStatistics { standardDeviation = 1.0 }
+                    }
+                }
               }
           }
 
@@ -1512,12 +1516,11 @@ class BasicReportsReportsJobTest {
                   endTime = timestamp { seconds = 1736755200 }
                 }
                 metricResult = metricResult {
-                  impressionCount = MetricResultKt.impressionCountResult {
-                    value = 1L
-                    univariateStatistics = univariateStatistics {
-                      standardDeviation = 1.0
+                  impressionCount =
+                    MetricResultKt.impressionCountResult {
+                      value = 1L
+                      univariateStatistics = univariateStatistics { standardDeviation = 1.0 }
                     }
-                  }
                 }
               }
             resultAttributes +=
@@ -1533,37 +1536,30 @@ class BasicReportsReportsJobTest {
                 metricResult = metricResult {
                   reachAndFrequency =
                     MetricResultKt.reachAndFrequencyResult {
-                      reach = MetricResultKt.reachResult {
-                        value = 1L
-                        univariateStatistics = univariateStatistics {
-                          standardDeviation = 1.0
+                      reach =
+                        MetricResultKt.reachResult {
+                          value = 1L
+                          univariateStatistics = univariateStatistics { standardDeviation = 1.0 }
                         }
-                      }
                       frequencyHistogram =
                         MetricResultKt.histogramResult {
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult {
-                                value = 2.0
-                              }
+                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 2.0 }
                               resultUnivariateStatistics = univariateStatistics {
                                 standardDeviation = 1.0
                               }
                             }
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult {
-                                value = 4.0
-                              }
+                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 4.0 }
                               resultUnivariateStatistics = univariateStatistics {
                                 standardDeviation = 1.0
                               }
                             }
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              binResult = MetricResultKt.HistogramResultKt.binResult {
-                                value = 6.0
-                              }
+                              binResult = MetricResultKt.HistogramResultKt.binResult { value = 6.0 }
                               resultUnivariateStatistics = univariateStatistics {
                                 standardDeviation = 1.0
                               }
@@ -1628,9 +1624,11 @@ class BasicReportsReportsJobTest {
                         .NoisyMetricSetKt
                         .reachResult {
                           value = 1
-                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                            standardDeviation = 1.0
-                          }
+                          univariateStatistics =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .univariateStatistics { standardDeviation = 1.0 }
                         }
                   }
               nonCumulativeResults =
@@ -1643,9 +1641,11 @@ class BasicReportsReportsJobTest {
                         .NoisyMetricSetKt
                         .reachResult {
                           value = 1
-                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                            standardDeviation = 1.0
-                          }
+                          univariateStatistics =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .univariateStatistics { standardDeviation = 1.0 }
                         }
                     frequencyHistogram =
                       ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
@@ -1659,9 +1659,11 @@ class BasicReportsReportsJobTest {
                               .HistogramResultKt
                               .binResult {
                                 value = 2.0
-                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                                  standardDeviation = 1.0
-                                }
+                                univariateStatistics =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .univariateStatistics { standardDeviation = 1.0 }
                               }
                           bins +=
                             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
@@ -1670,9 +1672,11 @@ class BasicReportsReportsJobTest {
                               .HistogramResultKt
                               .binResult {
                                 value = 4.0
-                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                                  standardDeviation = 1.0
-                                }
+                                univariateStatistics =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .univariateStatistics { standardDeviation = 1.0 }
                               }
                           bins +=
                             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
@@ -1681,9 +1685,11 @@ class BasicReportsReportsJobTest {
                               .HistogramResultKt
                               .binResult {
                                 value = 6.0
-                                univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                                  standardDeviation = 1.0
-                                }
+                                univariateStatistics =
+                                  ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                    .NoisyReportResultValuesKt
+                                    .NoisyMetricSetKt
+                                    .univariateStatistics { standardDeviation = 1.0 }
                               }
                         }
                     impressionCount =
@@ -1692,9 +1698,11 @@ class BasicReportsReportsJobTest {
                         .NoisyMetricSetKt
                         .impressionCountResult {
                           value = 1
-                          univariateStatistics = ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt.univariateStatistics {
-                            standardDeviation = 1.0
-                          }
+                          univariateStatistics =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .NoisyReportResultValuesKt
+                              .NoisyMetricSetKt
+                              .univariateStatistics { standardDeviation = 1.0 }
                         }
                   }
             }

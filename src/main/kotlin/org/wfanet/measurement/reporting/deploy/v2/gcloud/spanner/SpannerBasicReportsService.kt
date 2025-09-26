@@ -371,7 +371,13 @@ class SpannerBasicReportsService(
               cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
               externalBasicReportId = request.externalBasicReportId,
             )
-            .also { txn.setBasicReportStateToNoisyResultsReady(it.measurementConsumerId, it.basicReportId, request.externalReportResultId) }
+            .also {
+              txn.setBasicReportStateToNoisyResultsReady(
+                it.measurementConsumerId,
+                it.basicReportId,
+                request.externalReportResultId,
+              )
+            }
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)

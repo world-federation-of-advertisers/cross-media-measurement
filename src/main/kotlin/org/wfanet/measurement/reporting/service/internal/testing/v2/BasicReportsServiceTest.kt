@@ -1310,36 +1310,40 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `readyNoisyResults throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`(): Unit =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.readyNoisyResults(readyNoisyResultsRequest {
+  fun `readyNoisyResults throws INVALID_ARGUMENT when cmms_measurement_consumer_id missing`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.readyNoisyResults(
+          readyNoisyResultsRequest {
             externalBasicReportId = "1234"
             externalReportResultId = 1L
-          })
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
           }
         )
-    }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_consumer_id"
+        }
+      )
+  }
 
   @Test
   fun `readyNoisyResults throws INVALID_ARGUMENT when external_basic_report_id missing`(): Unit =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.readyNoisyResults(readyNoisyResultsRequest {
-            cmmsMeasurementConsumerId = "1234"
-            externalReportResultId = 1L
-          })
+          service.readyNoisyResults(
+            readyNoisyResultsRequest {
+              cmmsMeasurementConsumerId = "1234"
+              externalReportResultId = 1L
+            }
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -1358,10 +1362,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          service.readyNoisyResults(readyNoisyResultsRequest {
-            cmmsMeasurementConsumerId = "1234"
-            externalBasicReportId = "1234"
-          })
+          service.readyNoisyResults(
+            readyNoisyResultsRequest {
+              cmmsMeasurementConsumerId = "1234"
+              externalBasicReportId = "1234"
+            }
+          )
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
