@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
@@ -150,16 +149,12 @@ fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataState(
   dataProviderResourceId: String,
   impressionMetadataId: Long,
   state: State,
-  block: (Mutation.WriteBuilder.() -> Unit)? = null,
 ) {
   bufferUpdateMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-    if (block != null) {
-      block()
-    }
   }
 }
 

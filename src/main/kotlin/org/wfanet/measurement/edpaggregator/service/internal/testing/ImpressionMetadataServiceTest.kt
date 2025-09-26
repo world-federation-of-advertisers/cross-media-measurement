@@ -93,41 +93,6 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `getImpressionMetadata returns a deleted impression metadata`() = runBlocking {
-    val startTime = Instant.now()
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
-    )
-
-    val deleted =
-      service.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-        }
-      )
-
-    val impressionMetadata =
-      service.getImpressionMetadata(
-        getImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-        }
-      )
-
-    assertThat(impressionMetadata)
-      .ignoringFields(
-        ImpressionMetadata.CREATE_TIME_FIELD_NUMBER,
-        ImpressionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        ImpressionMetadata.ETAG_FIELD_NUMBER,
-      )
-      .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_DELETED })
-    assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
-    assertThat(impressionMetadata.updateTime).isEqualTo(deleted.updateTime)
-    assertThat(impressionMetadata.etag).isNotEmpty()
-  }
-
-  @Test
   fun `getImpressionMetadata throws NOT_FOUND when ImpressionMetadata not found`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -406,32 +371,41 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `deleteImpressionMetadata returns deleted ImpressionMetadata`() = runBlocking {
-    val created =
-      service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
-      )
+  fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
+    runBlocking {
+      val created =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        )
 
-    val response =
-      service.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-        }
-      )
+      val deleted =
+        service.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
 
-    assertThat(response.state).isEqualTo(State.IMPRESSION_METADATA_STATE_DELETED)
-    assertThat(response.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
-    assertThat(response)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        created.copy {
-          state = State.IMPRESSION_METADATA_STATE_DELETED
-          clearUpdateTime()
-          clearEtag()
-        }
-      )
-  }
+      assertThat(deleted.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
+      assertThat(deleted)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          created.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+            clearEtag()
+          }
+        )
+
+      val got =
+        service.getImpressionMetadata(
+          getImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
+      assertThat(got).isEqualTo(deleted)
+    }
 
   @Test
   fun `deleteImpressionMetadata throws INVALID_ARGUMENT when already deleted`() = runBlocking {
@@ -539,7 +513,6 @@ abstract class ImpressionMetadataServiceTest {
         listImpressionMetadataResponse {
           impressionMetadata += created.subList(0, 2)
           nextPageToken = listImpressionMetadataPageToken {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             after =
               ListImpressionMetadataPageTokenKt.after {
                 impressionMetadataResourceId = created[1].impressionMetadataResourceId
