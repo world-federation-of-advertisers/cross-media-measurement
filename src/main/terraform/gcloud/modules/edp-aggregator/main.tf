@@ -348,3 +348,107 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
+
+resource "google_compute_subnetwork" "private_subnetwork" {
+  name                     = var.private_subnetwork_name
+  region                   = data.google_client_config.default.region
+  network                  = "default"
+  ip_cidr_range            = "10.0.0.0/24"
+  private_ip_google_access = true
+}
+
+
+# Cloud Router for NAT gateway
+resource "google_compute_router" "nat_router" {
+  name    = var.private_router_name
+  region  = data.google_client_config.default.region
+  network = "default"
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "nat_gateway" {
+  name                               = var.nat_name
+  router                             = google_compute_router.nat_router.name
+  region                             = google_compute_router.nat_router.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private_subnetwork.self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  enable_endpoint_independent_mapping = true
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+# DNS configuration for storage.googleapis.com
+# Configures DNS so storage.googleapis.com resolves to the private endpoint
+# All GCS bucket access will automatically use this private path
+resource "google_dns_managed_zone" "private_gcs" {
+  name        = var.dns_managed_zone_name
+  dns_name    = "googleapis.com."
+  description = "Private DNS zone for Google APIs via PSC"
+
+  visibility = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = "projects/${data.google_project.project.project_id}/global/networks/default"
+    }
+  }
+}
+
+# A record points storage.googleapis.com to our PSC endpoint IP
+# Instances in this VPC will resolve GCS to 10.0.0.100 instead of public IPs
+resource "google_dns_record_set" "gcs_a_record" {
+  name         = "private.googleapis.com."
+  type         = "A"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.private_gcs.name
+  rrdatas      = local.private_googleapis_ipv4
+}
+
+# Wildcard CNAME so any *.googleapis.com goes to the private VIPs
+resource "google_dns_record_set" "googleapis_wildcard_cname" {
+  name         = "*.googleapis.com."
+  type         = "CNAME"
+  ttl          = 300
+  managed_zone = google_dns_managed_zone.private_gcs.name
+  rrdatas      = ["private.googleapis.com."]
+}
+
+module "edp_aggregator_internal" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name        = "internal-edp-aggregator-server"
+  iam_service_account_name        = var.edp_aggregator_service_account_name
+  iam_service_account_description = "Edp Aggregator internal API server."
+}
+
+resource "google_project_iam_member" "edp_aggregator_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_spanner_database" "edp_aggregator" {
+  instance         = var.spanner_instance.name
+  name             = var.spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
+}
+
+resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
+  instance = google_spanner_database.edp_aggregator.instance
+  database = google_spanner_database.edp_aggregator.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.edp_aggregator_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.edp_aggregator.id]
+  }
+}

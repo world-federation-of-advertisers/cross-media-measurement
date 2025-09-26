@@ -1,0 +1,28 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+kt_jvm_library(
+    name = "system_api_server",
+    srcs = ["SystemApiServer.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:services",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "SystemApiServer",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.common.server.SystemApiServer",
+    runtime_deps = [":system_api_server"],
+)
+
+java_image(
+    name = "system_api_server_image",
+    binary = ":SystemApiServer",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.common.server.SystemApiServer",
+    visibility = ["//src:docker_image_deployment"],
+)

@@ -95,6 +95,13 @@ filegroup(
 )
 
 filegroup(
+    name = "edp_aggregator_trusted_certs",
+    srcs = [
+        "edp_aggregator_root.pem",
+    ],
+)
+
+filegroup(
     name = "encryption_public_keys",
     srcs = [
         ":mc_enc_public.pb",
@@ -134,6 +141,13 @@ genrule(
     name = "gen_mp_trusted_certs",
     srcs = [":mp_trusted_certs"],
     outs = ["mp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_edp_aggregator_trusted_certs",
+    srcs = [":edp_aggregator_trusted_certs"],
+    outs = ["edp_aggregator_trusted_certs.pem"],
     cmd = "cat $(SRCS) > $@",
 )
 
@@ -343,6 +357,39 @@ kustomization_dir(
     renames = {
         "pdp_cs_kustomization.yaml": "kustomization.yaml",
     } | PDP1_CS_RENAMES,
+)
+
+EDP_AGGREGATOR_TLS_SRCS = [
+    "edp_aggregator_tls.pem",
+    "edp_aggregator_tls.key",
+]
+
+EDP_AGGREGATOR_TLS_RENAMES = {
+    "edp_aggregator_tls.pem": "tls.crt",
+    "edp_aggregator_tls.key": "tls.key",
+}
+
+pkg_files(
+    name = "edp_aggregator_tls_files",
+    srcs = EDP_AGGREGATOR_TLS_SRCS,
+    renames = EDP_AGGREGATOR_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "edp_aggregator_tls_archive",
+    srcs = [":edp_aggregator_tls_files"],
+    out = "edp_aggregator_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "edp_aggregator_tls",
+    srcs = [
+        "edp_aggregator_tls_kustomization.yaml",
+    ] + EDP_AGGREGATOR_TLS_SRCS,
+    renames = {
+        "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
+    } | EDP_AGGREGATOR_TLS_RENAMES,
 )
 
 pkg_tar(
