@@ -151,6 +151,39 @@ abstract class RequisitionMetadataServiceTest {
     }
 
   @Test
+  fun `multiple createRequisitionMetadata return multiple requisition metadata`(): Unit =
+    runBlocking {
+      val requisitionMetadata1 =
+        service.createRequisitionMetadata(
+          createRequisitionMetadataRequest {
+            requisitionMetadata =
+              REQUISITION_METADATA.copy {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                clearRequisitionMetadataResourceId()
+                cmmsRequisition = CMMS_REQUISITION + "1"
+                blobUri = BLOB_URI + "1"
+              }
+          }
+        )
+      // The second call should not raise ALREADY_EXISTS error.
+      val requisitionMetadata2 =
+        service.createRequisitionMetadata(
+          createRequisitionMetadataRequest {
+            requisitionMetadata =
+              REQUISITION_METADATA.copy {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                clearRequisitionMetadataResourceId()
+                cmmsRequisition = CMMS_REQUISITION + "2"
+                blobUri = BLOB_URI + "2"
+              }
+          }
+        )
+
+      assertThat(requisitionMetadata1.requisitionMetadataResourceId)
+        .isNotEqualTo(requisitionMetadata2.requisitionMetadataResourceId)
+    }
+
+  @Test
   fun `createRequisitionMetadata fails when dataProviderResourceName is missing`() = runBlocking {
     val request = createRequisitionMetadataRequest {
       requisitionMetadata = REQUISITION_METADATA.copy { clearDataProviderResourceId() }
