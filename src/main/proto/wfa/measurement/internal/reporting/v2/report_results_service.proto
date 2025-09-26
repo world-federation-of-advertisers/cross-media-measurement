@@ -24,15 +24,13 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
 service ReportResults {
-  // Add a batch of non-cumulative noisy result values to a ReportResult.
+  // Add a batch of noisy result values to a ReportResult.
+  //
   // This method will create the hierarchy of rows as necessary. If they
   // already exist existing rows will be reused. This method will only add
-  // non-cumulative noisy results. If non-cumulative noisy results already exist
-  // for the NoisyReportResultValue indicate then an error will be thrown.
-  rpc AddNonCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
-      returns (google.protobuf.Empty);
-  // Same as AddNonCumulativeNoisyResults but applies to cumulative results.
-  rpc AddCumulativeNoisyResultValues(AddNoisyResultValuesRequest)
+  // noisy results. If noisy results already exist for the
+  // NoisyReportResultValue indicate then an error will be thrown.
+  rpc AddNoisyResultValues(AddNoisyResultValuesRequest)
       returns (google.protobuf.Empty);
   // Add a batch of denoised result to a ReportResult. This method should not
   // need to create any intermediate artifacts as noisy result values should
