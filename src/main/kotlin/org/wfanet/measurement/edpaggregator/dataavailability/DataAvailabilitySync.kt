@@ -123,7 +123,7 @@ class DataAvailabilitySync(
     impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
     // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
-    // found in the storage folder and update kingdom bound
+    // found in the storage folder and update kingdom availability
     // Collect all model lines
     val modelLines = impressionMetadataMap.keys.toList()
 
