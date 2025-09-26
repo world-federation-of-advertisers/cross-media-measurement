@@ -16,9 +16,9 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import java.io.IOException
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
