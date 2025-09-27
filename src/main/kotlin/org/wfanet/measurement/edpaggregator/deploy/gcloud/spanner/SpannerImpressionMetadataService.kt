@@ -22,7 +22,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
 import io.grpc.Status
-import java.util.*
+import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.IdGenerator
