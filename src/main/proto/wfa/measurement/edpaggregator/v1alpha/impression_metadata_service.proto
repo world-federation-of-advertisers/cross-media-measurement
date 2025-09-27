@@ -82,7 +82,7 @@ message CreateImpressionMetadataRequest {
   // The ImpressionMetadata to create.
   // The `name` and output-only fields are ignored.
   ImpressionMetadata impression_metadata = 2
-      [(google.api.field_behavior) = REQUIRED];
+  [(google.api.field_behavior) = REQUIRED];
 
   // A request ID provided by the client on creation to ensure idempotency.
   //
@@ -109,7 +109,7 @@ message BatchCreateImpressionMetadataRequest {
 
   // The list of ImpressionMetadata to create.
   repeated CreateImpressionMetadataRequest requests = 2
-      [(google.api.field_behavior) = REQUIRED];
+  [(google.api.field_behavior) = REQUIRED];
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
@@ -165,17 +165,17 @@ message ListImpressionMetadataRequest {
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string model_line = 1 [
       (google.api.field_behavior) = OPTIONAL,
-      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+      (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
     ];
 
     // The event group reference ID to filter by.
     string event_group_reference_id = 2
-        [(google.api.field_behavior) = OPTIONAL];
+    [(google.api.field_behavior) = OPTIONAL];
 
     // The time interval to filter by. The `ImpressionMetadata` time range must
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
-        [(google.api.field_behavior) = OPTIONAL];
+    [(google.api.field_behavior) = OPTIONAL];
 
     // The state to filter by.
     // (-- api-linter: core::0216::state-field-output-only=disabled
@@ -253,7 +253,7 @@ message ComputeModelLineBoundsRequest {
   // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
   repeated string model_lines = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"}
   ];
 }
 
@@ -264,7 +264,7 @@ message ComputeModelLineBoundsResponse {
     // The model line resource names to get time bound for.
     // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
     string key = 1 [
-      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
+      (google.api.resource_reference) = {type: "halo.wfanet.org/ModelLine"},
       (google.api.field_behavior) = REQUIRED
     ];
 
@@ -273,7 +273,7 @@ message ComputeModelLineBoundsResponse {
     google.type.Interval value = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // A list of ModelLine time bounds.
+  // A map of ModelLine time bounds.
   repeated ModelLineBoundMapEntry model_line_bounds = 1
-      [(google.api.field_behavior) = UNORDERED_LIST];
+  [(google.api.field_behavior) = UNORDERED_LIST];
 }
