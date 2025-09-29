@@ -122,6 +122,14 @@ class CreateMeasurementFlags {
         )
         lateinit var eventGroupInputs: List<EventGroupInput>
           private set
+
+        @ArgGroup(
+          exclusive = false,
+          multiplicity = "1..*",
+          heading = "Add EventGroups filters for an Event Data Provider\n",
+        )
+        lateinit var eventFilters: List<EventGroupFilter>
+          private set
       }
 
       class EventGroupFilter {
@@ -142,14 +150,6 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var name: String
-          private set
-
-        @ArgGroup(
-          exclusive = false,
-          multiplicity = "1..*",
-          heading = "Add EventGroups for an Event Data Provider\n",
-        )
-        lateinit var eventFilters: List<EventGroupFilter>
           private set
 
         @Option(

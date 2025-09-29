@@ -506,13 +506,7 @@ class Benchmark(
           }
         for (eventDataProviderInputs in eventDataProviderInputsList) {
           val eventFilters: List<String> =
-            if (eventDataProviderInputs.first().eventGroupInputs.first().eventFilters.isEmpty()) {
-              listOf("true")
-            } else {
-              eventDataProviderInputs.first().eventGroupInputs.first().eventFilters.map {
-                it.eventFilter
-              }
-            }
+            eventDataProviderInputs.first().eventFilters.map { it.eventFilter }
           for (eventFilter in eventFilters) {
             val referenceId = "$referenceIdBase-$replica-${UUID.randomUUID()}"
 

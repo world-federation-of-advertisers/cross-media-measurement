@@ -657,8 +657,9 @@ class CreateMeasurement : Runnable {
                     startTime = it.eventStartTime.toProtoTime()
                     endTime = it.eventEndTime.toProtoTime()
                   }
-                  if (it.eventFilters.isNotEmpty())
-                    filter = eventFilter { expression = it.eventFilters.single() }
+                  filter = eventFilter {
+                    expression = eventDataProviderInput.eventFilters.single().eventFilter
+                  }
                 }
             }
           }
