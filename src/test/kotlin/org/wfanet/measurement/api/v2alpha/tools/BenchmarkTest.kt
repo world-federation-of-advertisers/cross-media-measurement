@@ -289,7 +289,7 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
@@ -365,7 +365,7 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
@@ -433,7 +433,7 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
@@ -501,7 +501,7 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
         "--output-file=$tempFile",
@@ -621,7 +621,7 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_3",
         "--output-file=$tempFile",
@@ -658,10 +658,10 @@ class BenchmarkTest {
           }
         )
     }
-  }*/
+  }
 
   @Test
-  fun `Benchmark multi-party + direct reach and frequency`() {
+  fun `Benchmark multiple cross-pub multi-edp + direct requisitions`() {
     measurementsServiceMock = mockService {
       onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
       onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
@@ -691,7 +691,22 @@ class BenchmarkTest {
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--event-data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filters=abcd",
+        "--event-filter=abcd",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--event-data-provider=dataProviders/2",
+        "--event-group=dataProviders/2/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--event-data-provider=dataProviders/3",
+        "--event-group=dataProviders/3/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--event-data-provider=dataProviders/4",
+        "--event-group=dataProviders/4/eventGroups/1",
+        "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_3",
         "--output-file=$tempFile",
@@ -700,13 +715,164 @@ class BenchmarkTest {
     BenchmarkReport.main(args, clock)
 
     val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
-      verifyBlocking(measurementsServiceMock, times(13)) { createMeasurement(capture()) }
+      verifyBlocking(measurementsServiceMock, times(5)) { createMeasurement(capture()) }
     }
 
     requests.allValues.forEach {
       val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
 
-      // assertThat(requestCaptor.allValues).containsExactlyElementsIn(expected)
+      assertThat(measurementSpec)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          measurementSpec {
+            reachAndFrequency = reachAndFrequency {
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.015
+                delta = 0.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.02
+                delta = 0.0
+              }
+            }
+            vidSamplingInterval =
+              MeasurementSpecKt.vidSamplingInterval {
+                start = 0.1f
+                width = 0.2f
+              }
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `Benchmark multiple cel filters`() {
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
+    }
+    initServer()
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--kingdom-public-api-target=$HOST:$port",
+        "--api-key=$API_KEY",
+        "--measurement-consumer=measurementConsumers/777",
+        "--create-direct",
+        "--reach-and-frequency",
+        "--max-frequency=5",
+        "--rf-reach-privacy-epsilon=0.015",
+        "--rf-reach-privacy-delta=0.0",
+        "--rf-frequency-privacy-epsilon=0.02",
+        "--rf-frequency-privacy-delta=0.0",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
+        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
+        "--event-data-provider=dataProviders/1",
+        "--event-group=dataProviders/1/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-filter=abcde",
+        "--event-filter=abcdef",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--output-file=$tempFile",
+      )
+
+    BenchmarkReport.main(args, clock)
+
+    val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
+      verifyBlocking(measurementsServiceMock, times(3)) { createMeasurement(capture()) }
+    }
+
+    requests.allValues.forEach {
+      val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
+
+      assertThat(measurementSpec)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          measurementSpec {
+            reachAndFrequency = reachAndFrequency {
+              reachPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.015
+                delta = 0.0
+              }
+              frequencyPrivacyParams = differentialPrivacyParams {
+                epsilon = 0.02
+                delta = 0.0
+              }
+            }
+            vidSamplingInterval =
+              MeasurementSpecKt.vidSamplingInterval {
+                start = 0.1f
+                width = 0.2f
+              }
+          }
+        )
+    }
+  }
+
+  @Test
+  fun `Benchmark cumulative, create-direct, multiple cel filters`() {
+    measurementsServiceMock = mockService {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_REACH_AND_FREQUENCY_MEASUREMENT)
+    }
+    initServer()
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--kingdom-public-api-target=$HOST:$port",
+        "--api-key=$API_KEY",
+        "--measurement-consumer=measurementConsumers/777",
+        "--create-direct",
+        "--cumulative",
+        "--reach-and-frequency",
+        "--max-frequency=5",
+        "--rf-reach-privacy-epsilon=0.015",
+        "--rf-reach-privacy-delta=0.0",
+        "--rf-frequency-privacy-epsilon=0.02",
+        "--rf-frequency-privacy-delta=0.0",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
+        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
+        "--event-data-provider=dataProviders/1",
+        "--event-group=dataProviders/1/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-filter=abcde",
+        "--event-filter=abcdef",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--event-data-provider=dataProviders/2",
+        "--event-group=dataProviders/2/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-filter=abcde",
+        "--event-filter=abcdef",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_3",
+        "--output-file=$tempFile",
+      )
+
+    BenchmarkReport.main(args, clock)
+
+    val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
+      verifyBlocking(measurementsServiceMock, times(117)) { createMeasurement(capture()) }
+    }
+
+    requests.allValues.forEach {
+      val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
+
       assertThat(measurementSpec)
         .comparingExpectedFieldsOnly()
         .isEqualTo(

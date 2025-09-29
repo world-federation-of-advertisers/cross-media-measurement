@@ -241,7 +241,6 @@ private fun getEventDataProviderEntry(
                   if (cumulativeCollectionInterval != null) {
                     check(cumulativeCollectionInterval.startTime.toInstant() == it.eventStartTime)
                     check(cumulativeCollectionInterval.endTime.toInstant() <= it.eventEndTime)
-                    println(cumulativeCollectionInterval)
                     this.collectionInterval = cumulativeCollectionInterval
                   } else {
                     this.collectionInterval = interval {
@@ -452,7 +451,7 @@ class Benchmark(
     for (replica in 1..flags.repetitionCount) {
       val collectionIntervalEndTimes =
         if (createMeasurementFlags.cumulative) {
-          // getEventDataProviderEntry checks to make sure all entries are identical
+          // getEventDataProviderEntry checks to make sure all entries are identical for cumulative
           val firstEntryStartTime =
             eventMeasurementParams.eventDataProviderInputs
               .first()
@@ -468,10 +467,11 @@ class Benchmark(
           val step = JavaDuration.ofDays(7)
           var current = firstEntryStartTime
           val endTimes = mutableListOf<Instant>()
-          while (current < firstEntryEndTime) {
-            endTimes.add(current)
+          while (current.plus(step) < firstEntryEndTime) {
             current = current.plus(step)
+            endTimes.add(current)
           }
+          endTimes.add(firstEntryEndTime)
           endTimes
         } else {
           // This should never be accessed
@@ -495,7 +495,10 @@ class Benchmark(
             null
           }
         val eventDataProviderInputsList =
-          if (createMeasurementFlags.createDirect) {
+          if (
+            createMeasurementFlags.createDirect &&
+              eventMeasurementParams.eventDataProviderInputs.size > 1
+          ) {
             listOf(eventMeasurementParams.eventDataProviderInputs) +
               eventMeasurementParams.eventDataProviderInputs.map { listOf(it) }
           } else {
@@ -506,7 +509,9 @@ class Benchmark(
             if (eventDataProviderInputs.first().eventGroupInputs.first().eventFilters.isEmpty()) {
               listOf("true")
             } else {
-              eventDataProviderInputs.first().eventGroupInputs.first().eventFilters
+              eventDataProviderInputs.first().eventGroupInputs.first().eventFilters.map {
+                it.eventFilter
+              }
             }
           for (eventFilter in eventFilters) {
             val referenceId = "$referenceIdBase-$replica-${UUID.randomUUID()}"

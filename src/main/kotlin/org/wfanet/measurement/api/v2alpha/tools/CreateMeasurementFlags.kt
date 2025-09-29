@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.toProtoDuration
-import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Option
 
@@ -89,7 +88,7 @@ class CreateMeasurementFlags {
     private set
 
   @Option(
-    names = ["--createDirect"],
+    names = ["--create-direct"],
     description = ["Whether to create direct reports, too, when more than one EDP is provided"],
   )
   var createDirect: Boolean = false
@@ -125,6 +124,17 @@ class CreateMeasurementFlags {
           private set
       }
 
+      class EventGroupFilter {
+        @Option(
+          names = ["--event-filter"],
+          description = ["Raw CEL expression of EventFilter"],
+          required = false,
+          defaultValue = "",
+        )
+        lateinit var eventFilter: String
+          private set
+      }
+
       class EventGroupInput {
         @Option(
           names = ["--event-group"],
@@ -134,12 +144,13 @@ class CreateMeasurementFlags {
         lateinit var name: String
           private set
 
-        @Option(
-          names = ["--event-filters"],
-          description = ["Raw CEL expression of EventFilter"],
-          arity = "0..*"
+        @ArgGroup(
+          exclusive = false,
+          multiplicity = "1..*",
+          heading = "Add EventGroups for an Event Data Provider\n",
         )
-        var eventFilters: MutableList<String> = mutableListOf()
+        lateinit var eventFilters: List<EventGroupFilter>
+          private set
 
         @Option(
           names = ["--event-start-time"],
