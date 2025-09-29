@@ -45,7 +45,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
@@ -137,12 +136,11 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    val groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper> = runBlocking {      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
-    assertThat(groupedRequisitions).hasSize(1)
-    val groupedRequisition = groupedRequisitions.single()
-    assertThat(groupedRequisition.eventGroupMapList.single())
+    assertThat(groupedRequisitionsWrappers).hasSize(1)
+    val groupedRequisition = groupedRequisitionsWrappers.first().groupedRequisitions
+    assertThat(groupedRequisition?.eventGroupMapList?.single())
       .isEqualTo(
         eventGroupMapEntry {
           eventGroup = "dataProviders/someDataProvider/eventGroups/name"
@@ -160,11 +158,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
         }
       )
     assertThat(
-        groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-      )
+      groupedRequisition?.requisitionsList?.map { it.requisition.unpack(Requisition::class.java) }      )
       .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
 
-    assertThat(groupedRequisition.modelLine).isEqualTo("some-model-line")
+    assertThat(groupedRequisition?.modelLine).isEqualTo("some-model-line")
   }
 
   @Test
@@ -207,13 +204,11 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           )
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    val groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper> = runBlocking {      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
-    assertThat(groupedRequisitions).hasSize(1)
+    assertThat(groupedRequisitionsWrappers).hasSize(1)
     assertThat(
-        groupedRequisitions.single().eventGroupMapList.single().details.collectionIntervalsList
-      )
+      groupedRequisitionsWrappers.first().groupedRequisitions?.eventGroupMapList?.single()?.details?.collectionIntervalsList      )
       .hasSize(2)
   }
 
@@ -227,9 +222,12 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
       }
 
-    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    val groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper> = runBlocking {      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
-    assertThat(groupedRequisitions).hasSize(0)
+    assertThat(groupedRequisitionsWrappers).hasSize(1)
+    assertThat(groupedRequisitionsWrappers.first().requisitions).hasSize(2)
+    groupedRequisitionsWrappers.first().requisitions.forEach {
+      assertThat(it.status).isEqualTo(RequisitionGrouper.RequisitionValidationStatus.INVALID)
+    }
   }
 }

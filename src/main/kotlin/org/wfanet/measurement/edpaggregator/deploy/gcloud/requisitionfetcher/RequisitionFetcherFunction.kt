@@ -24,13 +24,13 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
-import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -43,7 +43,6 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -106,12 +105,15 @@ class RequisitionFetcherFunction : HttpFunction {
     dataProviderConfig: DataProviderRequisitionConfig
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
+    val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
     val signingCerts = loadSigningCerts(dataProviderConfig)
     val publicChannel by lazy {
       buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
     }
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
+    // DO_NOT_SUBMIT (Replace with correct channel once deployed)
+    val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(publicChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
@@ -127,11 +129,12 @@ class RequisitionFetcherFunction : HttpFunction {
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
+      requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
+      requisitionBlobPrefix = requisitionBlobPrefix,
       requisitionGrouper = requisitionGrouper,
-      groupedRequisitionsIdGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
     )
   }
@@ -166,6 +169,17 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  private fun createRequisitionBlobPrefix(
+    dataProviderConfig: DataProviderRequisitionConfig
+  ): String {
+    return if (!fileSystemPath.isNullOrEmpty()) {
+      "$fileSystemPath"
+    } else {
+      val gcsConfig = dataProviderConfig.requisitionStorage.gcs
+      "gs://${gcsConfig.bucketName}"
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
@@ -189,20 +203,6 @@ class RequisitionFetcherFunction : HttpFunction {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
       }
-    }
-
-    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-      val requisitionNames =
-        groupedRequisition.requisitionsList
-          .mapNotNull { entry ->
-            val requisition = entry.requisition.unpack(Requisition::class.java)
-            requisition.name
-          }
-          .sorted()
-
-      val concatenated = requisitionNames.joinToString(separator = "|")
-      val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
-      return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
     }
 
     /**

@@ -73,10 +73,10 @@ abstract class AbstractRequisitionGrouperTest {
     eventGroupsServiceMock.stub {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
-    val requisitions = runBlocking {
+    val groupedRequisitions = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
     }
-    assertThat(requisitions).hasSize(0)
+    assertThat(groupedRequisitions).hasSize(0)
   }
 
   @Test
@@ -115,6 +115,8 @@ abstract class AbstractRequisitionGrouperTest {
     val groupedRequisitions = runBlocking {
       requisitionGrouper.groupRequisitions(listOf(requisition))
     }
-    assertThat(groupedRequisitions).hasSize(0)
+    assertThat(groupedRequisitions).hasSize(1)
+    assertThat(groupedRequisitions.first().groupedRequisitions).isNull()
+    assertThat(groupedRequisitions.first().requisitions.first().status).isEqualTo(RequisitionGrouper.RequisitionValidationStatus.INVALID)
   }
 }

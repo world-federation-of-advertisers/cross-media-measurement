@@ -19,15 +19,11 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.type.Interval
 import com.google.type.interval
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -48,61 +44,82 @@ class RequisitionGrouperByReportId(
    * group.
    */
   override suspend fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
-  ): List<GroupedRequisitions> {
-    val groupedByReport: Map<String, List<GroupedRequisitions>> =
-      groupedRequisitions.groupBy {
-        val measurementSpec: MeasurementSpec =
-          it.requisitionsList
-            .single()
-            .requisition
-            .unpack(Requisition::class.java)
-            .measurementSpec
-            .unpack()
-        measurementSpec.reportingMetadata.report
+    groupedRequisitions: List<GroupedRequisitionsWrapper>
+  ): List<GroupedRequisitionsWrapper> {
+
+    val groupedRequisitionByReportId = groupedRequisitions.groupBy { it.reportId }
+
+    return groupedRequisitionByReportId.map { (reportId, groupedRequisitionsWrapper) ->
+      val requisitionWrappers = groupedRequisitionsWrapper.flatMap { it.requisitions }.toMutableList()
+
+      // Filter out invalid requisitions
+      val validGroups = groupedRequisitionsWrapper
+        .filter { it.requisitions.single().status == RequisitionValidationStatus.VALID }
+        .mapNotNull { it.groupedRequisitions }
+
+      if (validGroups.isNotEmpty()) {
+        try {
+          // If requisitions share the same model line, return the GroupRequisitions object that will be store to cloud storage.
+          val combinedValidReports = combineByReportId(reportId, validGroups)
+          GroupedRequisitionsWrapper(
+            reportId = reportId,
+            groupedRequisitions = combinedValidReports,
+            requisitions = requisitionWrappers
+          )
+        } catch (e: InvalidRequisitionException) {
+          val updatedRequisitionWrappers = requisitionWrappers.map {
+            if (it.status == RequisitionValidationStatus.VALID) {
+              it.copy(status = RequisitionValidationStatus.INVALID, refusal = e.refusal)
+            } else it
+          }
+          // Invalid model line: nothing to be stored to cloud storage for this group
+          GroupedRequisitionsWrapper(
+            reportId = reportId,
+            groupedRequisitions = null,
+            requisitions = updatedRequisitionWrappers
+          )
+        }
+      } else {
+        GroupedRequisitionsWrapper(
+          reportId = reportId,
+          groupedRequisitions = null,
+          requisitions = requisitionWrappers
+        )
       }
-    val combinedByReportId: List<GroupedRequisitions> = combineByReportId(groupedByReport)
-    return combinedByReportId
+    }
   }
 
   /**
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
-  private suspend fun combineByReportId(
-    groupedByReport: Map<String, List<GroupedRequisitions>>
-  ): List<GroupedRequisitions> {
+  private fun combineByReportId(
+    reportId: String,
+    groups: List<GroupedRequisitions>
+  ): GroupedRequisitions {
 
-    return groupedByReport.toList().mapNotNull {
-      (reportId: String, groups: List<GroupedRequisitions>) ->
-      try {
-        requisitionValidator.validateModelLines(groups, reportId = reportId)
-        val entries =
-          groups
-            .flatMap { it.eventGroupMapList }
-            .groupBy { it.eventGroup }
-            .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
-              val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
-              val collectionIntervals: List<Interval> =
-                eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
-              val combinedCollectionIntervals = unionIntervals(collectionIntervals)
-              eventGroupMapEntry {
-                this.eventGroup = eventGroupName
-                details = eventGroupDetails {
-                  this.eventGroupReferenceId = eventGroupReferenceId
-                  this.collectionIntervals += combinedCollectionIntervals
-                }
-              }
+    requisitionValidator.validateModelLines(groups, reportId = reportId)
+    val entries =
+      groups
+        .flatMap { it.eventGroupMapList }
+        .groupBy { it.eventGroup }
+        .map { (eventGroupName, eventGroupMapEntries) ->
+          val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
+          val collectionIntervals: List<Interval> =
+            eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
+          val combinedCollectionIntervals = unionIntervals(collectionIntervals)
+          eventGroupMapEntry {
+            this.eventGroup = eventGroupName
+            details = eventGroupDetails {
+              this.eventGroupReferenceId = eventGroupReferenceId
+              this.collectionIntervals += combinedCollectionIntervals
             }
-        groupedRequisitions {
-          this.modelLine = groups.firstOrNull()?.modelLine ?: ""
-          this.eventGroupMap += entries
-          this.requisitions += groups.flatMap { it.requisitionsList }
+          }
         }
-      } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
-        null
-      }
+    return groupedRequisitions {
+      this.modelLine = groups.first().modelLine
+      this.eventGroupMap += entries
+      this.requisitions += groups.flatMap { it.requisitionsList }
     }
   }
 
