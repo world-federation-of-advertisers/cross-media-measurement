@@ -132,9 +132,16 @@ class BaseFlags {
 
   @set:CommandLine.Option(
     names = ["--cumulative"],
-    description = ["Where the multiple cumulative requisitions should be created"],
+    description = ["Whether the multiple cumulative requisitions should be created"],
   )
   var cumulative = false
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--createDirect"],
+    description = ["Whether to create direct reports, too, when more than one EDP is provided"],
+  )
+  var createDirect = false
     private set
 
   @CommandLine.Option(
@@ -399,6 +406,7 @@ class Benchmark(
           }
           endTimes
         } else {
+          // This should never be accessed
           listOf(null)
         }
 
@@ -412,7 +420,17 @@ class Benchmark(
           } else {
             null
           }
-        val referenceId = "$referenceIdBase-$replica"
+        val eventDataProviderInputsList: List<List<EventDataProviderInput>> = if (createDirect) {
+          val eventDataProviderInputsList = listOf(
+            eventMeasurementParams.eventDataProviderInputs
+          ) + eventMeasurementParams.eventDataProviderInputs.map{
+            listOf(it)
+            }
+        } else {
+          val eventDataProviderInputsList = listOf(eventMeasurementParams.eventDataProviderInputs)
+        }
+        for (eventDataProviderInputs in eventDataProviderInputsList) {
+        val referenceId = "$referenceIdBase-$replica-$cumulativeCollectionInterval-"
 
         val measurement =
           if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
@@ -450,7 +468,7 @@ class Benchmark(
             measurement {
               this.measurementConsumerCertificate = measurementConsumer.certificate
               dataProviders +=
-                eventMeasurementParams.eventDataProviderInputs.map {
+                eventDataProviderInputs.map {
                   getEventDataProviderEntry(
                     dataProviderStub,
                     it,
@@ -511,6 +529,7 @@ class Benchmark(
         task.ackTime = Instant.now(clock)
         task.measurementName = response.name
         taskList.add(task)
+      }
       }
     }
   }
