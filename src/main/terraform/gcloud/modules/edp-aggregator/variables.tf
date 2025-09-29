@@ -278,3 +278,10 @@ variable "spanner_database_name" {
   default     = "edp-aggregator"
   nullable    = false
 }
+
+variable "system_ip_address" {
+  description = "IP address for system API"
+  type        = string
+  nullable    = true
+  default     = null
+}

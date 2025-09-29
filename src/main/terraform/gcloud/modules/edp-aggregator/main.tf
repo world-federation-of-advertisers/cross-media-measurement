@@ -452,3 +452,9 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
     replace_triggered_by = [google_spanner_database.edp_aggregator.id]
   }
 }
+
+resource "google_compute_address" "system" {
+  name    = "edp-aggregator-system"
+  address = var.system_ip_address
+}
+
