@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.toProtoDuration
+import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Option
 
@@ -80,6 +81,19 @@ class CreateMeasurementFlags {
   )
   lateinit var report: String
 
+  @Option(
+    names = ["--cumulative"],
+    description = ["Whether the multiple cumulative requisitions should be created"],
+  )
+  var cumulative: Boolean = false
+    private set
+
+  @Option(
+    names = ["--createDirect"],
+    description = ["Whether to create direct reports, too, when more than one EDP is provided"],
+  )
+  var createDirect: Boolean = false
+    private set
 
   class MeasurementParams {
     @ArgGroup(exclusive = false, multiplicity = "1", heading = "Event Measurement and params\n")
@@ -121,13 +135,11 @@ class CreateMeasurementFlags {
           private set
 
         @Option(
-          names = ["--event-filter"],
+          names = ["--event-filters"],
           description = ["Raw CEL expression of EventFilter"],
-          required = false,
-          defaultValue = "",
+          arity = "0..*"
         )
-        lateinit var eventFilter: String
-          private set
+        var eventFilters: MutableList<String> = mutableListOf()
 
         @Option(
           names = ["--event-start-time"],
