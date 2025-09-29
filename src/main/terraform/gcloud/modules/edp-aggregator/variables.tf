@@ -281,3 +281,15 @@ variable "requisition_fetcher_scheduler_config" {
   })
   nullable = false
 }
+
+variable "private_subnetwork_cidr_range" {
+  description = "The range of IP addresses belonging to this subnetwork."
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "private_subnetwork_network" {
+  description = "The network this subnet belongs to"
+  type        = string
+  default     = "default"
+}

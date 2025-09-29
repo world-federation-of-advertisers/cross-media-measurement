@@ -358,8 +358,8 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
 resource "google_compute_subnetwork" "private_subnetwork" {
   name                     = var.private_subnetwork_name
   region                   = data.google_client_config.default.region
-  network                  = "default"
-  ip_cidr_range            = "192.168.0.0/16"
+  network                  = var.private_subnetwork_network
+  ip_cidr_range            = var.private_subnetwork_cidr_range
   private_ip_google_access = true
 }
 
