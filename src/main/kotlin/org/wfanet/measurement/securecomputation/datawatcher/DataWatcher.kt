@@ -33,14 +33,19 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
  * @param workItemsStub - the Google Pub Sub Sink to call
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  */
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
   private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
   private val idTokenProvider: IdTokenProvider =
@@ -90,7 +95,20 @@ class DataWatcher(
         this.workItemParams = workItemParams
       }
     }
-    workItemsStub.createWorkItem(request)
+    val createdWorkItem = workItemsStub.createWorkItem(request)
+
+    // Update the RequisitionMetadataStorage
+    val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
+      parent = config.dataProvider
+      blobUri = path
+    }
+    val requisitionMetadata = requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
+    val queueRequisitionMetadataRequest = queueRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+      workItem = createdWorkItem.name
+    }
+    requisitionMetadataStub.queueRequisitionMetadata(queueRequisitionMetadataRequest)
   }
 
   private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
