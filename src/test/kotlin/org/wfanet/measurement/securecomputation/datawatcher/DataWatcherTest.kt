@@ -36,6 +36,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
+import org.mockito.kotlin.any
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -47,17 +48,32 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.Wo
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {}
+
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { lookupRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { queueRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
+
   val mockIdTokenProvider: IdTokenProvider = TestIdTokenProvider()
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+    addService(workItemsServiceMock)
+    addService(requisitionMetadataServiceMock)}
 
   private val workItemsStub: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val requisitionMetadataStub: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
@@ -77,6 +93,7 @@ class DataWatcherTest() {
       val dataWatcher =
         DataWatcher(
           workItemsStub,
+          requisitionMetadataStub,
           listOf(config),
           workItemIdGenerator = { "some-work-item-id" },
           idTokenProvider = mockIdTokenProvider,
@@ -124,6 +141,7 @@ class DataWatcherTest() {
       val dataWatcher =
         DataWatcher(
           workItemsStub = workItemsStub,
+          requisitionMetadataStub = requisitionMetadataStub,
           dataWatcherConfigs = listOf(config),
           idTokenProvider = mockIdTokenProvider,
         )
@@ -154,7 +172,7 @@ class DataWatcherTest() {
       }
 
       val dataWatcher =
-        DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+        DataWatcher(workItemsStub, requisitionMetadataStub, listOf(config), idTokenProvider = mockIdTokenProvider)
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()

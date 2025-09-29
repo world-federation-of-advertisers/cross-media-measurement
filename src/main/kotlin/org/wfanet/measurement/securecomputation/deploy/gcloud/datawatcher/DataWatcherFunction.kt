@@ -26,6 +26,7 @@ import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -76,9 +77,12 @@ class DataWatcherFunction : CloudEventsFunction {
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val certFilePath = checkIsPath("CERT_FILE_PATH")
     private val privateKeyFilePath = checkIsPath("PRIVATE_KEY_FILE_PATH")
-    private val certCollectionFilePath = checkIsPath("CERT_COLLECTION_FILE_PATH")
+    private val secureComputationCertCollectionFilePath = checkIsPath("CERT_COLLECTION_FILE_PATH")
+    private val requisitionMetadataStorageCertCollectionFilePath = checkIsPath("REQUISITION_METADATA_STORAGE_CERT_COLLECTION_FILE_PATH")
     private val controlPlaneTarget = checkNotEmpty("CONTROL_PLANE_TARGET")
     private val controlPlaneCertHost = checkNotEmpty("CONTROL_PLANE_CERT_HOST")
+    private val edpAggregatorTarget = EnvVars.checkNotNullOrEmpty("EDP_AGGREGATOR_TARGET")
+    private val requisitionMetadataStorageCertHost: String? = System.getenv("REQUISITION_METADATA_STORAGE_CERT_HOST")
     private val channelShutdownTimeout =
       Duration.ofSeconds(
         System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -98,7 +102,7 @@ class DataWatcherFunction : CloudEventsFunction {
       return value
     }
 
-    private fun getClientCerts(): SigningCerts {
+    private fun getClientCerts(certCollectionFilePath: String): SigningCerts {
       fun logFileStatus(label: String, path: String) {
         val file = File(path)
         logger.info("$label - Path: $path")
@@ -128,14 +132,20 @@ class DataWatcherFunction : CloudEventsFunction {
     }
 
     private val publicChannel by lazy {
-      buildMutualTlsChannel(controlPlaneTarget, getClientCerts(), controlPlaneCertHost)
+      buildMutualTlsChannel(controlPlaneTarget, getClientCerts(secureComputationCertCollectionFilePath), controlPlaneCertHost)
+        .withShutdownTimeout(channelShutdownTimeout)
+    }
+
+    private val requisitionMetadataStoragePublicChannel by lazy {
+      buildMutualTlsChannel(edpAggregatorTarget, getClientCerts(
+        requisitionMetadataStorageCertCollectionFilePath
+      ), requisitionMetadataStorageCertHost)
         .withShutdownTimeout(channelShutdownTimeout)
     }
 
     private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
 
-    // DO_NOT_SUBMIT (Replace with correct channel once deployed)
-    private val requisitionMetadataStub by lazy { RequisitionMetadataServiceCoroutineStub(publicChannel) }
+    private val requisitionMetadataStub by lazy { RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel) }
 
     private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
