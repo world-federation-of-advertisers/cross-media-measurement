@@ -199,7 +199,7 @@ private fun run(
       InternalReportingSetsCoroutineStub(channel),
       InternalMetricCalculationSpecsCoroutineStub(channel),
       ReportResultsCoroutineStub(channel),
-      eventMessageFlags.eventDescriptor,
+      eventMessageFlags.eventDescriptor!!,
     )
 
   runBlocking { basicReportsReportsJob.execute() }

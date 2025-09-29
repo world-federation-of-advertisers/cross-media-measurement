@@ -134,10 +134,10 @@ class BasicReportsService(
     // Required for creating Report
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
-    val eventTemplateFieldsMap = eventDescriptor?.eventTemplateFieldsMap ?: emptyMap()
+    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     try {
-      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsMap)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -266,7 +266,7 @@ class BasicReportsService(
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
-        eventTemplateFieldsMap = eventTemplateFieldsMap,
+        eventTemplateFieldsByPath = eventTemplateFieldsByPath,
       )
 
     val report: Report =
