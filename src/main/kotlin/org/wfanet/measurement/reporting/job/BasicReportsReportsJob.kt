@@ -79,7 +79,7 @@ class BasicReportsReportsJob(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
-  private val eventDescriptor: EventDescriptor,
+  private val eventDescriptor: EventDescriptor?,
 ) {
 
   /**
@@ -87,8 +87,10 @@ class BasicReportsReportsJob(
    * each of those BasicReports, the Report is retrieved.
    */
   suspend fun execute() {
+    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+
     val eventTemplateFieldByPredicate =
-      buildEventTemplateFieldByPredicateMap(eventDescriptor.eventTemplateFieldsByPath)
+      buildEventTemplateFieldByPredicateMap(eventTemplateFieldsByPath)
 
     val measurementConsumerConfigByName =
       measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
@@ -157,7 +159,7 @@ class BasicReportsReportsJob(
                   transformReportResults(
                     basicReport,
                     report,
-                    eventDescriptor.eventTemplateFieldsByPath,
+                    eventTemplateFieldsByPath,
                     eventTemplateFieldByPredicate,
                   )
                 reportResultsStub.addNoisyResultValues(
@@ -429,7 +431,7 @@ class BasicReportsReportsJob(
             }
             MetricSpec.TypeCase.TYPE_NOT_SET -> {
               // This should be impossible to reach under normal circumstances
-              throw Error("Metric ${resultAttribute.metric} is missing metric_spec.type")
+              error("Metric ${resultAttribute.metric} is missing metric_spec.type")
             }
           }
         }
