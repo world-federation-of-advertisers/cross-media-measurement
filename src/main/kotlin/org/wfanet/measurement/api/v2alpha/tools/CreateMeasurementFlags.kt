@@ -72,6 +72,15 @@ class CreateMeasurementFlags {
   )
   lateinit var modelLine: String
 
+  @Option(
+    names = ["--report"],
+    description = ["API resource name of the Report"],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var report: String
+
+
   class MeasurementParams {
     @ArgGroup(exclusive = false, multiplicity = "1", heading = "Event Measurement and params\n")
     var eventMeasurementParams = EventMeasurementParams()

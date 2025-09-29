@@ -50,6 +50,7 @@
 package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.protobuf.Any as ProtoAny
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.io.File
@@ -69,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -96,6 +98,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -126,6 +129,13 @@ private class ApiFlags {
 }
 
 class BaseFlags {
+
+  @set:CommandLine.Option(
+    names = ["--cumulative"],
+    description = ["Where the multiple cumulative requisitions should be created"],
+  )
+  var cumulative = false
+    private set
 
   @CommandLine.Option(
     names = ["--encryption-private-key-file"],
@@ -222,6 +232,7 @@ private fun getEventDataProviderEntry(
   packedMeasurementEncryptionPublicKey: ProtoAny,
   secureRandom: SecureRandom,
   apiAuthenticationKey: String,
+  cumulativeCollectionInterval: Interval?,
 ): Measurement.DataProviderEntry {
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
@@ -232,9 +243,15 @@ private fun getEventDataProviderEntry(
               eventGroupEntry {
                 key = it.name
                 value = eventGroupEntryValue {
-                  collectionInterval = interval {
-                    startTime = it.eventStartTime.toProtoTime()
-                    endTime = it.eventEndTime.toProtoTime()
+                  if (cumulativeCollectionInterval != null) {
+                    check(collectionInterval.startTime.toInstant() == it.eventStartTime)
+                    check(collectionInterval.endTime.toInstant() <= it.eventEndTime)
+                    this.collectionInterval = collectionInterval
+                  } else {
+                    this.collectionInterval = interval {
+                      startTime = it.eventStartTime.toProtoTime()
+                      endTime = it.eventEndTime.toProtoTime()
+                    }
                   }
                   if (it.eventFilter.isNotEmpty())
                     filter = eventFilter { expression = it.eventFilter }
@@ -358,101 +375,143 @@ class Benchmark(
         .joinToString("")
 
     for (replica in 1..flags.repetitionCount) {
-      val referenceId = "$referenceIdBase-$replica"
-
-      val measurement =
-        if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
-          measurement {
-            this.measurementConsumerCertificate = measurementConsumer.certificate
-            dataProviders +=
-              getPopulationDataProviderEntry(
-                dataProviderStub,
-                createMeasurementFlags.measurementParams.populationMeasurementParams
-                  .populationDataProviderInput,
-                createMeasurementFlags.measurementParams.populationMeasurementParams,
-                measurementConsumerSigningKey,
-                packedMeasurementEncryptionPublicKey,
-                secureRandom,
-                apiAuthenticationKey,
-              )
-
-            val unsignedMeasurementSpec = measurementSpec {
-              measurementPublicKey = packedMeasurementEncryptionPublicKey
-              nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-              population = createMeasurementFlags.getPopulation()
-              if (createMeasurementFlags.modelLine.isNotEmpty())
-                modelLine = createMeasurementFlags.modelLine
-            }
-
-            this.measurementSpec =
-              signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-            measurementReferenceId = referenceId
+      val firstEntryStartTime =
+        eventMeasurementParams.eventDataProviderInputs
+          .first()
+          .eventGroupInputs
+          .first()
+          .eventStartTime
+      val collectionIntervalEndTimes =
+        if (flags.cumulative) {
+          // getEventDataProviderEntry checks to make sure all entries are identical
+          val firstEntryEndTime =
+            eventMeasurementParams.eventDataProviderInputs
+              .first()
+              .eventGroupInputs
+              .first()
+              .eventEndTime
+          val step = JavaDuration.ofDays(7)
+          var current = firstEntryStartTime
+          val endTimes = mutableListOf<Instant>()
+          while (current < firstEntryEndTime) {
+            endTimes.add(current)
+            current = current.plus(step)
           }
+          endTimes
         } else {
-          val vidSamplingStartForMeasurement =
-            eventMeasurementParams.vidSamplingStart +
-              kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
-                eventMeasurementParams.vidSamplingWidth
-          measurement {
-            this.measurementConsumerCertificate = measurementConsumer.certificate
-            dataProviders +=
-              eventMeasurementParams.eventDataProviderInputs.map {
-                getEventDataProviderEntry(
+          listOf(null)
+        }
+
+      for (endTime in collectionIntervalEndTimes) {
+        val cumulativeCollectionInterval =
+          if (flags.cumulative) {
+            interval {
+              this.startTime = firstEntryStartTime.toProtoTime()
+              this.endTime = endTime!!.toProtoTime()
+            }
+          } else {
+            null
+          }
+        val referenceId = "$referenceIdBase-$replica"
+
+        val measurement =
+          if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+            measurement {
+              this.measurementConsumerCertificate = measurementConsumer.certificate
+              dataProviders +=
+                getPopulationDataProviderEntry(
                   dataProviderStub,
-                  it,
+                  createMeasurementFlags.measurementParams.populationMeasurementParams
+                    .populationDataProviderInput,
+                  createMeasurementFlags.measurementParams.populationMeasurementParams,
                   measurementConsumerSigningKey,
                   packedMeasurementEncryptionPublicKey,
                   secureRandom,
                   apiAuthenticationKey,
                 )
+
+              val unsignedMeasurementSpec = measurementSpec {
+                measurementPublicKey = packedMeasurementEncryptionPublicKey
+                nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
+                population = createMeasurementFlags.getPopulation()
+                if (createMeasurementFlags.modelLine.isNotEmpty())
+                  modelLine = createMeasurementFlags.modelLine
               }
-            val unsignedMeasurementSpec = measurementSpec {
-              measurementPublicKey = packedMeasurementEncryptionPublicKey
-              nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-              vidSamplingInterval = vidSamplingInterval {
-                start = vidSamplingStartForMeasurement
-                width = eventMeasurementParams.vidSamplingWidth
-              }
-              if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
-                reach = createMeasurementFlags.getReach()
-              } else if (
-                eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected
-              ) {
-                reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
-              } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
-                impression = createMeasurementFlags.getImpression()
-              } else if (eventMeasurementParams.eventMeasurementTypeParams.duration.selected) {
-                duration = createMeasurementFlags.getDuration()
-              }
-              if (createMeasurementFlags.modelLine.isNotEmpty())
-                modelLine = createMeasurementFlags.modelLine
+
+              this.measurementSpec =
+                signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+              measurementReferenceId = referenceId
             }
-
-            this.measurementSpec =
-              signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-            measurementReferenceId = referenceId
-          }
-        }
-
-      val task = MeasurementTask(replica, Instant.now(clock))
-      task.referenceId = referenceId
-
-      val response =
-        runBlocking(Dispatchers.IO) {
-          measurementStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .createMeasurement(
-              createMeasurementRequest {
-                parent = measurementConsumer.name
-                this.measurement = measurement
+          } else {
+            val vidSamplingStartForMeasurement =
+              eventMeasurementParams.vidSamplingStart +
+                kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
+                  eventMeasurementParams.vidSamplingWidth
+            measurement {
+              this.measurementConsumerCertificate = measurementConsumer.certificate
+              dataProviders +=
+                eventMeasurementParams.eventDataProviderInputs.map {
+                  getEventDataProviderEntry(
+                    dataProviderStub,
+                    it,
+                    measurementConsumerSigningKey,
+                    packedMeasurementEncryptionPublicKey,
+                    secureRandom,
+                    apiAuthenticationKey,
+                    cumulativeCollectionInterval,
+                  )
+                }
+              val unsignedMeasurementSpec = measurementSpec {
+                measurementPublicKey = packedMeasurementEncryptionPublicKey
+                nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
+                vidSamplingInterval = vidSamplingInterval {
+                  start = vidSamplingStartForMeasurement
+                  width = eventMeasurementParams.vidSamplingWidth
+                }
+                if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
+                  reach = createMeasurementFlags.getReach()
+                } else if (
+                  eventMeasurementParams.eventMeasurementTypeParams.reachAndFrequency.selected
+                ) {
+                  reachAndFrequency = createMeasurementFlags.getReachAndFrequency()
+                } else if (eventMeasurementParams.eventMeasurementTypeParams.impression.selected) {
+                  impression = createMeasurementFlags.getImpression()
+                } else if (eventMeasurementParams.eventMeasurementTypeParams.duration.selected) {
+                  duration = createMeasurementFlags.getDuration()
+                }
+                if (createMeasurementFlags.modelLine.isNotEmpty())
+                  modelLine = createMeasurementFlags.modelLine
+                if (createMeasurementFlags.report.isNotEmpty())
+                  reportingMetadata =
+                    MeasurementSpecKt.reportingMetadata { report = createMeasurementFlags.report }
               }
-            )
-        }
-      println("Measurement Name: ${response.name}")
 
-      task.ackTime = Instant.now(clock)
-      task.measurementName = response.name
-      taskList.add(task)
+              this.measurementSpec =
+                signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+              measurementReferenceId = referenceId
+            }
+          }
+
+        val task = MeasurementTask(replica, Instant.now(clock))
+        task.referenceId = referenceId
+
+        val response =
+          runBlocking(Dispatchers.IO) {
+            measurementStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .createMeasurement(
+                createMeasurementRequest {
+                  parent = measurementConsumer.name
+                  this.measurement = measurement
+                }
+              )
+          }
+        println("Measurement Name: ${response.name}")
+
+        task.ackTime = Instant.now(clock)
+        task.measurementName = response.name
+        taskList.add(task)
+      }
     }
   }
 
