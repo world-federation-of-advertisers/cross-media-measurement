@@ -17,6 +17,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
@@ -25,11 +26,17 @@ private val parser =
   )
 
 /** [ResourceKey] of a Model Line. */
-data class ModelLineKey(
-  val modelProviderId: String,
-  val modelSuiteId: String,
-  val modelLineId: String,
-) : ResourceKey {
+data class ModelLineKey(override val parentKey: ModelSuiteKey, val modelLineId: String) :
+  ResourceKey, ChildResourceKey {
+  val modelProviderId = parentKey.modelProviderId
+  val modelSuiteId = parentKey.modelSuiteId
+
+  constructor(
+    modelProviderId: String,
+    modelSuiteId: String,
+    modelLineId: String,
+  ) : this(ModelSuiteKey(modelProviderId, modelSuiteId), modelLineId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -41,7 +48,7 @@ data class ModelLineKey(
   }
 
   companion object FACTORY : ResourceKey.Factory<ModelLineKey> {
-    val defaultValue = ModelLineKey("", "", "")
+    val defaultValue = ModelLineKey(ModelSuiteKey.defaultValue, "")
 
     override fun fromName(resourceName: String): ModelLineKey? {
       return parser.parseIdVars(resourceName)?.let {

@@ -16,11 +16,6 @@ data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
-
-  # IP addresses for private.googleapis.com (Private Google Access default VIPs)
-  # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
-  private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
-
   common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
@@ -304,7 +299,6 @@ module "result_fulfiller_tee_app" {
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
-  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
   edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }
@@ -426,4 +420,35 @@ resource "google_dns_record_set" "googleapis_wildcard_cname" {
   ttl          = 300
   managed_zone = google_dns_managed_zone.private_gcs.name
   rrdatas      = ["private.googleapis.com."]
+}
+
+module "edp_aggregator_internal" {
+  source = "../workload-identity-user"
+
+  k8s_service_account_name        = "internal-edp-aggregator-server"
+  iam_service_account_name        = var.edp_aggregator_service_account_name
+  iam_service_account_description = "Edp Aggregator internal API server."
+}
+
+resource "google_project_iam_member" "edp_aggregator_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_spanner_database" "edp_aggregator" {
+  instance         = var.spanner_instance.name
+  name             = var.spanner_database_name
+  database_dialect = "GOOGLE_STANDARD_SQL"
+}
+
+resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
+  instance = google_spanner_database.edp_aggregator.instance
+  database = google_spanner_database.edp_aggregator.name
+  role     = "roles/spanner.databaseUser"
+  member   = module.edp_aggregator_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.edp_aggregator.id]
+  }
 }

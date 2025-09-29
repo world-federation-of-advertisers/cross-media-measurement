@@ -244,30 +244,6 @@ variable "results_fulfiller_disk_image_family" {
   default     = "confidential-space"
 }
 
-variable "private_subnetwork_name" {
-  description = "The name of the subnetwork for the MIG instances."
-  type        = string
-  default     = "private-subnet"
-}
-
-variable "private_router_name" {
-  description = "The name for the Cloud Router for the private network."
-  type        = string
-  default     = "nat-router"
-}
-
-variable "nat_name" {
-  description = "The name for the Cloud NAT gateway."
-  type        = string
-  default     = "nat-gateway"
-}
-
-variable "dns_managed_zone_name" {
-  description = "The name for Google DNS Managed Zone."
-  type        = string
-  default     = "nat-gateway"
-}
-
 variable "requisition_fetcher_scheduler_config" {
   description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
   type = object({
@@ -280,4 +256,25 @@ variable "requisition_fetcher_scheduler_config" {
     scheduler_job_description   = string
   })
   nullable = false
+}
+
+variable "edp_aggregator_service_account_name" {
+    description = "Name of the EdpAggregator service account."
+    type        = string
+    nullable    = false
+}
+
+variable "spanner_instance" {
+  description = "`google_spanner_instance` for the system."
+  type = object({
+    name = string
+  })
+  nullable = false
+}
+
+variable "spanner_database_name" {
+  description = "Name of the Spanner database for Edp Aggregator."
+  type        = string
+  default     = "edp-aggregator"
+  nullable    = false
 }
