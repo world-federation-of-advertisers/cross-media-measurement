@@ -54,10 +54,10 @@ class RequisitionFetcherTest {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
 
-  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceImplBase =
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
-      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requsitionMetadata {})
+      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
       onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }
 
