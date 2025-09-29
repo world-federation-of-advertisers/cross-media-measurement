@@ -274,7 +274,7 @@ class BasicReportsReportsJob(
                                 }
                               }
                         }
-                        val nonCumulativeResults: MetricResults? = reportingWindowResultInfoEntry.value.cumulativeResults
+                        val nonCumulativeResults: MetricResults? = reportingWindowResultInfoEntry.value.nonCumulativeResults
                         if (nonCumulativeResults != null) {
                           this.nonCumulativeResults =
                             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
