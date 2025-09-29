@@ -49,11 +49,11 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
@@ -825,7 +825,6 @@ class ImpressionMetadataServiceTest {
       )
     }
   }
-
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
