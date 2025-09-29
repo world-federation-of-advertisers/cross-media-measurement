@@ -175,11 +175,6 @@ message ListImpressionMetadataRequest {
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
         [(google.api.field_behavior) = OPTIONAL];
-
-    // The state to filter by.
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: State is used as filter. --)
-    ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A flag indicating whether to include soft DELETED entries.

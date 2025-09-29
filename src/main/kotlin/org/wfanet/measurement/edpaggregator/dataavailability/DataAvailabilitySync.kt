@@ -137,12 +137,12 @@ class DataAvailabilitySync(
 
     // Build availability entries from the response
     val availabilityEntries =
-      modelLineBounds.modelLineBoundsList.map { availability ->
+      modelLineBounds.modelLineBoundsList.map { bound ->
         dataAvailabilityMapEntry {
-          key = availability.key
+          key = bound.key
           value = interval {
-            startTime = availability.value.startTime
-            endTime = availability.value.endTime
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
           }
         }
       }
