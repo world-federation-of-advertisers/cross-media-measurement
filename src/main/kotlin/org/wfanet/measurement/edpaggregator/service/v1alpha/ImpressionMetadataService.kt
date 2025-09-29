@@ -16,9 +16,6 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlin.collections.component1
-import kotlin.collections.component2
-import kotlin.collections.iterator
 import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -40,9 +37,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
@@ -294,68 +291,68 @@ class ImpressionMetadataService(
     }
   }
 
+  override suspend fun computeModelLineBounds(
+    request: ComputeModelLineBoundsRequest
+  ): ComputeModelLineBoundsResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    if (request.modelLinesList.isEmpty()) {
+      throw RequiredFieldNotSetException("model_lines")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.modelLinesList.forEachIndexed { index, modelLine ->
+      ModelLineKey.fromName(modelLine)
+        ?: throw InvalidFieldValueException("model_lines.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalResponse: InternalComputeModelLineBoundsResponse =
+      try {
+        internalImpressionMetadataStub.computeModelLineBounds(
+          internalComputeModelLineBoundsRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            cmmsModelLine += request.modelLinesList
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return computeModelLineBoundsResponse {
+      for ((key, value) in internalResponse.modelLineBoundsMap) {
+        modelLineBounds += modelLineBoundMapEntry {
+          this.key = key
+          this.value = value
+        }
+      }
+    }
+  }
+
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }
-}
-
-override suspend fun computeModelLineBounds(
-  request: ComputeModelLineBoundsRequest
-): ComputeModelLineBoundsResponse {
-  if (request.parent.isEmpty()) {
-    throw RequiredFieldNotSetException("parent")
-      .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-  }
-  val dataProviderKey =
-    DataProviderKey.fromName(request.parent)
-      ?: throw InvalidFieldValueException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-  if (request.modelLinesList.isEmpty()) {
-    throw RequiredFieldNotSetException("model_lines")
-      .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-  }
-
-  request.modelLinesList.forEachIndexed { index, modelLine ->
-    ModelLineKey.fromName(modelLine)
-      ?: throw InvalidFieldValueException("model_lines.$index")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-  }
-
-  val internalResponse: InternalComputeModelLineBoundsResponse =
-    try {
-      internalImpressionMetadataStub.computeModelLineBounds(
-        internalComputeModelLineBoundsRequest {
-          dataProviderResourceId = dataProviderKey.dataProviderId
-          cmmsModelLine += request.modelLinesList
-        }
-      )
-    } catch (e: StatusException) {
-      throw when (InternalErrors.getReason(e)) {
-        InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-        InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
-        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-        InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
-        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-        InternalErrors.Reason.INVALID_FIELD_VALUE,
-        InternalErrors.Reason.ETAG_MISMATCH,
-        null -> Status.INTERNAL.withCause(e).asRuntimeException()
-      }
-    }
-
-  return computeModelLineBoundsResponse {
-    for ((key, value) in internalResponse.modelLineBoundsMap) {
-      modelLineBounds += modelLineBoundMapEntry {
-        this.key = key
-        this.value = value
-      }
-    }
-  }
-}
 }
 
 /** Converts an internal [InternalImpressionMetadata] to a public [ImpressionMetadata]. */
