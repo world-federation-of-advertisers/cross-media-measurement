@@ -142,6 +142,11 @@ variable "secure_computation_public_api_target" {
   type        = string
 }
 
+variable "edp_aggregator_public_api_target" {
+  description = "EDP Aggregator public api target"
+  type        = string
+}
+
 variable "image_tag" {
   description = "Tag of container images"
   type        = string

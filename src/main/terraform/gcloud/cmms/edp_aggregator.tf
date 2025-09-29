@@ -46,6 +46,12 @@ locals {
     is_binary_format  = false
   }
 
+  edp_aggregator_root_ca = {
+      secret_id         = "edpaggregator-root-ca"
+      secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edp_aggregator_root.pem"),
+      is_binary_format  = false
+    }
+
   trusted_root_ca_collection = {
     secret_id         = "trusted-root-ca"
     secret_local_path = var.results_fulfiller_trusted_root_ca_collection_file_path
@@ -103,9 +109,11 @@ locals {
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--edp-aggregator-cert-collection-secret-id", "edpaggregator-root-ca",
                                           "--trusted-cert-collection-secret-id", "trusted-root-ca",
                                           "--kingdom-public-api-target", var.kingdom_public_api_target,
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                          "--edp-aggregator-public-api-target", var.edp_aggregator_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
                                           "--model-line", "some-model-line",

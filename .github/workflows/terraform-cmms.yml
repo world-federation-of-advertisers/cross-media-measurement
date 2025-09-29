@@ -200,6 +200,7 @@ jobs:
         CONFIG_DIR: ${{ runner.temp }}/configs
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+        EDP_AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.EDP_AGGREGATOR_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
         DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
         DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
@@ -234,6 +235,7 @@ jobs:
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        -var="edp_aggregator_public_api_target=$EDP_AGGREGATOR_PUBLIC_API_TARGET"
         -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
         -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
         -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
