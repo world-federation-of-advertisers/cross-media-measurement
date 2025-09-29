@@ -24,7 +24,7 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
@@ -43,6 +44,8 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest
@@ -217,6 +220,35 @@ abstract class ImpressionMetadataServiceTest {
 
       assertThat(impressionMetadata2).isEqualTo(impressionMetadata)
     }
+
+  @Test
+  fun `multiple createImpressionMetadata return multiple impression metadata`() = runBlocking {
+    val impressionMetadata1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_1
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/1"
+            }
+        }
+      )
+    val impressionMetadata2 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_1
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/2"
+            }
+        }
+      )
+
+    assertThat(impressionMetadata1.impressionMetadataResourceId)
+      .isNotEqualTo(impressionMetadata2.impressionMetadataResourceId)
+  }
 
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if dataProviderId not set`() = runBlocking {
@@ -747,6 +779,173 @@ abstract class ImpressionMetadataServiceTest {
         }
       )
   }
+
+  @Test
+  fun `computeModelLineBounds returns bounds`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_1
+            interval = interval {
+              startTime = timestamp { seconds = 300 }
+              endTime = timestamp { seconds = 400 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/2"
+          }
+      }
+    )
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_2
+            interval = interval {
+              startTime = timestamp { seconds = 500 }
+              endTime = timestamp { seconds = 700 }
+            }
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/3"
+          }
+      }
+    )
+
+    val request = computeModelLineBoundsRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      cmmsModelLine += MODEL_LINE_1
+      cmmsModelLine += MODEL_LINE_2
+    }
+    val response = service.computeModelLineBounds(request)
+
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        computeModelLineBoundsResponse {
+          modelLineBounds.putAll(
+            mapOf(
+              MODEL_LINE_1 to
+                interval {
+                  startTime = timestamp { seconds = 100 }
+                  endTime = timestamp { seconds = 400 }
+                },
+              MODEL_LINE_2 to
+                interval {
+                  startTime = timestamp { seconds = 500 }
+                  endTime = timestamp { seconds = 700 }
+                },
+            )
+          )
+        }
+      )
+  }
+
+  @Test
+  fun `ComputeModelLineBounds throws INVALID_ARGUMENT if dataProviderResourceId not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.computeModelLineBounds(
+            computeModelLineBoundsRequest {
+              // dataProviderResourceId not set
+              cmmsModelLine += MODEL_LINE_1
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `ComputeModelLineBounds throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            // cmmsModelLine not set
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `ComputeModelLineBounds returns empty for non-existent model lines`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine = MODEL_LINE_1
+            clearImpressionMetadataResourceId()
+            blobUri = "blobs/1"
+          }
+      }
+    )
+
+    val request = computeModelLineBoundsRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      cmmsModelLine += "non-existent-model-line"
+    }
+    val response = service.computeModelLineBounds(request)
+
+    assertThat(response).isEqualTo(ComputeModelLineBoundsResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `ComputeModelLineBounds returns partial for mix of existing and non-existent`() =
+    runBlocking {
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              cmmsModelLine = MODEL_LINE_1
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              clearImpressionMetadataResourceId()
+              blobUri = "blobs/1"
+            }
+        }
+      )
+
+      val request = computeModelLineBoundsRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        cmmsModelLine += MODEL_LINE_1
+        cmmsModelLine += "non-existent-model-line"
+      }
+      val response = service.computeModelLineBounds(request)
+      assertThat(response)
+        .isEqualTo(
+          computeModelLineBoundsResponse {
+            modelLineBounds.putAll(
+              mapOf(
+                MODEL_LINE_1 to
+                  interval {
+                    startTime = timestamp { seconds = 100 }
+                    endTime = timestamp { seconds = 200 }
+                  }
+              )
+            )
+          }
+        )
+    }
 
   private suspend fun createImpressionMetadata(
     vararg impressionMetadata: ImpressionMetadata

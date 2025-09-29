@@ -32,11 +32,13 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
@@ -44,6 +46,8 @@ import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataS
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
+import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
@@ -53,6 +57,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
@@ -275,6 +280,28 @@ class SpannerImpressionMetadataService(
     return deletedImpressionMetadata.copy {
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
+  override suspend fun computeModelLineBounds(
+    request: ComputeModelLineBoundsRequest
+  ): ComputeModelLineBoundsResponse {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.cmmsModelLineList.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val results: List<ModelLineBoundResult> =
+      databaseClient
+        .singleUse()
+        .readModelLinesBounds(request.dataProviderResourceId, request.cmmsModelLineList)
+
+    return computeModelLineBoundsResponse {
+      modelLineBounds.putAll(results.associate { it.cmmsModelLine to it.bound })
     }
   }
 
