@@ -22,7 +22,6 @@ import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
-import "google/protobuf/empty.proto";
 import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -49,7 +48,7 @@ service ImpressionMetadataService {
 
   // Marks an ImpressionMetadata entry as deleted.
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (google.protobuf.Empty) {}
+      returns (ImpressionMetadata) {}
 
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
@@ -176,11 +175,6 @@ message ListImpressionMetadataRequest {
     // overlap with this interval.
     google.type.Interval interval_overlaps = 3
         [(google.api.field_behavior) = OPTIONAL];
-
-    // The state to filter by.
-    // (-- api-linter: core::0216::state-field-output-only=disabled
-    //     aip.dev/not-precedent: State is used as filter. --)
-    ImpressionMetadata.State state = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
   // A flag indicating whether to include soft DELETED entries.
