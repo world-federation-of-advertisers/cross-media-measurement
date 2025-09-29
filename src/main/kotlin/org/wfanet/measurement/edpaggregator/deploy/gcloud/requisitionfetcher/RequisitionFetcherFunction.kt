@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
@@ -46,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import java.util.UUID
 
 /**
  * A Google Cloud Function that fetches and stores requisitions for each configured data provider.
@@ -106,14 +108,17 @@ class RequisitionFetcherFunction : HttpFunction {
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-    val signingCerts = loadSigningCerts(dataProviderConfig)
+    val cmmsSigningCerts = loadSigningCerts(dataProviderConfig.cmmsConnection)
     val publicChannel by lazy {
-      buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
+      buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
+    }
+    val requisitionMetadataStorageSigningCerts = loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
+    val requisitionMetadataStoragePublicChannel by lazy {
+      buildMutualTlsChannel(edpAggregatorTarget, requisitionMetadataStorageSigningCerts, requisitionMetadataStorageCertHost)
     }
 
     val requisitionsStub = RequisitionsCoroutineStub(publicChannel)
-    // DO_NOT_SUBMIT (Replace with correct channel once deployed)
-    val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(publicChannel)
+    val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(publicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
@@ -136,6 +141,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionBlobPrefix = requisitionBlobPrefix,
       requisitionGrouper = requisitionGrouper,
       responsePageSize = pageSize,
+      groupedRequisitionsIdGenerator = ::createReportId
     )
   }
 
@@ -183,11 +189,17 @@ class RequisitionFetcherFunction : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
+    private val edpAggregatorTarget = EnvVars.checkNotNullOrEmpty("EDP_AGGREGATOR_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
+    private val requisitionMetadataStorageCertHost: String? = System.getenv("REQUISITION_METADATA_STORAGE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
     private const val DEFAULT_GRCP_INTERVAL = "1s"
     private val grpcRequestInterval: Duration =
       (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
+
+    fun createReportId(): String {
+      return UUID.randomUUID().toString()
+    }
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
@@ -209,17 +221,16 @@ class RequisitionFetcherFunction : HttpFunction {
      * Loads [SigningCerts] from PEM-encoded certificate, private key, and trusted certificate
      * collection files specified in the given [dataProviderConfig].
      *
-     * @param dataProviderConfig The configuration object.
+     * @param connectionConfig The connection configuration object.
      * @return A [SigningCerts] instance loaded from the specified PEM files.
      * @throws IllegalStateException if any of the required file paths are missing in the
      *   configuration.
      */
-    private fun loadSigningCerts(dataProviderConfig: DataProviderRequisitionConfig): SigningCerts {
-      val cmms = dataProviderConfig.cmmsConnection
+    private fun loadSigningCerts(connectionConfig: TransportLayerSecurityParams): SigningCerts {
       return SigningCerts.fromPemFiles(
-        certificateFile = checkNotNull(File(cmms.certFilePath)),
-        privateKeyFile = checkNotNull(File(cmms.privateKeyFilePath)),
-        trustedCertCollectionFile = checkNotNull(File(cmms.certCollectionFilePath)),
+        certificateFile = checkNotNull(File(connectionConfig.certFilePath)),
+        privateKeyFile = checkNotNull(File(connectionConfig.privateKeyFilePath)),
+        trustedCertCollectionFile = checkNotNull(File(connectionConfig.certCollectionFilePath)),
       )
     }
 

@@ -40,8 +40,26 @@ class RequisitionGrouperByReportId(
 ) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
   /**
-   * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
-   * group.
+   * Combines multiple [GroupedRequisitionsWrapper]s by their report ID.
+   *
+   * - Groups all wrappers by [reportId].
+   * - Collects all [RequisitionWrapper]s (both valid and invalid) for the report.
+   * - Builds a combined [GroupedRequisitions] proto containing only the valid requisitions.
+   *   - If at least one valid group exists, attempts to merge them with [combineByReportId].
+   *   - If model line validation fails, marks all requisitions in the group as invalid and
+   *     produces no [GroupedRequisitions] (i.e. `groupedRequisitions = null`).
+   * - If no valid requisitions exist, produces a wrapper with `groupedRequisitions = null`
+   *   but still includes the invalid requisitions in [requisitions].
+   *
+   * The result is a single [GroupedRequisitionsWrapper] per report ID, each containing:
+   * - [GroupedRequisitionsWrapper.groupedRequisitions]: the merged proto of valid requisitions,
+   *   or `null` if none are valid or validation fails.
+   * - [GroupedRequisitionsWrapper.requisitions]: the complete list of [RequisitionWrapper]s
+   *   (both valid and invalid) associated with that report.
+   *
+   * @param groupedRequisitions A list of wrappers (one per input requisition)
+   *   produced by [mapRequisition].
+   * @return A list of [GroupedRequisitionsWrapper], one per report ID, with combined state.
    */
   override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitionsWrapper>
@@ -119,7 +137,8 @@ class RequisitionGrouperByReportId(
     return groupedRequisitions {
       this.modelLine = groups.first().modelLine
       this.eventGroupMap += entries
-      this.requisitions += groups.flatMap { it.requisitionsList }
+      this.requisitions += groups
+        .flatMap { it.requisitionsList }
     }
   }
 

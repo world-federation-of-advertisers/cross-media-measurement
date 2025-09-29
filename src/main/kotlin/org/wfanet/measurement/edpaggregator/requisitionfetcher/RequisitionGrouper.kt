@@ -54,14 +54,44 @@ abstract class RequisitionGrouper(
   private val throttler: Throttler,
 ) {
 
+  /**
+   * Validation result of a single [Requisition].
+   *
+   * - [VALID]: The requisition passed validation and can be included in processing.
+   * - [INVALID]: The requisition failed validation and should be refused.
+   */
   enum class RequisitionValidationStatus { VALID, INVALID }
 
+
+  /**
+   * Wraps a single [Requisition] with its validation status.
+   *
+   * @property requisition The underlying [Requisition] proto.
+   * @property status Whether the requisition is [VALID] or [INVALID].
+   * @property refusal If [status] is [INVALID], contains the refusal details to record.
+   */
   data class RequisitionWrapper(
     val requisition: Requisition,
     val status: RequisitionValidationStatus,
     val refusal: Requisition.Refusal? = null
   )
 
+  /**
+   * Represents all requisitions grouped under the same `reportId`.
+   *
+   * A single [GroupedRequisitionsWrapper] corresponds to one report and contains:
+   * - A [groupedRequisitions] proto message with only the **valid** requisitions,
+   *   ready for storage and downstream fulfillment. This may be `null` if no
+   *   requisitions were valid for the report.
+   * - A list of [RequisitionWrapper]s for **all requisitions** (both valid and
+   *   invalid) associated with the report. This allows creating metadata for
+   *   every requisition and issuing refusals for the invalid ones.
+   *
+   * @property reportId The report identifier from `MeasurementSpec.reportingMetadata.report`.
+   * @property groupedRequisitions A combined [GroupedRequisitions] proto containing only the valid requisitions,
+   *   or `null` if all requisitions in the group are invalid.
+   * @property requisitions The per-requisition wrappers (valid and invalid) for this report.
+   */
   data class GroupedRequisitionsWrapper(
     val reportId: String,
     val groupedRequisitions: GroupedRequisitions? = null,
@@ -69,13 +99,18 @@ abstract class RequisitionGrouper(
   )
 
   /**
-   * Groups a list of disparate [Requisition] objects for execution.
+   * Groups a list of disparate [Requisition] objects by their report ID.
    *
-   * This method takes in a list of [Requisition] objects, maps them to their respective groups, and
-   * then combines these groups into a single list of [GroupedRequisitions].
+   * Each [Requisition] is first validated and mapped into a single-entry [GroupedRequisitionsWrapper].
+   * Then, all requisitions for the same report are combined into a single wrapper. The combined
+   * [GroupedRequisitionsWrapper] contains:
+   * - [GroupedRequisitionsWrapper.groupedRequisitions]: a [GroupedRequisitions] proto with only the
+   *   valid requisitions for that report (or `null` if none are valid).
+   * - [GroupedRequisitionsWrapper.requisitions]: a list of [RequisitionWrapper]s representing both
+   *   valid and invalid requisitions, with invalid ones carrying refusal information.
    *
-   * @param requisitions A list of [Requisition] objects to be grouped.
-   * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
+   * @param requisitions The list of [Requisition] protos to be grouped.
+   * @return A list of [GroupedRequisitionsWrapper], one per unique report.
    */
   suspend fun groupRequisitions(
     requisitions: List<Requisition>
@@ -89,7 +124,25 @@ abstract class RequisitionGrouper(
     groupedRequisitions: List<GroupedRequisitionsWrapper>
   ): List<GroupedRequisitionsWrapper>
 
-  /* Maps a single [Requisition] to a single [GroupedRequisition]. */
+  /**
+   * Maps a single [Requisition] into a [GroupedRequisitionsWrapper].
+   *
+   * This performs validation and mapping for one requisition:
+   * - If the [MeasurementSpec] is invalid, the requisition cannot be grouped
+   *   (no report ID can be derived), and `null` is returned.
+   * - If the [RequisitionSpec] is invalid, a wrapper is returned containing the
+   *   requisition marked as [RequisitionValidationStatus.INVALID] with the refusal reason.
+   * - If event group mapping fails (e.g. storage or lookup errors), the requisition
+   *   is skipped and `null` is returned.
+   * - Otherwise, a [GroupedRequisitionsWrapper] is returned with:
+   *   - [GroupedRequisitionsWrapper.groupedRequisitions] containing the proto with the single valid requisition.
+   *   - [GroupedRequisitionsWrapper.requisitions] containing one [RequisitionWrapper] marked as valid.
+   *
+   * @param requisition The [Requisition] proto to validate and map.
+   * @return A [GroupedRequisitionsWrapper] containing the requisition and its validation
+   *   status, or `null` if the requisition must be skipped (invalid MeasurementSpec or
+   *   event group mapping failure).
+   */
   private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitionsWrapper? {
     val measurementSpec: MeasurementSpec =
       try {
@@ -108,12 +161,9 @@ abstract class RequisitionGrouper(
       try {
         requisitionValidator.validateRequisitionSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        val groupedRequisitions = groupedRequisitions {
-          this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
-        }
         return GroupedRequisitionsWrapper(
           reportId = reportId,
-          groupedRequisitions,
+          groupedRequisitions = null,
           requisitions = listOf(
             RequisitionWrapper(requisition, RequisitionValidationStatus.INVALID, e.refusal)
           )

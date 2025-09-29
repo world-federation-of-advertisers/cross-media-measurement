@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
@@ -40,7 +41,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.storage.StorageClient
-import java.util.UUID
 import java.util.logging.Level
 
 /**
@@ -64,6 +64,7 @@ class RequisitionFetcher(
   private val storagePathPrefix: String,
   private val requisitionBlobPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
+  val groupedRequisitionsIdGenerator: () -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -79,11 +80,8 @@ class RequisitionFetcher(
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
-
     var requisitionsCount = 0
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
-    // a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
@@ -130,12 +128,11 @@ class RequisitionFetcher(
    */
   private suspend fun processRequisitions(groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper>): Int {
     var storedGroupedRequisitions = 0
-    groupedRequisitionsWrappers.forEach { wrapper: RequisitionGrouper.GroupedRequisitionsWrapper ->
 
-      val groupedRequisitionId = UUID.randomUUID().toString()
+    groupedRequisitionsWrappers.forEach { wrapper: RequisitionGrouper.GroupedRequisitionsWrapper ->
+      val groupedRequisitionId = groupedRequisitionsIdGenerator()
       val blobKey = "$storagePathPrefix/$groupedRequisitionId"
       val requisitionBlobUri = "$requisitionBlobPrefix/$blobKey"
-
       wrapper.groupedRequisitions?.let {
         storageClient.writeBlob(blobKey, Any.pack(wrapper.groupedRequisitions).toByteString())
         storedGroupedRequisitions++
@@ -157,7 +154,6 @@ class RequisitionFetcher(
           requestId = groupedRequisitionId
         }
         requisitionMetadataStub.createRequisitionMetadata(request)
-
         if (requisitionWrapper.status == RequisitionGrouper.RequisitionValidationStatus.INVALID) {
           val request = refuseRequisitionMetadataRequest {
             name = metadata.name
@@ -170,7 +166,6 @@ class RequisitionFetcher(
         }
       }
     }
-
     return storedGroupedRequisitions
   }
 

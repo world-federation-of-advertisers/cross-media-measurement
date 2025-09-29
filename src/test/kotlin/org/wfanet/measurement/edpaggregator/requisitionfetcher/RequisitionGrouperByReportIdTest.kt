@@ -165,6 +165,75 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   }
 
   @Test
+  fun `Invalid requisitions are not added to GroupedRequisitions`() {
+    val requisition2 =
+      TestRequisitionData.REQUISITION.copy {
+        val requisitionSpec =
+          TestRequisitionData.REQUISITION_SPEC.copy {
+            events =
+              RequisitionSpecKt.events {
+                eventGroups +=
+                  RequisitionSpecKt.eventGroupEntry {
+                    key = TestRequisitionData.EVENT_GROUP_NAME
+                    value =
+                      RequisitionSpecKt.EventGroupEntryKt.value {
+                        collectionInterval = interval {
+                          startTime =
+                            TestRequisitionData.TIME_RANGE.start
+                              .plus(1, ChronoUnit.HOURS)
+                              .toProtoTime()
+                          endTime =
+                            TestRequisitionData.TIME_RANGE.endExclusive
+                              .plus(1, ChronoUnit.HOURS)
+                              .toProtoTime()
+                        }
+                        filter =
+                          RequisitionSpecKt.eventFilter {
+                            expression =
+                              "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                                      "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                          }
+                      }
+                  }
+              }
+          }
+        this.encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.ALTERNATIVE_DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+
+    val groupedRequisitionsWrappers: List<RequisitionGrouper.GroupedRequisitionsWrapper> = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
+    assertThat(groupedRequisitionsWrappers).hasSize(1)
+    val groupedRequisition = groupedRequisitionsWrappers.first().groupedRequisitions
+    assertThat(groupedRequisition?.eventGroupMapList?.single())
+      .isEqualTo(
+        eventGroupMapEntry {
+          eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+          details = eventGroupDetails {
+            eventGroupReferenceId = "some-event-group-reference-id"
+            collectionIntervals +=
+              listOf(
+                interval {
+                  startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                  endTime =
+                    TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                }
+              )
+          }
+        }
+      )
+    assertThat(
+      groupedRequisition?.requisitionsList?.map { it.requisition.unpack(Requisition::class.java) }      )
+      .isEqualTo(listOf(TestRequisitionData.REQUISITION))
+
+    assertThat(groupedRequisition?.modelLine).isEqualTo("some-model-line")
+  }
+
+  @Test
   fun `does not combine disparate time intervals`() {
     val requisition2 =
       TestRequisitionData.REQUISITION.copy {

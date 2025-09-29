@@ -37,14 +37,13 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import java.util.UUID
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
@@ -77,52 +76,54 @@ class RequisitionFetcherTest {
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
   @Test
-  fun `fetchAndStoreRequisitions stores single GroupedRequisition`() = runBlocking {
-    whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(
-      listOf(
-        RequisitionGrouper.GroupedRequisitionsWrapper(
-          reportId = "some-report-id",
-          groupedRequisitions = GROUPED_REQUISITIONS,
-          requisitions = listOf(
-            RequisitionGrouper.RequisitionWrapper(
-              requisition = REQUISITION,
-              status = RequisitionGrouper.RequisitionValidationStatus.VALID
-            )
-          )
+  fun `fetchAndStoreRequisitions stores single GroupedRequisition`() {
+    runBlocking {
+      whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(
+        listOf(
+          GROUPED_REQUISITIONS_WRAPPER
         )
       )
-    )
 
-    val storageClient = FileSystemStorageClient(tempFolder.root)
-    val blobKey = STORAGE_PATH_PREFIX + "/" + UUID.randomUUID()
-    val fetcher =
-      RequisitionFetcher(
-        requisitionsStub,
-        requisitionMetadataStub,
-        storageClient,
-        DATA_PROVIDER_NAME,
-        STORAGE_PATH_PREFIX,
-        requisitionGrouper,
-      )
-    val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
+      val storageClient = FileSystemStorageClient(tempFolder.root)
+      val blobKey = STORAGE_PATH_PREFIX + "/" + createReportId()
+      val requisitionBlobPrefix = tempFolder.root.toPath().toString()
+      val fetcher =
+        RequisitionFetcher(
+          requisitionsStub,
+          requisitionMetadataStub,
+          storageClient,
+          DATA_PROVIDER_NAME,
+          STORAGE_PATH_PREFIX,
+          requisitionBlobPrefix,
+          requisitionGrouper,
+          ::createReportId
+        )
+      val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
 
-    fetcher.fetchAndStoreRequisitions()
-    val blob = storageClient.getBlob(blobKey)
-    assertThat(blob).isNotNull()
-    val blobContent: ByteString = blob!!.read().flatten()
-    val parsedBlob = Any.parseFrom(blobContent)
-    assertThat(parsedBlob)
-      .unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry())
-      .isEqualTo(Any.pack(GROUPED_REQUISITIONS))
+      fetcher.fetchAndStoreRequisitions()
+      val blob = storageClient.getBlob(blobKey)
+
+      assertThat(blob).isNotNull()
+      val blobContent: ByteString = blob!!.read().flatten()
+      val parsedBlob = Any.parseFrom(blobContent)
+      assertThat(parsedBlob)
+        .unpackingAnyUsing(typeRegistry, ExtensionRegistry.getEmptyRegistry())
+        .isEqualTo(Any.pack(GROUPED_REQUISITIONS))
+    }
   }
 
   @Test
   fun `fetchAndStoreRequisitions stores multiple GroupedRequisitions`() {
 
     runBlocking {
-      val groupedRequisitionsList: List<GroupedRequisitions> =
-        listOf(GROUPED_REQUISITIONS, GROUPED_REQUISITIONS, GROUPED_REQUISITIONS)
+      val groupedRequisitionsList = listOf(
+        GROUPED_REQUISITIONS_WRAPPER,
+        GROUPED_REQUISITIONS_WRAPPER,
+        GROUPED_REQUISITIONS_WRAPPER
+      )
       whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(groupedRequisitionsList)
+
+      val requisitionBlobPrefix = tempFolder.root.toPath().toString()
 
       val storageClient = FileSystemStorageClient(tempFolder.root)
       val fetcher =
@@ -132,20 +133,57 @@ class RequisitionFetcherTest {
           storageClient,
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,
+          requisitionBlobPrefix,
           requisitionGrouper,
+          ::createReportId
         )
 
-      val expectedResult = groupedRequisitionsList.map { Any.pack(it) }
+      val expectedResult = groupedRequisitionsList.map { Any.pack(it.groupedRequisitions) }
       fetcher.fetchAndStoreRequisitions()
       expectedResult.map {
         assertThat(
             storageClient.getBlob(
-              "$STORAGE_PATH_PREFIX/${createDeterministicId(
-          GROUPED_REQUISITIONS)}"
+              "$STORAGE_PATH_PREFIX/${createReportId()}"
             )
           )
           .isNotNull()
       }
+    }
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions stores multiple GroupedRequisitions only returns VALID grouped requisitions`() {
+
+    runBlocking {
+      val groupedRequisitionsList = listOf(
+        GROUPED_REQUISITIONS_WRAPPER,
+        INVALID_GROUPED_REQUISITIONS_WRAPPER
+      )
+      whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(groupedRequisitionsList)
+
+      val requisitionBlobPrefix = tempFolder.root.toPath().toString()
+
+      val storageClient = FileSystemStorageClient(tempFolder.root)
+      val fetcher =
+        RequisitionFetcher(
+          requisitionsStub,
+          requisitionMetadataStub,
+          storageClient,
+          DATA_PROVIDER_NAME,
+          STORAGE_PATH_PREFIX,
+          requisitionBlobPrefix,
+          requisitionGrouper,
+          ::createReportId
+        )
+
+      val expectedResultSize = groupedRequisitionsList.first().let { Any.pack(it.groupedRequisitions) }.serializedSize
+
+      fetcher.fetchAndStoreRequisitions()
+      assertThat(
+        storageClient.getBlob(
+          "$STORAGE_PATH_PREFIX/${createReportId()}"
+        )?.size
+      ).isEqualTo(expectedResultSize)
     }
   }
 
@@ -156,8 +194,31 @@ class RequisitionFetcherTest {
     private val GROUPED_REQUISITIONS = groupedRequisitions {
       requisitions.add(requisitionEntry { requisition = Any.pack(REQUISITION) })
     }
+    private val GROUPED_REQUISITIONS_WRAPPER = RequisitionGrouper.GroupedRequisitionsWrapper(
+      reportId = "some-report-id",
+      groupedRequisitions = GROUPED_REQUISITIONS,
+      requisitions = listOf(
+        RequisitionGrouper.RequisitionWrapper(
+          requisition = REQUISITION,
+          status = RequisitionGrouper.RequisitionValidationStatus.VALID
+        )
+      )
+    )
+    private val INVALID_GROUPED_REQUISITIONS_WRAPPER = RequisitionGrouper.GroupedRequisitionsWrapper(
+      reportId = "some-report-id",
+      groupedRequisitions = null,
+      requisitions = listOf(
+        RequisitionGrouper.RequisitionWrapper(
+          requisition = REQUISITION,
+          status = RequisitionGrouper.RequisitionValidationStatus.INVALID,
+          refusal = RequisitionKt.refusal {
+            message = "some error message"
+          }
+        )
+      )
+    )
 
-    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
+    fun createReportId(): String {
       return "hash_value"
     }
   }

@@ -56,6 +56,7 @@ object TestRequisitionData {
   private const val MC_ID = "mc"
   private const val MC_NAME = "measurementConsumers/$MC_ID"
   private const val EDP_DISPLAY_NAME = "edp1"
+  private const val ALTERNATIVE_EDP_DISPLAY_NAME = "edp2"
   private val SECRET_FILES_PATH: Path =
     checkNotNull(
       getRuntimePath(
@@ -107,6 +108,9 @@ object TestRequisitionData {
     loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile()).toEncryptionPublicKey()
   val DATA_PROVIDER_PUBLIC_KEY =
     loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
+      .toEncryptionPublicKey()
+  val ALTERNATIVE_DATA_PROVIDER_PUBLIC_KEY =
+    loadPublicKey(SECRET_FILES_PATH.resolve("${ALTERNATIVE_EDP_DISPLAY_NAME}_enc_public.tink").toFile())
       .toEncryptionPublicKey()
 
   const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
