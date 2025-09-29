@@ -32,11 +32,25 @@ import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
@@ -49,6 +63,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * blocking operations (storage access, crypto, and RPC) execute on the IO dispatcher as
  * appropriate.
  *
+ * @param dataProvider [DataProvider] resource name.
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
@@ -59,6 +75,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  */
 class ResultsFulfiller(
+  private val dataProvider: String,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
@@ -179,6 +197,11 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
   ) {
+
+    // Update the Requisition status on the ImpressionMetadataStorage
+    val requisitionMetadata = getRequisitionMetadata()
+    signalRequisitionStartProcessing(requisitionMetadata)
+
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
     val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
@@ -206,6 +229,9 @@ class ResultsFulfiller(
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+
+    signalRequisitionFulfilled(requisitionMetadata)
+
     val sendElapsedMs = sendStart.elapsedNow().inWholeMilliseconds
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }
@@ -234,6 +260,29 @@ class ResultsFulfiller(
       """
         .trimMargin()
     logger.info(stats)
+  }
+
+  private suspend fun getRequisitionMetadata(): RequisitionMetadata {
+    val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
+      parent = dataProvider
+      blobUri = requisitionsBlobUri
+    }
+    return requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
+  }
+  private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata) {
+    val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    requisitionMetadataStub.startProcessingRequisitionMetadata(startProcessingRequisitionMetadataRequest)
+  }
+
+  private suspend fun signalRequisitionFulfilled(requisitionMetadata: RequisitionMetadata) {
+    val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
   }
 
   companion object {
