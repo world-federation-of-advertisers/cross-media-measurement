@@ -19,6 +19,8 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
@@ -57,8 +59,9 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
 class RequisitionMetadataService(
-  private val internalClient: InternalRequisitionMetadataServiceCoroutineStub
-) : RequisitionMetadataServiceCoroutineImplBase() {
+  private val internalClient: InternalRequisitionMetadataServiceCoroutineStub,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
+) : RequisitionMetadataServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun createRequisitionMetadata(
     request: CreateRequisitionMetadataRequest
@@ -118,6 +121,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -155,6 +159,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -204,6 +209,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -236,6 +242,7 @@ class RequisitionMetadataService(
         Errors.Reason.INVALID_FIELD_VALUE,
         Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
         Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+        Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -281,6 +288,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -323,6 +331,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -365,6 +374,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -412,6 +422,7 @@ class RequisitionMetadataService(
           Errors.Reason.INVALID_FIELD_VALUE,
           Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
