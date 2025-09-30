@@ -22,8 +22,8 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/postprocessing/v2alpha:postprocessing",
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_post_processor_log_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_log_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
@@ -43,7 +43,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportConversionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/postprocessing/v2alpha:postprocessing",
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

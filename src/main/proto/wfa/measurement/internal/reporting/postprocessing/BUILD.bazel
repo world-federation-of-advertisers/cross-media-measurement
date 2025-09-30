@@ -23,8 +23,8 @@ proto_library(
     name = "report_post_processor_result_proto",
     srcs = ["report_post_processor_result.proto"],
     deps = [
-        ":report_summary_v2_proto",
         ":report_summary_proto",
+        ":report_summary_v2_proto",
     ],
 )
 
