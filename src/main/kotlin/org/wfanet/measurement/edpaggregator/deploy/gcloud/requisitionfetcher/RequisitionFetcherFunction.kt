@@ -110,14 +110,11 @@ class RequisitionFetcherFunction : HttpFunction {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
     val cmmsSigningCerts = loadSigningCerts(dataProviderConfig.cmmsConnection)
-    val cmmsPublicChannel by lazy {
-      buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
-    }
+    val cmmsPublicChannel = buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
 
     val requisitionMetadataStorageSigningCerts = loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
-    val requisitionMetadataStoragePublicChannel by lazy {
-      buildMutualTlsChannel(edpAggregatorTarget, requisitionMetadataStorageSigningCerts, requisitionMetadataStorageCertHost)
-    }
+    val requisitionMetadataStoragePublicChannel = buildMutualTlsChannel(edpAggregatorTarget, requisitionMetadataStorageSigningCerts, requisitionMetadataStorageCertHost)
+
 
     val requisitionsStub = RequisitionsCoroutineStub(cmmsPublicChannel)
     val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
