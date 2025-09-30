@@ -112,6 +112,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       requisitionMetadataStub = requisitionMetadataStub,
       eventGroupsClient = eventGroupsStub,
       requisitionsClient = requisitionsStub,
+      blobUriPrefix = "TODO",
       throttler = throttler,
     )
   }
