@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -50,16 +51,29 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {}
 
+  private val queueRequisitionMetadataRequests = mutableListOf<QueueRequisitionMetadataRequest>()
+
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { lookupRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
-      onBlocking { queueRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {
+        requisitionMetadata += requisitionMetadata {
+          name = "requisitions/123"
+          etag = "etag-1"
+        }
+      })
+      onBlocking { queueRequisitionMetadata(any()) }.thenAnswer { invocation ->
+        val req = invocation.getArgument<QueueRequisitionMetadataRequest>(0)
+        queueRequisitionMetadataRequests += req
+        requisitionMetadata {}
+      }
     }
 
   val mockIdTokenProvider: IdTokenProvider = TestIdTokenProvider()
@@ -117,6 +131,7 @@ class DataWatcherTest() {
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
       val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appParams)
+      assertThat(queueRequisitionMetadataRequests).hasSize(1)
     }
   }
 

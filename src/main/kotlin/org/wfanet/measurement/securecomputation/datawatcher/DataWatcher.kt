@@ -19,12 +19,18 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
+import io.grpc.StatusException
+import kotlinx.coroutines.flow.Flow
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -34,8 +40,10 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -51,6 +59,7 @@ class DataWatcher(
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
+  private val responsePageSize: Int? = null,
 ) {
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")
@@ -97,18 +106,36 @@ class DataWatcher(
     }
     val createdWorkItem = workItemsStub.createWorkItem(request)
 
-    // Update the RequisitionMetadataStorage
-    val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
-      parent = config.dataProvider
-      blobUri = path
+    val requisitionsGroupId = path.substringAfterLast("/")
+
+    val requisitionsMetadata: Flow<RequisitionMetadata> = requisitionMetadataStub
+        .listResources { pageToken: String ->
+          val request = listRequisitionMetadataRequest {
+            parent = config.dataProvider
+            filter = ListRequisitionMetadataRequestKt.filter { groupId = requisitionsGroupId }
+            if (responsePageSize != null) {
+              pageSize = responsePageSize
+            }
+            this.pageToken = pageToken
+          }
+          val response: ListRequisitionMetadataResponse =
+            try {
+              requisitionMetadataStub.listRequisitionMetadata(request)
+            } catch (e: StatusException) {
+              throw Exception("Error listing requisitions", e)
+            }
+          ResourceList(response.requisitionMetadataList, response.nextPageToken)
+        }
+        .flattenConcat()
+
+    requisitionsMetadata.collect {requisitionMetadata ->
+      val queueRequisitionMetadataRequest = queueRequisitionMetadataRequest {
+        name = requisitionMetadata.name
+        etag = requisitionMetadata.etag
+        workItem = createdWorkItem.name
+      }
+      requisitionMetadataStub.queueRequisitionMetadata(queueRequisitionMetadataRequest)
     }
-    val requisitionMetadata = requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
-    val queueRequisitionMetadataRequest = queueRequisitionMetadataRequest {
-      name = requisitionMetadata.name
-      etag = requisitionMetadata.etag
-      workItem = createdWorkItem.name
-    }
-    requisitionMetadataStub.queueRequisitionMetadata(queueRequisitionMetadataRequest)
   }
 
   private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
