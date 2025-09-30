@@ -363,7 +363,6 @@ class SpannerRequisitionMetadataService(
             val lastIncluded = this.requisitionMetadata.last()
             nextPageToken = listRequisitionMetadataPageToken {
               this.after = ListRequisitionMetadataPageTokenKt.after {
-                updateTime = lastIncluded.updateTime
                 requisitionMetadataResourceId = lastIncluded.requisitionMetadataResourceId
               }
             }
