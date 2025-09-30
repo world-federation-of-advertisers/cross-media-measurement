@@ -112,13 +112,13 @@ class RequisitionGrouperByReportId(
         groupedRequisitions {
           this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
-          this.requisitions += requisitions
+          this.requisitions += groups.flatMap { it.requisitionsList }
         }
       } catch (e: InvalidRequisitionException) {
         e.requisitions.forEach {
           refuseRequisition(it, e.refusal)
-          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
-          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
+//          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
+//          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
         }
         null
       }
