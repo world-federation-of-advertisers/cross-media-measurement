@@ -28,7 +28,6 @@ import kotlin.text.trimIndent
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -141,7 +140,6 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
 
     val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
-    // Conditionally add predicates only if filter is present & non-empty
     if (filter != null) {
       if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
         conjuncts.add("State = @state")
@@ -165,6 +163,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
 
   val query = statement(sql) {
     bind("limit").to(limit.toLong())
+    bind("dataProviderResourceId").to(dataProviderResourceId)
 
     if (filter != null) {
       if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
@@ -182,34 +181,6 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
 
   return executeQuery(query, Options.tag("action=readRequisitionMetadata"))
     .map { row -> RequisitionMetadataEntity.buildRequisitionMetadataResult(row) }
-}
-
-suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
-  dataProviderResourceId: String,
-  blobUri: String,
-): RequisitionMetadataResult {
-  val sql = buildString {
-    appendLine(RequisitionMetadataEntity.BASE_SQL)
-    appendLine(
-      """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-        AND BlobUri = @blobUri
-      """
-        .trimIndent()
-    )
-  }
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("blobUri").to(blobUri)
-        }
-      )
-      .singleOrNullIfEmpty()
-      ?: throw RequisitionMetadataNotFoundByBlobUriException(dataProviderResourceId, blobUri)
-
-  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateRequestId(

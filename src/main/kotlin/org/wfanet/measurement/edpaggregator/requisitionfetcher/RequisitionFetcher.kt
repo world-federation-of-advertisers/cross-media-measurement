@@ -52,7 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
-//  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
@@ -76,8 +76,6 @@ class RequisitionFetcher(
 
     var requisitionsCount = 0
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
-    // a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
@@ -104,11 +102,10 @@ class RequisitionFetcher(
     val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
       parent = dataProviderName
     }
-//    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
-//    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
+    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
+    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
-//      requisitionGrouper.groupRequisitions(latestRequisitions)
+      requisitionGrouper.groupRequisitions(latestRequisitions)
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {

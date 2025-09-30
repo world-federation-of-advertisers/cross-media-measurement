@@ -28,7 +28,6 @@ import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
-import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
@@ -126,7 +125,6 @@ class RequisitionMetadataService(
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -163,7 +161,6 @@ class RequisitionMetadataService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
@@ -243,7 +240,6 @@ class RequisitionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -277,7 +273,6 @@ class RequisitionMetadataService(
         LookupRequisitionMetadataRequest.LookupKeyCase.CMMS_REQUISITION ->
           cmmsRequisition = request.cmmsRequisition
 
-        LookupRequisitionMetadataRequest.LookupKeyCase.BLOB_URI -> blobUri = request.blobUri
         LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
           throw InvalidFieldValueException("requisition_metadata.lookup_key")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -293,9 +288,6 @@ class RequisitionMetadataService(
                 parentKey.dataProviderId,
                 request.cmmsRequisition,
               )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI ->
-            RequisitionMetadataNotFoundByBlobUriException(parentKey.dataProviderId, request.blobUri)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -330,7 +322,6 @@ class RequisitionMetadataService(
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
         InternalErrors.Reason.ETAG_MISMATCH,
@@ -358,7 +349,6 @@ class RequisitionMetadataService(
       throw InvalidFieldValueException("requisition_metadata.etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
     val internalRequest = internalQueueRequisitionMetadataRequest {
       dataProviderResourceId = key.dataProviderId
       requisitionMetadataResourceId = key.requisitionMetadataId
@@ -377,7 +367,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -420,7 +409,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -463,7 +451,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -511,7 +498,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,

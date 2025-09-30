@@ -101,8 +101,6 @@ message LookupRequisitionMetadataRequest {
   oneof lookup_key {
     // The resource name of the requisition in the CMMS (Kingdom).
     string cmms_requisition = 2;
-    // The blob storage URI.
-    string blob_uri = 3;
   }
 }
 

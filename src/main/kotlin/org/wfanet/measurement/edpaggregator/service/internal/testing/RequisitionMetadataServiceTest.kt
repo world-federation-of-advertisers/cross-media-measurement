@@ -413,33 +413,6 @@ abstract class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `lookupRequisitionMetadata by blob uri returns a requisition metadata`() = runBlocking {
-    val startTime = Instant.now()
-    service.createRequisitionMetadata(
-      createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
-    )
-
-    val requisitionMetadata =
-      service.lookupRequisitionMetadata(
-        lookupRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          blobUri = BLOB_URI
-        }
-      )
-
-    assertThat(requisitionMetadata)
-      .ignoringFields(
-        RequisitionMetadata.CREATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.UPDATE_TIME_FIELD_NUMBER,
-        RequisitionMetadata.ETAG_FIELD_NUMBER,
-      )
-      .isEqualTo(REQUISITION_METADATA.copy { state = State.REQUISITION_METADATA_STATE_STORED })
-    assertThat(requisitionMetadata.createTime.toInstant()).isGreaterThan(startTime)
-    assertThat(requisitionMetadata.updateTime).isEqualTo(requisitionMetadata.createTime)
-    assertThat(requisitionMetadata.etag).isNotEmpty()
-  }
-
-  @Test
   fun `lookupRequisitionMetadata fails when requisition metadata does not exist`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -1168,7 +1141,7 @@ abstract class RequisitionMetadataServiceTest {
       )
 
     assertThat(response)
-      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created.last() })
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += queuedRequisition })
   }
 
   @Test

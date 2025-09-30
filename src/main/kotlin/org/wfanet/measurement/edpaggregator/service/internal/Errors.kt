@@ -34,7 +34,6 @@ object Errors {
     IMPRESSION_METADATA_STATE_INVALID,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-    REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_STATE_INVALID,
     ETAG_MISMATCH,
@@ -179,22 +178,6 @@ class RequisitionMetadataNotFoundByCmmsRequisitionException(
     ),
     cause,
   )
-
-class RequisitionMetadataNotFoundByBlobUriException(
-  dataProviderResourceId: String,
-  blobUri: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
-    "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource ID $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.BLOB_URI to blobUri,
-    ),
-    cause,
-  )
-
 class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
