@@ -31,6 +31,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import java.util.UUID
 
 /**
@@ -96,57 +98,57 @@ class RequisitionGrouperByReportId(
                 }
               }
             }
-        val requisitions: List<Requisitions> = groups.flatMap { it.requisitionsList }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once available
-        for (requisition in requisitions) {
-          createRequisitionMetadata(requisition)
-        }
+//        val requisitions: List<Requisition> = groups.flatMap { it.requisitionsList }
+//        // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once available
+//        for (requisition in requisitions) {
+//          createRequisitionMetadata(requisition)
+//        }
         groupedRequisitions {
           this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
-          this.requisitions += requisitions
+          this.requisitions += groups.flatMap { it.requisitionsList }
         }
       } catch (e: InvalidRequisitionException) {
         e.requisitions.forEach {
           refuseRequisition(it, e.refusal)
-          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
-          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
+//          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
+//          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
         }
         null
       }
     }
   }
 
-  private suspend fun createRequisitionMetadata(requisition: Requisition) {
+//  private suspend fun createRequisitionMetadata(requisition: Requisition) {
+//
+//    val requisitionGroupId = UUID.randomUUID()
+//    val requisitionBlobUri = "$blobUriPrefix/$requisitionGroupId"
+//    val reportId = getReportId(requisition)
+//
+//    val metadata = requisitionMetadata {
+//      cmmsRequisition = requisition.name
+//      blobUri = requisitionBlobUri
+//      blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
+//      groupId = requisitionGroupId
+//      cmmsCreateTime = requisition.updateTime
+//      this.report = reportId
+//    }
+//    val request = createRequisitionMetadataRequest {
+//      parent = dataProviderName
+//      requisitionMetadata = metadata
+//      requestId = requisitionGroupId
+//    }
+//    requisitionMetadataStub.createRequisitionMetadata(request)
+//  }
 
-    val requisitionGroupId = UUID.randomUUID()
-    val requisitionBlobUri = "$blobUriPrefix/$requisitionGroupId"
-    val reportId = getReportId(requisition)
-
-    val metadata = requisitionMetadata {
-      cmmsRequisition = requisition.name
-      blobUri = requisitionBlobUri
-      blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
-      groupId = requisitionGroupId
-      cmmsCreateTime = requisition.updateTime
-      this.report = reportId
-    }
-    val request = createRequisitionMetadataRequest {
-      parent = dataProviderName
-      requisitionMetadata = metadata
-      requestId = requisitionGroupId
-    }
-    requisitionMetadataStub.createRequisitionMetadata(request)
-  }
-
-  private suspend fun refuseRequisitionMetadata(requisitionMetadata: RequisitionMetadata, message: String) {
-    val request = refuseRequisitionMetadataRequest {
-      name = requisitionMetadata.name
-      etag = requisitionMetadata.etag
-      refusalMessage = message
-    }
-    requisitionMetadataStub.refuseRequisitionMetadata(request)
-  }
+//  private suspend fun refuseRequisitionMetadata(requisitionMetadata: RequisitionMetadata, message: String) {
+//    val request = refuseRequisitionMetadataRequest {
+//      name = requisitionMetadata.name
+//      etag = requisitionMetadata.etag
+//      refusalMessage = message
+//    }
+//    requisitionMetadataStub.refuseRequisitionMetadata(request)
+//  }
 
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
     val sorted = intervals.sortedBy { it.startTime.toInstant() }
