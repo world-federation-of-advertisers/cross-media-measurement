@@ -78,6 +78,8 @@ data "google_compute_image" "confidential_space" {
 }
 
 resource "google_compute_instance_template" "confidential_vm_template" {
+  deletion_protection = false
+
   machine_type = var.machine_type
 
   confidential_instance_config {
