@@ -277,6 +277,8 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     val requisitionMetadataClient = RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val impressionMetadataClient = ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+
     val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
     val duchiesMap = buildDuchyMap()
@@ -298,6 +300,7 @@ class ResultsFulfillerAppRunner : Runnable {
         parser = parser,
         workItemsClient = workItemsClient,
         requisitionMetadataStub = requisitionMetadataClient,
+        impressionMetadataStub = impressionMetadataClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,

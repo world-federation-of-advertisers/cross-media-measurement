@@ -70,7 +70,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRe
  * appropriate.
  *
  * @param dataProvider [DataProvider] resource name.
- * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
+ * @param requisitionMetadataStub used to sync [Requisition]s with the RequisitionMetadataStorage
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
