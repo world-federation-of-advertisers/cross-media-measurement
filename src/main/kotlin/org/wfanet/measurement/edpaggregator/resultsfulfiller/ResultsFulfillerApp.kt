@@ -45,6 +45,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -60,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
+ * @param impressionMetadataStub used to get impressions metadata from ImpressionMetadataStorage
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
@@ -77,6 +79,7 @@ class ResultsFulfillerApp(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
@@ -142,10 +145,8 @@ class ResultsFulfillerApp(
 
     val impressionsMetadataService =
       StorageImpressionMetadataService(
+        impressionMetadataStub =
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
-        impressionsBlobDetailsUriPrefix =
-          fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
-        zoneIdForDates = ZoneOffset.UTC,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {

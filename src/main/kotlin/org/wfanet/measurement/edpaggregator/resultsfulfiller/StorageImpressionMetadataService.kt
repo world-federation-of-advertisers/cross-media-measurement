@@ -18,39 +18,41 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.type.Interval
 import com.google.type.interval
-import java.time.LocalDate
+import io.grpc.StatusException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.logging.Logger
-import kotlin.streams.asSequence
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 
 /**
  * Storage-backed [ImpressionMetadataService].
  *
- * Resolves per-day metadata paths, reads [BlobDetails] messages from storage, and emits sources
- * with UTC day intervals. Date expansion uses [zoneIdForDates].
- *
+ * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
+ * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
- * @param impressionsBlobDetailsUriPrefix the URI prefix for the metadata paths
- * @param zoneIdForDates the zone used to determine date boundaries
  */
 class StorageImpressionMetadataService(
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
+  private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
-  private val impressionsBlobDetailsUriPrefix: String,
-  private val zoneIdForDates: ZoneId = ZoneOffset.UTC,
 ) : ImpressionMetadataService {
 
   /**
    * Lists impression data sources for an event group within a period.
-   *
-   * Expands [period] to per-day boundaries using [zoneIdForDates], reads `BlobDetails` for each day
-   * from storage, and returns a source per day with UTC closed-open intervals [start, end).
    *
    * @param eventGroupReferenceId event group reference identifier.
    * @param period closed-open time interval in UTC.
@@ -64,45 +66,54 @@ class StorageImpressionMetadataService(
     eventGroupReferenceId: String,
     period: Interval,
   ): List<ImpressionDataSource> {
-    val startDate = LocalDate.ofInstant(period.startTime.toInstant(), zoneIdForDates)
-    val endDateInclusive =
-      LocalDate.ofInstant(period.endTime.toInstant().minusSeconds(1), zoneIdForDates)
-    if (startDate.isAfter(endDateInclusive)) return emptyList()
 
-    val dates = startDate.datesUntil(endDateInclusive.plusDays(1)).asSequence().toList()
+    val impressionMetadata: Flow<ImpressionMetadata> = resolvePath(modelLine, eventGroupReferenceId, period)
 
-    return dates.map { date ->
-      val path = resolvePath(modelLine, date, eventGroupReferenceId)
-      val blobDetails = readBlobDetails(path)
+    return impressionMetadata
+      .map { metadata ->
+        val blobDetails = readBlobDetails(metadata.blobUri)
 
-      val dayStartUtc = date.atStartOfDay(ZoneOffset.UTC).toInstant()
-      val dayEndUtc = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
-
-      ImpressionDataSource(
-        modelLine = modelLine,
-        eventGroupReferenceId = eventGroupReferenceId,
-        interval =
-          interval {
-            startTime = dayStartUtc.toProtoTime()
-            endTime = dayEndUtc.toProtoTime()
-          },
-        blobDetails = blobDetails,
-      )
-    }
+        ImpressionDataSource(
+          modelLine = modelLine,
+          eventGroupReferenceId = eventGroupReferenceId,
+          interval = metadata.interval,
+          blobDetails = blobDetails,
+        )
+      }
+      .toList()
   }
 
   /**
    * Resolve a path to a blob details protobuf record.
    *
-   * @param modelLine the model line
+   * @param reportModelLine the model line
    * @param date the of the event data
-   * @param eventGroupReferenceId referenced event group
+   * @param egReferenceId referenced event group
    */
-  fun resolvePath(modelLine: String, date: LocalDate, eventGroupReferenceId: String): String {
-    val prefix =
-      if (impressionsBlobDetailsUriPrefix.endsWith('/')) impressionsBlobDetailsUriPrefix
-      else "$impressionsBlobDetailsUriPrefix/"
-    return "${prefix}ds/$date/model-line/${modelLine}/event-group-reference-id/$eventGroupReferenceId/metadata"
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  fun resolvePath(reportModelLine: String, egReferenceId: String, period: Interval): Flow<ImpressionMetadata> {
+
+    return impressionMetadataStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            impressionMetadataStub.listImpressionMetadata(
+              listImpressionMetadataRequest {
+                parent = dataProvider
+                filter = ListImpressionMetadataRequestKt.filter {
+                  modelLine = reportModelLine
+                  eventGroupReferenceId = egReferenceId
+                  intervalOverlaps = period
+                }
+                this.pageToken = pageToken
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing EventGroups", e)
+          }
+        ResourceList(response.impressionMetadataList, response.nextPageToken)
+      }
+      .flattenConcat()
   }
 
   /**
