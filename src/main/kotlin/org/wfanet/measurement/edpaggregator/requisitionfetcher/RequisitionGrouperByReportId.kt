@@ -117,8 +117,8 @@ class RequisitionGrouperByReportId(
       } catch (e: InvalidRequisitionException) {
         e.requisitions.forEach {
           refuseRequisition(it, e.refusal)
-//          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
-//          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
+          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it)
+          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
         }
         null
       }

@@ -115,7 +115,6 @@ class RequisitionFetcherFunction : HttpFunction {
     val requisitionMetadataStorageSigningCerts = loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
     val requisitionMetadataStoragePublicChannel = buildMutualTlsChannel(edpAggregatorTarget, requisitionMetadataStorageSigningCerts, requisitionMetadataStorageCertHost)
 
-
     val requisitionsStub = RequisitionsCoroutineStub(cmmsPublicChannel)
     val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(cmmsPublicChannel)

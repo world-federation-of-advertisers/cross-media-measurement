@@ -52,7 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
-//  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
@@ -102,11 +102,10 @@ class RequisitionFetcher(
     val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
       parent = dataProviderName
     }
-//    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
-//    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
+    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
+    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
-//      requisitionGrouper.groupRequisitions(latestRequisitions)
+      requisitionGrouper.groupRequisitions(latestRequisitions)
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
