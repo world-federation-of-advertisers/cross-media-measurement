@@ -450,7 +450,7 @@ class Benchmark(
 
     for (replica in 1..flags.repetitionCount) {
       val collectionIntervalEndTimes =
-        if (createMeasurementFlags.cumulative) {
+        if (eventMeasurementParams.cumulative) {
           // getEventDataProviderEntry checks to make sure all entries are identical for cumulative
           val firstEntryStartTime =
             eventMeasurementParams.eventDataProviderInputs
@@ -480,7 +480,7 @@ class Benchmark(
 
       for (endTime in collectionIntervalEndTimes) {
         val cumulativeCollectionInterval =
-          if (createMeasurementFlags.cumulative) {
+          if (eventMeasurementParams.cumulative) {
             interval {
               this.startTime =
                 eventMeasurementParams.eventDataProviderInputs
@@ -496,7 +496,7 @@ class Benchmark(
           }
         val eventDataProviderInputsList =
           if (
-            createMeasurementFlags.createDirect &&
+            eventMeasurementParams.directMeasurementParams.createDirect &&
               eventMeasurementParams.eventDataProviderInputs.size > 1
           ) {
             listOf(eventMeasurementParams.eventDataProviderInputs) +
@@ -511,9 +511,17 @@ class Benchmark(
             val referenceId = "$referenceIdBase-$replica-${UUID.randomUUID()}"
 
             val vidSamplingStartForMeasurement =
-              eventMeasurementParams.vidSamplingStart +
+              if (
+                eventDataProviderInputs.size == 1 &&
+                  eventMeasurementParams.directMeasurementParams.createDirect
+              ) {
                 kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
-                  eventMeasurementParams.vidSamplingWidth
+                  eventMeasurementParams.directMeasurementParams.directVidSamplingWidth
+              } else {
+                eventMeasurementParams.vidSamplingStart +
+                  kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
+                    eventMeasurementParams.vidSamplingWidth
+              }
             val measurement = measurement {
               this.measurementConsumerCertificate = measurementConsumer.certificate
               dataProviders +=
@@ -533,8 +541,16 @@ class Benchmark(
                 measurementPublicKey = packedMeasurementEncryptionPublicKey
                 nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
                 vidSamplingInterval = vidSamplingInterval {
-                  start = vidSamplingStartForMeasurement
-                  width = eventMeasurementParams.vidSamplingWidth
+                  if (
+                    eventDataProviderInputs.size == 1 &&
+                      eventMeasurementParams.directMeasurementParams.createDirect
+                  ) {
+                    start = 0.0f
+                    width = eventMeasurementParams.directMeasurementParams.directVidSamplingWidth
+                  } else {
+                    start = vidSamplingStartForMeasurement
+                    width = eventMeasurementParams.vidSamplingWidth
+                  }
                 }
                 if (eventMeasurementParams.eventMeasurementTypeParams.reach.selected) {
                   reach = createMeasurementFlags.getReach()
@@ -549,9 +565,9 @@ class Benchmark(
                 }
                 if (createMeasurementFlags.modelLine.isNotEmpty())
                   modelLine = createMeasurementFlags.modelLine
-                if (createMeasurementFlags.report.isNotEmpty())
+                if (eventMeasurementParams.report.isNotEmpty())
                   reportingMetadata =
-                    MeasurementSpecKt.reportingMetadata { report = createMeasurementFlags.report }
+                    MeasurementSpecKt.reportingMetadata { report = eventMeasurementParams.report }
               }
 
               this.measurementSpec =

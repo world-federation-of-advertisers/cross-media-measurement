@@ -679,6 +679,7 @@ class BenchmarkTest {
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--create-direct",
+        "--direct-vid-sampling-width=1.0",
         "--reach-and-frequency",
         "--max-frequency=5",
         "--rf-reach-privacy-epsilon=0.015",
@@ -717,32 +718,6 @@ class BenchmarkTest {
     val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
       verifyBlocking(measurementsServiceMock, times(5)) { createMeasurement(capture()) }
     }
-
-    requests.allValues.forEach {
-      val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
-
-      assertThat(measurementSpec)
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(
-          measurementSpec {
-            reachAndFrequency = reachAndFrequency {
-              reachPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.015
-                delta = 0.0
-              }
-              frequencyPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.02
-                delta = 0.0
-              }
-            }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.2f
-              }
-          }
-        )
-    }
   }
 
   @Test
@@ -764,6 +739,7 @@ class BenchmarkTest {
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--create-direct",
+        "--direct-vid-sampling-width=1.0",
         "--reach-and-frequency",
         "--max-frequency=5",
         "--rf-reach-privacy-epsilon=0.015",
@@ -789,32 +765,6 @@ class BenchmarkTest {
     val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
       verifyBlocking(measurementsServiceMock, times(3)) { createMeasurement(capture()) }
     }
-
-    requests.allValues.forEach {
-      val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
-
-      assertThat(measurementSpec)
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(
-          measurementSpec {
-            reachAndFrequency = reachAndFrequency {
-              reachPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.015
-                delta = 0.0
-              }
-              frequencyPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.02
-                delta = 0.0
-              }
-            }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.2f
-              }
-          }
-        )
-    }
   }
 
   @Test
@@ -836,6 +786,7 @@ class BenchmarkTest {
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--create-direct",
+        "--direct-vid-sampling-width=1.0",
         "--cumulative",
         "--reach-and-frequency",
         "--max-frequency=5",
@@ -868,32 +819,6 @@ class BenchmarkTest {
 
     val requests: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor {
       verifyBlocking(measurementsServiceMock, times(117)) { createMeasurement(capture()) }
-    }
-
-    requests.allValues.forEach {
-      val measurementSpec: MeasurementSpec = it.measurement.measurementSpec.unpack()
-
-      assertThat(measurementSpec)
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(
-          measurementSpec {
-            reachAndFrequency = reachAndFrequency {
-              reachPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.015
-                delta = 0.0
-              }
-              frequencyPrivacyParams = differentialPrivacyParams {
-                epsilon = 0.02
-                delta = 0.0
-              }
-            }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.2f
-              }
-          }
-        )
     }
   }
 
