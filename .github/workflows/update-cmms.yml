@@ -157,6 +157,7 @@ jobs:
     if: inputs.run-tests
     needs: [
       update-kingdom,
+      update-population-fulfiller,
       update-aggregator-duchy,
       update-worker1-duchy,
       update-worker2-duchy,
