@@ -366,7 +366,6 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
