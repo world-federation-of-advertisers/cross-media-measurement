@@ -23,7 +23,6 @@ from absl import logging
 from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
-from report.report import build_whole_campaign_measurements
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
@@ -195,3 +194,38 @@ class ReportSummaryV2Processor:
         return MeasurementSet(reach=reach,
                               k_reach=k_reach,
                               impression=impression)
+
+    def process(self) -> ReportPostProcessorResult:
+        """Corrects the report and returns the result."""
+        report = self._build_report()
+        corrected_report, report_post_processor_result = report.get_corrected_report(
+        )
+
+        report_post_processor_result.pre_correction_report_summary_v2.CopyFrom(
+            self._report_summary)
+
+        # If the QP solver does not converge, return the report post processor
+        # result that contains an empty map of updated measurements.
+        if not corrected_report:
+            return report_post_processor_result
+
+        # If the QP solver finds a solution, update the report post processor
+        # result with the updated measurements map.
+        metric_name_to_value: dict[str, int] = {}
+        for measurement_name in report.get_all_measurement_names():
+            measurement = corrected_report.get_measurement_from_name(
+                measurement_name)
+            if measurement is None:
+                raise ValueError(
+                    f"Measurement with name {measurement_name} does not exist "
+                    f"in the corrected report."
+                )
+            metric_name_to_value.update(
+                {measurement_name: round(measurement.value)})
+
+        report_post_processor_result.updated_measurements.update(
+            metric_name_to_value)
+
+        logging.info("Finished correcting the report.")
+
+        return report_post_processor_result

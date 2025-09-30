@@ -19,13 +19,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
-import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.DeleteModelRolloutRequest
 import org.wfanet.measurement.internal.kingdom.ModelRollout
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutAlreadyStartedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 
@@ -41,15 +40,10 @@ class DeleteModelRollout(private val request: DeleteModelRolloutRequest, private
         ExternalId(request.externalModelRolloutId),
       )
 
-    val now = clock.instant().toProtoTime()
-    if (Timestamps.compare(now, modelRolloutResult.modelRollout.rolloutPeriodStartTime) >= 0) {
-      throw ModelRolloutInvalidArgsException(
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId),
-      ) {
-        "It is no longer possible to delete this ModelRollout."
-      }
+    val now = clock.instant()
+    val rolloutPeriodStartTime = modelRolloutResult.modelRollout.rolloutPeriodStartTime.toInstant()
+    if (rolloutPeriodStartTime <= now) {
+      throw ModelRolloutAlreadyStartedException(rolloutPeriodStartTime)
     }
 
     transactionContext.buffer(

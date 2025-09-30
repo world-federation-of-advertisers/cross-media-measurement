@@ -17,13 +17,14 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
+import com.google.type.interval
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
@@ -31,16 +32,20 @@ import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataN
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 
 data class ImpressionMetadataResult(
   val impressionMetadata: ImpressionMetadata,
   val impressionMetadataId: Long,
 )
+
+data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -124,13 +129,15 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataResourceId: String,
   state: State,
   impressionMetadata: ImpressionMetadata,
-  createRequestId: String? = null,
+  createRequestId: String,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("ImpressionMetadataResourceId").to(impressionMetadataResourceId)
-    set("CreateRequestId").to(createRequestId)
+    if (createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(createRequestId)
+    }
     set("BlobUri").to(impressionMetadata.blobUri)
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
     set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
@@ -143,14 +150,18 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   }
 }
 
-/** Buffers a delete mutation for the ImpressionMetadata table. */
-fun AsyncDatabaseClient.TransactionContext.deleteImpressionMetadata(
+/** Buffers an update to a [ImpressionMetadata] row's state and related fields. */
+fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataState(
   dataProviderResourceId: String,
   impressionMetadataId: Long,
+  state: State,
 ) {
-  buffer(
-    Mutation.delete("ImpressionMetadata", Key.of(dataProviderResourceId, impressionMetadataId))
-  )
+  bufferUpdateMutation("ImpressionMetadata") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("ImpressionMetadataId").to(impressionMetadataId)
+    set("State").to(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
 }
 
 /**
@@ -178,33 +189,68 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataIdByResourceId(
 
 /** Reads [ImpressionMetadata] ordered by resource ID. */
 fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
+  dataProviderResourceId: String,
+  filter: ListImpressionMetadataRequest.Filter,
   limit: Int,
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
   val sql = buildString {
-    appendLine(
-      """
-      SELECT
-        ImpressionMetadata.*
-      FROM
-        ImpressionMetadata
-      """
-        .trimIndent()
-    )
+    appendLine(ImpressionMetadataEntity.BASE_SQL)
+
+    val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+
+    if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
+      conjuncts.add("State = @state")
+    }
+
+    if (filter.cmmsModelLine.isNotEmpty()) {
+      conjuncts.add("CmmsModelLine = @cmmsModelLine")
+    }
+
+    if (filter.eventGroupReferenceId.isNotEmpty()) {
+      conjuncts.add("EventGroupReferenceId = @eventGroupReferenceId")
+    }
+
+    if (filter.hasIntervalOverlaps()) {
+      conjuncts.add(
+        "IntervalStartTime < @intervalOverlapsEndTime AND IntervalEndTime > @intervalOverlapsStartTime"
+      )
+    }
 
     if (after != null) {
-      appendLine("WHERE ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
+      conjuncts.add("ImpressionMetadataResourceId > @afterImpressionMetadataResourceId")
     }
-    appendLine("ORDER BY ImpressionMetadataResourceId")
+
+    appendLine("WHERE " + conjuncts.joinToString(" AND "))
+    appendLine("ORDER BY ImpressionMetadataResourceId ASC")
     appendLine("LIMIT @limit")
   }
 
   val query =
     statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("limit").to(limit.toLong())
+
+      if (filter.state != State.IMPRESSION_METADATA_STATE_UNSPECIFIED) {
+        bind("state").to(filter.state.number.toLong())
+      }
+
+      if (filter.cmmsModelLine.isNotEmpty()) {
+        bind("cmmsModelLine").to(filter.cmmsModelLine)
+      }
+
+      if (filter.eventGroupReferenceId.isNotEmpty()) {
+        bind("eventGroupReferenceId").to(filter.eventGroupReferenceId)
+      }
+
+      if (filter.hasIntervalOverlaps()) {
+        bind("intervalOverlapsStartTime").to(filter.intervalOverlaps.startTime.toGcloudTimestamp())
+        bind("intervalOverlapsEndTime").to(filter.intervalOverlaps.endTime.toGcloudTimestamp())
+      }
+
       if (after != null) {
         bind("afterImpressionMetadataResourceId").to(after.impressionMetadataResourceId)
       }
-      bind("limit").to(limit.toLong())
     }
 
   return executeQuery(query, Options.tag("action=readImpressionMetadata")).map { row ->
@@ -212,26 +258,65 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   }
 }
 
+suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
+  dataProviderResourceId: String,
+  cmmsModelLines: List<String>,
+): List<ModelLineBoundResult> {
+  val sql =
+    """
+      SELECT
+        DataProviderResourceId,
+        CmmsModelLine,
+        MIN(IntervalStartTime) AS StartTime,
+        MAX(IntervalEndTime) AS EndTime
+      FROM
+        ImpressionMetadata
+      WHERE
+        DataProviderResourceId = @dataProviderResourceId
+        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+      GROUP BY
+        DataProviderResourceId,
+        CmmsModelLine
+      """
+      .trimIndent()
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("cmmsModelLines").toStringArray(cmmsModelLines)
+    }
+  return executeQuery(query, Options.tag("action=readModelLinesBounds"))
+    .map { row ->
+      ModelLineBoundResult(
+        row.getString("CmmsModelLine"),
+        interval {
+          startTime = row.getTimestamp("StartTime").toProto()
+          endTime = row.getTimestamp("EndTime").toProto()
+        },
+      )
+    }
+    .toList()
+}
+
 private object ImpressionMetadataEntity {
   val BASE_SQL =
     """
-  SELECT
-    DataProviderResourceId,
-    ImpressionMetadataId,
-    ImpressionMetadataResourceId,
-    CreateRequestId,
-    BlobUri,
-    BlobTypeUrl,
-    EventGroupReferenceId,
-    CmmsModelLine,
-    IntervalStartTime,
-    IntervalEndTime,
-    State,
-    CreateTime,
-    UpdateTime,
-  FROM
-    ImpressionMetadata
-  """
+    SELECT
+      DataProviderResourceId,
+      ImpressionMetadataId,
+      ImpressionMetadataResourceId,
+      CreateRequestId,
+      BlobUri,
+      BlobTypeUrl,
+      EventGroupReferenceId,
+      CmmsModelLine,
+      IntervalStartTime,
+      IntervalEndTime,
+      State,
+      CreateTime,
+      UpdateTime,
+    FROM
+      ImpressionMetadata
+    """
       .trimIndent()
 
   fun buildImpressionMetadataResult(struct: Struct): ImpressionMetadataResult {

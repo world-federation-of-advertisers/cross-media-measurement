@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.protobuf.json_format import Parse
 import unittest
+
+from google.protobuf.json_format import Parse
+
+from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+    report_post_processor_result_pb2
 
 from noiseninja.noised_measurements import Measurement, MeasurementSet
 
@@ -21,6 +25,10 @@ from report.report import MetricReport
 from report.report import Report
 from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
     report_summary_v2_pb2
+
+StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
+
+NOISE_CORRECTION_TOLERANCE = 0.1
 
 from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
 
@@ -1482,6 +1490,27 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 report._metric_reports[key]._weekly_non_cumulative_measurements,
                 expected_report._metric_reports[key].
                 _weekly_non_cumulative_measurements)
+
+    def test_report_summary_v2_is_corrected_successfully(self):
+        report_summary_v2 = get_report_summary_v2(
+            "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.json"
+        )
+        report_post_processor_result = ReportSummaryV2Processor(
+            report_summary_v2).process()
+
+        self.assertEqual(
+            report_post_processor_result.pre_correction_report_summary_v2,
+            report_summary_v2)
+        self.assertEqual(report_post_processor_result.status.status_code,
+                         StatusCode.SOLUTION_FOUND_WITH_HIGHS)
+        self.assertLess(
+            report_post_processor_result.status.primal_equality_residual,
+            NOISE_CORRECTION_TOLERANCE)
+        self.assertLess(
+            report_post_processor_result.status.primal_inequality_residual,
+            NOISE_CORRECTION_TOLERANCE)
+        self.assertEqual(len(report_post_processor_result.updated_measurements),
+                         278)
 
 
 def read_file_to_string(filename: str) -> str:

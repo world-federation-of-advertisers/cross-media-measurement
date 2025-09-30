@@ -133,7 +133,7 @@ class DataAvailabilitySyncFunctionTest {
   fun `sync registersUnregisteredImpressionMetadata`() {
 
     val localImpressionBlobUri = "edp/edp_name/timestamp/impressions"
-    val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.pb"
+    val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.binpb"
     val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
 
     val blobDetails = blobDetails {

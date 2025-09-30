@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.reporting.postprocessing.v2alpha;
 
 import "src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha/report_summary.proto";
+import "src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha/report_summary_v2.proto";
 
 option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
 option java_multiple_files = true;
@@ -122,8 +123,12 @@ message ReportQuality {
 // The result message encapsulating the entire outcome of the post-processing
 // pipeline for a single report.
 message ReportPostProcessorResult {
-  // Stores the pre-corrected report summary.
-  ReportSummary pre_correction_report_summary = 5;
+  oneof report_summary {
+    // Stores the pre-corrected report summary.
+    ReportSummary pre_correction_report_summary = 5;
+    // Stores the pre-corrected report summary V2.
+    ReportSummaryV2 pre_correction_report_summary_v2 = 9;
+  }
 
   // Stores the corrected value for each measurement, identified by its unique
   // name. The names in this map must correspond to names found within the
