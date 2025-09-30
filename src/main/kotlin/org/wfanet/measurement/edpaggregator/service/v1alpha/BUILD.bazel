@@ -43,3 +43,16 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
 )
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        ":impression_metadata_service",
+        ":requisition_metadata_service",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
+    ],
+)

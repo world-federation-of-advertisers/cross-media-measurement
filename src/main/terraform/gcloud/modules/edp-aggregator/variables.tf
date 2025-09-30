@@ -293,3 +293,24 @@ variable "private_subnetwork_network" {
   type        = string
   default     = "default"
 }
+
+variable "edp_aggregator_service_account_name" {
+    description = "Name of the EdpAggregator service account."
+    type        = string
+    nullable    = false
+}
+
+variable "spanner_instance" {
+  description = "`google_spanner_instance` for the system."
+  type = object({
+    name = string
+  })
+  nullable = false
+}
+
+variable "spanner_database_name" {
+  description = "Name of the Spanner database for Edp Aggregator."
+  type        = string
+  default     = "edp-aggregator"
+  nullable    = false
+}

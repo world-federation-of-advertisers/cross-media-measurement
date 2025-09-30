@@ -219,4 +219,6 @@ module "edp_aggregator" {
   cloud_function_configs                        = local.cloud_function_configs
   results_fulfiller_disk_image_family           = "confidential-space"
   dns_managed_zone_name                         = "googleapis-private"
+  edp_aggregator_service_account_name           = "edp-aggregator-internal"
+  spanner_instance                              = google_spanner_instance.spanner_instance
 }

@@ -27,19 +27,18 @@ import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.storage.BlobUri
@@ -123,14 +122,14 @@ class DataAvailabilitySync(
     // 2. Save ImpressionMetadata using ImpressionMetadataStorage
     impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-    // 3. Retrieve model line availability from ImpressionMetadataStorage for all model line
+    // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
     // found in the storage folder and update kingdom availability
     // Collect all model lines
     val modelLines = impressionMetadataMap.keys.toList()
 
-    val modelLinesAvailabilityInterval: ComputeModelLinesAvailabilityResponse =
-      impressionMetadataServiceStub.computeModelLinesAvailability(
-        computeModelLinesAvailabilityRequest {
+    val modelLineBounds: ComputeModelLineBoundsResponse =
+      impressionMetadataServiceStub.computeModelLineBounds(
+        computeModelLineBoundsRequest {
           parent = dataProviderName
           this.modelLines += modelLines
         }
@@ -138,12 +137,12 @@ class DataAvailabilitySync(
 
     // Build availability entries from the response
     val availabilityEntries =
-      modelLinesAvailabilityInterval.modelLineAvailabilitiesList.map { availability ->
+      modelLineBounds.modelLineBoundsList.map { bound ->
         dataAvailabilityMapEntry {
-          key = availability.modelLine
+          key = bound.key
           value = interval {
-            startTime = availability.availability.startTime
-            endTime = availability.availability.endTime
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
           }
         }
       }
@@ -164,7 +163,7 @@ class DataAvailabilitySync(
     }
   }
 
-  suspend private fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
@@ -220,7 +219,7 @@ class DataAvailabilitySync(
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
    */
-  suspend private fun createModelLineToImpressionMetadataMap(
+  private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     blobUri: BlobUri,
   ): Map<String, List<ImpressionMetadata>> {

@@ -25,7 +25,7 @@ from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import KReachMeasurements
 
-from report.report import build_whole_campaign_measurements
+from report.report import build_measurement_set
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
@@ -127,7 +127,7 @@ class ReportSummaryProcessor:
 
     metric_reports = {}
     for policy in all_policies:
-      whole_campaign_measurements = build_whole_campaign_measurements(
+      whole_campaign_measurements = build_measurement_set(
           self._whole_campaign_reaches.get(policy, {}),
           self._whole_campaign_k_reaches.get(policy, {}), self._whole_campaign_impressions.get(policy, {})
       )
