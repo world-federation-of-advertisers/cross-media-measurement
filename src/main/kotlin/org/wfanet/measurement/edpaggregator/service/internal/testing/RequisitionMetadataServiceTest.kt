@@ -43,6 +43,8 @@ import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataReque
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest
 
@@ -997,6 +999,20 @@ abstract class RequisitionMetadataServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `listrequisitionMetadata returns empty when no RequisitionMetadata exist`() = runBlocking {
+    val response =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest { dataProviderResourceId =
+          DATA_PROVIDER_RESOURCE_ID
+        }
+      )
+
+    assertThat(response.requisitionMetadataList).isEmpty()
+    assertThat(response.nextPageToken)
+      .isEqualTo(ListRequisitionMetadataPageToken.getDefaultInstance())
   }
 
   companion object {
