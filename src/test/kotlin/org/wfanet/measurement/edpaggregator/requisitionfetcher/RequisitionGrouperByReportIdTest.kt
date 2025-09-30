@@ -85,6 +85,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       requisitionValidator = requisitionValidator,
       eventGroupsClient = eventGroupsStub,
       requisitionsClient = requisitionsStub,
+      blobUriPrefix = "TODO",
       throttler = throttler,
     )
   }
