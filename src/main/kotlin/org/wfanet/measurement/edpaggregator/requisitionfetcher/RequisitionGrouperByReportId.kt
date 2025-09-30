@@ -41,7 +41,6 @@ import java.util.UUID
  */
 class RequisitionGrouperByReportId(
   private val requisitionValidator: RequisitionsValidator,
-  private val blobUriPrefix: String,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
