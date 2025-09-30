@@ -26,15 +26,18 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
@@ -78,6 +81,7 @@ class ResultsFulfiller(
   private val dataProvider: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val privateEncryptionKey: PrivateKeyHandle,
+  private val requisitionsGroupId: String,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration,
@@ -199,8 +203,10 @@ class ResultsFulfiller(
   ) {
 
     // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionMetadata = getRequisitionMetadata()
-    signalRequisitionStartProcessing(requisitionMetadata)
+    val requisitionsMetadata = listRequisitionMetadata()
+    requisitionsMetadata.collect {requisitionMetadata ->
+      signalRequisitionStartProcessing(requisitionMetadata)
+    }
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
@@ -230,7 +236,9 @@ class ResultsFulfiller(
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    signalRequisitionFulfilled(requisitionMetadata)
+    requisitionsMetadata.collect {requisitionMetadata ->
+      signalRequisitionFulfilled(requisitionMetadata)
+    }
 
     val sendElapsedMs = sendStart.elapsedNow().inWholeMilliseconds
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
@@ -262,12 +270,27 @@ class ResultsFulfiller(
     logger.info(stats)
   }
 
-  private suspend fun getRequisitionMetadata(): RequisitionMetadata {
-    val lookupRequisitionMetadataRequest = lookupRequisitionMetadataRequest {
-      parent = dataProvider
-      blobUri = requisitionsBlobUri
-    }
-    return requisitionMetadataStub.lookupRequisitionMetadata(lookupRequisitionMetadataRequest)
+  private suspend fun listRequisitionMetadata(): Flow<RequisitionMetadata> {
+    val requisitionsMetadata: Flow<RequisitionMetadata> = requisitionMetadataStub
+      .listResources { pageToken: String ->
+        val request = listRequisitionMetadataRequest {
+          parent = config.dataProvider
+          filter = ListRequisitionMetadataRequestKt.filter { groupId = requisitionsGroupId }
+          if (responsePageSize != null) {
+            pageSize = responsePageSize
+          }
+          this.pageToken = pageToken
+        }
+        val response: ListRequisitionMetadataResponse =
+          try {
+            requisitionMetadataStub.listRequisitionMetadata(request)
+          } catch (e: StatusException) {
+            throw Exception("Error listing requisitions", e)
+          }
+        ResourceList(response.requisitionMetadataList, response.nextPageToken)
+      }
+      .flattenConcat()
+      return requisitionsMetadata
   }
   private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata) {
     val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {

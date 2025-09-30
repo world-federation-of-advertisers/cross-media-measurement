@@ -184,10 +184,13 @@ class ResultsFulfillerApp(
         kAnonymityParams = kAnonymityParams,
       )
 
+    val requisitionsGroupId = requisitionsBlobUri.substringAfterLast("/")
+
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
+        requisitionsGroupId = requisitionsGroupId,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
         pipelineConfiguration = pipelineConfiguration,
