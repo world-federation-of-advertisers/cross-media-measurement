@@ -112,7 +112,7 @@ class RequisitionGrouperByReportId(
         groupedRequisitions {
           this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
-          this.requisitions += groups.flatMap { it.requisitionsList }
+          this.requisitions += requisitions
         }
       } catch (e: InvalidRequisitionException) {
         e.requisitions.forEach {
