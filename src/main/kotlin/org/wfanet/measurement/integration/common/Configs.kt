@@ -152,8 +152,6 @@ val ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES = listOf("edp2")
 val ALL_EDP_DISPLAY_NAMES =
   ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES + ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
 
-const val PDP_DISPLAY_NAME = "pdp1"
-
 const val DUCHY_MILL_PARALLELISM = 3
 
 const val MC_DISPLAY_NAME = "mc"
@@ -203,7 +201,7 @@ fun createEntityContent(displayName: String) =
 /** Used to configure Secure Computation Control Plane */
 const val PROJECT_ID = "some-project-id"
 const val SUBSCRIPTION_ID = "some-subscription-id"
-const val FULFILLER_TOPIC_ID = "requisition-fulfiller-queue"
+const val FULFILLER_TOPIC_ID = "results-fulfiller-queue"
 val QUEUES_CONFIG: QueuesConfig
   get() {
     val configPath =
@@ -228,6 +226,7 @@ fun getResultsFulfillerParams(
   edpResourceName: String,
   edpCertificateKey: DataProviderCertificateKey,
   labeledImpressionBlobUriPrefix: String,
+  noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
@@ -251,6 +250,7 @@ fun getResultsFulfillerParams(
           SECRET_FILES_PATH.resolve("${edpDisplayName}_enc_private.tink").toString()
         edpCertificateName = edpCertificateKey.toName()
       }
+    this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
   }
 }
 
@@ -263,7 +263,7 @@ fun getDataWatcherResultFulfillerParamsConfig(
     .map { (edpName, params) ->
       listOf(
         watchedPath {
-          sourcePathRegex = "$blobPrefix$edpName/(.*)"
+          sourcePathRegex = "$blobPrefix-$edpName/(.*)"
           this.controlPlaneQueueSink =
             WatchedPathKt.controlPlaneQueueSink {
               queue = FULFILLER_TOPIC_ID

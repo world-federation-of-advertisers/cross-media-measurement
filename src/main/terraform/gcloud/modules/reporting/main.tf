@@ -29,6 +29,12 @@ module "reporting_internal" {
   iam_service_account_description = "Reporting internal API server."
 }
 
+resource "google_project_iam_member" "reporting_internal_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = module.reporting_internal.iam_service_account.member
+}
+
 resource "google_sql_user" "reporting_internal" {
   instance = var.postgres_instance.name
   name     = trimsuffix(module.reporting_internal.iam_service_account.email, ".gserviceaccount.com")
@@ -88,9 +94,9 @@ module "access" {
 }
 
 resource "google_monitoring_dashboard" "dashboards" {
-  for_each        = toset(var.dashboard_json_files)
+  for_each = toset(var.dashboard_json_files)
 
-  dashboard_json  = file("${path.module}/${each.value}")
-  project         = data.google_project.project.project_id
+  dashboard_json = file("${path.module}/${each.value}")
+  project        = data.google_project.project.project_id
 }
 

@@ -13,16 +13,6 @@ used as the basis for deploying CMMS components using Google Kubernetes Engine
 
 See [Machine Setup](machine-setup.md).
 
-## Configure event data source
-
-Events are generated according to
-[simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
-consisting of a single `SyntheticPopulationSpec` and a `SyntheticEventGroupSpec`
-for each `EventGroup`. There are default specifications included, but you can
-replace these with your own after before you apply the K8s Kustomization.
-
-This data source supports any event message type.
-
 ## Provision Google Cloud Project infrastructure
 
 This can be done using Terraform. See [the guide](terraform.md) to use the
@@ -49,7 +39,7 @@ named `halo-cmm-demo` and an image tag `build-0001`, run the following to build
 and push the image:
 
 ```shell
-bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner_image \
+bazel run -c opt //src/main/docker:push_legacy_metadata_edp_simulator_runner_image \
   --define container_registry=gcr.io \
   --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
 ```
@@ -59,7 +49,7 @@ bazel run -c opt //src/main/docker:push_synthetic_generator_edp_simulator_runner
 Run the following, substituting your own values:
 
 ```shell
-bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
+bazel build //src/main/k8s/dev:edp_simulators.tar \
 --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
 --define=worker1_id=worker1
 --define=worker1_public_api_target=public.worker1.dev.halo-cmm.org:8443 \
@@ -78,37 +68,44 @@ bazel build //src/main/k8s/dev:synthetic_generator_edp_simulators.tar \
 --define=edp5_cert_name=dataProviders/HOCBxZheuS8/certificates/HOCBxZheuS8 \
 --define=edp6_name=dataProviders/VGExFmehRhY \
 --define=edp6_cert_name=dataProviders/VGExFmehRhY/certificates/VGExFmehRhY \
---define container_registry=gcr.io \
---define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
+--define container_registry=ghcr.io \
+--define image_repo_prefix=world-federation-of-advertisers \
+--define image_tag=0.5.21
 ```
 
 Extract the generated archive to some directory.
 
 ## Customize Behavior
 
-The extracted Kustomization directory will contain `SyntheticEventGroupSpec`
-messages in text format under
-`src/main/k8s/dev/synthetic_generator_config_files/`. These can be replaced in
-order to customize the synthetic generator. This directory will also contain a
-`known_event_group_metadata_type_set.pb` file which is a serialized
-FileDescriptorSet containing known types used in EventGroup metadata
-descriptors. If not using the default, replace this file with the same one used
-for the Kingdom and Reporting deployments.
+### EventGroups
 
-By default, the simulator will create EventGroups using the configured
-`SyntheticEventGroupSpec` message as the metadata. This is required for running
-the [correctness test](correctness-test.md). If the simulator is not being used
-for that test, you can opt to use your own EventGroup metadata. To do this, add
-files containing metadata messages in protobuf text format to the ConfigMap
-generator. You can then update
-`src/main/k8s/dev/synthetic_generator_edp_simulators/synthetic_generator_edp_simulator_gke.yaml`
-to modify the `--event-group-metadata` and `--event-group-metadata-type-url`
-options passed to the simulator Deployment.
+The simulator ensures that some `EventGroup`s exist for the simulated EDP. These
+can be customized using `--event-group-` set of options, where the whole set can
+be repeated for each `EventGroup`.
+
+### Synthetic Event Data
+
+Events are generated according to
+[simulator synthetic data specifications](../../src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto),
+consisting of a single `SyntheticPopulationSpec` and a `SyntheticEventGroupSpec`
+for each `EventGroup`.
+
+The extracted Kustomization directory will contain a ConfigMap generator under
+`src/main/k8s/dev/edp_simulator_config_files/` where you can specify your specs
+in protobuf text format. By default, these come with the specs necessary for
+running the K8s correctness test.
+
+If you want to use an event message type other than
+[`TestEvent`](../../src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto)
+in your`SyntheticPopulationSpec`, you will need to specify path to the
+`FileDescriptorSet` using the `--event-message-descriptor-set` option. This can
+be specified multiple times if the dependencies span multiple
+`FileDescriptorSet`s.
 
 ## Apply K8s Kustomization
 
 From the Kustomization directory, run
 
 ```shell
-kubectl apply -k src/main/k8s/dev/synthetic_generator_edp_simulators
+kubectl apply -k src/main/k8s/dev/edp_simulators
 ```

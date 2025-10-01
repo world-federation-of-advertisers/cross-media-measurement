@@ -33,7 +33,7 @@ class SingleRequisitionGrouper(
   throttler: Throttler,
 ) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
 
-  override fun combineGroupedRequisitions(
+  override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
     return groupedRequisitions

@@ -15,12 +15,15 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import io.grpc.Channel
+import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -30,6 +33,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub as InternalModelProvidersCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -61,21 +65,16 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val internalAccountsStub = InternalAccountsCoroutineStub(kingdomInternalApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
   val internalCertificatesStub = InternalCertificatesCoroutineStub(kingdomInternalApiChannel)
+  val internalModelProvidersStub = InternalModelProvidersCoroutineStub(kingdomInternalApiChannel)
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
   val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
 
-  // Makes sure the three maps contain the same set of EDPs.
-  require(
-    flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
-  )
   val dataProviderContents =
-    flags.edpCsCertDerFiles.map {
+    flags.dataProviderParams.map {
       EntityContent(
-        displayName = it.key,
-        signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
-        encryptionPublicKey =
-          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey(),
+        displayName = it.displayName,
+        signingKey = loadSigningKey(it.consentSignalingCertFile, it.consentSignalingKeyFile),
+        encryptionPublicKey = loadPublicKey(it.encryptionPublicKeysetFile).toEncryptionPublicKey(),
       )
     }
   val measurementConsumerContent =
@@ -88,22 +87,28 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     flags.duchyCsCertDerFiles.map {
       DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readByteString())
     }
+  val modelProviderRootCert: X509Certificate = readCertificate(flags.modelProviderRootCertFile)
+  val modelProviderAkid =
+    checkNotNull(modelProviderRootCert.subjectKeyIdentifier) {
+      "ModelProvider root cert missing SKID"
+    }
 
   runBlocking {
     // Runs the resource setup job.
     ResourceSetup(
         internalAccountsStub,
         internalDataProvidersStub,
+        internalCertificatesStub,
         accountsStub,
         apiKeysStub,
-        internalCertificatesStub,
         measurementConsumersStub,
         flags.runId,
         flags.requiredDuchies,
+        internalModelProvidersStub,
         flags.bazelConfigName,
         flags.outputDir,
       )
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts, modelProviderAkid)
   }
 }
 

@@ -1,0 +1,43 @@
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/testing:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "trus_tee_mill",
+    srcs = [
+        "TrusTeeMill.kt",
+    ],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
+        "//src/main/kotlin/org/wfanet/measurement/common:bitwise_operations",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_base",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
+        "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+    ],
+)

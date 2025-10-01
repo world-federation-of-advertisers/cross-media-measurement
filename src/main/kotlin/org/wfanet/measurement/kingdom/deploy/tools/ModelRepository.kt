@@ -16,11 +16,19 @@
 
 package org.wfanet.measurement.kingdom.deploy.tools
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.Timestamps
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.io.inputStream
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -34,7 +42,8 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc.ModelRolloutsBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
@@ -42,10 +51,11 @@ import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesRequest
 import org.wfanet.measurement.api.v2alpha.listPopulationsRequest
@@ -55,6 +65,8 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.ProtobufMessages
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -88,7 +100,7 @@ class ModelRepository private constructor() : Runnable {
 
   @Option(
     names = ["--kingdom-public-api-target"],
-    description = ["gRPC target (authority) of the Kingdom public API server"],
+    description = ["gRPC target (authority) of the Kingdom public API server."],
     required = true,
   )
   private lateinit var target: String
@@ -130,7 +142,11 @@ private class ModelProviders {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelProvider"])
+@Command(
+  name = "get",
+  description = ["Get a ModelProvider"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetModelProvider : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -147,7 +163,11 @@ class GetModelProvider : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelProviders"])
+@Command(
+  name = "list",
+  description = ["List ModelProviders"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListModelProviders : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelProviders
 
@@ -184,7 +204,11 @@ private class ModelSuites {
   }
 }
 
-@Command(name = "get", description = ["Get a ModelSuite"])
+@Command(
+  name = "get",
+  description = ["Get a ModelSuite"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -199,7 +223,11 @@ class GetModelSuite : Runnable {
   }
 }
 
-@Command(name = "create", description = ["Create a ModelSuite"])
+@Command(
+  name = "create",
+  description = ["Create a ModelSuite"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class CreateModelSuite : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -240,7 +268,11 @@ class CreateModelSuite : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List ModelSuites"])
+@Command(
+  name = "list",
+  description = ["List ModelSuites"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListModelSuites : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelSuites
 
@@ -285,7 +317,11 @@ private class Populations {
   }
 }
 
-@Command(name = "create", description = ["Create a Population"])
+@Command(
+  name = "create",
+  description = ["Create a Population"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class CreatePopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -303,34 +339,80 @@ class CreatePopulation : Runnable {
   )
   private lateinit var populationDescription: String
 
-  @Option(names = ["--model-blob-uri"], description = ["URI of the model blob"], required = true)
-  private lateinit var modelBlobUriValue: String
-
   @Option(
-    names = ["--event-template-type"],
-    description = ["Type of the EventTemplate"],
+    names = ["--population-spec"],
+    description = ["Filesystem path to PopulationSpec message"],
     required = true,
   )
-  private lateinit var eventTemplateType: String
+  private lateinit var populationSpecFile: File
+
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies.",
+        "This can be specified multiple times.",
+      ],
+    required = true,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description = ["Protobuf type URL of the event message for the CMMS instance"],
+    required = true,
+  )
+  private lateinit var eventMessageTypeUrl: String
 
   override fun run() {
+    val populationSpec =
+      ProtobufMessages.parseMessage(populationSpecFile, PopulationSpec.getDefaultInstance())
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
+    val eventMessageDescriptor =
+      requireNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+        "Event message descriptor not found"
+      }
+    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor)
+
     val population =
       parentCommand.populationsClient.createPopulation(
         createPopulationRequest {
           parent = parentDataProvider
           population = population {
             description = populationDescription
-            populationBlob = populationBlob { modelBlobUri = modelBlobUriValue }
-            eventTemplate = eventTemplate { type = eventTemplateType }
+            this.populationSpec = populationSpec
           }
         }
       )
 
     println(population)
   }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      eventMessageDescriptorSetFiles.map {
+        it.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+    return TypeRegistry.newBuilder()
+      .add(ProtoReflection.buildDescriptors(fileDescriptorSets))
+      .build()
+  }
+
+  companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
+  }
 }
 
-@Command(name = "get", description = ["Get a Population"])
+@Command(
+  name = "get",
+  description = ["Get a Population"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class GetPopulation : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -345,7 +427,11 @@ class GetPopulation : Runnable {
   }
 }
 
-@Command(name = "list", description = ["List Populations"])
+@Command(
+  name = "list",
+  description = ["List Populations"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class ListPopulations : Runnable {
   @ParentCommand private lateinit var parentCommand: Populations
 
@@ -375,7 +461,13 @@ class ListPopulations : Runnable {
 @Command(
   name = "model-lines",
   subcommands =
-    [CommandLine.HelpCommand::class, CreateModelLine::class, SetModelLineActiveEndTime::class],
+    [
+      CommandLine.HelpCommand::class,
+      CreateModelLine::class,
+      GetModelLine::class,
+      ListModelLines::class,
+      SetModelLineActiveEndTime::class,
+    ],
 )
 private class ModelLines {
   @ParentCommand private lateinit var parentCommand: ModelRepository
@@ -393,7 +485,11 @@ private class ModelLines {
   }
 }
 
-@Command(name = "create", description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"])
+@Command(
+  name = "create",
+  description = ["Create a ModelLine, a ModelRelease, and a ModelRollout)"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class CreateModelLine : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 
@@ -497,7 +593,71 @@ class CreateModelLine : Runnable {
   }
 }
 
-@Command(name = "set-active-end-time", description = ["Set the active end time of a ModelLine"])
+@Command(
+  name = "get",
+  description = ["Get a ModelLine"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
+class GetModelLine : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Parameters(index = "0", description = ["API resource name of the ModelLine"], arity = "1")
+  private lateinit var modelLineName: String
+
+  override fun run() {
+    val modelLine =
+      parentCommand.modelLinesClient.getModelLine(getModelLineRequest { name = modelLineName })
+
+    println(modelLine)
+  }
+}
+
+@Command(
+  name = "list",
+  description = ["List ModelLines"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
+class ListModelLines : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+
+  @Option(
+    names = ["--parent"],
+    description = ["Resource name of the parent ModelSuite"],
+    required = true,
+  )
+  private lateinit var parentModelSuite: String
+
+  @Mixin private lateinit var pageParams: PageParams
+
+  @Option(
+    names = ["--type"],
+    description = ["Type of the ModelLine to filter by. Can be repeated."],
+    required = false,
+  )
+  private lateinit var typeList: List<ModelLine.Type>
+
+  override fun run() {
+    val response: ListModelLinesResponse =
+      parentCommand.modelLinesClient.listModelLines(
+        listModelLinesRequest {
+          parent = parentModelSuite
+          pageSize = pageParams.pageSize
+          pageToken = pageParams.pageToken
+          if (typeList.isNotEmpty()) {
+            filter = ListModelLinesRequestKt.filter { types += typeList }
+          }
+        }
+      )
+
+    println(response)
+  }
+}
+
+@Command(
+  name = "set-active-end-time",
+  description = ["Set the active end time of a ModelLine"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
 class SetModelLineActiveEndTime : Runnable {
   @ParentCommand private lateinit var parentCommand: ModelLines
 

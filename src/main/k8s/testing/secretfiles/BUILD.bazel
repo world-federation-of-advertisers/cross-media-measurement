@@ -1,4 +1,5 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
 load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
@@ -7,9 +8,11 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
@@ -28,8 +31,11 @@ package(
 )
 
 exports_files([
+    "basic_report_metric_spec_config.textproto",
     "impression_qualification_filter_config.textproto",
     "metric_spec_config.textproto",
+    "pdp1_tls.key",
+    "pdp1_tls.pem",
 ])
 
 filegroup(
@@ -73,10 +79,25 @@ filegroup(
 )
 
 filegroup(
+    name = "pdp_trusted_certs",
+    srcs = [
+        "kingdom_root.pem",
+        "mc_root.pem",
+    ],
+)
+
+filegroup(
     name = "mp_trusted_certs",
     srcs = [
         "kingdom_root.pem",
         "mp1_root.pem",
+    ],
+)
+
+filegroup(
+    name = "edp_aggregator_trusted_certs",
+    srcs = [
+        "edp_aggregator_root.pem",
     ],
 )
 
@@ -110,9 +131,23 @@ genrule(
 )
 
 genrule(
+    name = "gen_pdp_trusted_certs",
+    srcs = [":pdp_trusted_certs"],
+    outs = ["pdp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
     name = "gen_mp_trusted_certs",
     srcs = [":mp_trusted_certs"],
     outs = ["mp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_edp_aggregator_trusted_certs",
+    srcs = [":edp_aggregator_trusted_certs"],
+    outs = ["edp_aggregator_trusted_certs.pem"],
     cmd = "cat $(SRCS) > $@",
 )
 
@@ -235,10 +270,6 @@ SECRET_FILES = [
     "reporting_tls.pem",
     "access_tls.pem",
     "access_tls.key",
-    "pdp1_cs_cert.der",
-    "pdp1_cs_private.der",
-    "pdp1_enc_private.tink",
-    "pdp1_enc_public.tink",
     "secure_computation_root.pem",
     "secure_computation_tls.key",
     "secure_computation_tls.pem",
@@ -259,6 +290,110 @@ filegroup(
     name = "data_watcher_secret_files",
     srcs = DATA_WATCHER_SECRET_FILES,
     visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
+)
+
+PDP1_TLS_RENAMES = {
+    "pdp1_tls.pem": "tls.crt",
+    "pdp1_tls.key": "tls.key",
+}
+
+filegroup(
+    name = "pdp1_tls_srcs",
+    srcs = [
+        "pdp1_tls.key",
+        "pdp1_tls.pem",
+    ],
+)
+
+pkg_files(
+    name = "pdp1_tls_files",
+    srcs = [":pdp1_tls_srcs"],
+    renames = PDP1_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "pdp1_tls_archive",
+    srcs = [":pdp1_tls_files"],
+    out = "pdp1_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "pdp1_tls",
+    srcs = [
+        "pdp_tls_kustomization.yaml",
+        ":pdp1_tls_srcs",
+    ],
+    renames = {
+        "pdp_tls_kustomization.yaml": "kustomization.yaml",
+    } | PDP1_TLS_RENAMES,
+)
+
+PDP1_CS_SRCS = [
+    "pdp1_cs_cert.der",
+    "pdp1_cs_private.der",
+    "pdp1_enc_private.tink",
+]
+
+PDP1_CS_RENAMES = {
+    "pdp1_cs_cert.der": "pdp_cs_cert.der",
+    "pdp1_cs_private.der": "pdp_cs_private.der",
+    "pdp1_enc_private.tink": "pdp_enc_private.tink",
+}
+
+pkg_files(
+    name = "pdp1_consent_signaling_files",
+    srcs = PDP1_CS_SRCS,
+    renames = PDP1_CS_RENAMES,
+)
+
+pkg_tar(
+    name = "pdp1_consent_signaling_archive",
+    srcs = [":pdp1_consent_signaling_files"],
+    out = "pdp1_consent_signaling_files.tar",
+)
+
+kustomization_dir(
+    name = "pdp1_consent_signaling",
+    srcs = [
+        "pdp_cs_kustomization.yaml",
+    ] + PDP1_CS_SRCS,
+    renames = {
+        "pdp_cs_kustomization.yaml": "kustomization.yaml",
+    } | PDP1_CS_RENAMES,
+)
+
+EDP_AGGREGATOR_TLS_SRCS = [
+    "edp_aggregator_tls.pem",
+    "edp_aggregator_tls.key",
+]
+
+EDP_AGGREGATOR_TLS_RENAMES = {
+    "edp_aggregator_tls.pem": "tls.crt",
+    "edp_aggregator_tls.key": "tls.key",
+}
+
+pkg_files(
+    name = "edp_aggregator_tls_files",
+    srcs = EDP_AGGREGATOR_TLS_SRCS,
+    renames = EDP_AGGREGATOR_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "edp_aggregator_tls_archive",
+    srcs = [":edp_aggregator_tls_files"],
+    out = "edp_aggregator_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "edp_aggregator_tls",
+    srcs = [
+        "edp_aggregator_tls_kustomization.yaml",
+    ] + EDP_AGGREGATOR_TLS_SRCS,
+    renames = {
+        "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
+    } | EDP_AGGREGATOR_TLS_RENAMES,
 )
 
 pkg_tar(

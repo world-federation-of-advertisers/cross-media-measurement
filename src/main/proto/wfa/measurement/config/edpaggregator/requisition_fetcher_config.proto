@@ -38,6 +38,8 @@ message DataProviderRequisitionConfig {
   string storage_path_prefix = 3;
   // How the EDP connects to the CMMS Public API
   TransportLayerSecurityParams cmms_connection = 4;
+  // The path to the EDP private key to group requisitions
+  string edp_private_key_path = 5;
 }
 
 // The Requisition Fetcher configuration

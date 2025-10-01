@@ -1,0 +1,97 @@
+# proto-file: wfa/measurement/config/reporting/metric_spec_config.proto
+# proto-message: MetricSpecConfig
+reach_params {
+  multiple_data_provider_params {
+    privacy_params {
+      epsilon: 0.0041
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.00
+        width: 0.01
+      }
+    }
+  }
+  single_data_provider_params {
+    privacy_params {
+      epsilon: 0.0041
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.00
+        width: 0.01
+      }
+    }
+  }
+}
+reach_and_frequency_params {
+  multiple_data_provider_params {
+    reach_privacy_params {
+      epsilon: 0.0033
+      delta: 1.0E-12
+    }
+    frequency_privacy_params {
+      epsilon: 0.115
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.16
+        width: 0.016666668
+      }
+    }
+  }
+  single_data_provider_params {
+    reach_privacy_params {
+      epsilon: 0.0033
+      delta: 1.0E-12
+    }
+    frequency_privacy_params {
+      epsilon: 0.115
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.16
+        width: 0.016666668
+      }
+    }
+  }
+  maximum_frequency: 10
+}
+impression_count_params {
+  params {
+    privacy_params {
+      epsilon: 0.0011
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.47666666
+        width: 0.20666666
+      }
+    }
+  }
+  maximum_frequency_per_user: 60
+}
+watch_duration_params {
+  params {
+    privacy_params {
+      epsilon: 0.001
+      delta: 1.0E-12
+    }
+    vid_sampling_interval {
+      fixed_start {
+        start: 0.68333334
+        width: 0.31666666
+      }
+    }
+  }
+  maximum_watch_duration_per_user {
+    seconds: 4000
+  }
+}
+population_count_params {
+}

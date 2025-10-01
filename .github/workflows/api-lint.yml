@@ -19,7 +19,6 @@ on:
     branches:
       - main
       - 'releases/**'
-    types: [opened, synchronize, edited]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -60,3 +59,4 @@ jobs:
     - run: tools/api-lint wfa/measurement/system
     - run: tools/api-lint wfa/measurement/securecomputation
     - run: tools/api-lint wfa/measurement/access
+    - run: tools/api-lint wfa/measurement/edpaggregator/v1alpha

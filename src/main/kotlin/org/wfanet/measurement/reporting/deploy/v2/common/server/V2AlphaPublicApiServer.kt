@@ -61,6 +61,7 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -72,6 +73,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
@@ -92,6 +94,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
 
 private object V2AlphaPublicApiServer {
@@ -112,6 +115,7 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+    @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
     @CommandLine.Option(
       names = ["--system-measurement-consumer"],
       description =
@@ -205,6 +209,17 @@ private object V2AlphaPublicApiServer {
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
     metricSpecConfig.validate()
 
+    val basicReportMetricSpecConfig =
+      if (v2AlphaFlags.basicReportMetricSpecConfigFile == null) {
+        metricSpecConfig
+      } else {
+        parseTextProto(
+          v2AlphaFlags.basicReportMetricSpecConfigFile!!,
+          MetricSpecConfig.getDefaultInstance(),
+        )
+      }
+    basicReportMetricSpecConfig.validate()
+
     val apiKey = measurementConsumerConfigs.configsMap.values.first().apiKey
     val celEnvCacheProvider =
       CelEnvCacheProvider(
@@ -248,12 +263,37 @@ private object V2AlphaPublicApiServer {
       )
 
     startInProcessServerWithService(
-      IN_PROCESS_SERVER_NAME,
+      "$IN_PROCESS_SERVER_NAME-metrics",
       commonServerFlags,
       metricsService.withInterceptor(TrustedPrincipalAuthInterceptor),
     )
-    val inProcessChannel =
-      InProcessChannelBuilder.forName(IN_PROCESS_SERVER_NAME)
+
+    val inProcessMetricsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-metrics")
+        .directExecutor()
+        .build()
+        .withShutdownTimeout(Duration.ofSeconds(30))
+
+    val reportsService =
+      ReportsService(
+        InternalReportsCoroutineStub(channel),
+        InternalMetricCalculationSpecsCoroutineStub(channel),
+        MetricsCoroutineStub(inProcessMetricsChannel),
+        metricSpecConfig,
+        authorization,
+        SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.allowSamplingIntervalWrapping,
+        serviceDispatcher,
+      )
+
+    startInProcessServerWithService(
+      "$IN_PROCESS_SERVER_NAME-reports",
+      commonServerFlags,
+      reportsService.withInterceptor(TrustedPrincipalAuthInterceptor),
+    )
+
+    val inProcessReportsChannel =
+      InProcessChannelBuilder.forName("$IN_PROCESS_SERVER_NAME-reports")
         .directExecutor()
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
@@ -290,17 +330,7 @@ private object V2AlphaPublicApiServer {
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
-        ReportsService(
-            InternalReportsCoroutineStub(channel),
-            InternalMetricCalculationSpecsCoroutineStub(channel),
-            MetricsCoroutineStub(inProcessChannel),
-            metricSpecConfig,
-            authorization,
-            SecureRandom().asKotlinRandom(),
-            reportingApiServerFlags.allowSamplingIntervalWrapping,
-            serviceDispatcher,
-          )
-          .withInterceptor(principalAuthInterceptor),
+        reportsService.withInterceptor(principalAuthInterceptor),
         ReportSchedulesService(
             InternalReportSchedulesCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
@@ -329,6 +359,13 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
             InternalBasicReportsCoroutineStub(channel),
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            InternalReportingSetsCoroutineStub(channel),
+            InternalMetricCalculationSpecsCoroutineStub(channel),
+            ReportsCoroutineStub(inProcessReportsChannel),
+            eventMessageFlags.eventDescriptor,
+            basicReportMetricSpecConfig,
+            SecureRandom().asKotlinRandom(),
             authorization,
             serviceDispatcher,
           )

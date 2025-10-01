@@ -25,7 +25,9 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
@@ -34,7 +36,58 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 
-data class BasicReportResult(val basicReportId: Long, val basicReport: BasicReport)
+data class BasicReportResult(
+  val measurementConsumerId: Long,
+  val basicReportId: Long,
+  val basicReport: BasicReport,
+)
+
+/**
+ * Reads a [BasicReport] by its external ID.
+ *
+ * @throws BasicReportNotFoundException
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
+  measurementConsumerId: Long,
+  createRequestId: String,
+): BasicReportResult? {
+  val sql =
+    """
+    SELECT
+      MeasurementConsumerId,
+      BasicReportId,
+      CmmsMeasurementConsumerId,
+      ExternalBasicReportId,
+      BasicReports.CreateTime,
+      ExternalCampaignGroupId,
+      BasicReportDetails,
+      BasicReportResultDetails,
+      State,
+      CreateReportRequestId,
+      ExternalReportId
+    FROM
+      MeasurementConsumers
+      JOIN BasicReports USING (MeasurementConsumerId)
+    WHERE
+      MeasurementConsumerId = @measurementConsumerId
+      AND CreateRequestId = @createRequestId
+    """
+      .trimIndent()
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("measurementConsumerId").to(measurementConsumerId)
+          bind("createRequestId").to(createRequestId)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+
+  return BasicReportResult(
+    row.getLong("MeasurementConsumerId"),
+    row.getLong("BasicReportId"),
+    buildBasicReport(row),
+  )
+}
 
 /**
  * Reads a [BasicReport] by its external ID.
@@ -48,13 +101,17 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
   val sql =
     """
     SELECT
+      MeasurementConsumerId,
       BasicReportId,
       CmmsMeasurementConsumerId,
       ExternalBasicReportId,
       BasicReports.CreateTime,
       ExternalCampaignGroupId,
       BasicReportDetails,
-      BasicReportResultDetails
+      BasicReportResultDetails,
+      State,
+      CreateReportRequestId,
+      ExternalReportId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -73,7 +130,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       .singleOrNullIfEmpty()
       ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
-  return BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
+  return BasicReportResult(
+    row.getLong("MeasurementConsumerId"),
+    row.getLong("BasicReportId"),
+    buildBasicReport(row),
+  )
 }
 
 /**
@@ -90,13 +151,17 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
     appendLine(
       """
       SELECT
+        MeasurementConsumerId,
         BasicReportId,
         CmmsMeasurementConsumerId,
         ExternalBasicReportId,
         BasicReports.CreateTime,
         ExternalCampaignGroupId,
         BasicReportDetails,
-        BasicReportResultDetails
+        BasicReportResultDetails,
+        State,
+        CreateReportRequestId,
+        ExternalReportId
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -125,6 +190,10 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       )
     }
 
+    if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
+      appendLine("AND State = @state")
+    }
+
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
     if (limit > 0) {
       appendLine("LIMIT @limit")
@@ -140,13 +209,21 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
       }
 
+      if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
+        bind("state").toInt64(filter.state)
+      }
+
       if (limit > 0) {
         bind("limit").to(limit.toLong())
       }
     }
 
   return executeQuery(query).map { row ->
-    BasicReportResult(row.getLong("BasicReportId"), buildBasicReport(row))
+    BasicReportResult(
+      row.getLong("MeasurementConsumerId"),
+      row.getLong("BasicReportId"),
+      buildBasicReport(row),
+    )
   }
 }
 
@@ -155,6 +232,8 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
   basicReportId: Long,
   measurementConsumerId: Long,
   basicReport: BasicReport,
+  state: BasicReport.State,
+  requestId: String?,
 ) {
   bufferInsertMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
@@ -164,6 +243,43 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
     set("BasicReportDetails").to(basicReport.details)
     set("ExternalCampaignGroupId").to(basicReport.externalCampaignGroupId)
     set("BasicReportResultDetails").to(basicReport.resultDetails)
+    set("State").to(state)
+    if (basicReport.createReportRequestId.isNotEmpty()) {
+      set("CreateReportRequestId").to(basicReport.createReportRequestId)
+    }
+    if (basicReport.externalReportId.isNotEmpty()) {
+      set("ExternalReportId").to(basicReport.externalReportId)
+    }
+    set("CreateRequestId").to(requestId)
+  }
+}
+
+/**
+ * Buffers an update mutation that sets ExternalReportId and State to REPORT_CREATED for the
+ * BasicReports table.
+ */
+fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  externalReportId: String,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("ExternalReportId").to(externalReportId)
+    set("State").to(BasicReport.State.REPORT_CREATED)
+  }
+}
+
+/** Buffers an update mutation that sets State to FAILED for the BasicReports table. */
+fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToFailed(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("State").to(BasicReport.State.FAILED)
   }
 }
 
@@ -189,5 +305,12 @@ private fun buildBasicReport(row: Struct): BasicReport {
       row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
     createTime = row.getTimestamp("CreateTime").toProto()
+    state = row.getProtoEnum("State", BasicReport.State::forNumber)
+    if (!row.isNull("CreateReportRequestId")) {
+      createReportRequestId = row.getString("CreateReportRequestId")
+    }
+    if (!row.isNull("ExternalReportId")) {
+      externalReportId = row.getString("ExternalReportId")
+    }
   }
 }

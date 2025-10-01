@@ -1,0 +1,48 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+
+// Proto representation of the internal ImpressionMetadata entity type.
+message ImpressionMetadata {
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+
+  string blob_uri = 3;
+  string blob_type_url = 4;
+
+  string event_group_reference_id = 5;
+
+  // The resource name of the ModelLine in the CMMS (Kingdom).
+  string cmms_model_line = 6;
+
+  google.type.Interval interval = 7;
+
+  ImpressionMetadataState state = 8;
+
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp update_time = 10;
+
+  // The etag of ImpressionMetadata
+  string etag = 11;
+}

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import com.google.auth.oauth2.IdTokenProvider
 import com.google.common.truth.Truth.assertThat
 import com.google.gson.Gson
 import com.google.protobuf.Any
@@ -45,11 +46,13 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 
 @RunWith(JUnit4::class)
 class DataWatcherTest() {
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {}
+  val mockIdTokenProvider: IdTokenProvider = TestIdTokenProvider()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
 
@@ -72,7 +75,12 @@ class DataWatcherTest() {
       }
 
       val dataWatcher =
-        DataWatcher(workItemsStub, listOf(config), workItemIdGenerator = { "some-work-item-id" })
+        DataWatcher(
+          workItemsStub,
+          listOf(config),
+          workItemIdGenerator = { "some-work-item-id" },
+          idTokenProvider = mockIdTokenProvider,
+        )
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -113,7 +121,12 @@ class DataWatcherTest() {
       val server = TestServer()
       server.start(localPort)
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
 
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data")
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
@@ -140,7 +153,8 @@ class DataWatcherTest() {
         }
       }
 
-      val dataWatcher = DataWatcher(workItemsStub, listOf(config))
+      val dataWatcher =
+        DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
       dataWatcher.receivePath("test-schema://test-bucket/some-other-path/some-data")
 
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()

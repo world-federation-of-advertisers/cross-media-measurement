@@ -23,6 +23,8 @@ build --cxxopt='-std=c++17'
 
 # Use JDK 17.
 build --java_runtime_version=remotejdk_17
+build --tool_java_runtime_version=remotejdk_17
+build --tool_java_language_version=17
 
 # Target Java 11.
 build --java_language_version=11
@@ -44,6 +46,9 @@ build:remote-cache --experimental_remote_cache_lease_extension=true
 build:remote-cache --experimental_remote_cache_ttl=3h
 
 # Configuration for continuous integration (CI).
+# TODO(bazelbuild/rules_kotlin#1352): Remove these two environment variable overrides once they’re no longer needed to ignore Android in GHA.
+common:ci --action_env=ANDROID_HOME=""
+common:ci --action_env=ANDROID_SDK_ROOT=""
 common:ci --lockfile_mode=error
 build:ci --compilation_mode=opt
 build:ci --build_metadata=ROLE=CI

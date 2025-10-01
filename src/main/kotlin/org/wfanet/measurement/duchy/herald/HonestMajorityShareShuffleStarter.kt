@@ -245,6 +245,8 @@ object HonestMajorityShareShuffleStarter {
       Computation.MpcProtocolConfig.NoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
       Computation.MpcProtocolConfig.NoiseMechanism.DISCRETE_GAUSSIAN ->
         NoiseMechanism.DISCRETE_GAUSSIAN
+      Computation.MpcProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN ->
+        NoiseMechanism.CONTINUOUS_GAUSSIAN
       Computation.MpcProtocolConfig.NoiseMechanism.UNRECOGNIZED,
       Computation.MpcProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED ->
         error("Invalid system NoiseMechanism")

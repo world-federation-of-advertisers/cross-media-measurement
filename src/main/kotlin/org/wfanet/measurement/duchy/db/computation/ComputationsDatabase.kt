@@ -105,16 +105,29 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   suspend fun deleteComputation(localId: Long)
 
   /**
-   * Adds a computation to the work queue, saying it can be worked on by a worker job.
+   * Adds a computation to the work queue to be worked on after a delay.
    *
-   * This will release any ownership and locks associated with the computation after delaySecond.
+   * This releases the lock on the computation, making it available for another worker to claim
+   * after the specified delay.
    *
+   * @param token the token for the computation to enqueue
+   * @param delaySecond the number of seconds to wait before the computation is available to be
+   *   claimed
+   * @param expectedOwner the ID of the mill that is expected to be the current owner of the
+   *   computation's lock. This is used as a precondition to prevent race conditions. The request
+   *   will fail if this ID does not match the current lock owner.
    * @throws org.wfanet.measurement.duchy.service.internal.ComputationNotFoundException if the
    *   Computation is not found
    * @throws org.wfanet.measurement.duchy.service.internal.ComputationTokenVersionMismatchException
    *   if the [token] version does not match
+   * @throws org.wfanet.measurement.duchy.service.internal.ComputationLockOwnerMismatchException if
+   *   the [expectedOwner] does not match the current lock owner
    */
-  suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int)
+  suspend fun enqueue(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    delaySecond: Int,
+    expectedOwner: String,
+  )
 
   /**
    * Query for Computations with tasks ready for processing, and claim one for an owner.

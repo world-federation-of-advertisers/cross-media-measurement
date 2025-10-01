@@ -16,12 +16,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.tools
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Instant
@@ -30,7 +32,9 @@ import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -39,9 +43,14 @@ import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.GetModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.GetPopulationRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesPageTokenKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
@@ -52,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsRequest
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelProvider
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -63,17 +73,22 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelProvidersPageToken
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelProvidersResponse
@@ -89,6 +104,7 @@ import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -96,8 +112,10 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
@@ -157,6 +175,15 @@ class ModelRepositoryTest {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineActiveEndTime(any()) }
       .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
+    onBlocking { getModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { listModelLines(any()) }
+      .thenReturn(
+        listModelLinesResponse {
+          modelLines += MODEL_LINE
+          modelLines += MODEL_LINE_2
+          nextPageToken = LIST_MODEL_LINES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   private val serverCerts =
@@ -181,6 +208,8 @@ class ModelRepositoryTest {
       .sslContext(serverCerts.toServerTlsContext())
       .addServices(services)
       .build()
+
+  @get:Rule val tempDir = TemporaryFolder()
 
   @Before
   fun initServer() {
@@ -340,6 +369,8 @@ class ModelRepositoryTest {
 
   @Test
   fun `populations create calls CreatePopulation with valid request`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(POPULATION.populationSpec.toByteArray())
     val args =
       commonArgs +
         arrayOf(
@@ -347,8 +378,9 @@ class ModelRepositoryTest {
           "create",
           "--parent=$DATA_PROVIDER_NAME",
           "--description=$DESCRIPTION",
-          "--model-blob-uri=$MODEL_BLOB_URI",
-          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+          "--population-spec=${populationSpecFile.path}",
+          "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
+          "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
         )
 
     val output = callCli(args)
@@ -361,15 +393,43 @@ class ModelRepositoryTest {
       .isEqualTo(
         createPopulationRequest {
           parent = DATA_PROVIDER_NAME
-          population = population {
-            description = DESCRIPTION
-            eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-            populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
-          }
+          population =
+            POPULATION.copy {
+              clearName()
+              clearCreateTime()
+            }
         }
       )
     assertThat(parseTextProto(output.reader(), Population.getDefaultInstance()))
       .isEqualTo(POPULATION)
+  }
+
+  @Test
+  fun `populations create validates PopulationSpec`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(
+      POPULATION.populationSpec
+        .copy { subpopulations[0] = subpopulations[0].copy { attributes.clear() } }
+        .toByteArray()
+    )
+    val args =
+      commonArgs +
+        arrayOf(
+          "populations",
+          "create",
+          "--parent=$DATA_PROVIDER_NAME",
+          "--description=$DESCRIPTION",
+          "--population-spec=${populationSpecFile.path}",
+          "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
+          "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
+        )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput =
+      CommandLineTesting.capturingOutput(args, ModelRepository::main)
+
+    // Assert fails due to invalid PopulationSpec.
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput.err).contains("PopulationSpec")
   }
 
   @Test
@@ -434,12 +494,73 @@ class ModelRepositoryTest {
       .isEqualTo(
         createModelLineRequest {
           parent = MODEL_SUITE_NAME
-          modelLine = MODEL_LINE.copy { clearName() }
+          modelLine =
+            MODEL_LINE.copy {
+              clearName()
+              clearCreateTime()
+            }
         }
       )
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
       .comparingExpectedFieldsOnly()
       .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines get calls GetModelLine with valid request`() {
+    val args = commonArgs + arrayOf("model-lines", "get", MODEL_LINE_NAME)
+
+    val output = callCli(args)
+
+    val request: GetModelLineRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).getModelLine(capture()) }
+    }
+
+    assertThat(request).isEqualTo(getModelLineRequest { name = MODEL_LINE_NAME })
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines list calls ListModelLines with valid request`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=$MODEL_SUITE_NAME",
+          "--page-size=50",
+          "--page-token=${LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()}",
+          "--type=DEV",
+          "--type=PROD",
+        )
+    val output = callCli(args)
+
+    val request: ListModelLinesRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).listModelLines(capture()) }
+    }
+
+    assertThat(request)
+      .isEqualTo(
+        listModelLinesRequest {
+          parent = MODEL_SUITE_NAME
+          pageSize = 50
+          pageToken = LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()
+          filter =
+            ListModelLinesRequestKt.filter {
+              types += ModelLine.Type.DEV
+              types += ModelLine.Type.PROD
+            }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ListModelLinesResponse.getDefaultInstance()))
+      .isEqualTo(
+        listModelLinesResponse {
+          modelLines += MODEL_LINE
+          modelLines += MODEL_LINE_2
+          nextPageToken = LIST_MODEL_LINES_PAGE_TOKEN_2.toByteString().base64UrlEncode()
+        }
+      )
   }
 
   @Test
@@ -486,16 +607,17 @@ class ModelRepositoryTest {
   }
 
   companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private const val HOST = "localhost"
+    private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private val SECRETS_DIR: Path =
-      getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+      getRuntimePath(Paths.get(MODULE_REPO_NAME, "src", "main", "k8s", "testing", "secretfiles"))!!
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
-    private const val MODEL_BLOB_URI = "model_blob_uri"
     private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
@@ -579,18 +701,64 @@ class ModelRepositoryTest {
       name = POPULATION_NAME
       description = DESCRIPTION
       createTime = CREATE_TIME
-      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+      populationSpec = populationSpec {
+        subpopulations +=
+          PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = 1
+                endVidInclusive = 100
+              }
+            attributes +=
+              person {
+                  gender = Person.Gender.FEMALE
+                  ageGroup = Person.AgeGroup.YEARS_18_TO_34
+                  socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+                }
+                .pack()
+          }
+      }
     }
     private val POPULATION_2: Population = population {
       name = POPULATION_NAME_2
       description = DESCRIPTION
       createTime = CREATE_TIME
-      eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
-      populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
+      populationSpec = populationSpec {
+        subpopulations +=
+          PopulationSpecKt.subPopulation {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = 101
+                endVidInclusive = 200
+              }
+          }
+      }
     }
+    private const val EVENT_MESSAGE_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private val EVENT_MESSAGE_DESCRIPTOR_SET_PATH =
+      getRuntimePath(
+        Paths.get(
+          MODULE_REPO_NAME,
+          "src",
+          "main",
+          "proto",
+          "wfa",
+          "measurement",
+          "api",
+          "v2alpha",
+          "event_templates",
+          "testing",
+          "test_event_descriptor_set.pb",
+        )
+      )!!
 
     private const val MODEL_LINE_NAME = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAHs"
+    private const val MODEL_LINE_NAME_2 = "$MODEL_SUITE_NAME/modelLines/AAAAAAAAAJs"
+    private val EXTERNAL_MODEL_LINE_ID =
+      apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME)!!.modelLineId)
+    private val EXTERNAL_MODEL_LINE_ID_2 =
+      apiIdToExternalId(ModelLineKey.fromName(MODEL_LINE_NAME_2)!!.modelLineId)
     private val MODEL_LINE: ModelLine = modelLine {
       name = MODEL_LINE_NAME
       displayName = DISPLAY_NAME
@@ -599,6 +767,16 @@ class ModelRepositoryTest {
       activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
       type = ModelLine.Type.DEV
       holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+      createTime = CREATE_TIME
+    }
+    private val MODEL_LINE_2: ModelLine = modelLine {
+      name = MODEL_LINE_NAME_2
+      displayName = DISPLAY_NAME
+      description = DESCRIPTION
+      activeStartTime = Timestamps.parse(ACTIVE_START_TIME)
+      activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
+      type = ModelLine.Type.PROD
+      createTime = CREATE_TIME
     }
     private const val ACTIVE_START_TIME = "2025-01-15T10:00:00Z"
     private const val ACTIVE_END_TIME = "2025-02-15T10:00:00Z"
@@ -624,6 +802,28 @@ class ModelRepositoryTest {
     }
 
     private const val PAGE_SIZE = 50
+
+    private val LIST_MODEL_LINES_PAGE_TOKEN = listModelLinesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+      lastModelLine =
+        ListModelLinesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID - 1
+        }
+    }
+
+    private val LIST_MODEL_LINES_PAGE_TOKEN_2 = listModelLinesPageToken {
+      pageSize = PAGE_SIZE
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+      lastModelLine =
+        ListModelLinesPageTokenKt.previousPageEnd {
+          createTime = CREATE_TIME
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
+        }
+    }
 
     private val LIST_POPULATIONS_PAGE_TOKEN = listPopulationsPageToken {
       pageSize = PAGE_SIZE

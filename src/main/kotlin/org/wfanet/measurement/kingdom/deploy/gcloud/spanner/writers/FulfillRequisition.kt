@@ -96,6 +96,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           externalCertificateId = request.directParams.externalCertificateId
           encryptedDataApiVersion = request.directParams.apiVersion
         }
+        if (request.hasFulfillmentContext()) {
+          fulfillmentContext = request.fulfillmentContext
+        }
       }
 
     val nonFulfilledRequisitionIds =

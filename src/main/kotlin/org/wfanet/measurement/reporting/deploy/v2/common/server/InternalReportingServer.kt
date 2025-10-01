@@ -33,10 +33,11 @@ import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
 import picocli.CommandLine.MissingParameterException
@@ -131,7 +132,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFilterConfig)
 
-      spannerFlags.usingSpanner { spanner ->
+      spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
         run(
           DataServices.create(

@@ -222,8 +222,11 @@ MESSAGE_LIBS = [
     "impression_qualification_filter_spec",
     "metric_frequency_spec",
     "result_group",
+    "report_result",
     "reporting_impression_qualification_filter",
     "reporting_interval",
+    "reporting_unit",
+    "result_group_spec",
 ]
 
 proto_library(
@@ -233,6 +236,7 @@ proto_library(
     deps = [
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":result_group_spec_proto",
     ],
 )
 
@@ -320,6 +324,26 @@ proto_library(
 )
 
 proto_library(
+    name = "report_result_proto",
+    srcs = ["report_result.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_filter_proto",
+        ":event_template_field_proto",
+        ":result_group_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+proto_library(
+    name = "reporting_unit_proto",
+    srcs = ["reporting_unit.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "result_group_proto",
     srcs = ["result_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -332,9 +356,31 @@ proto_library(
     ],
 )
 
+proto_library(
+    name = "result_group_spec_proto",
+    srcs = ["result_group_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_filter_proto",
+        ":metric_frequency_spec_proto",
+        ":reporting_unit_proto",
+    ],
+)
+
 SERVICE_LIBS = [
     "basic_reports",
+    "report_results",
 ]
+
+proto_library(
+    name = "report_results_service_proto",
+    srcs = ["report_results_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_result_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
 
 proto_library(
     name = "basic_reports_service_proto",
@@ -372,8 +418,11 @@ proto_descriptor_set(
         ":impression_qualification_filter_proto",
         ":impression_qualification_filter_spec_proto",
         ":metric_frequency_spec_proto",
+        ":report_result_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":reporting_unit_proto",
         ":result_group_proto",
+        ":result_group_spec_proto",
     ],
 )

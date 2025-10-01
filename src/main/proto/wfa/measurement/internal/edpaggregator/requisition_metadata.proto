@@ -1,0 +1,93 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataProto";
+
+// Internal representation of RequisitionMetadata.
+message RequisitionMetadata {
+  // The globally unique resource ID of the DataProvider that owns this
+  // requisition.
+  string data_provider_resource_id = 1;
+
+  // The resource ID of this RequisitionMetadata, unique per DataProvider.
+  string requisition_metadata_resource_id = 2;
+
+  // The resource name of the requisition in the CMMS (Kingdom).
+  string cmms_requisition = 3;
+
+  // The blob storage URI of the GroupedRequisitions file this entry belongs to.
+  string blob_uri = 4;
+
+  // Type URL of the blob.
+  string blob_type_url = 14;
+
+  // An identifier for the group of requisitions this entry belongs to.
+  string group_id = 5;
+
+  // The creation timestamp of the requisition in the CMMS (Kingdom).
+  google.protobuf.Timestamp cmms_create_time = 6;
+
+  // The resource name of the Report in the Reporting system.
+  string report = 7;
+
+  // The resource name of the WorkItem.
+  // This is set when the requisition is queued for processing.
+  string work_item = 8;
+
+  // The current state of the requisition.
+  RequisitionMetadataState state = 9;
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 10;
+
+  // The timestamp when this metadata entry was last updated.
+  google.protobuf.Timestamp update_time = 11;
+
+  // Human-readable message associated with refusal.
+  string refusal_message = 12;
+
+  // The etag of RequisitionMetadata
+  string etag = 13;
+}
+
+// Internal representation of a RequisitionMetadataAction.
+// This is used for auditing and logging purposes.
+message RequisitionMetadataAction {
+  // The resource ID of the DataProvider that owns the parent metadata.
+  string data_provider_resource_id = 1;
+
+  // The resource ID of this RequisitionMetadata, unique per DataProvider.
+  string requisition_metadata_resource_id = 2;
+
+  // The external ID for this action.
+  fixed64 external_action_id = 3;
+
+  // The state of the requisition before this action.
+  RequisitionMetadataState previous_state = 4;
+
+  // The state of the requisition after this action.
+  RequisitionMetadataState current_state = 5;
+
+  // The timestamp when the action occurred.
+  google.protobuf.Timestamp create_time = 6;
+}

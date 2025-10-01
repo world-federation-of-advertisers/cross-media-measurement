@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
@@ -27,8 +25,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,23 +39,19 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
@@ -71,8 +65,6 @@ import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -85,7 +77,6 @@ import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -98,21 +89,7 @@ class RequisitionsValidatorTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(
-      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
-      fatalRequisitionErrorPredicate = ::receiveError,
-    )
-  }
-
-  private var errors: MutableList<Pair<String, Requisition.Refusal>> = mutableListOf()
-
-  @Before
-  fun setUp() {
-    errors = mutableListOf()
-  }
-
-  private fun receiveError(requisition: Requisition, refusal: Requisition.Refusal) {
-    errors.add(Pair(requisition.name, refusal))
+    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
   }
 
   @Test
@@ -120,7 +97,6 @@ class RequisitionsValidatorTest {
 
     assertNotNull(requisitionValidator.validateRequisitionSpec(TestRequisitionData.REQUISITION))
     assertNotNull(requisitionValidator.validateMeasurementSpec(TestRequisitionData.REQUISITION))
-    assertThat(errors).hasSize(0)
   }
 
   @Test
@@ -132,11 +108,9 @@ class RequisitionsValidatorTest {
           message = Any.pack(StringValue.newBuilder().setValue("some-invalid-spec").build())
         }
       }
-    assertThat(requisitionValidator.validateMeasurementSpec(requisition)).isEqualTo(null)
-
-    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
-    assertThat(errors.single().second.justification)
-      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
   }
 
   @Test
@@ -148,10 +122,9 @@ class RequisitionsValidatorTest {
           typeUrl = ProtoReflection.getTypeUrl(RequisitionSpec.getDescriptor())
         }
       }
-    assertThat(requisitionValidator.validateRequisitionSpec(requisition)).isEqualTo(null)
-    assertThat(errors.single().first).isEqualTo(REQUISITION.name)
-    assertThat(errors.single().second.justification)
-      .isEqualTo(Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
+    }
   }
 
   @Test
@@ -179,13 +152,8 @@ class RequisitionsValidatorTest {
             }
         },
       )
-    assertThat(requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id"))
-      .isFalse()
-    assertThat(errors).hasSize(2)
-    errors.forEach { error ->
-      assertThat(error.first).isEqualTo(REQUISITION.name)
-      assertThat(error.second.justification)
-        .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateModelLines(groupedRequisitionsList, "some-report-id")
     }
   }
 
@@ -217,9 +185,7 @@ class RequisitionsValidatorTest {
 
     private val LAST_EVENT_DATE = LocalDate.now()
     private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
-    @JvmStatic
-    protected val TIME_RANGE =
-      OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+    private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
     private const val DUCHY_ONE_ID = "worker1"
 
@@ -235,30 +201,14 @@ class RequisitionsValidatorTest {
 
     private val EDP_SIGNING_KEY =
       loadSigningKey("${EDP_DISPLAY_NAME}_cs_cert.der", "${EDP_DISPLAY_NAME}_cs_private.der")
-    private val EDP_RESULT_SIGNING_KEY =
-      loadSigningKey(
-        "${EDP_DISPLAY_NAME}_result_cs_cert.der",
-        "${EDP_DISPLAY_NAME}_result_cs_private.der",
-      )
     private val DATA_PROVIDER_CERTIFICATE_KEY =
       DataProviderCertificateKey(EDP_ID, externalIdToApiId(8L))
-    private val DATA_PROVIDER_RESULT_CERTIFICATE_KEY =
-      DataProviderCertificateKey(EDP_ID, externalIdToApiId(9L))
 
     private val DATA_PROVIDER_CERTIFICATE = certificate {
       name = DATA_PROVIDER_CERTIFICATE_KEY.toName()
       x509Der = EDP_SIGNING_KEY.certificate.encoded.toByteString()
       subjectKeyIdentifier = EDP_SIGNING_KEY.certificate.subjectKeyIdentifier!!
     }
-    @JvmStatic
-    protected val EDP_DATA =
-      DataProviderData(
-        EDP_NAME,
-        EDP_DISPLAY_NAME,
-        loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
-        EDP_RESULT_SIGNING_KEY,
-        DATA_PROVIDER_RESULT_CERTIFICATE_KEY,
-      )
 
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
@@ -288,7 +238,7 @@ class RequisitionsValidatorTest {
           }
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      nonce = Random.Default.nextLong()
+      nonce = Random.nextLong()
     }
 
     private val ENCRYPTED_REQUISITION_SPEC =
@@ -347,10 +297,6 @@ class RequisitionsValidatorTest {
         SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
         SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile(),
       )
-    }
-
-    private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
-      return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
     }
   }
 }

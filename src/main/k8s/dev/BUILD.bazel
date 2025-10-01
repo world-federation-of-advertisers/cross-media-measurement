@@ -7,6 +7,7 @@ load(
     "GCLOUD_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
+    "PDP_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
 )
@@ -105,6 +106,65 @@ kustomization_dir(
     deps = [
         "config_files",
         ":kingdom_secret",
+    ],
+)
+
+cue_dump(
+    name = "population_requisition_fulfiller_gke",
+    srcs = [
+        "population_requisition_fulfiller_gke.cue",
+    ],
+    cue_tags = {
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "pdp_name": PDP_K8S_SETTINGS.pdp_name,
+        "pdp_cert_name": PDP_K8S_SETTINGS.pdp_cert_name,
+        "event_message_type_url": PDP_K8S_SETTINGS.event_message_type_url,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:population_requisition_fulfiller",
+    ],
+)
+
+kustomization_dir(
+    name = "pdp_config",
+    srcs = ["pdp_config_kustomization.yaml"],
+    renames = {
+        "pdp_config_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "pdp_consent_signaling",
+    srcs = ["pdp_cs_kustomization.yaml"],
+    renames = {
+        "pdp_cs_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "pdp_tls",
+    srcs = ["pdp_tls_kustomization.yaml"],
+    renames = {
+        "pdp_tls_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "population_requisition_fulfiller",
+    srcs = [
+        ":population_requisition_fulfiller_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":pdp_config",
+        ":pdp_consent_signaling",
+        ":pdp_tls",
     ],
 )
 
@@ -347,16 +407,6 @@ kustomization_dir(
     ],
 )
 
-cue_library(
-    name = "edp_simulator_gke",
-    srcs = ["edp_simulator_gke.cue"],
-    deps = [
-        ":base_gke",
-        ":config_gke",
-        "//src/main/k8s:edp_simulator",
-    ],
-)
-
 EDP_SIMULATOR_TAGS = {
     "secret_name": SECRET_NAME,
     "mc_name": SIMULATOR_K8S_SETTINGS.mc_name,
@@ -384,37 +434,41 @@ EDP_SIMULATOR_TAGS = {
 }
 
 cue_dump(
-    name = "synthetic_generator_edp_simulator_gke",
-    srcs = ["synthetic_generator_edp_simulator_gke.cue"],
+    name = "edp_simulators_gke",
+    srcs = ["edp_simulators_gke.cue"],
     cue_tags = EDP_SIMULATOR_TAGS,
     tags = ["manual"],
-    deps = [":edp_simulator_gke"],
+    deps = [
+        ":base_gke",
+        ":config_gke",
+        "//src/main/k8s:edp_simulator",
+    ],
 )
 
 kustomization_dir(
-    name = "synthetic_generator_config_files",
+    name = "edp_simulator_config_files",
     testonly = True,
     srcs = [
-        "synthetic_generator_config_files_kustomization.yaml",
+        "edp_simulator_config_files.yaml",
         "//src/main/k8s/testing/data:synthetic_generation_specs_large",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
     ],
     renames = {
-        "synthetic_generator_config_files_kustomization.yaml": "kustomization.yaml",
+        "edp_simulator_config_files.yaml": "kustomization.yaml",
     },
 )
 
 kustomization_dir(
-    name = "synthetic_generator_edp_simulators",
+    name = "edp_simulators",
     testonly = True,
     srcs = [
         "resource_requirements.yaml",
-        ":synthetic_generator_edp_simulator_gke",
+        ":edp_simulators_gke",
     ],
     generate_kustomization = True,
     tags = ["manual"],
     deps = [
-        ":synthetic_generator_config_files",
+        ":edp_simulator_config_files",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )
@@ -451,8 +505,12 @@ kustomization_dir(
         "reporting_v2_config_files_kustomization.yaml",
         "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set",
     ],
-    renames = {"reporting_v2_config_files_kustomization.yaml": "kustomization.yaml"},
+    renames = {
+        "reporting_v2_config_files_kustomization.yaml": "kustomization.yaml",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set": "event_message_descriptor_set.pb",
+    },
 )
 
 kustomization_dir(
@@ -546,5 +604,54 @@ kustomization_dir(
     deps = [
         ":secure_computation_config_files",
         ":secure_computation_secrets",
+    ],
+)
+
+cue_dump(
+    name = "edp_aggregator_gke",
+    srcs = ["edp_aggregator_gke.cue"],
+    cue_tags = {
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "google_cloud_project": GCLOUD_SETTINGS.project,
+        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config_gke",
+        "//src/main/k8s:edp_aggregator",
+    ],
+)
+
+kustomization_dir(
+    name = "edp_aggregator_tls",
+    srcs = ["edp_aggregator_tls_kustomization.yaml"],
+    renames = {
+        "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "edp_aggregator_config",
+    srcs = ["edp_aggregator_config_kustomization.yaml"],
+    renames = {
+        "edp_aggregator_config_kustomization.yaml": "kustomization.yaml",
+    },
+)
+
+kustomization_dir(
+    name = "edp_aggregator",
+    testonly = True,
+    srcs = [
+        "resource_requirements.yaml",
+        ":edp_aggregator_gke",
+    ],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        ":edp_aggregator_config",
+        ":edp_aggregator_tls",
     ],
 )

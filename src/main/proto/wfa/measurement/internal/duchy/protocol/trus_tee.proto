@@ -1,0 +1,85 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.duchy.protocol;
+
+import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
+import "wfa/measurement/internal/duchy/differential_privacy.proto";
+import "wfa/measurement/internal/duchy/noise_mechanism.proto";
+
+option java_package = "org.wfanet.measurement.internal.duchy.protocol";
+option java_multiple_files = true;
+
+message TrusTee {
+  // Stages of the TrusTEE computation.
+  //
+  // The stage transitions are:
+  // INITIALIZED -> WAIT_TO_START -> COMPUTING -> COMPLETE
+
+  enum Stage {
+    // The computation stage is unknown. This is never set intentionally.
+    //
+    // Actions to take: Send requisition params to the Kingdom.
+    //
+    // Advance Condition: Requisition params sent.
+    STAGE_UNSPECIFIED = 0;
+
+    // The computation is created by the duchy herald.
+    INITIALIZED = 1;
+
+    // The duchy calls setRequisitionParams at the kingdom. The Computation is
+    // waiting for requisitions.
+    WAIT_TO_START = 2;
+
+    // Requisitions has all been fulfilled. The duchy is running the TEE
+    // computation by TEE mill.
+    COMPUTING = 3;
+
+    // Computation is either successful or failed.
+    COMPLETE = 4;
+  }
+
+  message ComputationDetails {
+    // For TrusTEE protocol, the role should be AGGREGATOR.
+    wfa.measurement.internal.duchy.config.RoleInComputation role = 1;
+
+    // The type of computation to be performed.
+    enum Type {
+      // The computation type is unknown. This is never set intentionally.
+      TYPE_UNSPECIFIED = 0;
+      // A reach-only measurement.
+      REACH = 1;
+      // A reach and frequency measurement.
+      REACH_AND_FREQUENCY = 2;
+    }
+    Type type = 2;
+
+    // Parameters used in this computation.
+    message Parameters {
+      // The maximum frequency to reveal in the histogram.
+      int32 maximum_frequency = 1;
+      // Differential privacy parameters for reach noise generation.
+      DifferentialPrivacyParams reach_dp_params = 2;
+      // Differential privacy parameters for frequency noise generation.
+      DifferentialPrivacyParams frequency_dp_params = 3;
+      // Noise mechanism used for generating noise.
+      NoiseMechanism noise_mechanism = 4;
+      // The sampling rate.
+      float vid_sampling_interval_width = 5;
+    }
+    Parameters parameters = 3;
+  }
+}

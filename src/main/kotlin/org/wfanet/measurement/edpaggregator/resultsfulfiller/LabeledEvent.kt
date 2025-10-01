@@ -1,0 +1,38 @@
+/*
+ * Copyright 2025 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.resultsfulfiller
+
+import com.google.protobuf.Message
+import java.time.Instant
+
+/**
+ * Represents a single event with associated metadata for processing.
+ *
+ * This data class encapsulates an event message along with the metadata required for filtering,
+ * grouping, and processing in the measurement system. It serves as the primary data structure for
+ * event processing pipelines.
+ *
+ * @param T the type of Protocol Buffer message containing the event data. Must extend [Message] to
+ *   ensure compatibility with the protobuf framework.
+ * @property timestamp the exact time when the event occurred. Used for temporal filtering and
+ *   time-based aggregations.
+ * @property vid the Virtual Person ID, a unique identifier for the virtual person associated with
+ *   this event. Used for sampling and deduplication.
+ * @property message the actual event data as a Protocol Buffer message. Contains the
+ *   domain-specific event information.
+ */
+data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)

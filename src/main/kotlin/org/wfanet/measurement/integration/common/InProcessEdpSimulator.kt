@@ -28,21 +28,20 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.Health
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -51,25 +50,32 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.eventdataprovider.shareshuffle.v2alpha.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpecWithoutAttributes
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
-  val displayName: String,
+  displayName: String,
   resourceName: String,
-  private val certificateKey: DataProviderCertificateKey,
+  certificateKey: DataProviderCertificateKey,
   mcResourceName: String,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannelMap: Map<String, Channel>,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  syntheticPopulationSpec: SyntheticPopulationSpec,
-  private val syntheticDataSpec: SyntheticEventGroupSpec,
+  eventGroupOptions: EventGroupOptions,
+  eventQuery: SyntheticGeneratorEventQuery,
   coroutineContext: CoroutineContext = Dispatchers.Default,
   honestMajorityShareShuffleSupported: Boolean = true,
 ) : Health {
+  data class EventGroupOptions(
+    override val referenceIdSuffix: String,
+    override val syntheticDataSpec: SyntheticEventGroupSpec,
+    override val mediaTypes: Set<MediaType>,
+    override val metadata: EventGroupMetadata,
+  ) : EdpSimulator.EventGroupOptions
+
   private val loggingName = "${javaClass.simpleName} $displayName"
   private val backgroundScope =
     CoroutineScope(
@@ -83,8 +89,9 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
-    val populationSpec = syntheticPopulationSpec.toPopulationSpec()
-    val hmssVidIndexMap =
+    val populationSpec: PopulationSpec =
+      eventQuery.populationSpec.toPopulationSpecWithoutAttributes()
+    val vidIndexMap =
       if (honestMajorityShareShuffleSupported) {
         InMemoryVidIndexMap.build(populationSpec)
       } else {
@@ -93,31 +100,24 @@ class InProcessEdpSimulator(
 
     delegate =
       EdpSimulator(
-        edpData = createEdpData(displayName, resourceName),
+        edpData = createEdpData(displayName, resourceName, certificateKey),
+        edpDisplayName = displayName,
         measurementConsumerName = mcResourceName,
-        measurementConsumersStub =
-          MeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         certificatesStub =
           CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         dataProvidersStub =
           DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         eventGroupsStub =
           EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
-        eventGroupMetadataDescriptorsStub =
-          EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
-            .withPrincipalName(resourceName),
         requisitionsStub =
           RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         requisitionFulfillmentStubsByDuchyId =
           duchyPublicApiChannelMap.mapValues {
             RequisitionFulfillmentCoroutineStub(it.value).withPrincipalName(resourceName)
           },
-        eventQuery =
-          object :
-            SyntheticGeneratorEventQuery(syntheticPopulationSpec, TestEvent.getDescriptor()) {
-            override fun getSyntheticDataSpec(eventGroup: EventGroup) = syntheticDataSpec
-          },
+        syntheticDataTimeZone = eventQuery.timeZone,
+        eventGroupsOptions = listOf(eventGroupOptions),
+        eventQuery = eventQuery,
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         privacyBudgetManager =
           PrivacyBudgetManager(
@@ -127,8 +127,7 @@ class InProcessEdpSimulator(
             100.0f,
           ),
         trustedCertificates = trustedCertificates,
-        hmssVidIndexMap = hmssVidIndexMap,
-        knownEventGroupMetadataTypes = listOf(SyntheticEventGroupSpec.getDescriptor().file),
+        vidIndexMap = vidIndexMap,
         random = random,
       )
   }
@@ -146,23 +145,10 @@ class InProcessEdpSimulator(
 
   suspend fun stop() {
     edpJob.cancelAndJoin()
+    backgroundScope.cancel()
   }
 
-  suspend fun ensureEventGroup() = delegate.ensureEventGroup(EVENT_TEMPLATES, syntheticDataSpec)
-
-  /**
-   * Builds a [DataProviderData] object for the Edp with a certain [displayName] and [resourceName].
-   */
-  @Blocking
-  private fun createEdpData(displayName: String, resourceName: String) =
-    DataProviderData(
-      name = resourceName,
-      displayName = displayName,
-      certificateKey = certificateKey,
-      privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
-      signingKeyHandle =
-        loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
-    )
+  suspend fun ensureEventGroup() = delegate.ensureEventGroups().single()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
@@ -170,6 +156,22 @@ class InProcessEdpSimulator(
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
 
-    private val EVENT_TEMPLATES = EdpSimulator.buildEventTemplates(TestEvent.getDescriptor())
+    /**
+     * Builds a [DataProviderData] object for the Edp with a certain [displayName] and
+     * [resourceName].
+     */
+    @Blocking
+    private fun createEdpData(
+      displayName: String,
+      resourceName: String,
+      certificateKey: DataProviderCertificateKey,
+    ) =
+      DataProviderData(
+        name = resourceName,
+        certificateKey = certificateKey,
+        privateEncryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+        signingKeyHandle =
+          loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der"),
+      )
   }
 }

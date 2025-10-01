@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionDetailsKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
@@ -816,6 +817,58 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           )
         )
     }
+
+  @Test
+  fun `fulfillRequisition persists fulfillment context`() = runBlocking {
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService,
+        ),
+        "direct_measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+      )
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .first()
+    val fulfillmentContext = RequisitionDetailsKt.fulfillmentContext { buildLabel = "1.2.3" }
+
+    val fulfilledRequisition =
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisition.externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+            externalCertificateId = requisition.details.externalCertificateId
+            apiVersion = PUBLIC_API_VERSION
+          }
+          this.fulfillmentContext = fulfillmentContext
+        }
+      )
+
+    assertThat(fulfilledRequisition.details.fulfillmentContext).isEqualTo(fulfillmentContext)
+    assertThat(fulfilledRequisition)
+      .isEqualTo(
+        service.getRequisition(
+          getRequisitionRequest {
+            externalDataProviderId = fulfilledRequisition.externalDataProviderId
+            externalRequisitionId = fulfilledRequisition.externalRequisitionId
+          }
+        )
+      )
+  }
 
   @Test
   fun `fulfillRequisition throws ABORTED if etags mismatch`() = runBlocking {

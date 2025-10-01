@@ -29,10 +29,11 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
+import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
-import org.wfanet.measurement.reporting.deploy.v2.common.usingSpanner
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
 
@@ -87,7 +88,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
 
-      spannerFlags.usingSpanner { spanner ->
+      spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
         run(
           DataServices.create(

@@ -40,37 +40,23 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--edp-consent-signaling-cert-der-files"],
-    description =
-      ["The map from EDP display name to its consent signaling cert (DER format) file."],
-    required = true,
-  )
-  lateinit var edpCsCertDerFiles: Map<String, File>
-    private set
-
-  @CommandLine.Option(
-    names = ["--edp-consent-signaling-key-der-files"],
-    description =
-      ["The map from EDP display name to its consent signaling private key (DER format) file."],
-    required = true,
-  )
-  lateinit var edpCsKeyDerFiles: Map<String, File>
-    private set
-
-  @CommandLine.Option(
-    names = ["--edp-encryption-public-keysets"],
-    description = ["The map from EDP display name to its encryption public key Tink Keyset file."],
-    required = true,
-  )
-  lateinit var edpEncryptionPublicKeysets: Map<String, File>
-    private set
-
-  @CommandLine.Option(
     names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
     required = true,
   )
   lateinit var mcCsCertDerFile: File
+    private set
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*")
+  lateinit var dataProviderParams: List<DataProviderParams>
+    private set
+
+  @CommandLine.Option(
+    names = ["--model-provider-root-cert"],
+    description = ["Path to ModelProviders's root CA certificate"],
+    required = true,
+  )
+  lateinit var modelProviderRootCertFile: File
     private set
 
   @CommandLine.Option(
@@ -134,4 +120,38 @@ class ResourceSetupFlags {
   )
   var requiredDuchies: List<String> = emptyList()
     private set
+
+  class DataProviderParams {
+    @CommandLine.Option(
+      names = ["--data-provider-display-name"],
+      description = ["DataProvider's display name"],
+      required = true,
+    )
+    lateinit var displayName: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--data-provider-consent-signaling-cert"],
+      description = ["Path to DataProvider's consent signaling certificate in DER format"],
+      required = true,
+    )
+    lateinit var consentSignalingCertFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--data-provider-consent-signaling-key"],
+      description = ["Path to DataProvider's consent signaling private key in DER format"],
+      required = true,
+    )
+    lateinit var consentSignalingKeyFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--data-provider-encryption-public-key"],
+      description = ["Path to DataProvider's encryption public key in Tink Keyset format"],
+      required = true,
+    )
+    lateinit var encryptionPublicKeysetFile: File
+      private set
+  }
 }

@@ -1,0 +1,28 @@
+load("@rules_java//java:java_library.bzl", "java_library")
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
+
+package(default_visibility = ["//visibility:public"])
+
+MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-v2alpha:" + artifact_version()
+
+java_library(
+    name = "requisition",
+    tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    exports = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/shareshuffle",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
+    ],
+)
+
+maven_export(
+    name = "requisition_maven",
+    lib_name = "requisition",
+    maven_coordinates = MAVEN_COORDINATES,
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
+    visibility = ["//visibility:public"],
+)

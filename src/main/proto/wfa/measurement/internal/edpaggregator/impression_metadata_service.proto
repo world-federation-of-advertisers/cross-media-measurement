@@ -1,0 +1,137 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/impression_metadata.proto";
+import "wfa/measurement/internal/edpaggregator/impression_metadata_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+
+service ImpressionMetadataService {
+  // Creates a new ImpressionMetadata entry.
+  rpc CreateImpressionMetadata(CreateImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
+  // Creates multiple new ImpressionMetadata entries in a single request.
+  rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
+      returns (BatchCreateImpressionMetadataResponse);
+
+  // Retrieves a specific ImpressionMetadata entry.
+  rpc GetImpressionMetadata(GetImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
+  // Lists ImpressionMetadata entries, with optional filtering.
+  rpc ListImpressionMetadata(ListImpressionMetadataRequest)
+      returns (ListImpressionMetadataResponse);
+
+  // Marks an ImpressionMetadata entry as deleted.
+  rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
+  // Marks multiple ImpressionMetadata entries as deleted in a single request.
+  rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
+      returns (BatchDeleteImpressionMetadataResponse);
+
+  // Computes the time bounds for the given ModelLines.
+  rpc ComputeModelLineBounds(ComputeModelLineBoundsRequest)
+      returns (ComputeModelLineBoundsResponse) {}
+}
+
+message CreateImpressionMetadataRequest {
+  ImpressionMetadata impression_metadata = 1;
+  string request_id = 2;
+}
+
+message BatchCreateImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  // The request message specifying the ImpressionMetadata to create. All child
+  // requests must have their `external_data_provider_id` match the
+  // parent `external_data_provider_id`. A maximum of 50 ImpressionMetadata
+  // can be created in a batch.
+  repeated CreateImpressionMetadataRequest requests = 2;
+}
+
+message BatchCreateImpressionMetadataResponse {
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+message GetImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+}
+
+message ListImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+
+  // The maximum number of results to return.
+  //
+  // If unspecified, at most 50 results will be returned. The maximum value is
+  // 100; values above this will be coerced to the maximum value.
+  int32 page_size = 2;
+  ListImpressionMetadataPageToken page_token = 3;
+
+  message Filter {
+    string cmms_model_line = 1;
+    string event_group_reference_id = 2;
+    google.type.Interval interval_overlaps = 3;
+    ImpressionMetadataState state = 4;
+  }
+  Filter filter = 4;
+}
+
+message ListImpressionMetadataResponse {
+  repeated ImpressionMetadata impression_metadata = 1;
+  ListImpressionMetadataPageToken next_page_token = 2;
+}
+
+message ListImpressionMetadataPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string impression_metadata_resource_id = 2;
+  }
+  After after = 2;
+}
+
+message DeleteImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+}
+
+message BatchDeleteImpressionMetadataRequest {
+  // The request message specifying the ImpressionMetadata to permanently
+  // delete. A maximum of 1000 ImpressionMetadata can be deleted in a batch.
+  repeated DeleteImpressionMetadataRequest requests = 1;
+}
+
+message BatchDeleteImpressionMetadataResponse {
+  // The list of updated ImpressionMetadata, now marked as deleted.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+message ComputeModelLineBoundsRequest {
+  string data_provider_resource_id = 1;
+
+  repeated string cmms_model_line = 2;
+}
+
+message ComputeModelLineBoundsResponse {
+  // A map of the `cmms_model_line` to its bound of Interval.
+  map<string, google.type.Interval> model_line_bounds = 1;
+}

@@ -47,6 +47,8 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails,
         )
+      ComputationStage.StageCase.TRUS_TEE ->
+        TrusTeeProtocol.ComputationStages.Details.validateRoleForStage(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -63,6 +65,8 @@ object ComputationProtocolStageDetails :
           .afterTransitionForStage(stage)
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.afterTransitionForStage(stage)
+      ComputationStage.StageCase.TRUS_TEE ->
+        TrusTeeProtocol.ComputationStages.Details.afterTransitionForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -81,6 +85,11 @@ object ComputationProtocolStageDetails :
           .outputBlobNumbersForStage(stage, computationDetails)
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.outputBlobNumbersForStage(
+          stage,
+          computationDetails,
+        )
+      ComputationStage.StageCase.TRUS_TEE ->
+        TrusTeeProtocol.ComputationStages.Details.outputBlobNumbersForStage(
           stage,
           computationDetails,
         )
@@ -109,6 +118,8 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails,
         )
+      ComputationStage.StageCase.TRUS_TEE ->
+        TrusTeeProtocol.ComputationStages.Details.detailsFor(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -124,6 +135,7 @@ object ComputationProtocolStageDetails :
         )
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.parseDetails(bytes)
+      ComputationType.TRUS_TEE -> TrusTeeProtocol.ComputationStages.Details.parseDetails(bytes)
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
