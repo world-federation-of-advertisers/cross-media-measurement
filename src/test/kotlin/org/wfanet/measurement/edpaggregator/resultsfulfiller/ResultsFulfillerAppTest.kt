@@ -74,6 +74,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -144,6 +146,7 @@ class ResultsFulfillerAppTest {
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
   private val requisitionMetadataServiceMock = mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -167,6 +170,7 @@ class ResultsFulfillerAppTest {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionMetadataServiceMock)
+    addService(impressionMetadataServiceMock)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -177,6 +181,9 @@ class ResultsFulfillerAppTest {
   }
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub by lazy {
     RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -279,6 +286,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -404,6 +412,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -521,6 +530,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -614,6 +624,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -716,6 +727,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -826,6 +838,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),

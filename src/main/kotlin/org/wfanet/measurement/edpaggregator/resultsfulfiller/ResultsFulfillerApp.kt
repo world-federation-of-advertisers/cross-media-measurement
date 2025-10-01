@@ -145,7 +145,8 @@ class ResultsFulfillerApp(
 
     val impressionsMetadataService =
       StorageImpressionMetadataService(
-        impressionMetadataStub =
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = fulfillerParams.dataProvider,
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
       )
     val noiseSelector =
