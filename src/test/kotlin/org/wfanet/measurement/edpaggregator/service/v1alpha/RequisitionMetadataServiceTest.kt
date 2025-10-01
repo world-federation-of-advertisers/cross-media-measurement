@@ -273,27 +273,6 @@ class RequisitionMetadataServiceTest {
     }
 
   @Test
-  fun `lookupRequisitionMetadata by blobUri returns a RequisitionMetadata successfully`() =
-    runBlocking {
-      val existingRequisitionMetadata =
-        service.createRequisitionMetadata(
-          createRequisitionMetadataRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            requisitionMetadata = NEW_REQUISITION_METADATA
-            requestId = REQUEST_ID
-          }
-        )
-
-      val request = lookupRequisitionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        blobUri = BLOB_URI
-      }
-      val result = service.lookupRequisitionMetadata(request)
-
-      assertThat(result).isEqualTo(existingRequisitionMetadata)
-    }
-
-  @Test
   fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
     val request = lookupRequisitionMetadataRequest {
       // missing parent

@@ -114,7 +114,6 @@ class RequisitionMetadataService(
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.ETAG_MISMATCH,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -151,7 +150,6 @@ class RequisitionMetadataService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.ETAG_MISMATCH,
@@ -180,8 +178,6 @@ class RequisitionMetadataService(
       when (request.lookupKeyCase) {
         LookupRequisitionMetadataRequest.LookupKeyCase.CMMS_REQUISITION ->
           cmmsRequisition = request.cmmsRequisition
-
-        LookupRequisitionMetadataRequest.LookupKeyCase.BLOB_URI -> blobUri = request.blobUri
         LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
           throw InvalidFieldValueException("requisition_metadata.lookup_key")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -197,9 +193,6 @@ class RequisitionMetadataService(
                 parentKey.dataProviderId,
                 request.cmmsRequisition,
               )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI ->
-            RequisitionMetadataNotFoundByBlobUriException(parentKey.dataProviderId, request.blobUri)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -234,7 +227,6 @@ class RequisitionMetadataService(
       throw when (Errors.getReason(e)) {
         Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
         Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-        Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
         Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
         Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
         Errors.Reason.ETAG_MISMATCH,
@@ -281,7 +273,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -324,7 +315,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -367,7 +357,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -415,7 +404,6 @@ class RequisitionMetadataService(
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
           Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
           Errors.Reason.REQUIRED_FIELD_NOT_SET,
