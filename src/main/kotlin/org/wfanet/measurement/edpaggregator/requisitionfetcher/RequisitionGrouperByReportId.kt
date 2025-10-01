@@ -24,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
@@ -102,7 +103,6 @@ class RequisitionGrouperByReportId(
             .flatMap { it.eventGroupMapList }
             .groupBy { it.eventGroup }
             .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
-              val requisitionGroupId = UUID.randomUUID().toString()
               val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
               val collectionIntervals: List<Interval> =
                 eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }
@@ -195,7 +195,7 @@ class RequisitionGrouperByReportId(
   }
 
   companion object {
-    private const val GROUPED_REQUISITION_BLOB_TYPE_URL =
-      "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.GroupedRequisitions"
+    private val GROUPED_REQUISITION_BLOB_TYPE_URL =
+      ProtoReflection.getTypeUrl(GroupedRequisitions.getDescriptor())
   }
 }
