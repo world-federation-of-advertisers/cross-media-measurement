@@ -56,7 +56,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#Llv2MillMaxHeapSize:          "1G"
+#Llv2MillMaxHeapSize:          "1.5G"
 #Llv2MillMaxConcurrency:       10
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
