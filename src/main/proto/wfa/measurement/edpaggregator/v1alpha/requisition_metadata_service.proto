@@ -177,8 +177,6 @@ message LookupRequisitionMetadataRequest {
       (google.api.resource_reference) = { type: "halo.wfanet.org/Requisition" }
     ];
 
-    // The blob storage URI.
-    string blob_uri = 3;
   }
 }
 
