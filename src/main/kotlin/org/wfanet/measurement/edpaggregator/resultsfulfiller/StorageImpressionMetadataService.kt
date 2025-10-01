@@ -66,12 +66,11 @@ class StorageImpressionMetadataService(
     eventGroupReferenceId: String,
     period: Interval,
   ): List<ImpressionDataSource> {
-println("==================== listImpressionDataSources 1")
+
     val impressionMetadata: Flow<ImpressionMetadata> = resolvePath(modelLine, eventGroupReferenceId, period)
-    println("==================== listImpressionDataSources 2")
+
     return impressionMetadata
       .map { metadata ->
-        println("==================== listImpressionDataSources 3: ${metadata}")
         val blobDetails = readBlobDetails(metadata.blobUri)
 
         ImpressionDataSource(
@@ -93,6 +92,7 @@ println("==================== listImpressionDataSources 1")
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   fun resolvePath(reportModelLine: String, egReferenceId: String, period: Interval): Flow<ImpressionMetadata> {
+
     return impressionMetadataStub
       .listResources { pageToken: String ->
         val response =
@@ -127,9 +127,7 @@ println("==================== listImpressionDataSources 1")
    *   metadata contents.
    */
   private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
-    println("========== read blob details 1: ${metadataPath}")
     val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
-    println("========== read blob details 2")
     val storageClient =
       SelectedStorageClient(
         storageClientUri,
@@ -137,7 +135,6 @@ println("==================== listImpressionDataSources 1")
         impressionsMetadataStorageConfig.projectId,
       )
     logger.info("Reading impression metadata from $metadataPath")
-    println("========== read blob details 3: ${storageClientUri.key}")
     val blob =
       storageClient.getBlob(storageClientUri.key)
         ?: throw ImpressionReadException(
@@ -145,7 +142,6 @@ println("==================== listImpressionDataSources 1")
           ImpressionReadException.Code.BLOB_NOT_FOUND,
           "BlobDetails metadata not found",
         )
-    println("========== read blob details 4")
     return BlobDetails.parseFrom(blob.read().flatten())
   }
 
