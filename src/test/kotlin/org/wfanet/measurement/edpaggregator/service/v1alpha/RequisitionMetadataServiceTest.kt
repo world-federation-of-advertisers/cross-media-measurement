@@ -96,607 +96,188 @@ class RequisitionMetadataServiceTest {
       RequisitionMetadataService(InternalRequisitionMetadataServiceStub(grpcTestServerRule.channel))
   }
 
-//  @Test
-//  fun `createRequisitionMetadata with requestId returns a RequisitionMetadata successfully`() =
-//    runBlocking {
-//      val startTime = Instant.now()
-//      val request = createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata = NEW_REQUISITION_METADATA
-//        requestId = REQUEST_ID
-//      }
-//
-//      val requisitionMetadata = service.createRequisitionMetadata(request)
-//
-//      assertThat(requisitionMetadata)
-//        .comparingExpectedFieldsOnly()
-//        .isEqualTo(
-//          requisitionMetadata {
-//            state = RequisitionMetadata.State.STORED
-//            cmmsCreateTime = CMMS_CREATE_TIME
-//            cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-//            blobUri = BLOB_URI
-//            blobTypeUrl = BLOB_TYPE
-//            groupId = GROUP_ID
-//            report = REPORT_KEY.toName()
-//          }
-//        )
-//      val requisitionMetadataKey =
-//        assertNotNull(RequisitionMetadataKey.fromName(requisitionMetadata.name))
-//      assertThat(requisitionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
-//      assertThat(requisitionMetadataKey.requisitionMetadataId).isNotEmpty()
-//      assertThat(requisitionMetadata.createTime.toInstant()).isGreaterThan(startTime)
-//      assertThat(requisitionMetadata.updateTime).isEqualTo(requisitionMetadata.createTime)
-//      assertThat(requisitionMetadata.etag).isNotEmpty()
-//    }
-//
-//  @Test
-//  fun `createRequisitionMetadata without requestId returns a RequisitionMetadata successfully`() =
-//    runBlocking {
-//      val startTime = Instant.now()
-//      val request = createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata = NEW_REQUISITION_METADATA
-//        // no request_id
-//      }
-//
-//      val requisitionMetadata = service.createRequisitionMetadata(request)
-//
-//      assertThat(requisitionMetadata)
-//        .comparingExpectedFieldsOnly()
-//        .isEqualTo(
-//          requisitionMetadata {
-//            state = RequisitionMetadata.State.STORED
-//            cmmsCreateTime = CMMS_CREATE_TIME
-//            cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-//            blobUri = BLOB_URI
-//            blobTypeUrl = BLOB_TYPE
-//            groupId = GROUP_ID
-//            report = REPORT_KEY.toName()
-//          }
-//        )
-//      val requisitionMetadataKey =
-//        assertNotNull(RequisitionMetadataKey.fromName(requisitionMetadata.name))
-//      assertThat(requisitionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
-//      assertThat(requisitionMetadataKey.requisitionMetadataId).isNotEmpty()
-//      assertThat(requisitionMetadata.createTime.toInstant()).isGreaterThan(startTime)
-//      assertThat(requisitionMetadata.updateTime).isEqualTo(requisitionMetadata.createTime)
-//      assertThat(requisitionMetadata.etag).isNotEmpty()
-//    }
-//
-//  @Test
-//  fun `createRequisitionMetadata with existing requestId returns the existing RequisitionMetadata`() =
-//    runBlocking {
-//      val request = createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata = NEW_REQUISITION_METADATA
-//        requestId = REQUEST_ID
-//      }
-//      val existingRequisitionMetadata = service.createRequisitionMetadata(request)
-//
-//      val requisitionMetadata = service.createRequisitionMetadata(request)
-//
-//      assertThat(requisitionMetadata).isEqualTo(existingRequisitionMetadata)
-//    }
-//
-//  @Test
-//  fun `createRequisitionMetadata throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
-//    val request = createRequisitionMetadataRequest {
-//      // missing parent
-//      requisitionMetadata = NEW_REQUISITION_METADATA
-//      requestId = REQUEST_ID
-//    }
-//
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid cmms_requisition`() =
-//    runBlocking {
-//      val request = createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata = NEW_REQUISITION_METADATA.copy { cmmsRequisition = "foo" }
-//        requestId = REQUEST_ID
-//      }
-//
-//      val exception =
-//        assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
-//      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//    }
-//
-//  @Test
-//  fun `createRequisitionMetadata throws INVALID_ARGUMENT for mismatched cmms_requisition parent`() =
-//    runBlocking {
-//      val request = createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata =
-//          NEW_REQUISITION_METADATA.copy {
-//            cmmsRequisition = CanonicalRequisitionKey("other-data-provider", "123").toName()
-//          }
-//        requestId = REQUEST_ID
-//      }
-//
-//      val exception =
-//        assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
-//      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//    }
-//
-//  @Test
-//  fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid report`() = runBlocking {
-//    val request = createRequisitionMetadataRequest {
-//      parent = DATA_PROVIDER_KEY.toName()
-//      requisitionMetadata = NEW_REQUISITION_METADATA.copy { report = "foo" }
-//      requestId = REQUEST_ID
-//    }
-//
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `getRequisitionMetadata returns a RequisitionMetadata successfully`() = runBlocking {
-//    val existingRequisitionMetadata =
-//      service.createRequisitionMetadata(
-//        createRequisitionMetadataRequest {
-//          parent = DATA_PROVIDER_KEY.toName()
-//          requisitionMetadata = NEW_REQUISITION_METADATA
-//          requestId = REQUEST_ID
-//        }
-//      )
-//
-//    val request = getRequisitionMetadataRequest { name = existingRequisitionMetadata.name }
-//    val requisitionMetadata = service.getRequisitionMetadata(request)
-//
-//    assertThat(requisitionMetadata).isEqualTo(existingRequisitionMetadata)
-//  }
-//
-//  @Test
-//  fun `getRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-//    val request = getRequisitionMetadataRequest { name = "foo" }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.getRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `lookupRequisitionMetadata by cmmsRequisition returns a RequisitionMetadata successfully`() =
-//    runBlocking {
-//      val existingRequisitionMetadata =
-//        service.createRequisitionMetadata(
-//          createRequisitionMetadataRequest {
-//            parent = DATA_PROVIDER_KEY.toName()
-//            requisitionMetadata = NEW_REQUISITION_METADATA
-//            requestId = REQUEST_ID
-//          }
-//        )
-//
-//      val request = lookupRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-//      }
-//      val result = service.lookupRequisitionMetadata(request)
-//
-//      assertThat(result).isEqualTo(existingRequisitionMetadata)
-//    }
-//
-//  @Test
-//  fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
-//    val request = lookupRequisitionMetadataRequest {
-//      // missing parent
-//      cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.lookupRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing lookup key`() = runBlocking {
-//    val request = lookupRequisitionMetadataRequest {
-//      parent = DATA_PROVIDER_KEY.toName()
-//      // missing lookup key
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.lookupRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `fetchLatestCmmsCreateTime returns default Timestamp when no requisition metadata`() =
-//    runBlocking {
-//      // No requisition metadata created
-//
-//      val request = fetchLatestCmmsCreateTimeRequest { parent = DATA_PROVIDER_KEY.toName() }
-//      val result = service.fetchLatestCmmsCreateTime(request)
-//
-//      assertThat(result).isEqualTo(Timestamp.getDefaultInstance())
-//    }
-//
-//  @Test
-//  fun `fetchLatestCmmsCreateTime returns latest Timestamp successfully`() = runBlocking {
-//    val earlyTimestamp = timestamp { seconds = 1 }
-//    val lateTimestamp = timestamp { seconds = 2 }
-//
-//    service.createRequisitionMetadata(
-//      createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata = NEW_REQUISITION_METADATA.copy { cmmsCreateTime = earlyTimestamp }
-//      }
-//    )
-//    service.createRequisitionMetadata(
-//      createRequisitionMetadataRequest {
-//        parent = DATA_PROVIDER_KEY.toName()
-//        requisitionMetadata =
-//          NEW_REQUISITION_METADATA.copy {
-//            cmmsCreateTime = lateTimestamp
-//            cmmsRequisition = CMMS_REQUISITION_KEY.toName() + "second"
-//            blobUri = BLOB_URI + "second"
-//          }
-//      }
-//    )
-//
-//    val request = fetchLatestCmmsCreateTimeRequest { parent = DATA_PROVIDER_KEY.toName() }
-//    val result = service.fetchLatestCmmsCreateTime(request)
-//    assertThat(result).isEqualTo(lateTimestamp)
-//  }
-//
-//  @Test
-//  fun `fetchLatestCmmsCreateTime throws INVALID_ARGUMENT for missing parent`() = runBlocking {
-//    val request = fetchLatestCmmsCreateTimeRequest {
-//      // missing parent
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.fetchLatestCmmsCreateTime(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `queueRequisitionMetadata updates state successfully`() = runBlocking {
-//    val existingRequisitionMetadata =
-//      service.createRequisitionMetadata(
-//        createRequisitionMetadataRequest {
-//          parent = DATA_PROVIDER_KEY.toName()
-//          requisitionMetadata = NEW_REQUISITION_METADATA
-//          requestId = REQUEST_ID
-//        }
-//      )
-//
-//    val request = queueRequisitionMetadataRequest {
-//      name = existingRequisitionMetadata.name
-//      etag = existingRequisitionMetadata.etag
-//      workItem = WORK_ITEM
-//    }
-//    val requisitionMetadata = service.queueRequisitionMetadata(request)
-//
-//    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.QUEUED)
-//    assertThat(requisitionMetadata.workItem).isEqualTo(WORK_ITEM)
-//    assertThat(requisitionMetadata.updateTime.toInstant())
-//      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
-//    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
-//  }
-//
-//  @Test
-//  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-//    val request = queueRequisitionMetadataRequest {
-//      name = "foo"
-//      etag = ETAG_1
-//      workItem = WORK_ITEM
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid work_item`() = runBlocking {
-//    val request = queueRequisitionMetadataRequest {
-//      name = REQUISITION_METADATA_KEY.toName()
-//      etag = ETAG_1
-//      workItem = "foo"
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
-//    val request = queueRequisitionMetadataRequest {
-//      name = REQUISITION_METADATA_KEY.toName()
-//      // etag is missing
-//      workItem = WORK_ITEM
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `startProcessingRequisitionMetadata updates state successfully`() = runBlocking {
-//    val existingRequisitionMetadata =
-//      service.createRequisitionMetadata(
-//        createRequisitionMetadataRequest {
-//          parent = DATA_PROVIDER_KEY.toName()
-//          requisitionMetadata = NEW_REQUISITION_METADATA
-//          requestId = REQUEST_ID
-//        }
-//      )
-//
-//    val request = startProcessingRequisitionMetadataRequest {
-//      name = existingRequisitionMetadata.name
-//      etag = existingRequisitionMetadata.etag
-//    }
-//    val requisitionMetadata = service.startProcessingRequisitionMetadata(request)
-//
-//    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.PROCESSING)
-//    assertThat(requisitionMetadata.updateTime.toInstant())
-//      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
-//    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
-//  }
-//
-//  @Test
-//  fun `startProcessingRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() =
-//    runBlocking {
-//      val request = startProcessingRequisitionMetadataRequest { name = "foo" }
-//      val exception =
-//        assertFailsWith<StatusRuntimeException> {
-//          service.startProcessingRequisitionMetadata(request)
-//        }
-//      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//    }
-//
-//  @Test
-//  fun `startProcessingRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() =
-//    runBlocking {
-//      val request = startProcessingRequisitionMetadataRequest {
-//        name = REQUISITION_METADATA_KEY.toName()
-//        // etag is missing
-//      }
-//      val exception =
-//        assertFailsWith<StatusRuntimeException> {
-//          service.startProcessingRequisitionMetadata(request)
-//        }
-//      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//    }
-//
-//  @Test
-//  fun `fulfillRequisitionMetadata updates state successfully`() = runBlocking {
-//    val existingRequisitionMetadata =
-//      service.createRequisitionMetadata(
-//        createRequisitionMetadataRequest {
-//          parent = DATA_PROVIDER_KEY.toName()
-//          requisitionMetadata = NEW_REQUISITION_METADATA
-//          requestId = REQUEST_ID
-//        }
-//      )
-//
-//    val request = fulfillRequisitionMetadataRequest {
-//      name = existingRequisitionMetadata.name
-//      etag = existingRequisitionMetadata.etag
-//    }
-//    val requisitionMetadata = service.fulfillRequisitionMetadata(request)
-//
-//    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.FULFILLED)
-//    assertThat(requisitionMetadata.updateTime.toInstant())
-//      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
-//    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
-//  }
-//
-//  @Test
-//  fun `fulfillRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-//    val request = fulfillRequisitionMetadataRequest { name = "foo" }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.fulfillRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `fulfillRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
-//    val request = fulfillRequisitionMetadataRequest {
-//      name = REQUISITION_METADATA_KEY.toName()
-//      // etag is missing
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.fulfillRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `refuseRequisitionMetadata updates state successfully`() = runBlocking {
-//    val existingRequisitionMetadata =
-//      service.createRequisitionMetadata(
-//        createRequisitionMetadataRequest {
-//          parent = DATA_PROVIDER_KEY.toName()
-//          requisitionMetadata = NEW_REQUISITION_METADATA
-//          requestId = REQUEST_ID
-//        }
-//      )
-//
-//    val request = refuseRequisitionMetadataRequest {
-//      name = existingRequisitionMetadata.name
-//      etag = existingRequisitionMetadata.etag
-//      refusalMessage = REFUSAL_MESSAGE
-//    }
-//    val requisitionMetadata = service.refuseRequisitionMetadata(request)
-//
-//    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.REFUSED)
-//    assertThat(requisitionMetadata.refusalMessage).isEqualTo(REFUSAL_MESSAGE)
-//    assertThat(requisitionMetadata.updateTime.toInstant())
-//      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
-//    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
-//  }
-//
-//  @Test
-//  fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
-//    val request = refuseRequisitionMetadataRequest {
-//      name = "foo"
-//      etag = ETAG_1
-//      refusalMessage = REFUSAL_MESSAGE
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
-//    val request = refuseRequisitionMetadataRequest {
-//      name = REQUISITION_METADATA_KEY.toName()
-//      // missing etag
-//      refusalMessage = REFUSAL_MESSAGE
-//    }
-//    val exception =
-//      assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
-//    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//  }
-//
-//  @Test
-//  fun `refuseRequisitionMetadata throws INVALID_ARGUMENT for missing refusalMessage`() =
-//    runBlocking {
-//      val request = refuseRequisitionMetadataRequest {
-//        name = REQUISITION_METADATA_KEY.toName()
-//        etag = ETAG_1
-//        // missing refusalMessage
-//      }
-//      val exception =
-//        assertFailsWith<StatusRuntimeException> { service.refuseRequisitionMetadata(request) }
-//      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-//    }
-
   @Test
-  fun `listRequisitionMetadata returns RequisitionMetadata`() = runBlocking {
-    val created = createRequisitionMetadata(REQUISITION_METADATA)
-
-    val response =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
-      )
-
-    assertThat(response).isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
-  }
-
-  @Test
-  fun `listRequisitionMetadata with page size returns RequisitionMetadata`() = runBlocking {
-    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_2)
-    val sortedCreated = created.sortedBy { it.name }
-
-    val internalPageToken = internalListRequisitionMetadataPageToken {
-      after =
-        InternalListRequisitionMetadataPageTokenKt.after {
-          requisitionMetadataResourceId =
-            RequisitionMetadataKey.fromName(sortedCreated[0].name)!!.requisitionMetadataId
-        }
-    }
-
-    val response =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest {
-          parent = DATA_PROVIDER_KEY.toName()
-          pageSize = 1
-        }
-      )
-
-    assertThat(response)
-      .isEqualTo(
-        listRequisitionMetadataResponse {
-          requisitionMetadata += sortedCreated[0]
-          nextPageToken = internalPageToken.toByteString().base64UrlEncode()
-        }
-      )
-  }
-
-  @Test
-  fun `listRequisitionMetadata with page token returns RequisitionMetadata`() = runBlocking {
-    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_2)
-    val sortedCreated = created.sortedBy { it.name }
-
-    val firstResponse =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest {
-          parent = DATA_PROVIDER_KEY.toName()
-          pageSize = 1
-        }
-      )
-
-    val secondResponse =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest {
-          parent = DATA_PROVIDER_KEY.toName()
-          pageSize = 1
-          pageToken = firstResponse.nextPageToken
-        }
-      )
-
-    assertThat(secondResponse)
-      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += sortedCreated[1] })
-  }
-
-  @Test
-  fun `listRequisitionMetadata with GroupId filter returns RequisitionMetadata`() = runBlocking {
-    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_3)
-
-    val response =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest {
-          parent = DATA_PROVIDER_KEY.toName()
-          filter = ListRequisitionMetadataRequestKt.filter { groupId = created[0].groupId }
-        }
-      )
-
-    assertThat(response)
-      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created[0] })
-  }
-
-  @Test
-  fun `listRequisitionMetadata throws INVALID_ARGUMENT when parent is not set`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRequisitionMetadata(ListRequisitionMetadataRequest.getDefaultInstance())
+  fun `createRequisitionMetadata with requestId returns a RequisitionMetadata successfully`() =
+    runBlocking {
+      val startTime = Instant.now()
+      val request = createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata = NEW_REQUISITION_METADATA
+        requestId = REQUEST_ID
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-        }
-      )
-  }
+      val requisitionMetadata = service.createRequisitionMetadata(request)
 
-  @Test
-  fun `listRequisitionMetadata throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRequisitionMetadata(listRequisitionMetadataRequest { parent = "invalid-parent" })
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-        }
-      )
-  }
-
-  @Test
-  fun `listRequisitionMetadata throws INVALID_ARGUMENT when page size is invalid`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.listRequisitionMetadata(
-          listRequisitionMetadataRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            pageSize = -1
+      assertThat(requisitionMetadata)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = CMMS_CREATE_TIME
+            cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+            blobUri = BLOB_URI
+            blobTypeUrl = BLOB_TYPE
+            groupId = GROUP_ID
+            report = REPORT_KEY.toName()
           }
         )
+      val requisitionMetadataKey =
+        assertNotNull(RequisitionMetadataKey.fromName(requisitionMetadata.name))
+      assertThat(requisitionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
+      assertThat(requisitionMetadataKey.requisitionMetadataId).isNotEmpty()
+      assertThat(requisitionMetadata.createTime.toInstant()).isGreaterThan(startTime)
+      assertThat(requisitionMetadata.updateTime).isEqualTo(requisitionMetadata.createTime)
+      assertThat(requisitionMetadata.etag).isNotEmpty()
+    }
+
+  @Test
+  fun `createRequisitionMetadata without requestId returns a RequisitionMetadata successfully`() =
+    runBlocking {
+      val startTime = Instant.now()
+      val request = createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata = NEW_REQUISITION_METADATA
+        // no request_id
       }
+
+      val requisitionMetadata = service.createRequisitionMetadata(request)
+
+      assertThat(requisitionMetadata)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = CMMS_CREATE_TIME
+            cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+            blobUri = BLOB_URI
+            blobTypeUrl = BLOB_TYPE
+            groupId = GROUP_ID
+            report = REPORT_KEY.toName()
+          }
+        )
+      val requisitionMetadataKey =
+        assertNotNull(RequisitionMetadataKey.fromName(requisitionMetadata.name))
+      assertThat(requisitionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
+      assertThat(requisitionMetadataKey.requisitionMetadataId).isNotEmpty()
+      assertThat(requisitionMetadata.createTime.toInstant()).isGreaterThan(startTime)
+      assertThat(requisitionMetadata.updateTime).isEqualTo(requisitionMetadata.createTime)
+      assertThat(requisitionMetadata.etag).isNotEmpty()
+    }
+
+  @Test
+  fun `createRequisitionMetadata with existing requestId returns the existing RequisitionMetadata`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata = NEW_REQUISITION_METADATA
+        requestId = REQUEST_ID
+      }
+      val existingRequisitionMetadata = service.createRequisitionMetadata(request)
+
+      val requisitionMetadata = service.createRequisitionMetadata(request)
+
+      assertThat(requisitionMetadata).isEqualTo(existingRequisitionMetadata)
+    }
+
+  @Test
+  fun `createRequisitionMetadata throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
+    val request = createRequisitionMetadataRequest {
+      // missing parent
+      requisitionMetadata = NEW_REQUISITION_METADATA
+      requestId = REQUEST_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid cmms_requisition`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata = NEW_REQUISITION_METADATA.copy { cmmsRequisition = "foo" }
+        requestId = REQUEST_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createRequisitionMetadata throws INVALID_ARGUMENT for mismatched cmms_requisition parent`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata =
+          NEW_REQUISITION_METADATA.copy {
+            cmmsRequisition = CanonicalRequisitionKey("other-data-provider", "123").toName()
+          }
+        requestId = REQUEST_ID
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid report`() = runBlocking {
+    val request = createRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      requisitionMetadata = NEW_REQUISITION_METADATA.copy { report = "foo" }
+      requestId = REQUEST_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `getRequisitionMetadata returns a RequisitionMetadata successfully`() = runBlocking {
+    val existingRequisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val request = getRequisitionMetadataRequest { name = existingRequisitionMetadata.name }
+    val requisitionMetadata = service.getRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata).isEqualTo(existingRequisitionMetadata)
+  }
+
+  @Test
+  fun `getRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
+    val request = getRequisitionMetadataRequest { name = "foo" }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.getRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `lookupRequisitionMetadata by cmmsRequisition returns a RequisitionMetadata successfully`() =
+    runBlocking {
+      val existingRequisitionMetadata =
+        service.createRequisitionMetadata(
+          createRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            requisitionMetadata = NEW_REQUISITION_METADATA
+            requestId = REQUEST_ID
+          }
+        )
+
+      val request = lookupRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        cmmsRequisition = CMMS_REQUISITION_KEY.toName()
+      }
+      val result = service.lookupRequisitionMetadata(request)
 
       assertThat(result).isEqualTo(existingRequisitionMetadata)
     }
@@ -710,52 +291,198 @@ class RequisitionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.lookupRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
-        }
-      )
   }
 
   @Test
-  fun `listRequisitionMetadata throws INVALID_ARGUMENT when page token is malformed`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.listRequisitionMetadata(
-            listRequisitionMetadataRequest {
-              parent = DATA_PROVIDER_KEY.toName()
-              pageToken = "this-is-not-base64-or-a-proto"
-            }
-          )
-        }
+  fun `lookupRequisitionMetadata throws INVALID_ARGUMENT for missing lookup key`() = runBlocking {
+    val request = lookupRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      // missing lookup key
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.lookupRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
-          }
-        )
+  @Test
+  fun `fetchLatestCmmsCreateTime returns default Timestamp when no requisition metadata`() =
+    runBlocking {
+      // No requisition metadata created
+
+      val request = fetchLatestCmmsCreateTimeRequest { parent = DATA_PROVIDER_KEY.toName() }
+      val result = service.fetchLatestCmmsCreateTime(request)
+
+      assertThat(result).isEqualTo(Timestamp.getDefaultInstance())
     }
 
-  private suspend fun createRequisitionMetadata(
-    vararg requisitionMetadata: RequisitionMetadata
-  ): List<RequisitionMetadata> {
-    return requisitionMetadata.map { metadata ->
+  @Test
+  fun `fetchLatestCmmsCreateTime returns latest Timestamp successfully`() = runBlocking {
+    val earlyTimestamp = timestamp { seconds = 1 }
+    val lateTimestamp = timestamp { seconds = 2 }
+
+    service.createRequisitionMetadata(
+      createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata = NEW_REQUISITION_METADATA.copy { cmmsCreateTime = earlyTimestamp }
+      }
+    )
+    service.createRequisitionMetadata(
+      createRequisitionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        requisitionMetadata =
+          NEW_REQUISITION_METADATA.copy {
+            cmmsCreateTime = lateTimestamp
+            cmmsRequisition = CMMS_REQUISITION_KEY.toName() + "second"
+            blobUri = BLOB_URI + "second"
+          }
+      }
+    )
+
+    val request = fetchLatestCmmsCreateTimeRequest { parent = DATA_PROVIDER_KEY.toName() }
+    val result = service.fetchLatestCmmsCreateTime(request)
+    assertThat(result).isEqualTo(lateTimestamp)
+  }
+
+  @Test
+  fun `fetchLatestCmmsCreateTime throws INVALID_ARGUMENT for missing parent`() = runBlocking {
+    val request = fetchLatestCmmsCreateTimeRequest {
+      // missing parent
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.fetchLatestCmmsCreateTime(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `queueRequisitionMetadata updates state successfully`() = runBlocking {
+    val existingRequisitionMetadata =
       service.createRequisitionMetadata(
         createRequisitionMetadataRequest {
           parent = DATA_PROVIDER_KEY.toName()
-          this.requisitionMetadata = metadata
-          requestId = UUID.randomUUID().toString()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
         }
       )
+
+    val request = queueRequisitionMetadataRequest {
+      name = existingRequisitionMetadata.name
+      etag = existingRequisitionMetadata.etag
+      workItem = WORK_ITEM
     }
+    val requisitionMetadata = service.queueRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.QUEUED)
+    assertThat(requisitionMetadata.workItem).isEqualTo(WORK_ITEM)
+    assertThat(requisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
+  }
+
+  @Test
+  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() = runBlocking {
+    val request = queueRequisitionMetadataRequest {
+      name = "foo"
+      etag = ETAG_1
+      workItem = WORK_ITEM
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for invalid work_item`() = runBlocking {
+    val request = queueRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      etag = ETAG_1
+      workItem = "foo"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `queueRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() = runBlocking {
+    val request = queueRequisitionMetadataRequest {
+      name = REQUISITION_METADATA_KEY.toName()
+      // etag is missing
+      workItem = WORK_ITEM
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.queueRequisitionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `startProcessingRequisitionMetadata updates state successfully`() = runBlocking {
+    val existingRequisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val request = startProcessingRequisitionMetadataRequest {
+      name = existingRequisitionMetadata.name
+      etag = existingRequisitionMetadata.etag
+    }
+    val requisitionMetadata = service.startProcessingRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.PROCESSING)
+    assertThat(requisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
+  }
+
+  @Test
+  fun `startProcessingRequisitionMetadata throws INVALID_ARGUMENT for invalid name`() =
+    runBlocking {
+      val request = startProcessingRequisitionMetadataRequest { name = "foo" }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.startProcessingRequisitionMetadata(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `startProcessingRequisitionMetadata throws INVALID_ARGUMENT for missing etag`() =
+    runBlocking {
+      val request = startProcessingRequisitionMetadataRequest {
+        name = REQUISITION_METADATA_KEY.toName()
+        // etag is missing
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.startProcessingRequisitionMetadata(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `fulfillRequisitionMetadata updates state successfully`() = runBlocking {
+    val existingRequisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val request = fulfillRequisitionMetadataRequest {
+      name = existingRequisitionMetadata.name
+      etag = existingRequisitionMetadata.etag
+    }
+    val requisitionMetadata = service.fulfillRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.FULFILLED)
+    assertThat(requisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
   }
 
   @Test

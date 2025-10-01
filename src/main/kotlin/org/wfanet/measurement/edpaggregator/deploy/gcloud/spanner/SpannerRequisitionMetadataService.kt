@@ -345,6 +345,7 @@ class SpannerRequisitionMetadataService(
       else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
+
     databaseClient.singleUse().use { txn ->
       val rows: Flow<RequisitionMetadata> =
         txn
@@ -362,6 +363,7 @@ class SpannerRequisitionMetadataService(
             val lastIncluded = this.requisitionMetadata.last()
             nextPageToken = listRequisitionMetadataPageToken {
               this.after = ListRequisitionMetadataPageTokenKt.after {
+                updateTime = lastIncluded.updateTime
                 requisitionMetadataResourceId = lastIncluded.requisitionMetadataResourceId
               }
             }
