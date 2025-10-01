@@ -266,9 +266,7 @@ class BasicReportsService(
       reportId = "a${UUID.randomUUID()}"
     }
 
-    reportsStub
-      .withForwardedTrustedCredentials()
-      .createReport(createReportRequest)
+    reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
 
     internalBasicReportsStub.setExternalReportId(
       setExternalReportIdRequest {

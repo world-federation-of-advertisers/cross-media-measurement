@@ -2171,7 +2171,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             parent = measurementConsumerData.name
             basicReportId = basicReportKey.basicReportId
             this.basicReport = basicReport
-          })
+          }
+        )
 
     val retrievedPublicBasicReport =
       publicBasicReportsClient
@@ -2180,10 +2181,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(retrievedPublicBasicReport)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport.copy {
-      name = basicReportKey.toName()
-      state = BasicReport.State.RUNNING
-    })
+      .isEqualTo(
+        basicReport.copy {
+          name = basicReportKey.toName()
+          state = BasicReport.State.RUNNING
+        }
+      )
     assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
