@@ -18,25 +18,24 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import com.google.protobuf.Timestamp
-import kotlinx.coroutines.flow.filter
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
@@ -96,11 +95,13 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    // Filter requisitions excluding those that have not been written into RequisitionMetadataStorage yet.
+    // Filter requisitions excluding those that have not been written into
+    // RequisitionMetadataStorage yet.
     val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
       parent = dataProviderName
     }
-    val latestCmmsCreateTime = requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
+    val latestCmmsCreateTime =
+      requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
     val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
     val groupedRequisition: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(latestRequisitions)
@@ -138,9 +139,7 @@ class RequisitionFetcher(
   }
 
   fun Flow<Requisition>.filterNewerThan(reference: Timestamp): Flow<Requisition> =
-    this.filter { requisition ->
-      requisition.updateTime.isAfter(reference)
-    }
+    this.filter { requisition -> requisition.updateTime.isAfter(reference) }
 
   fun Timestamp.isAfter(other: Timestamp): Boolean {
     return when {
