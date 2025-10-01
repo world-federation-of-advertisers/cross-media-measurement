@@ -112,7 +112,10 @@ class DataWatcher(
         .listResources { pageToken: String ->
           val request = listRequisitionMetadataRequest {
             parent = config.dataProvider
-            filter = ListRequisitionMetadataRequestKt.filter { groupId = requisitionsGroupId }
+            filter = ListRequisitionMetadataRequestKt.filter {
+              state = RequisitionMetadata.State.STORED
+              groupId = requisitionsGroupId
+            }
             if (responsePageSize != null) {
               pageSize = responsePageSize
             }
