@@ -22,6 +22,8 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -31,8 +33,8 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RequisitionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.fetchLatestCmmsCreateTime
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCmmsRequisition
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRequisitionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRequisitionMetadataByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRequisitionMetadata
@@ -43,18 +45,23 @@ import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchExcepti
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsException
-import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import kotlinx.coroutines.flow.collectIndexed
 import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.FetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.FulfillRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.LookupRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.StartProcessingRequisitionMetadataRequest
@@ -87,6 +94,7 @@ class SpannerRequisitionMetadataService(
     val requisitionMetadata: RequisitionMetadata =
       try {
         transactionRunner.run { txn ->
+
           if (request.requestId.isNotEmpty()) {
             try {
               UUID.fromString(request.requestId)
@@ -94,6 +102,7 @@ class SpannerRequisitionMetadataService(
               throw InvalidFieldValueException("request_id", e)
                 .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
             }
+
             val existing: RequisitionMetadataResult? =
               txn.getRequisitionMetadataByCreateRequestId(
                 request.requisitionMetadata.dataProviderResourceId,
@@ -121,6 +130,7 @@ class SpannerRequisitionMetadataService(
             request.requisitionMetadata,
             request.requestId,
           )
+
           txn.insertRequisitionMetadataAction(
             request.requisitionMetadata.dataProviderResourceId,
             requisitionMetadataId,
@@ -128,6 +138,7 @@ class SpannerRequisitionMetadataService(
             State.REQUISITION_METADATA_STATE_UNSPECIFIED,
             initialState,
           )
+
           request.requisitionMetadata.copy {
             state = initialState
             this.requisitionMetadataResourceId = requisitionMetadataResourceId
@@ -225,16 +236,12 @@ class SpannerRequisitionMetadataService(
               request.dataProviderResourceId,
               request.cmmsRequisition,
             )
-          LookupRequisitionMetadataRequest.LookupKeyCase.BLOB_URI ->
-            txn.getRequisitionMetadataByBlobUri(request.dataProviderResourceId, request.blobUri)
           LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
             throw RequiredFieldNotSetException("lookup_key")
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }.requisitionMetadata
       }
     } catch (e: RequisitionMetadataNotFoundByCmmsRequisitionException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-    } catch (e: RequisitionMetadataNotFoundByBlobUriException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
@@ -317,6 +324,57 @@ class SpannerRequisitionMetadataService(
       throw e.asStatusRuntimeException(Status.Code.ABORTED)
     }
   }
+
+  override suspend fun listRequisitionMetadata(
+    request: ListRequisitionMetadataRequest
+  ): ListRequisitionMetadataResponse {
+
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.pageSize < 0) {
+      throw InvalidFieldValueException("page_size") { fieldName ->
+        "$fieldName must be non-negative"
+      }.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val pageSize =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE
+      else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+
+    val after = if (request.hasPageToken()) request.pageToken.after else null
+
+    databaseClient.singleUse().use { txn ->
+      val rows: Flow<RequisitionMetadata> =
+        txn
+          .readRequisitionMetadata(
+            request.dataProviderResourceId,
+            filter = request.filter,
+            limit = pageSize + 1,
+            after = after,
+          )
+          .map { it.requisitionMetadata }
+
+      return listRequisitionMetadataResponse {
+        rows.collectIndexed { index, item ->
+          if (index == pageSize) {
+            val lastIncluded = this.requisitionMetadata.last()
+            nextPageToken = listRequisitionMetadataPageToken {
+              this.after = ListRequisitionMetadataPageTokenKt.after {
+                updateTime = lastIncluded.updateTime
+                requisitionMetadataResourceId = lastIncluded.requisitionMetadataResourceId
+              }
+            }
+          } else {
+            this.requisitionMetadata += item
+          }
+        }
+      }
+    }
+  }
+
 
   override suspend fun refuseRequisitionMetadata(
     request: RefuseRequisitionMetadataRequest
@@ -406,5 +464,7 @@ class SpannerRequisitionMetadataService(
 
   companion object {
     private const val REQUISITION_METADATA_RESOURCE_ID_PREFIX = "req"
+    private const val MAX_PAGE_SIZE = 100
+    private const val DEFAULT_PAGE_SIZE = 50
   }
 }
