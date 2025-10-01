@@ -41,6 +41,10 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import com.google.protobuf.timestamp
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -50,11 +54,23 @@ class RequisitionFetcherTest {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
+
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(requisitionMetadataServiceMock)
+  }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
-
+  private val requisitionMetadataStub: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
   private val requisitionGrouper: RequisitionGrouper = mock()
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
@@ -68,6 +84,7 @@ class RequisitionFetcherTest {
     val fetcher =
       RequisitionFetcher(
         requisitionsStub,
+        requisitionMetadataStub,
         storageClient,
         DATA_PROVIDER_NAME,
         STORAGE_PATH_PREFIX,
@@ -98,6 +115,7 @@ class RequisitionFetcherTest {
       val fetcher =
         RequisitionFetcher(
           requisitionsStub,
+          requisitionMetadataStub,
           storageClient,
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,
