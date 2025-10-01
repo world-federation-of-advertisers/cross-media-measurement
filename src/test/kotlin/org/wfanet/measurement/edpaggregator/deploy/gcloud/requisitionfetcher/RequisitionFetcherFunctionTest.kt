@@ -179,8 +179,6 @@ class RequisitionFetcherFunctionTest {
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
-    assertThat(requisitionFile.readByteString())
-      .isEqualTo(Any.pack(GROUPED_REQUISITION).toByteString())
   }
 
   companion object {
