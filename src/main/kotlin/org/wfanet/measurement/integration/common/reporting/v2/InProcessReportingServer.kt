@@ -104,6 +104,7 @@ class InProcessReportingServer(
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor>,
   private val eventDescriptor: Descriptors.Descriptor,
+  private val modelLine: String,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
@@ -279,7 +280,7 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
                 signingPrivateKeyDir,
                 trustedCertificates,
-                defaultVidModelLine = "",
+                defaultVidModelLine = modelLine,
                 measurementConsumerModelLines = emptyMap(),
                 certificateCacheExpirationDuration = Duration.ofMinutes(60),
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),

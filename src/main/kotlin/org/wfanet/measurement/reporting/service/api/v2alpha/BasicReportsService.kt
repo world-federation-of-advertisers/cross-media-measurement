@@ -26,6 +26,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -264,7 +265,10 @@ class BasicReportsService(
       requestId = createdInternalBasicReport.createReportRequestId
       reportId = "a${UUID.randomUUID()}"
     }
-    reportsStub.createReport(createReportRequest)
+
+    reportsStub
+      .withForwardedTrustedCredentials()
+      .createReport(createReportRequest)
 
     internalBasicReportsStub.setExternalReportId(
       setExternalReportIdRequest {

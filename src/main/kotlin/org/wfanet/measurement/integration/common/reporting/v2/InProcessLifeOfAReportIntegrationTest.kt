@@ -27,6 +27,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -62,13 +63,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -76,9 +84,11 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
@@ -117,6 +127,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -136,11 +147,15 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
@@ -165,7 +180,10 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
@@ -232,6 +250,26 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
         }
 
+        val modelLine = runBlocking {
+          val modelSuite =
+            publicKingdomModelSuitesClient.createModelSuite(
+              createModelSuiteRequest {
+                parent = inProcessCmmsComponents.modelProviderResourceName
+                modelSuite = modelSuite { displayName = "model-suite" }
+              }
+            )
+
+          publicKingdomModelLinesClient.createModelLine(
+            createModelLineRequest {
+              parent = modelSuite.name
+              modelLine = modelLine {
+                activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+                type = ModelLine.Type.PROD
+              }
+            }
+          )
+        }
+
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
           accessServicesFactory,
@@ -242,6 +280,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
+          modelLine = modelLine.name,
           verboseGrpcLogging = false,
         )
       }
@@ -359,6 +398,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+  }
+
+  private val publicKingdomModelSuitesClient by lazy {
+    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+  }
+
+  private val publicKingdomModelLinesClient by lazy {
+    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
 
   private val publicDataProvidersClient by lazy {
@@ -1976,6 +2025,166 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         .getDataProvider(getDataProviderRequest { name = dataProviderName })
 
     assertThat(DataProviderCertificateKey.fromName(dataProvider.certificate)).isNotNull()
+  }
+
+  @Test
+  fun `getBasicReport returns basic report created using createBasicReport`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+
+    val dataProvider =
+      publicDataProvidersClient
+        .withCallCredentials(credentials)
+        .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
+
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "abc123")
+    val campaignGroup =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = reportingSet {
+              displayName = "campaign group"
+              campaignGroup = campaignGroupKey.toName()
+              primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+            }
+            reportingSetId = "abc123"
+          }
+        )
+
+    val dataProviderKey = DataProviderKey.fromName(dataProvider.name)
+
+    val basicReportKey =
+      BasicReportKey(
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+        basicReportId = "basicreport123",
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroup.name
+      campaignGroupDisplayName = campaignGroup.displayName
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 9
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2025
+          month = 9
+          day = 17
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += dataProviderKey!!.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              stackedIncrementalReach = false
+            }
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val createdBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(
+          createBasicReportRequest {
+            parent = measurementConsumerData.name
+            basicReportId = basicReportKey.basicReportId
+            this.basicReport = basicReport
+          })
+
+    val retrievedPublicBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() })
+
+    assertThat(retrievedPublicBasicReport)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(basicReport.copy {
+      name = basicReportKey.toName()
+      state = BasicReport.State.RUNNING
+    })
+    assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
   @Test
