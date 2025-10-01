@@ -28,9 +28,17 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.RequisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import java.security.MessageDigest
+import java.util.Base64
 
 /**
  * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
@@ -38,6 +46,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  */
 class RequisitionGrouperByReportId(
   private val requisitionValidator: RequisitionsValidator,
+  private val dataProviderName: String,
+  private val blobUriPrefix: String,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
@@ -94,16 +105,69 @@ class RequisitionGrouperByReportId(
                 }
               }
             }
+        val requisitions: List<RequisitionEntry> = groups.flatMap { it.requisitionsList }
+        val requisitionGroupId = createDeterministicId(requisitions.map { it.requisition.unpack(Requisition::class.java) })
+        // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once available
+        for (requisition in requisitions) {
+          createRequisitionMetadata(requisition.requisition.unpack(Requisition::class.java), requisitionGroupId)
+        }
         groupedRequisitions {
           this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
           this.requisitions += groups.flatMap { it.requisitionsList }
+          this.groupId = requisitionGroupId
         }
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        val requisitionGroupId = createDeterministicId(e.requisitions)
+        e.requisitions.forEach {
+          refuseRequisition(it, e.refusal)
+          val requisitionMetadata: RequisitionMetadata = createRequisitionMetadata(it, requisitionGroupId)
+          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
+        }
         null
       }
     }
+  }
+
+  fun createDeterministicId(requisitions: List<Requisition>): String {
+    val requisitionNames =
+      requisitions
+        .map { it.name }
+        .sorted()
+
+    val concatenated = requisitionNames.joinToString(separator = "|")
+    val digest = MessageDigest.getInstance("SHA-256").digest(concatenated.toByteArray())
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+  }
+
+  private suspend fun createRequisitionMetadata(requisition: Requisition, requisitionGroupId: String): RequisitionMetadata {
+
+    val requisitionBlobUri = "$blobUriPrefix/$requisitionGroupId"
+    val reportId = getReportId(requisition)
+
+    val metadata = requisitionMetadata {
+      cmmsRequisition = requisition.name
+      blobUri = requisitionBlobUri
+      blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
+      groupId = requisitionGroupId
+      cmmsCreateTime = requisition.updateTime
+      this.report = reportId
+    }
+    val request = createRequisitionMetadataRequest {
+      parent = dataProviderName
+      requisitionMetadata = metadata
+      requestId = requisitionGroupId
+    }
+    return requisitionMetadataStub.createRequisitionMetadata(request)
+  }
+
+  private suspend fun refuseRequisitionMetadata(requisitionMetadata: RequisitionMetadata, message: String) {
+    val request = refuseRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+      refusalMessage = message
+    }
+    requisitionMetadataStub.refuseRequisitionMetadata(request)
   }
 
   private fun unionIntervals(intervals: List<Interval>): List<Interval> {
@@ -124,5 +188,14 @@ class RequisitionGrouperByReportId(
     }
     result.add(current)
     return result
+  }
+
+  private fun getReportId(requisition: Requisition): String {
+    return requisition.measurementSpec
+      .unpack<MeasurementSpec>().reportingMetadata.report
+  }
+
+  companion object {
+    private const val GROUPED_REQUISITION_BLOB_TYPE_URL = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.GroupedRequisitions"
   }
 }

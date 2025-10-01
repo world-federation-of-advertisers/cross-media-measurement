@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.time.Clock
 import java.time.Duration
@@ -48,13 +49,35 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequi
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
 class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
 
+  private val createRequisitionMetadataRequests = mutableListOf<CreateRequisitionMetadataRequest>()
+  private val refuseRequisitionMetadataRequests = mutableListOf<RefuseRequisitionMetadataRequest>()
+
   override val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase by lazy {
     mockService {}
   }
+
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { createRequisitionMetadata(any()) }.thenAnswer { invocation ->
+        val req = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
+        createRequisitionMetadataRequests += req
+        requisitionMetadata {}
+      }
+      onBlocking { refuseRequisitionMetadata(any()) }.thenAnswer { invocation ->
+        val req = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+        refuseRequisitionMetadataRequests += req
+        requisitionMetadata {}
+      }
+    }
 
   override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
     mockService {
@@ -72,6 +95,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   override val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
+    addService(requisitionMetadataServiceMock)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -83,6 +107,9 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   override val requisitionGrouper: RequisitionGrouper by lazy {
     RequisitionGrouperByReportId(
       requisitionValidator = requisitionValidator,
+      dataProviderName = DATA_PROVIDER_NAME,
+      blobUriPrefix = "some-prefix",
+      requisitionMetadataStub = requisitionMetadataStub,
       eventGroupsClient = eventGroupsStub,
       requisitionsClient = requisitionsStub,
       throttler = throttler,
@@ -95,6 +122,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
 
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val requisitionMetadataStub: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   @Test
@@ -165,6 +196,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
 
     assertThat(groupedRequisition.modelLine).isEqualTo("some-model-line")
+    assertThat(createRequisitionMetadataRequests).hasSize(2)
   }
 
   @Test
@@ -231,5 +263,11 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
     }
     assertThat(groupedRequisitions).hasSize(0)
+    assertThat(createRequisitionMetadataRequests).hasSize(2)
+    assertThat(refuseRequisitionMetadataRequests).hasSize(2)
+  }
+
+  companion object {
+    private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
   }
 }

@@ -29,6 +29,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.util.logging.Logger
+import com.google.protobuf.timestamp
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -39,10 +40,12 @@ import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -64,11 +67,15 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import java.security.MessageDigest
+import java.util.*
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -80,6 +87,13 @@ class RequisitionFetcherFunctionTest {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
   }
+
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
 
   private val eventGroupsServiceMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
     onBlocking { getEventGroup(any()) }
@@ -109,7 +123,7 @@ class RequisitionFetcherFunctionTest {
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "RequisitionsServiceServer",
           services =
-            listOf(requisitionsServiceMock.bindService(), eventGroupsServiceMock.bindService()),
+          listOf(requisitionsServiceMock.bindService(), eventGroupsServiceMock.bindService(), requisitionMetadataServiceMock.bindService()),
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
@@ -126,7 +140,9 @@ class RequisitionFetcherFunctionTest {
           mapOf(
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+            "METADATA_STORAGE_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
+            "METADATA_STORAGE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
@@ -163,7 +179,6 @@ class RequisitionFetcherFunctionTest {
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
-    val storedAny = Any.parseFrom(requisitionFile.readBytes())
     assertThat(requisitionFile.readByteString())
       .isEqualTo(Any.pack(GROUPED_REQUISITION).toByteString())
   }
@@ -261,6 +276,11 @@ class RequisitionFetcherFunctionTest {
 
     @JvmStatic protected val MC_SIGNING_KEY = loadSigningKey("mc_cs_cert.der", "mc_cs_private.der")
 
+    fun createDeterministicId(requisition: Requisition): String {
+      val digest = MessageDigest.getInstance("SHA-256").digest(requisition.name.toByteArray())
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
+    }
+
     private val ENCRYPTED_REQUISITION_SPEC =
       encryptRequisitionSpec(
         signRequisitionSpec(REQUISITION_SPEC, MC_SIGNING_KEY),
@@ -272,6 +292,9 @@ class RequisitionFetcherFunctionTest {
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+      updateTime = timestamp {
+        seconds = 100
+      }
     }
 
     private val GROUPED_REQUISITION = groupedRequisitions {
@@ -287,6 +310,7 @@ class RequisitionFetcherFunctionTest {
       }
 
       requisitions.add(requisitionEntry { requisition = Any.pack(REQUISITION) })
+      groupId = createDeterministicId(REQUISITION)
     }
 
     private val STORAGE_PATH_PREFIX = "edp7"
