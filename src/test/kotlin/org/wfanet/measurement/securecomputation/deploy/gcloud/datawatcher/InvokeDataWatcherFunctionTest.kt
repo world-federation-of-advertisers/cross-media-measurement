@@ -120,11 +120,13 @@ class InvokeDataWatcherFunctionTest() {
             "GOOGLE_APPLICATION_CREDENTIALS" to tmpCreds.absolutePath,
             "CONTROL_PLANE_PROJECT_ID" to projectId,
             "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+            "METADATA_STORAGE_TARGET" to "localhost:${grpcServer.port}",
             "CONTROL_PLANE_CERT_HOST" to "localhost",
             "CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
             "CERT_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.pem").toString(),
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
+            "REQUISITION_METADATA_STORAGE_CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
             "EDPA_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
           ) + additionalFlags
         )
