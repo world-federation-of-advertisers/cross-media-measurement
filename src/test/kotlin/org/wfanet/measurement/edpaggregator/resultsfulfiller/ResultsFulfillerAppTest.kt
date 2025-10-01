@@ -72,6 +72,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -141,6 +143,7 @@ class ResultsFulfillerAppTest {
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
+  private val requisitionMetadataServiceMock = mockService<RequisitionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -163,6 +166,7 @@ class ResultsFulfillerAppTest {
     addService(workItemAttemptsServiceMock)
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
+    addService(requisitionMetadataServiceMock)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -170,6 +174,9 @@ class ResultsFulfillerAppTest {
   }
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -271,6 +278,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -395,6 +403,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -511,6 +520,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -603,6 +613,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -704,6 +715,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -813,6 +825,7 @@ class ResultsFulfillerAppTest {
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
+        requisitionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
