@@ -48,6 +48,7 @@ import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
@@ -74,6 +75,14 @@ class ResultsFulfillerAppRunner : Runnable {
     required = true,
   )
   lateinit var secureComputationCertCollectionSecretId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-cert-collection-secret-id"],
+    description = ["Secret ID of Metadata Storage Trusted root Cert collection file."],
+    required = true,
+  )
+  lateinit var metadataStorageCertCollectionSecretId: String
     private set
 
   @CommandLine.Option(
@@ -156,6 +165,13 @@ class ResultsFulfillerAppRunner : Runnable {
   private lateinit var secureComputationPublicApiTarget: String
 
   @CommandLine.Option(
+    names = ["--metadata-storage-public-api-target"],
+    description = ["gRPC target of the Metadata Storage public API server"],
+    required = true,
+  )
+  private lateinit var metadataStoragePublicApiTarget: String
+
+  @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description =
       [
@@ -176,6 +192,17 @@ class ResultsFulfillerAppRunner : Runnable {
     required = false,
   )
   private var secureComputationPublicApiCertHost: String? = null
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-public-api-cert-host"],
+    description =
+    [
+      "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
+      "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
+    ],
+    required = false,
+  )
+  private var metadataStoragePublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--subscription-id"],
@@ -209,26 +236,47 @@ class ResultsFulfillerAppRunner : Runnable {
     val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
 
-    // Get client certificates from server flags
-    val edpaCertFile = File(EDPA_TLS_CERT_FILE_PATH)
-    val edpaPrivateKeyFile = File(EDPA_TLS_KEY_FILE_PATH)
+    // Get client certificates for secure computation API from server flags
+    val secureComputationEdpaCertFile = File(EDPA_TLS_CERT_FILE_PATH)
+    val secureComputationEdpaPrivateKeyFile = File(EDPA_TLS_KEY_FILE_PATH)
     val secureComputationCertCollectionFile = File(SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
     val secureComputationClientCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = edpaCertFile,
-        privateKeyFile = edpaPrivateKeyFile,
+        certificateFile = secureComputationEdpaCertFile,
+        privateKeyFile = secureComputationEdpaPrivateKeyFile,
         trustedCertCollectionFile = secureComputationCertCollectionFile,
       )
 
     // Build the mutual TLS channel for secure computation API
-    val publicChannel =
+    val secureComputationPublicChannel =
       buildMutualTlsChannel(
         secureComputationPublicApiTarget,
         secureComputationClientCerts,
         secureComputationPublicApiCertHost,
       )
-    val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
-    val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
+    val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
+    val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
+
+    // Get client certificates for EDP Aggregator API from server flags
+    val metadataStorageCertFile = File(EDPA_TLS_CERT_FILE_PATH)
+    val metadataStoragePrivateKeyFile = File(EDPA_TLS_KEY_FILE_PATH)
+    val metadataStorageCertCollectionFile = File(METADATA_STORAGE_ROOT_CA_FILE_PATH)
+    val metadataStorageClientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = metadataStorageCertFile,
+        privateKeyFile = metadataStoragePrivateKeyFile,
+        trustedCertCollectionFile = metadataStorageCertCollectionFile,
+      )
+
+    // Build the mutual TLS channel for secure computation API
+    val metadataStoragePublicChannel =
+      buildMutualTlsChannel(
+        metadataStoragePublicApiTarget,
+        metadataStorageClientCerts,
+        metadataStoragePublicApiCertHost,
+      )
+
+    val requisitionMetadataClient = RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
     val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
 
     val duchiesMap = buildDuchyMap()
@@ -249,6 +297,7 @@ class ResultsFulfillerAppRunner : Runnable {
         queueSubscriber = queueSubscriber,
         parser = parser,
         workItemsClient = workItemsClient,
+        requisitionMetadataStub = requisitionMetadataClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
@@ -323,6 +372,9 @@ class ResultsFulfillerAppRunner : Runnable {
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
     saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    val metadataStorageRootCa =
+      accessSecretBytes(googleProjectId, metadataStorageCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(metadataStorageRootCa, METADATA_STORAGE_ROOT_CA_FILE_PATH)
     val trustedRootCaCollectionFile =
       accessSecretBytes(googleProjectId, trustedCertCollectionSecretId, SECRET_VERSION)
     saveByteArrayToFile(trustedRootCaCollectionFile, TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
@@ -408,6 +460,8 @@ class ResultsFulfillerAppRunner : Runnable {
     private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
     private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
       "/tmp/edpa_certs/secure_computation_root.pem"
+    private const val METADATA_STORAGE_ROOT_CA_FILE_PATH =
+      "/tmp/edpa_certs/edp_aggregator_root.pem"
     private const val TRUSTED_ROOT_CA_COLLECTION_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
