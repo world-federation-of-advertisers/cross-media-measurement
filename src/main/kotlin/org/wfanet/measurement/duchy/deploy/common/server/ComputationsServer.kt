@@ -14,17 +14,25 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import com.google.protobuf.duration
 import io.grpc.ManagedChannel
+import io.grpc.serviceconfig.MethodConfigKt
+import io.grpc.serviceconfig.copy
+import io.grpc.serviceconfig.methodConfig
+import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.JsonServiceConfig
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
+import org.wfanet.measurement.common.grpc.ServiceConfig
 import org.wfanet.measurement.common.grpc.ServiceFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -42,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpc
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import picocli.CommandLine
 
@@ -85,7 +94,12 @@ abstract class ComputationsServer : Runnable {
         trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile,
       )
     val channel: ManagedChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      buildMutualTlsChannel(
+          flags.systemApiFlags.target,
+          clientCerts,
+          hostName = flags.systemApiFlags.certHost,
+          defaultServiceConfig = flags.defaultServiceConfig,
+        )
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val computationLogEntriesClient =
@@ -140,9 +154,41 @@ abstract class ComputationsServer : Runnable {
     lateinit var service: ServiceFlags
       private set
 
-    @CommandLine.Mixin
-    lateinit var duchyInfo: DuchyInfoFlags
-      private set
+    @CommandLine.Option(
+      names = ["--default-service-config"],
+      description = ["Path to default gRPC ServiceConfig"],
+      required = false,
+    )
+    private lateinit var defaultServiceConfigFile: File
+
+    val defaultServiceConfig: ServiceConfig by lazy {
+      if (this::defaultServiceConfigFile.isInitialized) {
+        if (defaultServiceConfigFile.extension == "json") {
+          JsonServiceConfig(defaultServiceConfigFile.readText())
+        } else {
+          ProtobufServiceConfig(
+            parseTextProto(
+              defaultServiceConfigFile,
+              io.grpc.serviceconfig.ServiceConfig.getDefaultInstance(),
+            )
+          )
+        }
+      } else {
+        ProtobufServiceConfig(
+          ProtobufServiceConfig.DEFAULT.message.copy {
+            methodConfig += methodConfig {
+              name +=
+                MethodConfigKt.name {
+                  service = ComputationLogEntriesGrpc.SERVICE_NAME
+                  method =
+                    ComputationLogEntriesGrpc.getCreateComputationLogEntryMethod().bareMethodName!!
+                }
+              timeout = duration { seconds = 5 }
+            }
+          }
+        )
+      }
+    }
 
     @CommandLine.Option(
       names = ["--channel-shutdown-timeout"],

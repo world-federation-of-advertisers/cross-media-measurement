@@ -1,0 +1,21 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("//src/main/docker:macros.bzl", "java_image")
+
+java_binary(
+    name = "UpdateSchema",
+    args = ["--changelog=edpaggregator/spanner/changelog.yaml"],
+    main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
+    resources = ["//src/main/resources/edpaggregator/spanner"],
+    runtime_deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/logging",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tools:update_schema",
+    ],
+)
+
+java_image(
+    name = "update_schema_image",
+    args = ["--changelog=edpaggregator/spanner/changelog.yaml"],
+    binary = ":UpdateSchema",
+    main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
+    visibility = ["//src:docker_image_deployment"],
+)

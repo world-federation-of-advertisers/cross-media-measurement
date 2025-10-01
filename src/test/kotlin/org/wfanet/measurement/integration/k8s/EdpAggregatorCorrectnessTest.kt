@@ -96,15 +96,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       mapOf(
         GROUP_REFERENCE_ID_EDPA_EDP1 to
           EventGroupStorage(
-            objectMapKey = "edp7/event-groups-map/edp7-event-group.pb",
-            objectKey = "edp7/event-groups/edp7-event-group.pb",
-            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.pb",
+            objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
+            objectKey = "edp7/event-groups/edp7-event-group.binpb",
+            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           ),
         GROUP_REFERENCE_ID_EDPA_EDP2 to
           EventGroupStorage(
-            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.pb",
-            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.pb",
-            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.pb",
+            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
           ),
       )
 

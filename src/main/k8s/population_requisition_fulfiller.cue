@@ -34,6 +34,14 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 		_name:   "population-requisition-fulfiller"
 		_system: "population"
 		_container: {
+			resources: Resources={
+				requests: {
+					memory: _ | *"224Mi"
+				}
+				limits: {
+					memory: _ | *Resources.requests.memory
+				}
+			}
 			image: _imageConfig.image
 			args: [
 				"--kingdom-public-api-target=\(KingdomPublicApiTarget)",

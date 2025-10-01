@@ -1,0 +1,22 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
+)
+
+java_binary(
+    name = "InvokeDataAvailabilitySyncFunction",
+    main_class = "com.google.cloud.functions.invoker.runner.Invoker",
+    resources = [
+        "//src/main/k8s/testing/secretfiles:root_certs",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    runtime_deps = [
+        "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction_deploy.jar",
+    ],
+)

@@ -142,9 +142,11 @@ class InMemoryVidIndexMapTest {
         }
       }
     }
-    val vidIndexMap = InMemoryVidIndexMap.build(testPopulationSpec)
-    assertThat(vidIndexMap.size).isEqualTo(1)
-    assertThat(vidIndexMap[1]).isEqualTo(0)
+    listOf<Boolean>(false, true).forEach { useParallelSorting ->
+      val vidIndexMap = InMemoryVidIndexMap.build(testPopulationSpec, useParallelSorting)
+      assertThat(vidIndexMap.size).isEqualTo(1)
+      assertThat(vidIndexMap[1]).isEqualTo(0)
+    }
   }
 
   @Test
@@ -170,13 +172,16 @@ class InMemoryVidIndexMapTest {
     // ordering of the indexes of the VIDs follows the ordering of
     // the VIDs themselves.
     val hashFunction = { _: Long, salt: ByteString -> salt.toLong(ByteOrder.BIG_ENDIAN) }
-    val vidIndexMap = InMemoryVidIndexMap.buildInternal(testPopulationSpec, hashFunction)
+    listOf<Boolean>(false, true).forEach { useParallelSorting ->
+      val vidIndexMap =
+        InMemoryVidIndexMap.buildInternal(testPopulationSpec, hashFunction, useParallelSorting)
 
-    assertThat(vidIndexMap.size).isEqualTo(vidCount)
-    for (entry in vidIndexMap) {
-      assertThat(entry.value.index).isEqualTo(entry.key - 1)
-      assertThat(entry.value.unitIntervalValue)
-        .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
+      assertThat(vidIndexMap.size).isEqualTo(vidCount)
+      for (entry in vidIndexMap) {
+        assertThat(entry.value.index).isEqualTo(entry.key - 1)
+        assertThat(entry.value.unitIntervalValue)
+          .isEqualTo(entry.value.index.toDouble() / vidIndexMap.size)
+      }
     }
   }
 }

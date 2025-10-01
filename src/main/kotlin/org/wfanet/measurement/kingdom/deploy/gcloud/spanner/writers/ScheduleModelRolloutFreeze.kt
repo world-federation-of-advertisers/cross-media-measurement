@@ -17,24 +17,22 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import com.google.protobuf.util.Timestamps
-import java.time.Clock
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutFreezeScheduledException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutFreezeTimeOutOfRangeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 
-class ScheduleModelRolloutFreeze(
-  private val request: ScheduleModelRolloutFreezeRequest,
-  private val clock: Clock,
-) : SpannerWriter<ModelRollout, ModelRollout>() {
+class ScheduleModelRolloutFreeze(private val request: ScheduleModelRolloutFreezeRequest) :
+  SpannerWriter<ModelRollout, ModelRollout>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRollout {
     val modelRolloutResult =
@@ -45,45 +43,23 @@ class ScheduleModelRolloutFreeze(
         ExternalId(request.externalModelRolloutId),
       )
 
-    val now = clock.instant().toProtoTime()
-    if (Timestamps.compare(now, request.rolloutFreezeTime) >= 0) {
-      throw ModelRolloutInvalidArgsException(
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId),
-      ) {
-        "RolloutFreezeTime must be in the future."
-      }
+    if (modelRolloutResult.modelRollout.hasRolloutFreezeTime()) {
+      throw ModelRolloutFreezeScheduledException(
+        modelRolloutResult.modelRollout.rolloutFreezeTime.toInstant()
+      )
     }
 
-    if (
-      Timestamps.compare(
-        modelRolloutResult.modelRollout.rolloutPeriodStartTime,
-        request.rolloutFreezeTime,
-      ) > 0
-    ) {
-      throw ModelRolloutInvalidArgsException(
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId),
-      ) {
-        "RolloutFreezeTime cannot precede RolloutPeriodStartTime."
-      }
-    }
-
-    if (
-      Timestamps.compare(
-        request.rolloutFreezeTime,
-        modelRolloutResult.modelRollout.rolloutPeriodEndTime,
-      ) >= 0
-    ) {
-      throw ModelRolloutInvalidArgsException(
-        ExternalId(request.externalModelProviderId),
-        ExternalId(request.externalModelSuiteId),
-        ExternalId(request.externalModelLineId),
-      ) {
-        "RolloutFreezeTime cannot be equal or later than RolloutPeriodEndTime."
-      }
+    val requestRolloutFreezeTime = request.rolloutFreezeTime.toInstant()
+    val rolloutPeriod =
+      OpenEndTimeRange(
+        modelRolloutResult.modelRollout.rolloutPeriodStartTime.toInstant(),
+        modelRolloutResult.modelRollout.rolloutPeriodEndTime.toInstant(),
+      )
+    if (requestRolloutFreezeTime !in rolloutPeriod) {
+      throw ModelRolloutFreezeTimeOutOfRangeException(
+        rolloutPeriod.start,
+        rolloutPeriod.endExclusive,
+      )
     }
 
     transactionContext.bufferUpdateMutation("ModelRollouts") {

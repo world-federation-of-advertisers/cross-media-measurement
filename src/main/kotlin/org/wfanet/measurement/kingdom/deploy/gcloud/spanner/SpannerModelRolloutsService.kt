@@ -16,8 +16,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.time.Clock
+import java.time.Instant
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -25,16 +27,22 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DeleteModelRolloutRequest
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ScheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutAlreadyStartedException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutFreezeScheduledException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutFreezeTimeOutOfRangeException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutOlderThanPreviousException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRollout
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteModelRollout
@@ -48,38 +56,71 @@ class SpannerModelRolloutsService(
 ) : ModelRolloutsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelRollout(request: ModelRollout): ModelRollout {
-    grpcRequire(request.hasRolloutPeriodStartTime()) {
-      "RolloutPeriodStartTime field of ModelRollout is missing."
+    if (request.externalModelProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_model_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.hasRolloutPeriodEndTime()) {
-      "RolloutPeriodEndTime field of ModelRollout is missing."
+    if (request.externalModelSuiteId == 0L) {
+      throw RequiredFieldNotSetException("external_model_suite_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.externalModelReleaseId != 0L) {
-      "ExternalModelReleaseId field of ModelRollout is missing."
+    if (request.externalModelLineId == 0L) {
+      throw RequiredFieldNotSetException("external_model_line_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.externalModelReleaseId == 0L) {
+      throw RequiredFieldNotSetException("external_model_release_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!request.hasRolloutPeriodStartTime()) {
+      throw RequiredFieldNotSetException("rollout_period_start_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!request.hasRolloutPeriodEndTime()) {
+      throw RequiredFieldNotSetException("rollout_period_end_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (Timestamps.compare(request.rolloutPeriodStartTime, request.rolloutPeriodEndTime) > 0) {
+      throw InvalidFieldValueException("rollout_period_end_time") { fieldName ->
+          "$fieldName is before rollout_period_start_time"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     try {
-      return CreateModelRollout(request, clock).execute(client, idGenerator)
-    } catch (e: ModelRolloutInvalidArgsException) {
-      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      return CreateModelRollout(request).execute(client, idGenerator)
+    } catch (e: ModelRolloutOlderThanPreviousException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ModelLineNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelLine not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ModelReleaseNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRelease not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 
   override suspend fun scheduleModelRolloutFreeze(
     request: ScheduleModelRolloutFreezeRequest
   ): ModelRollout {
-    grpcRequire(request.hasRolloutFreezeTime()) {
-      "RolloutFreezeTime field of ModelRollout is missing."
+    if (!request.hasRolloutFreezeTime()) {
+      throw RequiredFieldNotSetException("rollout_freeze_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val now: Instant = clock.instant()
+    if (request.rolloutFreezeTime.toInstant() < now) {
+      throw InvalidFieldValueException("rollout_freeze_time") { fieldName ->
+          "$fieldName is in the past"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     try {
-      return ScheduleModelRolloutFreeze(request, clock).execute(client, idGenerator)
-    } catch (e: ModelRolloutInvalidArgsException) {
-      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      return ScheduleModelRolloutFreeze(request).execute(client, idGenerator)
     } catch (e: ModelRolloutNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelRolloutFreezeScheduledException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelRolloutFreezeTimeOutOfRangeException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 
@@ -115,12 +156,9 @@ class SpannerModelRolloutsService(
     try {
       return DeleteModelRollout(request, clock).execute(client, idGenerator)
     } catch (e: ModelRolloutNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "ModelRollout not found.")
-    } catch (e: ModelRolloutInvalidArgsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "RolloutStartTime already passed",
-      )
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelRolloutAlreadyStartedException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
 }

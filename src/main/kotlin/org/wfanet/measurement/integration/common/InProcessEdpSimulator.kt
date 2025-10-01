@@ -53,7 +53,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
+import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpecWithoutAttributes
 
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
@@ -89,7 +89,8 @@ class InProcessEdpSimulator(
   private val delegate: EdpSimulator
 
   init {
-    val populationSpec: PopulationSpec = eventQuery.populationSpec.toPopulationSpec()
+    val populationSpec: PopulationSpec =
+      eventQuery.populationSpec.toPopulationSpecWithoutAttributes()
     val vidIndexMap =
       if (honestMajorityShareShuffleSupported) {
         InMemoryVidIndexMap.build(populationSpec)

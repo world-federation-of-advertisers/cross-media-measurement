@@ -34,12 +34,5 @@ import java.time.Instant
  *   this event. Used for sampling and deduplication.
  * @property message the actual event data as a Protocol Buffer message. Contains the
  *   domain-specific event information.
- * @property eventGroupReferenceId identifier linking this event to a specific event group or
- *   campaign. Used for filtering events by group membership.
  */
-data class LabeledEvent<T : Message>(
-  val timestamp: Instant,
-  val vid: Long,
-  val message: T,
-  val eventGroupReferenceId: String,
-)
+data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)

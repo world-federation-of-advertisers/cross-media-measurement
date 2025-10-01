@@ -85,13 +85,16 @@ class PortForwarder(
         val socketChannel: SuspendingByteChannel = listenForConnection()
 
         logger.info { "Handling connection for $podName:$port" }
-        try {
-          handleConnection(socketChannel)
-        } catch (e: IOException) {
-          if (coroutineContext.isActive) throw e
-        } finally {
-          logger.info { "Disconnected from $podName:$port" }
-          socketChannel.close()
+        // Spawn a coroutine to handle this connection while we listen for more.
+        launch {
+          try {
+            handleConnection(socketChannel)
+          } catch (e: IOException) {
+            if (coroutineContext.isActive) throw e
+          } finally {
+            logger.info { "Disconnected from $podName:$port" }
+            socketChannel.close()
+          }
         }
       }
     }

@@ -17,6 +17,8 @@ package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import java.util.Arrays
+import kotlin.collections.withIndex
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -122,11 +124,15 @@ private constructor(
      * Create a [InMemoryVidIndexMap] given a [PopulationSpec] and a hash function
      *
      * @param[populationSpec] The [PopulationSpec] represented by this map
+     * @param[useParallelSorting] whether to perform sorting on multiple threads
      * @throws [PopulationSpecValidationException] if the [populationSpec] is invalid
      */
     @JvmStatic
-    fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash)
+    fun build(
+      populationSpec: PopulationSpec,
+      useParallelSorting: Boolean = false,
+    ): InMemoryVidIndexMap {
+      return buildInternal(populationSpec, Companion::hashVidToLongWithFarmHash, useParallelSorting)
     }
 
     /**
@@ -230,6 +236,7 @@ private constructor(
     fun buildInternal(
       populationSpec: PopulationSpec,
       hashFunction: (Long, ByteString) -> Long,
+      useParallelSorting: Boolean,
     ): InMemoryVidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
       val indexMap = hashMapOf<Int, Int>()
@@ -244,10 +251,20 @@ private constructor(
           }
         }
       }
-      hashes.sortWith(compareBy { it })
 
-      for ((index, vidAndHash) in hashes.withIndex()) {
-        indexMap[vidAndHash.vid.toInt()] = index
+      if (useParallelSorting) {
+        val hashesArray: Array<VidAndHash> = hashes.toTypedArray()
+        Arrays.parallelSort(hashesArray)
+
+        for ((index, vidAndHash) in hashesArray.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
+      } else {
+        hashes.sortWith(compareBy { it })
+
+        for ((index, vidAndHash) in hashes.withIndex()) {
+          indexMap[vidAndHash.vid] = index
+        }
       }
       return InMemoryVidIndexMap(populationSpec, indexMap)
     }

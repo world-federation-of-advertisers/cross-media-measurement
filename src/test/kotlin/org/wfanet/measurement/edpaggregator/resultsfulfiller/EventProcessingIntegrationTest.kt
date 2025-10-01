@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -53,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
@@ -61,6 +63,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
@@ -127,7 +130,6 @@ class EventProcessingIntegrationTest {
         count = 30,
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
-        eventGroupReferenceId = eventGroup1,
       )
 
     val eventsGroup2 =
@@ -136,11 +138,10 @@ class EventProcessingIntegrationTest {
         count = 40,
         ageGroup = Person.AgeGroup.YEARS_35_TO_54,
         gender = Person.Gender.FEMALE,
-        eventGroupReferenceId = eventGroup2,
       )
 
-    // Write events to storage
-    val eventReader =
+    // Write events to storage and create event source
+    val eventSource =
       setupStorageWithEvents(
         mapOf(eventGroup1 to eventsGroup1, eventGroup2 to eventsGroup2),
         testDate,
@@ -163,10 +164,6 @@ class EventProcessingIntegrationTest {
 
     val requisitions = listOf(requisition1, requisition2)
 
-    // Create event source from event reader
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup1, eventGroup2), testDate, testDate)
-
     // Load population spec
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
@@ -182,6 +179,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -220,7 +218,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-              eventGroupReferenceId = sharedEventGroup,
             )
           )
         }
@@ -233,7 +230,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-              eventGroupReferenceId = sharedEventGroup,
             )
           )
         }
@@ -246,7 +242,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-              eventGroupReferenceId = sharedEventGroup,
             )
           )
         }
@@ -259,14 +254,13 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_55_PLUS,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-              eventGroupReferenceId = sharedEventGroup,
             )
           )
         }
       }
 
     // Write events to storage
-    val eventReader = setupStorageWithEvents(mapOf(sharedEventGroup to events), testDate)
+    val eventSource = setupStorageWithEvents(mapOf(sharedEventGroup to events), testDate)
 
     // Create multiple requisitions targeting the same shared event group with different filters
     val requisitions =
@@ -297,8 +291,6 @@ class EventProcessingIntegrationTest {
         ),
       )
 
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(sharedEventGroup), testDate, testDate)
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -311,6 +303,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -346,7 +339,6 @@ class EventProcessingIntegrationTest {
         count = 40,
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
-        eventGroupReferenceId = eventGroup1,
       )
 
     val desktopEvents =
@@ -355,7 +347,6 @@ class EventProcessingIntegrationTest {
         count = 30,
         ageGroup = Person.AgeGroup.YEARS_18_TO_34, // Same age group to test aggregation
         gender = Person.Gender.MALE, // Same gender to test aggregation
-        eventGroupReferenceId = eventGroup2,
       )
 
     val tabletEvents =
@@ -364,11 +355,10 @@ class EventProcessingIntegrationTest {
         count = 20,
         ageGroup = Person.AgeGroup.YEARS_35_TO_54, // Different age group
         gender = Person.Gender.MALE,
-        eventGroupReferenceId = eventGroup3,
       )
 
     // Write events to storage
-    val eventReader =
+    val eventSource =
       setupStorageWithEvents(
         mapOf(
           eventGroup1 to mobileEvents,
@@ -405,13 +395,6 @@ class EventProcessingIntegrationTest {
       )
 
     val requisitions = listOf(multiGroupRequisition, youngMalesRequisition)
-    val eventSource =
-      createEventSourceFromReader(
-        eventReader,
-        listOf(eventGroup1, eventGroup2, eventGroup3),
-        testDate,
-        testDate,
-      )
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -425,6 +408,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -464,7 +448,6 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = yesterday,
-        eventGroupReferenceId = eventGroup,
       )
 
     val eventsTwoDaysAgo =
@@ -474,11 +457,10 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = twoDaysAgo,
-        eventGroupReferenceId = eventGroup,
       )
 
     // Write events to storage for both days
-    val eventReader =
+    val eventSource =
       setupMultiDayStorage(
         mapOf(
           yesterday to mapOf(eventGroup to eventsYesterday),
@@ -503,8 +485,6 @@ class EventProcessingIntegrationTest {
       )
 
     // Create event source from event reader
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup), twoDaysAgo, yesterday)
 
     // Load population spec
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
@@ -520,6 +500,8 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = listOf(requisitionYesterday, requisitionBothDays),
+        eventGroupReferenceIdMap =
+          createEventGroupReferenceIdMap(listOf(requisitionYesterday, requisitionBothDays)),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -556,7 +538,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-              eventGroupReferenceId = eventGroup,
             )
           )
         }
@@ -569,7 +550,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_18_TO_34,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-              eventGroupReferenceId = eventGroup,
             )
           )
         }
@@ -582,7 +562,6 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.MALE,
               eventDate = testDate,
-              eventGroupReferenceId = eventGroup,
             )
           )
         }
@@ -595,14 +574,13 @@ class EventProcessingIntegrationTest {
               ageGroup = Person.AgeGroup.YEARS_35_TO_54,
               gender = Person.Gender.FEMALE,
               eventDate = testDate,
-              eventGroupReferenceId = eventGroup,
             )
           )
         }
       }
 
     // Write events to storage
-    val eventReader = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
+    val eventSource = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
 
     // Create requisitions with different filters
     val requisitions =
@@ -634,8 +612,6 @@ class EventProcessingIntegrationTest {
       )
 
     // Create event source from event reader
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup), testDate, testDate)
 
     // Load population spec
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
@@ -651,6 +627,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -704,7 +681,6 @@ class EventProcessingIntegrationTest {
                     gender = gender,
                     socialGrade = socialGrade,
                     eventDate = testDate,
-                    eventGroupReferenceId = eventGroup,
                   )
                 )
               }
@@ -713,7 +689,7 @@ class EventProcessingIntegrationTest {
         }
       }
 
-    val eventReader = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
+    val eventSource = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
 
     // Create requisitions with complex CEL expressions
     val requisitions =
@@ -763,8 +739,6 @@ class EventProcessingIntegrationTest {
         ),
       )
 
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup), testDate, testDate)
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -778,6 +752,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -829,10 +804,9 @@ class EventProcessingIntegrationTest {
         count = 20,
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
-        eventGroupReferenceId = eventGroup,
       )
 
-    val eventReader = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
+    val eventSource = setupStorageWithEvents(mapOf(eventGroup to events), testDate)
 
     // Create requisitions that should return empty or minimal results
     val requisitions =
@@ -873,8 +847,6 @@ class EventProcessingIntegrationTest {
         ),
       )
 
-    val eventSource =
-      createEventSourceFromReader(eventReader, listOf(eventGroup), testDate, testDate)
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -888,6 +860,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -936,7 +909,6 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = day1,
-        eventGroupReferenceId = eventGroup1,
       )
 
     val day2Events =
@@ -946,7 +918,6 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = day2,
-        eventGroupReferenceId = eventGroup2,
       )
 
     val day3Events =
@@ -956,11 +927,10 @@ class EventProcessingIntegrationTest {
         ageGroup = Person.AgeGroup.YEARS_18_TO_34,
         gender = Person.Gender.MALE,
         eventDate = day3,
-        eventGroupReferenceId = eventGroup3,
       )
 
     // Setup multi-day storage
-    val eventReader =
+    val eventSource =
       setupMultiDayStorage(
         mapOf(
           day1 to mapOf(eventGroup1 to day1Events),
@@ -1015,13 +985,6 @@ class EventProcessingIntegrationTest {
         ),
       )
 
-    val eventSource =
-      createEventSourceFromReader(
-        eventReader,
-        listOf(eventGroup1, eventGroup2, eventGroup3),
-        day1,
-        day3,
-      )
     val populationSpec = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
     val vidIndexMap = InMemoryVidIndexMap.build(populationSpec)
 
@@ -1035,6 +998,7 @@ class EventProcessingIntegrationTest {
         vidIndexMap = vidIndexMap,
         populationSpec = populationSpec,
         requisitions = requisitions,
+        eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
         config = config,
         eventDescriptor = TestEvent.getDescriptor(),
       )
@@ -1074,17 +1038,66 @@ class EventProcessingIntegrationTest {
     eventGroups: List<String>,
     startDate: LocalDate,
     endDate: LocalDate,
+    eventGroupReferenceId: String,
   ): EventSource<Message> {
-    return TestEventSource(eventReader, eventGroups, startDate, endDate)
+    return TestEventSource(eventReader, eventGroups, startDate, endDate, eventGroupReferenceId)
   }
 
-  /** EventReader that combines multiple StorageEventReaders for different event groups. */
-  private class MultiGroupEventReader(private val readers: List<EventReader<Message>>) :
+  /** Creates an event source for a single event group. */
+  private suspend fun setupSingleEventGroupStorage(
+    events: List<LabeledImpression>,
+    eventGroupReferenceId: String,
+    testDate: LocalDate,
+  ): EventSource<Message> {
+    val eventReader = setupStorageWithEvents(mapOf(eventGroupReferenceId to events), testDate)
+    return eventReader // MultiGroupEventSource can be used as EventSource directly
+  }
+
+  /** EventSource that combines multiple EventReaders for different event groups. */
+  /** Combined event reader that reads from multiple EventReaders sequentially */
+  private class CombinedEventReader(private val readers: List<EventReader<Message>>) :
     EventReader<Message> {
     override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> {
       return flow {
-        // Read events from all readers and emit them
-        readers.forEach { reader -> reader.readEvents().collect { eventList -> emit(eventList) } }
+        readers.forEach { reader ->
+          reader.readEvents().collect { events ->
+            if (events.isNotEmpty()) {
+              emit(events)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private class MultiGroupEventSource(
+    private val readerMap: Map<String, EventReader<Message>>,
+    private val eventGroups: List<String>,
+    private val startDate: LocalDate,
+    private val endDate: LocalDate,
+  ) : EventSource<Message> {
+    override fun generateEventBatches(): Flow<EventBatch<Message>> {
+      return flow {
+        // Read events from all readers and emit them with correct eventGroupReferenceId
+        readerMap.forEach { (eventGroupReferenceId, reader) ->
+          reader.readEvents().collect { eventList ->
+            if (eventList.isNotEmpty()) {
+              // Calculate min and max times from the actual events
+              val eventTimes = eventList.map { labeledEvent -> labeledEvent.timestamp }
+              val minTime = eventTimes.minOrNull() ?: Instant.now()
+              val maxTime = eventTimes.maxOrNull() ?: Instant.now()
+
+              emit(
+                EventBatch(
+                  eventList,
+                  minTime,
+                  maxTime,
+                  eventGroupReferenceId = eventGroupReferenceId,
+                )
+              )
+            }
+          }
+        }
       }
     }
   }
@@ -1095,6 +1108,7 @@ class EventProcessingIntegrationTest {
     private val eventGroups: List<String>,
     private val startDate: LocalDate,
     private val endDate: LocalDate,
+    private val eventGroupReferenceId: String,
   ) : EventSource<Message> {
     override fun generateEventBatches(): Flow<EventBatch<Message>> {
       return flow {
@@ -1106,7 +1120,9 @@ class EventProcessingIntegrationTest {
             val minTime = eventTimes.minOrNull() ?: Instant.now()
             val maxTime = eventTimes.maxOrNull() ?: Instant.now()
 
-            emit(EventBatch(eventList, minTime, maxTime))
+            emit(
+              EventBatch(eventList, minTime, maxTime, eventGroupReferenceId = eventGroupReferenceId)
+            )
           }
         }
       }
@@ -1119,10 +1135,9 @@ class EventProcessingIntegrationTest {
     ageGroup: Person.AgeGroup,
     gender: Person.Gender,
     eventDate: LocalDate = LocalDate.now().minusDays(1),
-    eventGroupReferenceId: String = "",
   ): List<LabeledImpression> {
     return (startVid until startVid + count).map { vid ->
-      createLabeledImpression(vid, ageGroup, gender, eventDate, eventGroupReferenceId)
+      createLabeledImpression(vid, ageGroup, gender, eventDate)
     }
   }
 
@@ -1131,12 +1146,10 @@ class EventProcessingIntegrationTest {
     ageGroup: Person.AgeGroup,
     gender: Person.Gender,
     eventDate: LocalDate,
-    eventGroupReferenceId: String = "",
   ): LabeledImpression {
     return labeledImpression {
       eventTime = createTimeRange(eventDate).start.toProtoTime()
       this.vid = vid
-      this.eventGroupReferenceId = eventGroupReferenceId
       event =
         testEvent {
             person = person {
@@ -1155,12 +1168,10 @@ class EventProcessingIntegrationTest {
     gender: Person.Gender,
     socialGrade: Person.SocialGradeGroup,
     eventDate: LocalDate,
-    eventGroupReferenceId: String = "",
   ): LabeledImpression {
     return labeledImpression {
       eventTime = createTimeRange(eventDate).start.toProtoTime()
       this.vid = vid
-      this.eventGroupReferenceId = eventGroupReferenceId
       event =
         testEvent {
             person = person {
@@ -1176,7 +1187,7 @@ class EventProcessingIntegrationTest {
   private suspend fun setupStorageWithEvents(
     eventsByGroup: Map<String, List<LabeledImpression>>,
     testDate: LocalDate,
-  ): EventReader<Message> {
+  ): MultiGroupEventSource {
     val impressionsTmpPath = tempFolder.newFolder("test-impressions")
     val dekTmpPath = tempFolder.newFolder("test-deks")
 
@@ -1184,18 +1195,18 @@ class EventProcessingIntegrationTest {
       writeEventsToStorage(events, eventGroup, testDate, impressionsTmpPath, dekTmpPath)
     }
 
-    // Create readers for all event groups
-    val readers =
-      eventsByGroup.keys.map { eventGroup ->
+    // Create readers map for all event groups
+    val readerMap =
+      eventsByGroup.keys.associateWith { eventGroup ->
         createStorageEventReader(testDate, eventGroup, impressionsTmpPath, dekTmpPath)
       }
 
-    return MultiGroupEventReader(readers)
+    return MultiGroupEventSource(readerMap, eventsByGroup.keys.toList(), testDate, testDate)
   }
 
   private suspend fun setupMultiDayStorage(
     eventsByDayAndGroup: Map<LocalDate, Map<String, List<LabeledImpression>>>
-  ): EventReader<Message> {
+  ): MultiGroupEventSource {
     val impressionsTmpPath = tempFolder.newFolder("test-impressions-multiday")
     val dekTmpPath = tempFolder.newFolder("test-deks-multiday")
 
@@ -1213,7 +1224,32 @@ class EventProcessingIntegrationTest {
         }
       }
 
-    return MultiGroupEventReader(readers)
+    // Create readers map grouped by event group (combining readers for same event group across
+    // dates)
+    val readerMap = mutableMapOf<String, EventReader<Message>>()
+    val allEventGroups = eventsByDayAndGroup.values.flatMap { it.keys }.distinct()
+
+    allEventGroups.forEach { eventGroup ->
+      // Find all readers for this event group across all dates
+      val readersForGroup = mutableListOf<EventReader<Message>>()
+      eventsByDayAndGroup.forEach { (date, eventsByGroup) ->
+        if (eventsByGroup.containsKey(eventGroup)) {
+          val reader = createStorageEventReader(date, eventGroup, impressionsTmpPath, dekTmpPath)
+          readersForGroup.add(reader)
+        }
+      }
+
+      // Create a combined reader that reads from all readers for this event group
+      if (readersForGroup.size == 1) {
+        readerMap[eventGroup] = readersForGroup[0]
+      } else {
+        readerMap[eventGroup] = CombinedEventReader(readersForGroup)
+      }
+    }
+
+    val startDate = eventsByDayAndGroup.keys.minOrNull() ?: LocalDate.now()
+    val endDate = eventsByDayAndGroup.keys.maxOrNull() ?: LocalDate.now()
+    return MultiGroupEventSource(readerMap, readerMap.keys.toList(), startDate, endDate)
   }
 
   /**
@@ -1287,6 +1323,21 @@ class EventProcessingIntegrationTest {
 
   private fun createTimeRange(startDate: LocalDate, endDate: LocalDate): OpenEndTimeRange {
     return OpenEndTimeRange.fromClosedDateRange(startDate..endDate)
+  }
+
+  private fun createEventGroupReferenceIdMap(requisitions: List<Requisition>): Map<String, String> {
+    val eventGroupReferenceIdMap = mutableMapOf<String, String>()
+    for (requisition in requisitions) {
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, PRIVATE_ENCRYPTION_KEY)
+      val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+      for (eventGroup in requisitionSpec.events.eventGroupsList) {
+        // Extract event group reference ID from the event group resource name
+        // In test data, the event group resource name IS the reference ID
+        eventGroupReferenceIdMap[eventGroup.key] = eventGroup.key
+      }
+    }
+    return eventGroupReferenceIdMap
   }
 
   private fun createRequisition(

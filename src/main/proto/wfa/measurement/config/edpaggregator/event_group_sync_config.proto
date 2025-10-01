@@ -36,7 +36,7 @@ message EventGroupSyncConfig {
   string event_group_map_blob_uri = 3;
   // How the EDP connects to the CMMS Public API
   TransportLayerSecurityParams cmms_connection = 4;
-  // Where the event groups are storage
+  // Where the event groups are stored
   StorageParams event_group_storage = 5;
   // Where the event group map is stored
   StorageParams event_group_map_storage = 6;

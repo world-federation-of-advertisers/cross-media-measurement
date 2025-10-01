@@ -249,6 +249,11 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return population
   }
 
+  /**
+   * Creates a [ModelLine] and [ModelSuite], along with optionally creating a holdback [ModelLine].
+   *
+   * Prefer calling the other overload of this method to create the [ModelSuite] separately.
+   */
   suspend fun createModelLine(
     modelProvidersService: ModelProvidersCoroutineImplBase,
     modelSuitesService: ModelSuitesCoroutineImplBase,
@@ -256,45 +261,63 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     modelLineType: ModelLine.Type = ModelLine.Type.PROD,
     createHoldbackModelLine: Boolean = false,
   ): ModelLine {
+    val modelSuite: ModelSuite = createModelSuite(modelProvidersService, modelSuitesService)
 
-    val modelSuite = createModelSuite(modelProvidersService, modelSuitesService)
-
-    val holdbackModelLine =
+    val holdbackModelLine: ModelLine? =
       if (createHoldbackModelLine) {
-        modelLinesService.createModelLine(
-          modelLine {
-            externalModelProviderId = modelSuite.externalModelProviderId
-            externalModelSuiteId = modelSuite.externalModelSuiteId
-            displayName = "holdback displayName"
-            description = "holdback description"
-            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-            type = ModelLine.Type.HOLDBACK
-          }
-        )
+        createModelLine(modelLinesService, modelSuite, modelLineType = ModelLine.Type.HOLDBACK)
       } else {
         null
       }
 
-    val modelLine = modelLine {
-      externalModelProviderId = modelSuite.externalModelProviderId
-      externalModelSuiteId = modelSuite.externalModelSuiteId
-      displayName = "displayName"
-      description = "description"
-      activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-      if (holdbackModelLine != null) {
-        externalHoldbackModelLineId = holdbackModelLine.externalModelLineId
-      }
-      type = modelLineType
-    }
-    return modelLinesService.createModelLine(modelLine)
+    return createModelLine(
+      modelLinesService,
+      modelSuite,
+      modelLineType = modelLineType,
+      holdbackModelLine = holdbackModelLine,
+    )
   }
 
+  suspend fun createModelLine(
+    modelLinesService: ModelLinesCoroutineImplBase,
+    modelSuite: ModelSuite,
+    modelLineType: ModelLine.Type = ModelLine.Type.PROD,
+    holdbackModelLine: ModelLine? = null,
+  ): ModelLine {
+    return modelLinesService.createModelLine(
+      modelLine {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        displayName = "displayName"
+        description = "description"
+        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        if (holdbackModelLine != null) {
+          externalHoldbackModelLineId = holdbackModelLine.externalModelLineId
+        }
+        type = modelLineType
+      }
+    )
+  }
+
+  /**
+   * Creates a [ModelProvider] and [ModelSuite].
+   *
+   * Prefer creating the [ModelProvider] separately rather than calling this overload.
+   */
   suspend fun createModelSuite(
     modelProvidersService: ModelProvidersCoroutineImplBase,
     modelSuitesService: ModelSuitesCoroutineImplBase,
   ): ModelSuite {
 
     val modelProvider = modelProvidersService.createModelProvider(modelProvider {})
+    return createModelSuite(modelSuitesService, modelProvider)
+  }
+
+  /** Creates a [ModelSuite] under [modelProvider]. */
+  suspend fun createModelSuite(
+    modelSuitesService: ModelSuitesCoroutineImplBase,
+    modelProvider: ModelProvider,
+  ): ModelSuite {
     return modelSuitesService.createModelSuite(
       modelSuite {
         externalModelProviderId = modelProvider.externalModelProviderId

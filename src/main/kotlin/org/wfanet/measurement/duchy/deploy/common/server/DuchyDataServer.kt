@@ -14,19 +14,28 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import com.google.protobuf.duration
 import io.grpc.ManagedChannel
+import io.grpc.serviceconfig.MethodConfigKt
+import io.grpc.serviceconfig.copy
+import io.grpc.serviceconfig.methodConfig
+import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.JsonServiceConfig
+import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
+import org.wfanet.measurement.common.grpc.ServiceConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.deploy.common.service.DuchyDataServices
 import org.wfanet.measurement.duchy.deploy.common.service.toList
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpc
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import picocli.CommandLine
 
@@ -37,10 +46,6 @@ abstract class DuchyDataServer : Runnable {
 
   @CommandLine.Mixin
   lateinit var duchyFlags: CommonDuchyFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
     private set
 
   @CommandLine.Option(
@@ -56,6 +61,42 @@ abstract class DuchyDataServer : Runnable {
   lateinit var systemApiFlags: SystemApiFlags
     private set
 
+  @CommandLine.Option(
+    names = ["--default-service-config"],
+    description = ["Path to default gRPC ServiceConfig"],
+    required = false,
+  )
+  private lateinit var defaultServiceConfigFile: File
+
+  val defaultServiceConfig: ServiceConfig by lazy {
+    if (this::defaultServiceConfigFile.isInitialized) {
+      if (defaultServiceConfigFile.extension == "json") {
+        JsonServiceConfig(defaultServiceConfigFile.readText())
+      } else {
+        ProtobufServiceConfig(
+          parseTextProto(
+            defaultServiceConfigFile,
+            io.grpc.serviceconfig.ServiceConfig.getDefaultInstance(),
+          )
+        )
+      }
+    } else {
+      ProtobufServiceConfig(
+        ProtobufServiceConfig.DEFAULT.message.copy {
+          methodConfig += methodConfig {
+            name +=
+              MethodConfigKt.name {
+                service = ComputationLogEntriesGrpc.SERVICE_NAME
+                method =
+                  ComputationLogEntriesGrpc.getCreateComputationLogEntryMethod().bareMethodName!!
+              }
+            timeout = duration { seconds = 5 }
+          }
+        }
+      )
+    }
+  }
+
   protected val computationLogEntriesClient by lazy {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -64,7 +105,12 @@ abstract class DuchyDataServer : Runnable {
         trustedCertCollectionFile = serverFlags.tlsFlags.certCollectionFile,
       )
     val channel: ManagedChannel =
-      buildMutualTlsChannel(systemApiFlags.target, clientCerts, systemApiFlags.certHost)
+      buildMutualTlsChannel(
+          systemApiFlags.target,
+          clientCerts,
+          hostName = systemApiFlags.certHost,
+          defaultServiceConfig = defaultServiceConfig,
+        )
         .withShutdownTimeout(channelShutdownTimeout)
     ComputationLogEntriesCoroutineStub(channel).withDuchyId(duchyFlags.duchyName)
   }

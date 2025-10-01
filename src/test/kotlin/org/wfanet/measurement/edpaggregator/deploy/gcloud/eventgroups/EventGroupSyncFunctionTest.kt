@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -30,6 +31,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -202,7 +204,7 @@ class EventGroupSyncFunctionTest() {
     val testCampaigns = CAMPAIGNS + newCampaign
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
-      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
@@ -232,7 +234,10 @@ class EventGroupSyncFunctionTest() {
 
     runBlocking {
       MesosRecordIoStorageClient(storageClient)
-        .writeBlob("some/path/campaigns-blob-uri", testCampaigns.map { it.toByteString() }.asFlow())
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          testCampaigns.map { it.toByteString() }.asFlow(),
+        )
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -265,6 +270,91 @@ class EventGroupSyncFunctionTest() {
           "reference-id-4" to "resource-name-for-reference-id-4",
         )
       )
+  }
+
+  @Test
+  fun `sync registersUnregisteredEventGroups using JSON format`() {
+    val newCampaign =
+      """
+      {
+        "eventGroupReferenceId": "reference-id-4",
+        "eventGroupMetadata": {
+          "adMetadata": {
+            "campaignMetadata": {
+              "brand": "brand-2",
+              "campaign": "campaign-2"
+            }
+          }
+        },
+        "dataAvailabilityInterval": {
+          "startTime": "1970-01-01T00:03:20Z",
+          "endTime": "1970-01-01T00:05:00Z"
+        },
+        "measurementConsumer": "measurement-consumer-2",
+        "mediaTypes": ["OTHER"]
+      }
+    """
+        .trimIndent()
+
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.json"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+        )
+      )
+    }
+
+    val url = "http://localhost:$port"
+    logger.info("Testing Cloud Function at: $url")
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.json",
+          flowOf(ByteString.copyFromUtf8(newCampaign)),
+        )
+    }
+
+    // In practice, the DataWatcher makes this HTTP call
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    logger.info("Response status: ${getResponse.statusCode()}")
+    logger.info("Response body: ${getResponse.body()}")
+
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+        .map { it.eventGroupReferenceId to it.eventGroupResource }
+    }
+    assertThat(mappedData).isEqualTo(listOf("reference-id-4" to "resource-name-for-reference-id-4"))
   }
 
   companion object {

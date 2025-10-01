@@ -18,6 +18,20 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "no_op_fulfiller_selector",
+    srcs = ["NoOpFulfillerSelector.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:measurement_fulfiller",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
 filegroup(
     name = "specs",
     srcs = glob(["*.textproto"]),

@@ -91,3 +91,20 @@ kt_jvm_proto_library(
     name = "event_data_provider_configs_kt_jvm_proto",
     deps = [":event_data_provider_configs_proto"],
 )
+
+proto_library(
+    name = "data_availability_sync_configs_proto",
+    srcs = ["data_availability_sync_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":storage_params_proto",
+        ":transport_layer_security_params_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_configs_kt_jvm_proto",
+    deps = [":data_availability_sync_configs_proto"],
+)

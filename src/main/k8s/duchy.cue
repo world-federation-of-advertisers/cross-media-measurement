@@ -214,7 +214,6 @@ import ("strings")
 			_container: args: [
 						_debug_verbose_grpc_server_logging_flag,
 						_duchy_name_flag,
-						_duchy_info_config_flag,
 						_duchy_tls_cert_file_flag,
 						_duchy_tls_key_file_flag,
 						_duchy_cert_collection_file_flag,
