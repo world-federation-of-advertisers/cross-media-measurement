@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "differential_privacy",
+    actual = "@maven//:com_google_privacy_differentialprivacy_differentialprivacy",
+)

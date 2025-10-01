@@ -26,6 +26,7 @@ import java.io.File
 import java.lang.Exception
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
+import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import picocli.CommandLine
@@ -154,7 +155,9 @@ class EventTemplateValidator : Runnable {
 
   companion object {
     private val KNOWN_TYPES =
-      ProtoReflection.WELL_KNOWN_TYPES + EventAnnotationsProto.getDescriptor()
+      ProtoReflection.WELL_KNOWN_TYPES +
+        EventAnnotationsProto.getDescriptor() +
+        MediaTypeProto.getDescriptor()
     private val EXTENSION_REGISTRY =
       ExtensionRegistry.newInstance()
         .apply {

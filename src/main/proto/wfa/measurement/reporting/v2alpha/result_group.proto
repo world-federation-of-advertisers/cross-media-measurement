@@ -44,7 +44,7 @@ message DimensionSpec {
     //
     // For example, if the Event message had an Event Template `common` with
     // a field `age_group` then the field path would be `common.age_group`.
-    repeated string event_template_field = 1 [
+    repeated string event_template_fields = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
@@ -139,8 +139,18 @@ message ResultGroupMetricSpec {
   ReportingUnitMetricSetSpec reporting_unit = 2
       [(google.api.field_behavior) = IMMUTABLE];
 
+  // Specifies the set of disjoint metrics to compute for a single component
+  // of the reporting_unit
+  message UniqueMetricSetSpec {
+    // The unique reach of with respect to all other components in the
+    // reporting_unit
+    bool reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+  }
+
   // Metrics for each component of the ResultGroupSpec's reporting_unit
   message ComponentMetricSetSpec {
+    reserved 3;
+
     // Non-cumulative metrics for each item in reporting_unit.components
     //
     // When the `metric_frequency_spec` is `total` it is an error to
@@ -151,9 +161,10 @@ message ResultGroupMetricSpec {
     // Cumulative metrics for each item in reporting_unit.components
     BasicMetricSetSpec cumulative = 2 [(google.api.field_behavior) = IMMUTABLE];
 
-    // The unique reach of each item in reporting_unit.components
-    // with respect to all other components
-    bool unique_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
+    UniqueMetricSetSpec non_cumulative_unique = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+    UniqueMetricSetSpec cumulative_unique = 5
+        [(google.api.field_behavior) = IMMUTABLE];
   }
   // If the ResultGroupSpec's reporting_unit.components is of size 1 the metrics
   // computed for the component are identical to those computed for the entire
@@ -187,7 +198,7 @@ message ResultGroupMetricSpec {
     // Cumulative metrics for the various intersections
     BasicMetricSetSpec cumulative = 3 [(google.api.field_behavior) = IMMUTABLE];
   }
-  // Metrics for n-way intersections
+  // Metrics for n-way intersections. Currently not supported.
   ComponentIntersectionMetricSetSpec component_intersection = 4
       [(google.api.field_behavior) = IMMUTABLE];
 }
@@ -207,7 +218,7 @@ message ResultGroupSpec {
   MetricFrequencySpec metric_frequency = 3
       [(google.api.field_behavior) = IMMUTABLE];
 
-  // Specfies the dimensions over which the report is filtered and grouped.
+  // Specifies the dimensions over which the report is filtered and grouped.
   DimensionSpec dimension_spec = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -351,8 +362,17 @@ message ResultGroup {
     ReportingUnitMetricSet reporting_unit = 2
         [(google.api.field_behavior) = IMMUTABLE];
 
+    // Metrics representing disjoint values for a single component of the
+    // reporting_unit.
+    message UniqueMetricSet {
+      // unique reach
+      int32 reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+    }
+
     // Metrics for a single component of the reporting_unit.
     message ComponentMetricSet {
+      reserved 3;
+
       // The non-cumulative basic metrics for the reporting_unit components
       BasicMetricSet non_cumulative = 1
           [(google.api.field_behavior) = IMMUTABLE];
@@ -360,8 +380,10 @@ message ResultGroup {
       // The cumulative basic metrics for the reporting_unit components
       BasicMetricSet cumulative = 2 [(google.api.field_behavior) = IMMUTABLE];
 
-      // The component's unique reach
-      int32 unique_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
+      UniqueMetricSet non_cumulative_unique = 4
+          [(google.api.field_behavior) = IMMUTABLE];
+      UniqueMetricSet cumulative_unique = 5
+          [(google.api.field_behavior) = IMMUTABLE];
     }
     // Entry for `components` map.
     message ComponentMetricSetMapEntry {
@@ -403,7 +425,7 @@ message ResultGroup {
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // The metadata and metrics for a impression aualification filter
+  // The metadata and metrics for a impression qualification filter
   message Result {
     // Metadata that describes the metric
     MetricMetadata metadata = 1 [(google.api.field_behavior) = IMMUTABLE];

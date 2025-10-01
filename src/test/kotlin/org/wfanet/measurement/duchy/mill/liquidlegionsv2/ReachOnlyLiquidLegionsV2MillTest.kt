@@ -577,7 +577,7 @@ class ReachOnlyLiquidLegionsV2MillTest {
         MILL_ID,
         Duration.ZERO,
       )
-      fakeComputationDb.claimedComputationIds.clear()
+      fakeComputationDb.claimedComputations.clear()
     }
 
     nonAggregatorMill.claimAndProcessWork()

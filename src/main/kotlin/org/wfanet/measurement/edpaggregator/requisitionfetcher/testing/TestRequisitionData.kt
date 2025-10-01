@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -99,7 +98,6 @@ object TestRequisitionData {
   val EDP_DATA =
     DataProviderData(
       EDP_NAME,
-      EDP_DISPLAY_NAME,
       loadEncryptionPrivateKey("${EDP_DISPLAY_NAME}_enc_private.tink"),
       EDP_RESULT_SIGNING_KEY,
       DATA_PROVIDER_RESULT_CERTIFICATE_KEY,
@@ -162,6 +160,7 @@ object TestRequisitionData {
       }
     nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
     reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+    modelLine = "some-model-line"
   }
 
   val REQUISITION = requisition {

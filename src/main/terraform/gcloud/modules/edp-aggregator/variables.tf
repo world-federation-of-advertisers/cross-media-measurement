@@ -12,24 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-variable "key_ring_name" {
-  description = "Name of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "key_ring_location" {
-  description = "Location of the KMS key ring."
-  type        = string
-  nullable    = false
-}
-
-variable "kms_key_name" {
-  description = "Name of the KMS KEK."
-  type        = string
-  nullable    = false
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -46,10 +28,10 @@ variable "requisition_fulfiller_config" {
       single_instance_assignment    = number
       min_replicas                  = number
       max_replicas                  = number
-      app_args                      = list(string)
       machine_type                  = string
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
+      app_flags                     = list(string)
     })
   })
 }
@@ -99,8 +81,8 @@ variable "secure_computation_root_ca" {
   })
 }
 
-variable "kingdom_root_ca" {
-  description = "Kingdom root CA"
+variable "trusted_root_ca_collection" {
+  description = "Collection of certificates for each Duchy and the Kingdom"
   type = object({
     secret_id         = string
     secret_local_path = string
@@ -174,6 +156,30 @@ variable "requisition_fetcher_config" {
   })
 }
 
+variable "edps_config" {
+  description = "An object containing the local path of the edps config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "results_fulfiller_event_descriptor" {
+  description = "An object containing the local path of the results fulfiller event descriptor file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
+variable "results_fulfiller_population_spec" {
+  description = "An object containing the local path of the results fulfiller population spec file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+}
+
 variable "edp_aggregator_buckets_location" {
   description = "Location of the Storage buckets used by the Edp Aggregator."
   type        = string
@@ -210,14 +216,101 @@ variable "event_group_sync_service_account_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_service_account_name" {
+  description = "Name of the DataAvailabilitySync service account."
+  type        = string
+  nullable    = false
+}
+
 variable "event_group_sync_function_name" {
   description = "Name of the EventGroupSync cloud function."
   type        = string
   nullable    = false
 }
 
-variable "event_group_sync_function_location" {
-  description = "The location of the EventGroupSync cloud function."
+variable "cloud_function_configs" {
+  type = map(object({
+    function_name       = string
+    entry_point         = string
+    extra_env_vars      = string
+    secret_mappings     = string
+    uber_jar_path       = string
+  }))
+}
+
+variable "results_fulfiller_disk_image_family" {
+  description = "The boot disk image family."
   type        = string
+  default     = "confidential-space"
+}
+
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "dns_managed_zone_name" {
+  description = "The name for Google DNS Managed Zone."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "requisition_fetcher_scheduler_config" {
+  description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
+  type = object({
+    schedule                    = string
+    time_zone                   = string
+    name                        = string
+    function_url                = string
+    scheduler_sa_display_name   = string
+    scheduler_sa_description    = string
+    scheduler_job_description   = string
+  })
+  nullable = false
+}
+
+variable "private_subnetwork_cidr_range" {
+  description = "The range of IP addresses belonging to this subnetwork."
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "private_subnetwork_network" {
+  description = "The network this subnet belongs to"
+  type        = string
+  default     = "default"
+}
+
+variable "edp_aggregator_service_account_name" {
+    description = "Name of the EdpAggregator service account."
+    type        = string
+    nullable    = false
+}
+
+variable "spanner_instance" {
+  description = "`google_spanner_instance` for the system."
+  type = object({
+    name = string
+  })
+  nullable = false
+}
+
+variable "spanner_database_name" {
+  description = "Name of the Spanner database for Edp Aggregator."
+  type        = string
+  default     = "edp-aggregator"
   nullable    = false
 }

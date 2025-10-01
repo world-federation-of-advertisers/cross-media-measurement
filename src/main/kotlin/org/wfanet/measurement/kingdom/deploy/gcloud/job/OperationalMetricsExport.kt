@@ -388,6 +388,8 @@ class OperationalMetricsExport(
                         dataProviderId = externalIdToApiId(requisition.externalDataProviderId)
                         isDirect = requisition.parentMeasurement.protocolConfig.hasDirect()
                         this.measurementType = measurementType
+                        buildLabel = requisition.details.fulfillmentContext.buildLabel
+                        warnings += requisition.details.fulfillmentContext.warningsList
                         state = requisitionState
                         createTime = requisition.parentMeasurement.createTime
                         updateTime = requisition.updateTime

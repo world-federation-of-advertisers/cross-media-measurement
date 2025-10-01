@@ -120,6 +120,8 @@ message Computation {
       GEOMETRIC = 1;
       // Discrete Gaussian.
       DISCRETE_GAUSSIAN = 2;
+      // Continuous Gaussian.
+      CONTINUOUS_GAUSSIAN = 3;
     }
 
     // Configuration for the Liquid Legions v2 R/F protocol.
@@ -182,6 +184,13 @@ message Computation {
           [(google.api.field_behavior) = REQUIRED];
     }
 
+    // Configuration for the TrusTEE protocol.
+    message TrusTee {
+      // The mechanism to generate noise during computation.
+      NoiseMechanism noise_mechanism = 1
+          [(google.api.field_behavior) = REQUIRED];
+    }
+
     // Configuration for the specific protocol. Required.
     oneof protocol {
       // Liquid Legions v2 config.
@@ -198,6 +207,11 @@ message Computation {
       //
       // Set for both REACH_AND_FREQUENCY and REACH.
       HonestMajorityShareShuffle honest_majority_share_shuffle = 3;
+
+      // TrusTEE config.
+      //
+      // Set for both REACH_AND_FREQUENCY and REACH.
+      TrusTee trus_tee = 4;
     }
   }
   // MPC protocol configuration that need to be known by Duchies.

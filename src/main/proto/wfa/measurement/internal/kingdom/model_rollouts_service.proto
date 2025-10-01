@@ -57,6 +57,7 @@ message StreamModelRolloutsRequest {
     int64 external_model_suite_id = 2;
     int64 external_model_line_id = 3;
     RolloutPeriod rollout_period = 4;
+    repeated fixed64 external_model_release_id_in = 6;
     AfterFilter after = 5;
   }
   Filter filter = 1;

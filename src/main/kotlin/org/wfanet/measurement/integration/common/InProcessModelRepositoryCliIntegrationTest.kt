@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
@@ -31,9 +32,11 @@ import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.ListModelProvidersResponse
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
@@ -52,14 +55,15 @@ import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc.ModelSuitesBlockingStub
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
-import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc.PopulationsBlockingStub
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.eventTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
@@ -68,6 +72,7 @@ import org.wfanet.measurement.api.v2alpha.listPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -126,6 +131,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @get:Rule
   val ruleChain: TestRule = chainRulesSequentially(kingdomDataServicesRule, internalApiServer)
+
+  @get:Rule val tempDir = TemporaryFolder()
 
   private lateinit var publicModelProvidersClient: ModelProvidersBlockingStub
   private lateinit var publicModelSuitesClient: ModelSuitesBlockingStub
@@ -409,6 +416,8 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   @Test
   fun `populations create prints Population`() {
+    val populationSpecFile: File = tempDir.root.resolve("population-spec.binpb")
+    populationSpecFile.writeBytes(POPULATION_SPEC.toByteArray())
     val args =
       dataProviderArgs +
         arrayOf(
@@ -416,8 +425,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           "create",
           "--parent=$dataProviderName",
           "--description=$DESCRIPTION",
-          "--model-blob-uri=$MODEL_BLOB_URI",
-          "--event-template-type=$EVENT_TEMPLATE_TYPE",
+          "--population-spec=${populationSpecFile.path}",
+          "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
+          "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
         )
     val output = callCli(args)
 
@@ -426,8 +436,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       .isEqualTo(
         population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
-          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+          populationSpec = POPULATION_SPEC
         }
       )
   }
@@ -501,6 +510,52 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
+  fun `model-lines get prints ModelLine`() {
+    val modelLine = createModelLine()
+
+    val args = modelProviderArgs + arrayOf("model-lines", "get", modelLine.name)
+    val output = callCli(args)
+
+    assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance())).isEqualTo(modelLine)
+  }
+
+  @Test
+  fun `model-lines list prints ModelLines`() {
+    val modelLine1 = createModelLine()
+    val modelLine2 = createModelLine()
+
+    val args =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=${modelSuite.name}",
+          "--page-size=1",
+          "--type=PROD",
+        )
+    val output = callCli(args)
+
+    val response = parseTextProto(output.reader(), ListModelLinesResponse.getDefaultInstance())
+    assertThat(response.modelLinesList).containsExactly(modelLine1)
+    assertThat(response.nextPageToken).isNotEmpty()
+
+    val args2 =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "list",
+          "--parent=${modelSuite.name}",
+          "--page-size=1",
+          "--page-token=${response.nextPageToken}",
+          "--type=PROD",
+        )
+    val output2 = callCli(args2)
+    val response2 = parseTextProto(output2.reader(), ListModelLinesResponse.getDefaultInstance())
+    assertThat(response2.modelLinesList).containsExactly(modelLine2)
+    assertThat(response2.nextPageToken).isEmpty()
+  }
+
+  @Test
   fun `model-lines set-active-end-time prints ModelLine`() {
     val modelLine = createModelLine()
     val newEndTime = "2099-04-15T10:00:00Z"
@@ -549,8 +604,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         parent = dataProviderName
         population = population {
           description = DESCRIPTION
-          populationBlob = populationBlob { modelBlobUri = MODEL_BLOB_URI }
-          eventTemplate = eventTemplate { type = EVENT_TEMPLATE_TYPE }
+          populationSpec = POPULATION_SPEC
         }
       }
     )
@@ -597,10 +651,9 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
   companion object {
     private const val HOST = "localhost"
+    private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private val SECRETS_DIR: File =
-      getRuntimePath(
-          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-        )!!
+      getRuntimePath(Paths.get(MODULE_REPO_NAME, "src", "main", "k8s", "testing", "secretfiles"))!!
         .toFile()
 
     private val KINGDOM_TLS_CERT_FILE: File = SECRETS_DIR.resolve("kingdom_tls.pem")
@@ -617,13 +670,49 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
 
     private const val DISPLAY_NAME = "Display name"
     private const val DESCRIPTION = "Description"
-    private const val EVENT_TEMPLATE_TYPE = "event_template_type"
-    private const val MODEL_BLOB_URI = "model_blob_uri"
 
     private const val PAGE_SIZE = 50
 
     private const val START_TIME = "2099-01-15T10:00:00Z"
     private const val END_TIME = "2099-02-15T10:00:00Z"
+
+    private const val EVENT_MESSAGE_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+    private val EVENT_MESSAGE_DESCRIPTOR_SET_PATH =
+      getRuntimePath(
+        Paths.get(
+          MODULE_REPO_NAME,
+          "src",
+          "main",
+          "proto",
+          "wfa",
+          "measurement",
+          "api",
+          "v2alpha",
+          "event_templates",
+          "testing",
+          "test_event_descriptor_set.pb",
+        )
+      )!!
+
+    private val POPULATION_SPEC = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1
+              endVidInclusive = 100
+            }
+          attributes +=
+            ProtoAny.pack(
+              person {
+                gender = Person.Gender.FEMALE
+                ageGroup = Person.AgeGroup.YEARS_18_TO_34
+                socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+              }
+            )
+        }
+    }
 
     init {
       DuchyInfo.setForTest(emptySet())

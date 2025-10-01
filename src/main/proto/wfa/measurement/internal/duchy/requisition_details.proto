@@ -47,9 +47,27 @@ message RequisitionDetails {
       // `DataProvider` used to verify the secret_seed signature.
       string data_provider_certificate = 3;
     }
+    // TrusTEE protocol specific details.
+    message TrusTee {
+      // The ciphertext of the EncryptionKey of the Data Encryption Key (DEK).
+      bytes encrypted_dek_ciphertext = 1;
+      // The URI of the Key Encryption Key (KEK) in a KMS that is used to
+      // decrypt `encrypted_dek_ciphertext`.
+      string kms_kek_uri = 2;
+      // Resource name of the workload identity provider to impersonate the
+      // service account with KEK access.
+      string workload_identity_provider = 3;
+      // The service account to impersonate to get an access token for the
+      // KEK.
+      string impersonated_service_account = 4;
+      // The FarmHash fingerprint of the PopulationSpec.
+      int64 population_spec_fingerprint = 5;
+    }
 
     oneof protocol {
       HonestMajorityShareShuffle honest_majority_share_shuffle = 1;
+
+      TrusTee trus_tee = 2;
     }
   }
   RequisitionProtocol protocol = 5;

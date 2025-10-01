@@ -47,6 +47,7 @@ LIBS = [
     "model_shard",
     "model_suite",
     "population",
+    "population_key",
     "protocol_config_config",
     "protocol_config",
     "recurring_exchange",
@@ -63,6 +64,7 @@ DETAILS_LIBS = [
     "event_group_metadata_descriptor",
     "event_group",
     "exchange_step_attempt",
+    "population",
     "recurring_exchange",
     "requisition",
     "measurement_consumer",
@@ -718,6 +720,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":model_release_proto",
+        ":population_key_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -786,8 +789,23 @@ proto_library(
     srcs = ["population.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_template_proto",
+        ":population_details_proto",
         "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "population_key_proto",
+    srcs = ["population_key.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
+    name = "population_details_proto",
+    srcs = ["population_details.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:any_proto",
     ],
 )
 

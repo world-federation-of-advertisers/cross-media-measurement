@@ -125,8 +125,24 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
+  override suspend fun enqueue(
+    token: ComputationEditToken<ProtocolT, StageT>,
+    delaySecond: Int,
+    expectedOwner: String,
+  ) {
     runIfTokenFromLastUpdate(token) { txn ->
+      val currentLockOwner: String? =
+        txn
+          .readRow("Computations", Key.of(token.localId), listOf("LockOwner"))
+          ?.getNullableString("LockOwner")
+
+      if (currentLockOwner != null && currentLockOwner != expectedOwner) {
+        throw IllegalStateException(
+          "Failed to enqueue computation ${token.localId}. " +
+            "Expected owner '$expectedOwner' but the lock is held by '$currentLockOwner'."
+        )
+      }
+
       txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
@@ -136,9 +152,6 @@ class GcpSpannerComputationsDatabaseTransactor<
           //
           // TODO(@renjiezh): Determine if we even need this delay behavior now that the FIFO queue
           // is based on creation time and not lock expiration time.
-          //
-          // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
-          // the caller.
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp(),
         )
@@ -774,6 +787,8 @@ class GcpSpannerComputationsDatabaseTransactor<
    *   [token].[localId][ComputationEditToken.localId] is not found
    * @throws ComputationTokenVersionMismatchException if
    *   [token].[editVersion][ComputationEditToken.editVersion] does not match
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#2578): Check the lock owner
    */
   private suspend fun <R> runIfTokenFromLastUpdate(
     token: ComputationEditToken<ProtocolT, StageT>,

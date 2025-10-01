@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
+from dataclasses import field
+from typing import Optional
+from typing import TypeAlias
+
+TOLERANCE = 1e-2
 
 class Measurement:
   """Represents a measurement with a mean value and a standard deviation"""
@@ -26,9 +32,41 @@ class Measurement:
     self.sigma = sigma
     self.name = name
 
+  def __eq__(self, other):
+    if not isinstance(other, Measurement):
+        raise ValueError("Cannot compare Measurement with non-Measurement object.")
+
+    # Return True if and only if all attributes are equal
+    return (math.isclose(self.value, other.value, abs_tol=TOLERANCE) and
+            math.isclose(self.sigma, other.sigma, abs_tol=TOLERANCE) and
+            self.name == other.name)
+
   def __repr__(self):
     return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
                                                       self.name)
+
+
+KReachMeasurements: TypeAlias = dict[int, Measurement]
+
+
+@dataclass
+class MeasurementSet:
+  reach: Optional[Measurement] = None
+  k_reach: KReachMeasurements = field(default_factory=dict)
+  impression: Optional[Measurement] = None
+
+  def __post_init__(self):
+    """
+    Validates the object's state after initialization.
+    """
+    # At least one of the field is not empty.
+    if self.reach is None and self.impression is None and not self.k_reach:
+      raise ValueError(
+          "At least one field (reach, impression, or k_reach) must be "
+          "initialized."
+      )
+
+
 
 @dataclass
 class OrderedSets:

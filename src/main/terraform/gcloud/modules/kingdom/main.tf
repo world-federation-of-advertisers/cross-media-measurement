@@ -202,6 +202,16 @@ resource "google_bigquery_table" "requisitions" {
     "type": "INTEGER",
     "mode": "REQUIRED",
     "defaultValueExpression": "0"
+  },
+  {
+    "name": "build_label",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "warnings",
+    "type": "STRING",
+    "mode": "REPEATED"
   }
 ]
 EOF

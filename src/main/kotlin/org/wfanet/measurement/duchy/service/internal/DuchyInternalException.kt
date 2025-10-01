@@ -118,3 +118,21 @@ class ComputationTokenVersionMismatchException(
         "token_version" to tokenVersion.toString(),
       )
 }
+
+class ComputationLockOwnerMismatchException(
+  val computationId: Long,
+  val expectedOwner: String,
+  val actualOwner: String?,
+  message: String =
+    "Lock owner mismatch for computation $computationId. " +
+      "Expected owner '$expectedOwner', but found '$actualOwner'.",
+) : DuchyInternalException(ErrorCode.COMPUTATION_LOCK_OWNER_MISMATCH, message) {
+  override val context
+    get() =
+      mapOf(
+        "computation_id" to computationId.toString(),
+        "expected_owner" to expectedOwner,
+        // Provide a clear string representation if the lock is currently unowned.
+        "actual_owner" to (actualOwner ?: "none"),
+      )
+}

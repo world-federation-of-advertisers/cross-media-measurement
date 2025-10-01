@@ -1,0 +1,273 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/edpaggregator/v1alpha/impression_metadata.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ImpressionMetadataServiceProto";
+
+// Service for managing ImpressionMetadata.
+service ImpressionMetadataService {
+  // Creates a new ImpressionMetadata entry.
+  rpc CreateImpressionMetadata(CreateImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
+  // Creates multiple new ImpressionMetadata entries in a single request.
+  rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
+      returns (BatchCreateImpressionMetadataResponse) {}
+
+  // Retrieves a specific ImpressionMetadata entry.
+  rpc GetImpressionMetadata(GetImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
+  // Lists ImpressionMetadata entries, with optional filtering.
+  rpc ListImpressionMetadata(ListImpressionMetadataRequest)
+      returns (ListImpressionMetadataResponse) {}
+
+  // Marks an ImpressionMetadata entry as deleted.
+  rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
+  // Marks multiple ImpressionMetadata entries as deleted in a single request.
+  rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
+      returns (BatchDeleteImpressionMetadataResponse) {}
+
+  // Computes the time bounds for the given ModelLines.
+  //
+  // This method returns, for each requested ModelLine, the largest interval
+  // during which all associated ImpressionMetadata resources are in the ACTIVE
+  // state.
+  //
+  // Callers are responsible for ensuring that all expected ImpressionMetadata
+  // have been created before using these intervals for downstream purposes,
+  // such as populating `DataProvider.data_availability_intervals`.
+  rpc ComputeModelLineBounds(ComputeModelLineBoundsRequest)
+      returns (ComputeModelLineBoundsResponse) {}
+}
+
+// Request message for the `CreateImpressionMetadata` method.
+message CreateImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The ImpressionMetadata to create.
+  // The `name` and output-only fields are ignored.
+  ImpressionMetadata impression_metadata = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client on creation to ensure idempotency.
+  //
+  // This field must be a UUID4 (RFC 4122) string.
+  string request_id = 10 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchCreateImpressionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchCreateImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The list of ImpressionMetadata to create.
+  repeated CreateImpressionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchCreateImpressionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchCreateImpressionMetadataResponse {
+  // The list of newly created ImpressionMetadata, in the same order as the
+  // request.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+// Request message for the `GetImpressionMetadata` method.
+message GetImpressionMetadataRequest {
+  // The resource name of the ImpressionMetadata to retrieve.
+  // Format:
+  // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+}
+
+// Request message for the `ListImpressionMetadata` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the filter.
+//     --)
+message ListImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional. A filter to apply to the results.
+  // All fields are combined with `AND` logic.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filter for `ListImpressionMetadata` method.
+  message Filter {
+    // The model line resource name to filter by.
+    // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+    string model_line = 1 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+    ];
+
+    // The event group reference ID to filter by.
+    string event_group_reference_id = 2
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // The time interval to filter by. The `ImpressionMetadata` time range must
+    // overlap with this interval.
+    google.type.Interval interval_overlaps = 3
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // A flag indicating whether to include soft DELETED entries.
+  bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListImpressionMetadata` method.
+message ListImpressionMetadataResponse {
+  // A list of `ImpressionMetadata` entries matching the request.
+  repeated ImpressionMetadata impression_metadata = 1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for the `DeleteImpressionMetadata` method.
+message DeleteImpressionMetadataRequest {
+  // The resource name of the ImpressionMetadata to delete.
+  // Format:
+  // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+}
+
+// Request message for the `BatchDeleteImpressionMetadata` method.
+message BatchDeleteImpressionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // The resource names of the ImpressionMetadata to delete.
+  repeated string names = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+}
+
+// Response message for the `BatchDeleteImpressionMetadata` method.
+// (-- api-linter: core::0235::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata" to
+//     "Metadatum".  --)
+message BatchDeleteImpressionMetadataResponse {
+  // The list of updated ImpressionMetadata, now marked as deleted.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+// Request message for the `ComputeModelLineBounds` method.
+message ComputeModelLineBoundsRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+  // The model line resource names to get time bounds for.
+  // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+  repeated string model_lines = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+}
+
+// Response message for the `ComputeModelLineBounds` method.
+message ComputeModelLineBoundsResponse {
+  // An entry in the [model_line_bounds][] map.
+  message ModelLineBoundMapEntry {
+    // The model line resource names to get time bound for.
+    // Format: `dataProviders/{data_provider}/modelLines/{model_line}`
+    string key = 1 [
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
+      (google.api.field_behavior) = REQUIRED
+    ];
+
+    // The largest interval during which all associated
+    // ImpressionMetadata resources are in the ACTIVE state.
+    google.type.Interval value = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // A map of ModelLine time bounds.
+  repeated ModelLineBoundMapEntry model_line_bounds = 1
+      [(google.api.field_behavior) = UNORDERED_LIST];
+}

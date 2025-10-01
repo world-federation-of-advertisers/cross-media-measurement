@@ -58,8 +58,6 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 data class DataProviderData(
   /** The DataProvider's public API resource name. */
   val name: String,
-  /** The DataProvider's display name. */
-  val displayName: String,
   /** The DataProvider's decryption key. */
   val privateEncryptionKey: PrivateKeyHandle,
   /** The DataProvider's consent signaling signing key. */
@@ -69,11 +67,11 @@ data class DataProviderData(
 )
 
 abstract class RequisitionFulfiller(
-  val dataProviderData: DataProviderData,
+  protected val dataProviderData: DataProviderData,
   private val certificatesStub: CertificatesCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
-  val throttler: Throttler,
-  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  protected val throttler: Throttler,
+  protected val trustedCertificates: Map<ByteString, X509Certificate>,
 ) {
   protected data class Specifications(
     val measurementSpec: MeasurementSpec,
@@ -82,9 +80,6 @@ abstract class RequisitionFulfiller(
 
   protected class InvalidConsentSignalException(message: String? = null, cause: Throwable? = null) :
     GeneralSecurityException(message, cause)
-
-  protected class InvalidSpecException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
 
   /** A sequence of operations done in the simulator. */
   abstract suspend fun run()

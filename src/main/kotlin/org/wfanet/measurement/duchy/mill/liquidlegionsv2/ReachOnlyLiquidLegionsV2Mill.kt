@@ -392,9 +392,9 @@ class ReachOnlyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }
@@ -447,9 +447,9 @@ class ReachOnlyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             ReachOnlyLiquidLegionsV2.Description.SETUP_PHASE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = aggregatorStub,
       )
     }
@@ -585,9 +585,9 @@ class ReachOnlyLiquidLegionsV2Mill(
         header =
           advanceComputationHeader(
             ReachOnlyLiquidLegionsV2.Description.EXECUTION_PHASE_INPUT,
-            token.globalComputationId,
+            nextToken.globalComputationId,
           ),
-        content = addLoggingHook(token, bytes),
+        content = addLoggingHook(nextToken, bytes),
         stub = nextDuchyStub,
       )
     }

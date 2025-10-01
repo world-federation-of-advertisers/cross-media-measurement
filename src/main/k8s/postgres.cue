@@ -17,13 +17,16 @@ package k8s
 #CommonPostgresConfig: {
 	_flags: [_=string]: string
 
-	user?:     string
-	database?: string
+	user?:             string
+	database?:         string
+	statementTimeout?: string
 	flags: [ for name, value in _flags {"\(name)=\(value)"}]
 
 	_flags: {
 		if user != _|_ {"--postgres-user": user}
 		if database != _|_ {"--postgres-database": database}
+		if statementTimeout != _|_ {"--statement-timeout": statementTimeout}
+
 	}
 }
 

@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -31,16 +32,21 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt.afterFilter
@@ -53,6 +59,7 @@ import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.kingdom.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 private const val RANDOM_SEED = 1
 
@@ -298,9 +305,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("RolloutPeriodStartTime field of ModelRollout is missing.")
+    assertThat(exception).hasMessageThat().contains("rollout_period_start_time")
   }
 
   @Test
@@ -333,9 +338,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("RolloutPeriodEndTime field of ModelRollout is missing.")
+    assertThat(exception).hasMessageThat().contains("rollout_period_end_time")
   }
 
   @Test
@@ -357,9 +360,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("ExternalModelReleaseId field of ModelRollout is missing.")
+    assertThat(exception).hasMessageThat().contains("external_model_release_id")
   }
 
   @Test
@@ -378,41 +379,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ModelLine not found")
-  }
-
-  @Test
-  fun `createModelRollout fails when rollout period start time is in the past`() = runBlocking {
-    val modelLine =
-      population.createModelLine(modelProvidersService, modelSuitesService, modelLinesService)
-    val populationDataProvider = population.createDataProvider(dataProvidersService)
-    val createdPopulation = population.createPopulation(populationDataProvider, populationsService)
-    val modelRelease =
-      population.createModelRelease(
-        modelSuite {
-          externalModelProviderId = modelLine.externalModelProviderId
-          externalModelSuiteId = modelLine.externalModelSuiteId
-        },
-        createdPopulation,
-        modelReleasesService,
-      )
-
-    val modelRollout = modelRollout {
-      externalModelProviderId = modelLine.externalModelProviderId
-      externalModelSuiteId = modelLine.externalModelSuiteId
-      externalModelLineId = modelLine.externalModelLineId
-      rolloutPeriodStartTime = Instant.now().minusSeconds(300L).toProtoTime()
-      rolloutPeriodEndTime = Instant.now().minusSeconds(200L).toProtoTime()
-      externalModelReleaseId = modelRelease.externalModelReleaseId
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        modelRolloutsService.createModelRollout(modelRollout)
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("RolloutPeriodStartTime must be in the future.")
+    assertThat(exception).hasMessageThat().contains("ModelLine")
   }
 
   @Test
@@ -448,9 +415,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("RolloutPeriodEndTime cannot precede RolloutPeriodStartTime.")
+      assertThat(exception).hasMessageThat().contains("rollout_period_end_time")
     }
 
   @Test
@@ -472,7 +437,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ModelRelease not found.")
+    assertThat(exception).hasMessageThat().contains("ModelRelease")
   }
 
   @Test
@@ -567,7 +532,7 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("RolloutFreezeTime must be in the future.")
+    assertThat(exception).hasMessageThat().contains("rollout_freeze_time")
   }
 
   @Test
@@ -610,10 +575,8 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("RolloutFreezeTime cannot precede RolloutPeriodStartTime.")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("freeze")
     }
 
   @Test
@@ -656,10 +619,18 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("RolloutFreezeTime cannot be equal or later than RolloutPeriodEndTime.")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.MODEL_ROLLOUT_FREEZE_TIME_OUT_OF_RANGE.name
+            metadata["rolloutPeriodStartTime"] =
+              createdModelRollout.rolloutPeriodStartTime.toInstant().toString()
+            metadata["rolloutPeriodEndTime"] =
+              createdModelRollout.rolloutPeriodEndTime.toInstant().toString()
+          }
+        )
     }
 
   @Test
@@ -678,7 +649,6 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ModelRollout not found")
   }
 
   @Test
@@ -866,6 +836,64 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
       .comparingExpectedFieldsOnly()
       .containsExactly(modelRollout1, modelRollout2)
       .inOrder()
+  }
+
+  @Test
+  fun `streamModelRollouts returns ModelRollouts filtered by ModelRelease`(): Unit = runBlocking {
+    val pdp = population.createDataProvider(dataProvidersService)
+    val populationResource = population.createPopulation(pdp, populationsService)
+    val modelProvider: ModelProvider = population.createModelProvider(modelProvidersService)
+    val modelSuite: ModelSuite = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelRelease1 =
+      population.createModelRelease(modelSuite, populationResource, modelReleasesService)
+    val modelRelease2 =
+      population.createModelRelease(modelSuite, populationResource, modelReleasesService)
+    val modelLine1 = population.createModelLine(modelLinesService, modelSuite)
+    val modelLine2 = population.createModelLine(modelLinesService, modelSuite)
+    val modelRollout1 =
+      modelRolloutsService.createModelRollout(
+        modelRollout {
+          externalModelProviderId = modelLine1.externalModelProviderId
+          externalModelSuiteId = modelLine1.externalModelSuiteId
+          externalModelLineId = modelLine1.externalModelLineId
+          rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+          rolloutPeriodEndTime = rolloutPeriodStartTime
+          externalModelReleaseId = modelRelease1.externalModelReleaseId
+        }
+      )
+    modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = modelLine1.externalModelProviderId
+        externalModelSuiteId = modelLine1.externalModelSuiteId
+        externalModelLineId = modelLine1.externalModelLineId
+        rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
+        rolloutPeriodEndTime = rolloutPeriodStartTime
+        externalModelReleaseId = modelRelease2.externalModelReleaseId
+      }
+    )
+    val modelRollout3 =
+      modelRolloutsService.createModelRollout(
+        modelRollout {
+          externalModelProviderId = modelLine2.externalModelProviderId
+          externalModelSuiteId = modelLine2.externalModelSuiteId
+          externalModelLineId = modelLine2.externalModelLineId
+          rolloutPeriodStartTime = Instant.now().plusSeconds(300L).toProtoTime()
+          rolloutPeriodEndTime = rolloutPeriodStartTime
+          externalModelReleaseId = modelRelease1.externalModelReleaseId
+        }
+      )
+    val request = streamModelRolloutsRequest {
+      filter = filter {
+        externalModelProviderId = modelProvider.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        externalModelReleaseIdIn += modelRelease1.externalModelReleaseId
+        // Not specifying ModelLine to list across the whole ModelSuite.
+      }
+    }
+
+    val response = modelRolloutsService.streamModelRollouts(request).toList()
+
+    assertThat(response).containsExactly(modelRollout1, modelRollout3)
   }
 
   @Test
@@ -1188,44 +1216,57 @@ abstract class ModelRolloutsServiceTest<T : ModelRolloutsCoroutineImplBase> {
           modelReleasesService,
         )
 
-      val modelRollout = modelRollout {
-        externalModelProviderId = modelLine.externalModelProviderId
-        externalModelSuiteId = modelLine.externalModelSuiteId
-        externalModelLineId = modelLine.externalModelLineId
-        rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
-        rolloutPeriodEndTime = Instant.now().plusSeconds(100L).toProtoTime()
-        externalModelReleaseId = modelRelease.externalModelReleaseId
-      }
-      modelRolloutsService.createModelRollout(modelRollout)
+      val modelRollout =
+        modelRolloutsService.createModelRollout(
+          modelRollout {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+            externalModelLineId = modelLine.externalModelLineId
+            rolloutPeriodStartTime = Instant.now().plusSeconds(100L).toProtoTime()
+            rolloutPeriodEndTime = Instant.now().plusSeconds(100L).toProtoTime()
+            externalModelReleaseId = modelRelease.externalModelReleaseId
+          }
+        )
 
-      val modelRollout2 = modelRollout {
-        externalModelProviderId = modelLine.externalModelProviderId
-        externalModelSuiteId = modelLine.externalModelSuiteId
-        externalModelLineId = modelLine.externalModelLineId
-        rolloutPeriodStartTime = Instant.now().plusSeconds(300L).toProtoTime()
-        rolloutPeriodEndTime = Instant.now().plusSeconds(400L).toProtoTime()
-        externalModelReleaseId = modelRelease.externalModelReleaseId
-      }
-
-      modelRolloutsService.createModelRollout(modelRollout2)
-
-      val modelRollout3 = modelRollout {
-        externalModelProviderId = modelLine.externalModelProviderId
-        externalModelSuiteId = modelLine.externalModelSuiteId
-        externalModelLineId = modelLine.externalModelLineId
-        rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
-        rolloutPeriodEndTime = Instant.now().plusSeconds(300L).toProtoTime()
-        externalModelReleaseId = modelRelease.externalModelReleaseId
-      }
+      val modelRollout2 =
+        modelRolloutsService.createModelRollout(
+          modelRollout {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+            externalModelLineId = modelLine.externalModelLineId
+            rolloutPeriodStartTime = Instant.now().plusSeconds(300L).toProtoTime()
+            rolloutPeriodEndTime = Instant.now().plusSeconds(400L).toProtoTime()
+            externalModelReleaseId = modelRelease.externalModelReleaseId
+          }
+        )
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          modelRolloutsService.createModelRollout(modelRollout3)
+          modelRolloutsService.createModelRollout(
+            modelRollout {
+              externalModelProviderId = modelLine.externalModelProviderId
+              externalModelSuiteId = modelLine.externalModelSuiteId
+              externalModelLineId = modelLine.externalModelLineId
+              rolloutPeriodStartTime = Instant.now().plusSeconds(200L).toProtoTime()
+              rolloutPeriodEndTime = Instant.now().plusSeconds(300L).toProtoTime()
+              externalModelReleaseId = modelRelease.externalModelReleaseId
+            }
+          )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("RolloutPeriodStartTime cannot precede that of previous ModelRollout.")
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.MODEL_ROLLOUT_OLDER_THAN_PREVIOUS.name
+            metadata["external_model_provider_id"] =
+              modelRollout2.externalModelProviderId.toString()
+            metadata["external_model_suite_id"] = modelRollout2.externalModelSuiteId.toString()
+            metadata["external_model_line_id"] = modelRollout2.externalModelLineId.toString()
+            metadata["previous_external_model_rollout_id"] =
+              modelRollout2.externalModelRolloutId.toString()
+          }
+        )
     }
 }

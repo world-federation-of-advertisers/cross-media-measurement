@@ -28,6 +28,13 @@ import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
+import io.grpc.Channel
+import io.grpc.ManagedChannel
+import java.nio.file.Paths
+import java.time.ZoneOffset
+import java.util.UUID
+import java.util.logging.Logger
+import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
@@ -37,11 +44,34 @@ import org.measurement.integration.k8s.testing.CorrectnessTestConfig
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelRelease
+import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelRollout
+import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
+import org.wfanet.measurement.api.v2alpha.ModelSuite
+import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
+import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto
@@ -50,27 +80,37 @@ import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt as InternalBasicReportsGrpcKt
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticGeneratorEventQuery
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
-import org.wfanet.measurement.loadtest.measurementconsumer.MetadataSyntheticGeneratorEventQuery
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
- * Test for correctness of an existing CMMS on Kubernetes where the EDP simulators use
- * [SyntheticGeneratorEventQuery] with [SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE].
+ * Test for correctness of an existing CMMS on Kubernetes with EDP simulators.
+ *
  * The computation composition is using ACDP by assumption.
  *
  * This currently assumes that the CMMS instance is using the certificates and keys from this Bazel
  * workspace. It also assumes that there is a Reporting system connected to the CMMS.
  */
 class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
-  private class RunningMeasurementSystem : MeasurementSystem, TestRule {
+  private class RunningMeasurementSystem : MeasurementSystem(), TestRule {
+    override val syntheticPopulationSpec: SyntheticPopulationSpec =
+      SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE
+    override val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
+      SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_LARGE_2M
+    override val populationDataProviderName: String
+      get() = TEST_CONFIG.populationDataProvider
+
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
     private lateinit var _testHarness: EventQueryMeasurementConsumerSimulator
     private lateinit var _reportingTestHarness: ReportingUserSimulator
+    private lateinit var _modelLine: ModelLine
 
     override val testHarness: EventQueryMeasurementConsumerSimulator
       get() = _testHarness
@@ -78,12 +118,19 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
     override val reportingTestHarness: ReportingUserSimulator
       get() = _reportingTestHarness
 
+    override val modelLine: ModelLine
+      get() = _modelLine
+
     private val channels = mutableListOf<ManagedChannel>()
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
           try {
+            val pdpKingdomPublicApiChannel = buildKingdomPublicApiChannel(PDP_SIGNING_CERTS)
+            val mpKingdomPublicApiChannel = buildKingdomPublicApiChannel(MP_SIGNING_CERTS)
+            _modelLine = ensureModelLine(pdpKingdomPublicApiChannel, mpKingdomPublicApiChannel)
+
             _testHarness = createTestHarness()
             _reportingTestHarness = createReportingTestHarness()
             base.evaluate()
@@ -94,7 +141,87 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       }
     }
 
+    @Blocking
+    private fun ensureModelLine(
+      pdpKingdomPublicApiChannel: Channel,
+      mpKingdomPublicApiChannel: Channel,
+    ): ModelLine {
+      val population = ensurePopulation(pdpKingdomPublicApiChannel)
+
+      val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelSuitesStub = ModelSuitesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+
+      // Find ModelReleases for the Population.
+      val modelReleases: List<ModelRelease> =
+        modelReleasesStub
+          .listModelReleases(
+            listModelReleasesRequest {
+              parent = "${TEST_CONFIG.modelProvider}/modelSuites/-"
+              filter = ListModelReleasesRequestKt.filter { populationIn += population.name }
+            }
+          )
+          .modelReleasesList
+
+      if (modelReleases.isEmpty()) {
+        val modelSuite: ModelSuite =
+          modelSuitesStub.createModelSuite(
+            createModelSuiteRequest {
+              parent = TEST_CONFIG.modelProvider
+              modelSuite = modelSuite { displayName = "K8s test" }
+            }
+          )
+
+        val modelRelease: ModelRelease =
+          modelReleasesStub.createModelRelease(
+            createModelReleaseRequest {
+              parent = modelSuite.name
+              modelRelease = modelRelease { this.population = population.name }
+            }
+          )
+
+        return createModelLine(mpKingdomPublicApiChannel, modelSuite.name, modelRelease.name).also {
+          logger.info { "Created ${it.name} for ${population.name}" }
+        }
+      }
+
+      // If there's a ModelRelease for the Population, we expect a ModelLine to exist that
+      // references it.
+      val modelRelease = modelReleases.first()
+      val modelReleaseKey = checkNotNull(ModelReleaseKey.fromName(modelRelease.name))
+      val modelSuiteName = modelReleaseKey.parentKey.toName()
+      val modelRolloutsStub = ModelRolloutsGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelRollouts: List<ModelRollout> =
+        modelRolloutsStub
+          .listModelRollouts(
+            listModelRolloutsRequest {
+              parent = "$modelSuiteName/modelLines/${ResourceKey.WILDCARD_ID}"
+              filter = ListModelRolloutsRequestKt.filter { modelReleaseIn += modelRelease.name }
+            }
+          )
+          .modelRolloutsList
+      if (modelRollouts.isEmpty()) {
+        throw Exception("Unable to find ModelLine for Population")
+      }
+
+      val modelRolloutKey = checkNotNull(ModelRolloutKey.fromName(modelRollouts.first().name))
+      val modelLinesStub = ModelLinesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelLine: ModelLine =
+        modelLinesStub.getModelLine(
+          getModelLineRequest { name = modelRolloutKey.parentKey.toName() }
+        )
+      if (
+        modelLine.activeStartTime.toInstant() >
+          getMinModelLineStartDate().atStartOfDay(ZoneOffset.UTC).toInstant()
+      ) {
+        throw Exception("Unable to find appropriately active ModelLine for Population")
+      }
+
+      logger.info { "Found ${modelLine.name} for ${population.name}" }
+      return modelLine
+    }
+
     private fun createTestHarness(): EventQueryMeasurementConsumerSimulator {
+      val publicApiChannel = buildKingdomPublicApiChannel(MEASUREMENT_CONSUMER_SIGNING_CERTS)
       val measurementConsumerData =
         MeasurementConsumerData(
           TEST_CONFIG.measurementConsumer,
@@ -103,19 +230,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           TEST_CONFIG.apiAuthenticationKey,
         )
 
-      val publicApiChannel =
-        buildMutualTlsChannel(
-            TEST_CONFIG.kingdomPublicApiTarget,
-            MEASUREMENT_CONSUMER_SIGNING_CERTS,
-            TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-          )
-          .also { channels.add(it) }
-
-      val eventQuery: SyntheticGeneratorEventQuery =
-        MetadataSyntheticGeneratorEventQuery(
-          SyntheticGenerationSpecs.SYNTHETIC_POPULATION_SPEC_LARGE,
-          MC_ENCRYPTION_PRIVATE_KEY,
-        )
       return EventQueryMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
@@ -125,7 +239,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
-        eventQuery,
+        buildEventQuery(TEST_CONFIG.eventDataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
       )
     }
@@ -212,10 +326,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
             publicApiChannel
           ),
-        reportingSetsClient =
-          org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub(
-            publicApiChannel
-          ),
+        reportingSetsClient = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
@@ -228,6 +339,15 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       )
     }
 
+    private fun buildKingdomPublicApiChannel(clientCerts: SigningCerts): Channel {
+      return buildMutualTlsChannel(
+          TEST_CONFIG.kingdomPublicApiTarget,
+          clientCerts,
+          TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+        )
+        .also { channels.add(it) }
+    }
+
     private fun shutDownChannels() {
       for (channel in channels) {
         channel.shutdown()
@@ -236,6 +356,8 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
   }
 
   companion object {
+    private val logger = Logger.getLogger(this::class.java.enclosingClass.name)
+
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "correctness_test_config.textproto"

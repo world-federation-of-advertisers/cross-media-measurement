@@ -78,14 +78,25 @@ is from port-forwarding the postgres-internal-reporting-server.:
 
 ```shell
 bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest \
---test_output=streamed \
---define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
---define=mc_name=measurementConsumers/Rcn7fKd25C8 \
---define=mc_api_key=W9q4zad246g \
---define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443 \
---define=reporting_internal_api_target=localhost:8443 \
---define=reporting_gateway_target=v2alpha.reporting.dev.halo-cmm.org \
---define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443
+    --test_output=streamed \
+    --define=google_cloud_project=halo-cmm-dev \
+    --define=kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+    --define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+    --define=basic_reports_enabled=true \
+    --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
+    --define=mc_api_key=W9q4zad246g \
+    --define=reporting_public_api_target=v2alpha.reporting.dev.halo-cmm.org:8443 \
+    --define=reporting_internal_api_target=localhost:8443 \
+    --define=reporting_gateway_target=v2alpha.reporting.dev.halo-cmm.org \
+    --define=access_public_api_target=access.reporting.dev.halo-cmm.org:8443 \
+    --define=edp1_name=dataProviders/FeQ5FqAQ5_0 \
+    --define=edp2_name=dataProviders/R180F6AQ584 \
+    --define=edp3_name=dataProviders/drAt_l_vGJU \
+    --define=edp4_name=dataProviders/JugGwqAQ5wQ \
+    --define=edp5_name=dataProviders/HlFzHaAQ5pA \
+    --define=edp6_name=dataProviders/QNqyjKAQ5i4 \
+    --define=pdp_name=dataProviders/KnvDaDC7QKA \
+    --define=mp_name=modelProviders/Wt5MH8egH4w
 ```
 
 The time the test takes depends on the size of the data set. With the default

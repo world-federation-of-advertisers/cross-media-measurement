@@ -56,6 +56,15 @@ jobs:
         REPORTING_INTERNAL_API_TARGET: ${{ vars.REPORTING_INTERNAL_API_TARGET }}
         REPORTING_GATEWAY_TARGET: ${{ vars.REPORTING_GATEWAY_TARGET }}
         ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+
+        EDP1_NAME: ${{ vars.EDP1_NAME }}
+        EDP2_NAME: ${{ vars.EDP2_NAME }}
+        EDP3_NAME: ${{ vars.EDP3_NAME }}
+        EDP4_NAME: ${{ vars.EDP4_NAME }}
+        EDP5_NAME: ${{ vars.EDP5_NAME }}
+        EDP6_NAME: ${{ vars.EDP6_NAME }}
+        PDP_NAME: ${{ vars.PDP_NAME }}
+        MP_NAME: ${{ vars.MP_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -67,6 +76,14 @@ jobs:
         build --define reporting_gateway_target=$REPORTING_GATEWAY_TARGET
         build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
+        build --define "edp1_name=$EDP1_NAME"
+        build --define "edp2_name=$EDP2_NAME"
+        build --define "edp3_name=$EDP3_NAME"
+        build --define "edp4_name=$EDP4_NAME"
+        build --define "edp5_name=$EDP5_NAME"
+        build --define "edp6_name=$EDP6_NAME"
+        build --define "pdp_name=$PDP_NAME"
+        build --define "mp_name=$MP_NAME"
         test --test_output=streamed
         test --test_timeout=3600
         EOF
