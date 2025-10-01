@@ -15,10 +15,10 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
-import com.google.rpc.errorInfo
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -36,39 +36,39 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.IdGenerator
-import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRequisitionMetadataService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt as InternalListRequisitionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase as InternalRequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceStub
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt as InternalListRequisitionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken as internalListRequisitionMetadataPageToken
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 @RunWith(JUnit4::class)
 class RequisitionMetadataServiceTest {
@@ -575,7 +575,8 @@ class RequisitionMetadataServiceTest {
         listRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
       )
 
-    assertThat(response).isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
+    assertThat(response)
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
   }
 
   @Test
@@ -673,7 +674,9 @@ class RequisitionMetadataServiceTest {
   fun `listRequisitionMetadata throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listRequisitionMetadata(listRequisitionMetadataRequest { parent = "invalid-parent" })
+        service.listRequisitionMetadata(
+          listRequisitionMetadataRequest { parent = "invalid-parent" }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

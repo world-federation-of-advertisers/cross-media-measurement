@@ -178,6 +178,7 @@ class RequisitionMetadataNotFoundByCmmsRequisitionException(
     ),
     cause,
   )
+
 class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,

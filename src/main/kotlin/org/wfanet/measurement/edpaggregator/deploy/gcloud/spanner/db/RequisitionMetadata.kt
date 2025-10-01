@@ -22,9 +22,9 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
+import kotlin.text.trimIndent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlin.text.trimIndent
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
@@ -35,12 +35,12 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
-import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 
 data class RequisitionMetadataResult(
   val requisitionMetadata: RequisitionMetadata,
@@ -150,7 +150,9 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     }
 
     if (after != null) {
-      conjuncts.add("(UpdateTime > @afterUpdateTime OR (UpdateTime = @afterUpdateTime AND RequisitionMetadataResourceId > @afterRequisitionMetadataResourceId))")
+      conjuncts.add(
+        "(UpdateTime > @afterUpdateTime OR (UpdateTime = @afterUpdateTime AND RequisitionMetadataResourceId > @afterRequisitionMetadataResourceId))"
+      )
     }
 
     if (conjuncts.isNotEmpty()) {
@@ -161,27 +163,29 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     appendLine("LIMIT @limit")
   }
 
-  val query = statement(sql) {
-    bind("limit").to(limit.toLong())
-    bind("dataProviderResourceId").to(dataProviderResourceId)
+  val query =
+    statement(sql) {
+      bind("limit").to(limit.toLong())
+      bind("dataProviderResourceId").to(dataProviderResourceId)
 
-    if (filter != null) {
-      if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
-        bind("state").to(filter.state.number.toLong())
+      if (filter != null) {
+        if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+          bind("state").to(filter.state.number.toLong())
+        }
+        if (filter.groupId.isNotEmpty()) {
+          bind("groupId").to(filter.groupId)
+        }
       }
-      if (filter.groupId.isNotEmpty()) {
-        bind("groupId").to(filter.groupId)
+
+      if (after != null) {
+        bind("afterUpdateTime").to(after.updateTime.toGcloudTimestamp())
+        bind("afterRequisitionMetadataResourceId").to(after.requisitionMetadataResourceId)
       }
     }
 
-    if (after != null) {
-      bind("afterUpdateTime").to(after.updateTime.toGcloudTimestamp())
-      bind("afterRequisitionMetadataResourceId").to(after.requisitionMetadataResourceId)
-    }
+  return executeQuery(query, Options.tag("action=readRequisitionMetadata")).map { row ->
+    RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
   }
-
-  return executeQuery(query, Options.tag("action=readRequisitionMetadata"))
-    .map { row -> RequisitionMetadataEntity.buildRequisitionMetadataResult(row) }
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateRequestId(

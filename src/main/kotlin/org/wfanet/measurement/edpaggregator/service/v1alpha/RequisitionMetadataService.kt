@@ -19,55 +19,55 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.IOException
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundException
-import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.LookupRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken as InternalListRequisitionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest.Filter as InternalListRequisitionMetadataFilter
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt.filter as internalListRequisitionMetadataRequestFilter
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse as InternalListRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataRequest as internalFulfillRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt.filter as internalListRequisitionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataRequest as internalGetRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest as internalListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest as internalLookupRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest as internalQueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse as InternalListRequisitionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken as InternalListRequisitionMetadataPageToken
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest.Filter as InternalListRequisitionMetadataFilter
-import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest as internalListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
-import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.base64UrlEncode
-import java.io.IOException
 
 class RequisitionMetadataService(
   private val internalClient: InternalRequisitionMetadataServiceCoroutineStub,
@@ -196,8 +196,7 @@ class RequisitionMetadataService(
     }
 
     val pageSize =
-      if (request.pageSize == 0) DEFAULT_PAGE_SIZE
-      else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
 
     val internalPageToken: InternalListRequisitionMetadataPageToken? =
       if (request.pageToken.isEmpty()) {
@@ -578,7 +577,8 @@ class RequisitionMetadataService(
       RequisitionMetadata.State.FULFILLED -> InternalState.REQUISITION_METADATA_STATE_FULFILLED
       RequisitionMetadata.State.REFUSED -> InternalState.REQUISITION_METADATA_STATE_REFUSED
       RequisitionMetadata.State.UNRECOGNIZED,
-      RequisitionMetadata.State.STATE_UNSPECIFIED -> InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED
+      RequisitionMetadata.State.STATE_UNSPECIFIED ->
+        InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED
     }
   }
 
@@ -586,5 +586,4 @@ class RequisitionMetadataService(
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
   }
-
 }

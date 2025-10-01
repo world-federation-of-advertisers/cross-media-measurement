@@ -21,7 +21,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
-import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -36,6 +35,11 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
@@ -44,19 +48,14 @@ import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse
 
 @RunWith(JUnit4::class)
 abstract class RequisitionMetadataServiceTest {
@@ -988,9 +987,7 @@ abstract class RequisitionMetadataServiceTest {
   fun `listRequisitionMetadata returns empty when no RequisitionMetadata exist`() = runBlocking {
     val response =
       service.listRequisitionMetadata(
-        listRequisitionMetadataRequest { dataProviderResourceId =
-          DATA_PROVIDER_RESOURCE_ID
-        }
+        listRequisitionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
       )
 
     assertThat(response.requisitionMetadataList).isEmpty()
@@ -1000,19 +997,15 @@ abstract class RequisitionMetadataServiceTest {
 
   @Test
   fun `listRequisitionMetadata returns all items when no filter`() = runBlocking {
-    val created = createRequisitionMetadata(
-      REQUISITION_METADATA_2,
-      REQUISITION_METADATA_3
-    )
+    val created = createRequisitionMetadata(REQUISITION_METADATA_2, REQUISITION_METADATA_3)
 
     val response =
       service.listRequisitionMetadata(
-        listRequisitionMetadataRequest { dataProviderResourceId =
-          DATA_PROVIDER_RESOURCE_ID
-        }
+        listRequisitionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
       )
 
-    assertThat(response).isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
+    assertThat(response)
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
   }
 
   @Test
@@ -1021,7 +1014,7 @@ abstract class RequisitionMetadataServiceTest {
       createRequisitionMetadata(
         REQUISITION_METADATA_2,
         REQUISITION_METADATA_3,
-        REQUISITION_METADATA_4
+        REQUISITION_METADATA_4,
       )
 
     val response =
@@ -1053,7 +1046,7 @@ abstract class RequisitionMetadataServiceTest {
       createRequisitionMetadata(
         REQUISITION_METADATA_2,
         REQUISITION_METADATA_3,
-        REQUISITION_METADATA_4
+        REQUISITION_METADATA_4,
       )
 
     val firstResponse =
@@ -1073,9 +1066,7 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
     assertThat(secondResponse)
-      .isEqualTo(listRequisitionMetadataResponse {
-        requisitionMetadata += created[2]
-      })
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created[2] })
   }
 
   @Test
@@ -1086,8 +1077,7 @@ abstract class RequisitionMetadataServiceTest {
       service.listRequisitionMetadata(
         listRequisitionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter =
-            ListRequisitionMetadataRequestKt.filter { groupId = "a-different-group-id" }
+          filter = ListRequisitionMetadataRequestKt.filter { groupId = "a-different-group-id" }
         }
       )
 
@@ -1100,7 +1090,7 @@ abstract class RequisitionMetadataServiceTest {
       createRequisitionMetadata(
         REQUISITION_METADATA_2,
         REQUISITION_METADATA_3,
-        REQUISITION_METADATA_4
+        REQUISITION_METADATA_4,
       )
 
     val response =
@@ -1121,7 +1111,7 @@ abstract class RequisitionMetadataServiceTest {
       createRequisitionMetadata(
         REQUISITION_METADATA_2,
         REQUISITION_METADATA_3,
-        REQUISITION_METADATA_4
+        REQUISITION_METADATA_4,
       )
 
     val queuedRequisition =
