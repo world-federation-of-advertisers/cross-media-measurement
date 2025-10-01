@@ -103,6 +103,7 @@ class RequisitionGrouperByReportId(
             .flatMap { it.eventGroupMapList }
             .groupBy { it.eventGroup }
             .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
+              val requisitionGroupId = UUID.randomUUID().toString()
               val eventGroupReferenceId = eventGroupMapEntries.first().details.eventGroupReferenceId
               val collectionIntervals: List<Interval> =
                 eventGroupMapEntries.flatMap { it.details.collectionIntervalsList }

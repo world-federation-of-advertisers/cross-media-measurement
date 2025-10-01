@@ -271,7 +271,7 @@ class RequisitionMetadataService(
       dataProviderResourceId = parentKey.dataProviderId
       when (request.lookupKeyCase) {
         LookupRequisitionMetadataRequest.LookupKeyCase.CMMS_REQUISITION ->
-          cmmsRequisition = request.cmmsRequisition
+          cmmsRequisition = request.cmmsRequisitionrequisitiongrouperbyre
         LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
           throw InvalidFieldValueException("requisition_metadata.lookup_key")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
