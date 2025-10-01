@@ -141,7 +141,7 @@ class StorageEventSource(
 
     return channelFlow {
       val eventReaders: List<StorageEventReader> = createEventReaders()
-      println("======================================= 1: ${eventGroupDetailsList.size}")
+
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
           "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
@@ -150,9 +150,7 @@ class StorageEventSource(
         // Launch one coroutine per EventReader
         coroutineScope {
           eventReaders.forEach { eventReader ->
-            println("======================================= 2")
             launch {
-              println("======================================= 3")
               val result = processEventReader(eventReader) { eventBatch -> send(eventBatch) }
               progressTracker.updateProgress(result.eventCount, result.batchCount)
             }
@@ -167,9 +165,7 @@ class StorageEventSource(
   private suspend fun createEventReaders(): List<StorageEventReader> {
     val allSources =
       eventGroupDetailsList.flatMap { details ->
-        println("============ dentro 1")
         details.collectionIntervalsList.flatMap { interval ->
-          println("============ dentro 2: $interval")
           impressionMetadataService.listImpressionDataSources(
             modelLine,
             details.eventGroupReferenceId,
@@ -177,12 +173,11 @@ class StorageEventSource(
           )
         }
       }
-println("============================ all sources: $allSources")
+
     // Deduplicate sources by blob URI to avoid double-reading overlapping intervals.
     val uniqueSources = allSources.distinctBy { it.blobDetails.blobUri }
-    println("============================ uniqueSources: $uniqueSources")
+
     return uniqueSources.map { source ->
-      println("=============== dentro map")
       StorageEventReader(
         source.blobDetails,
         kmsClient,
