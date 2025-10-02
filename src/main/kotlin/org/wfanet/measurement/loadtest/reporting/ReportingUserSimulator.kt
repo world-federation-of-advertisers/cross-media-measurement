@@ -294,6 +294,8 @@ class ReportingUserSimulator(
         )
         .build()
 
+    println("create basic report url: $createBasicReportUrl")
+
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
@@ -337,8 +339,6 @@ class ReportingUserSimulator(
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
-
-    println("retrieved Basic Report: $retrievedBasicReportJson")
 
     logger.info("Basic Report retrieval succeeded")
 
