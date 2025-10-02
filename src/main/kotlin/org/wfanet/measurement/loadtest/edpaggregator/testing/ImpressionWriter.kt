@@ -68,7 +68,9 @@ class ImpressionsWriter(
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun <T : Message> writeLabeledImpressionData(events: Sequence<LabeledEventDateShard<T>>) {
+  suspend fun <T : Message> writeLabeledImpressionData(
+    events: Sequence<LabeledEventDateShard<T>>,
+    impressionsBasePath: String? = null) {
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -86,7 +88,11 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
+      val impressionsBlobKey = if(impressionsBasePath != null) {
+        "$impressionsBasePath/impressions"
+      } else {
+        "ds/$ds/$eventGroupPath/impressions"
+      }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
@@ -102,7 +108,11 @@ class ImpressionsWriter(
         impressionsBlobKey,
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
-      val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
+        "$impressionsBasePath/metadata"
+      } else {
+        "ds/$ds/$eventGroupPath/metadata"
+      }
 
       val impressionsMetadataFileUri =
         "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
