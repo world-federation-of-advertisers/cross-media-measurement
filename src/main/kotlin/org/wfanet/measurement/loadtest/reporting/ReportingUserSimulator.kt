@@ -61,6 +61,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -290,20 +291,19 @@ class ReportingUserSimulator(
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments(
-          "v2alpha/${measurementConsumerName}/basicReports/${basicReportKey.basicReportId}"
+          "v2alpha/${measurementConsumerName}/basicReports"
         )
         .build()
-
-    println("create basic report url: $createBasicReportUrl")
 
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(JsonFormat.printer().print(basicReport).toRequestBody())
+        .post(JsonFormat.printer().print(createBasicReportRequest {
+          this.basicReport = basicReport
+          basicReportId = basicReportKey.basicReportId
+        }).toRequestBody())
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
-
-    println("create basic report request body: ${JsonFormat.printer().print(basicReport)}")
 
     val createdBasicReportJson: String =
       try {
