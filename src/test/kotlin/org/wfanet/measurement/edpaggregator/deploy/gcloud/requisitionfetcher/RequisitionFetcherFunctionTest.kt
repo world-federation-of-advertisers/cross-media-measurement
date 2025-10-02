@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -68,6 +69,7 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
@@ -75,7 +77,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import java.security.MessageDigest
-import java.util.*
+import java.util.Base64
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -179,8 +181,21 @@ class RequisitionFetcherFunctionTest {
     val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
-  }
+    val anyMsg = Any.parseFrom(requisitionFile.readByteString())
+    val groupedRequisitions: GroupedRequisitions = anyMsg.unpack(GroupedRequisitions::class.java)
 
+    assertThat(groupedRequisitions.groupId).isNotEmpty()
+    println(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime)
+    assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime).isEqualTo(
+      EVENT_GROUP_ENTRY.value.collectionInterval.startTime
+    )
+    assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].endTime).isEqualTo(
+      EVENT_GROUP_ENTRY.value.collectionInterval.endTime
+    )
+    assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId).isEqualTo(
+      EVENT_GROUP_REFERENCE_ID
+    )
+  }
   companion object {
     private val FETCHER_BINARY_PATH =
       Paths.get(
