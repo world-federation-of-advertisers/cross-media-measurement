@@ -2056,8 +2056,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         )
 
-    val dataProviderKey = DataProviderKey.fromName(dataProvider.name)
-
     val basicReportKey =
       BasicReportKey(
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
@@ -2097,7 +2095,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
-        reportingUnit = reportingUnit { components += dataProviderKey!!.toName() }
+        reportingUnit = reportingUnit { components += dataProvider.name }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
           grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
