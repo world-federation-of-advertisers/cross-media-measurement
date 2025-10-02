@@ -31,7 +31,15 @@ import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorStatus
 import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessor.Default.currentStorageFactory
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy

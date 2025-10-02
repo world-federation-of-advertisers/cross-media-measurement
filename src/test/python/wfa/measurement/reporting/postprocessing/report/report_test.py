@@ -30,7 +30,7 @@ from report.testing.validate_report import are_overlap_constraints_consistent
 from report.testing.validate_report import get_sorted_list
 from report.testing.validate_report import ordered_sets_to_sorted_list
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_post_processor_result_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode

@@ -26,6 +26,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest.Companion.hasConsistentMeasurements
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient

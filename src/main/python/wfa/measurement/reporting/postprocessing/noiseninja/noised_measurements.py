@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import math
+
 from collections import defaultdict
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Optional
 from typing import TypeAlias
 
-TOLERANCE = 1e-2
+DEFAULT_ABSOLUTE_TOLERANCE = 1e-1
 
 class Measurement:
   """Represents a measurement with a mean value and a standard deviation"""
@@ -33,13 +34,18 @@ class Measurement:
     self.name = name
 
   def __eq__(self, other):
-    if not isinstance(other, Measurement):
-        raise ValueError("Cannot compare Measurement with non-Measurement object.")
+   """Returns True if two Measurement objects are equal.
 
-    # Return True if and only if all attributes are equal
-    return (math.isclose(self.value, other.value, abs_tol=TOLERANCE) and
-            math.isclose(self.sigma, other.sigma, abs_tol=TOLERANCE) and
-            self.name == other.name)
+   Uses math.isclose for float comparisons to handle minor precision
+   differences.
+   """
+   if not isinstance(other, Measurement):
+     raise ValueError("Can not compare Measurement with non-Measurement.")
+   return (
+       math.isclose(self.value, other.value, abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
+       and math.isclose(self.sigma, other.sigma, abs_tol=DEFAULT_ABSOLUTE_TOLERANCE)
+       and self.name == other.name
+   )
 
   def __repr__(self):
     return 'Measurement({:.2f}, {:.2f}, {})\n'.format(self.value, self.sigma,
@@ -65,6 +71,23 @@ class MeasurementSet:
           "At least one field (reach, impression, or k_reach) must be "
           "initialized."
       )
+
+  def __eq__(self, other):
+    """Returns True if two MeasurementSet objects are equal."""
+    if not isinstance(other, MeasurementSet):
+      raise ValueError(
+          "Can not compare MeasurementSet with non-MeasurementSet."
+      )
+    return (
+      self.reach == other.reach
+      and self.k_reach == other.k_reach
+      and self.impression == other.impression
+    )
+
+  def __repr__(self):
+    return (
+      f"MeasurementSet({self.reach=}, {self.k_reach=}, {self.impression=})"
+    )
 
 
 
