@@ -72,13 +72,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "512Mi"
+		memory: "1024Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "128M"
+#FulfillmentMaxHeapSize:             "512M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
@@ -114,7 +114,7 @@ duchy: #SpannerDuchy & {
 	_kingdom_system_api_target:       #KingdomSystemApiTarget
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
 	_blob_storage_flags:              _cloudStorageConfig.flags
-	_verbose_grpc_logging:            "false"
+	_verbose_grpc_logging:            "true"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
 
