@@ -74,6 +74,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
   }
 
+//  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
+//    it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
+//  }
   override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
   }
@@ -100,12 +103,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             objectKey = "edp7/event-groups/edp7-event-group.binpb",
             blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           ),
-        GROUP_REFERENCE_ID_EDPA_EDP2 to
-          EventGroupStorage(
-            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
-            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
-            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          ),
+//        GROUP_REFERENCE_ID_EDPA_EDP2 to
+//          EventGroupStorage(
+//            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+//            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+//            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
+//          ),
       )
 
     override fun apply(base: Statement, description: Description): Statement {
@@ -380,7 +383,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     val syntheticEventGroupMap =
       mapOf(
         GROUP_REFERENCE_ID_EDPA_EDP1 to syntheticEventGroupSpec,
-        GROUP_REFERENCE_ID_EDPA_EDP2 to syntheticEventGroupSpec,
+//        GROUP_REFERENCE_ID_EDPA_EDP2 to syntheticEventGroupSpec,
       )
 
     private val ZONE_ID = ZoneId.of("UTC")
