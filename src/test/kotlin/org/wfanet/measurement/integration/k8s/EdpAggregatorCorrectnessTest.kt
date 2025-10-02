@@ -73,10 +73,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   override val EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId == GROUP_REFERENCE_ID_EDPA_EDP1
   }
-
-//  override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
-//    it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
-//  }
+  
   override val EVENT_GROUP_FILTERING_LAMBDA_HMSS: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in setOf(GROUP_REFERENCE_ID_EDPA_EDP1, GROUP_REFERENCE_ID_EDPA_EDP2)
   }
