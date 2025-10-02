@@ -89,7 +89,7 @@ class ImpressionsWriter(
       logger.info("Writing Date: $ds")
 
       val impressionsBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/impressions"
+        "$impressionsBasePath/$ds/impressions"
       } else {
         "ds/$ds/$eventGroupPath/impressions"
       }
@@ -109,7 +109,7 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/metadata"
+        "$impressionsBasePath/$ds/metadata"
       } else {
         "ds/$ds/$eventGroupPath/metadata"
       }
