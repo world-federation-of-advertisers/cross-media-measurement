@@ -26,8 +26,6 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.logging.Logger
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -39,17 +37,28 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 
 /**
- * Storage-backed [ImpressionMetadataService].
+ * Describes an impression data source for a specific time interval.
  *
+ * The interval is expressed as a closed-open [Interval] , and the [blobDetails] provides the
+ * information required to read and decrypt the corresponding impression blob.
+ */
+data class ImpressionDataSource(
+  val modelLine: String,
+  val eventGroupReferenceId: String,
+  val interval: Interval,
+  val blobDetails: BlobDetails,
+)
+
+/**
  * @param impressionMetadataStub used to sync impressions with the ImpressionsMetadataStorage
  * @param dataProvider The DataProvider resource name
  * @param impressionsMetadataStorageConfig configuration for metadata storage
  */
-class StorageImpressionMetadataService(
+class ImpressionDataSourceProvider(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val dataProvider: String,
   private val impressionsMetadataStorageConfig: StorageConfig,
-) : ImpressionMetadataService {
+) {
 
   /**
    * Lists impression data sources for an event group within a period.
@@ -61,7 +70,7 @@ class StorageImpressionMetadataService(
    * @throws com.google.protobuf.InvalidProtocolBufferException if a metadata blob is present but
    *   contains invalid `BlobDetails`.
    */
-  override suspend fun listImpressionDataSources(
+  suspend fun listImpressionDataSources(
     modelLine: String,
     eventGroupReferenceId: String,
     period: Interval,

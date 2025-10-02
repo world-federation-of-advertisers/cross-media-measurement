@@ -22,7 +22,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
-import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -143,8 +142,8 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val impressionsMetadataService =
-      StorageImpressionMetadataService(
+    val impressionsDataSourceProvider =
+      ImpressionDataSourceProvider(
         impressionMetadataStub = impressionMetadataStub,
         dataProvider = fulfillerParams.dataProvider,
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
@@ -193,7 +192,7 @@ class ResultsFulfillerApp(
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
         pipelineConfiguration = pipelineConfiguration,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
