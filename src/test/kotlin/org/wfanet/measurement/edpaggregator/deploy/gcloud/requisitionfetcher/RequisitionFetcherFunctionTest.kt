@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.netty.handler.ssl.ClientAuth
 import java.net.URI
@@ -27,9 +28,10 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.MessageDigest
 import java.time.LocalDate
+import java.util.Base64
 import java.util.logging.Logger
-import com.google.protobuf.timestamp
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -45,13 +47,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -69,15 +70,13 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
-import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
-import java.security.MessageDigest
-import java.util.Base64
+import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
@@ -125,7 +124,11 @@ class RequisitionFetcherFunctionTest {
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "RequisitionsServiceServer",
           services =
-          listOf(requisitionsServiceMock.bindService(), eventGroupsServiceMock.bindService(), requisitionMetadataServiceMock.bindService()),
+            listOf(
+              requisitionsServiceMock.bindService(),
+              eventGroupsServiceMock.bindService(),
+              requisitionMetadataServiceMock.bindService(),
+            ),
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
@@ -185,16 +188,16 @@ class RequisitionFetcherFunctionTest {
     val groupedRequisitions: GroupedRequisitions = anyMsg.unpack(GroupedRequisitions::class.java)
 
     assertThat(groupedRequisitions.groupId).isNotEmpty()
-    assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime).isEqualTo(
-      EVENT_GROUP_ENTRY.value.collectionInterval.startTime
-    )
-    assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].endTime).isEqualTo(
-      EVENT_GROUP_ENTRY.value.collectionInterval.endTime
-    )
-    assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId).isEqualTo(
-      EVENT_GROUP_REFERENCE_ID
-    )
+    assertThat(
+        groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime
+      )
+      .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.startTime)
+    assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].endTime)
+      .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.endTime)
+    assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId)
+      .isEqualTo(EVENT_GROUP_REFERENCE_ID)
   }
+
   companion object {
     private val FETCHER_BINARY_PATH =
       Paths.get(
@@ -304,9 +307,7 @@ class RequisitionFetcherFunctionTest {
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
-      updateTime = timestamp {
-        seconds = 100
-      }
+      updateTime = timestamp { seconds = 100 }
     }
 
     private val GROUPED_REQUISITION = groupedRequisitions {

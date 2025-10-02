@@ -46,12 +46,12 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
@@ -64,19 +64,22 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     mockService {}
   }
 
-  private val requisitionMetadataServiceMock: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
+  private val requisitionMetadataServiceMock:
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
-      onBlocking { createRequisitionMetadata(any()) }.thenAnswer { invocation ->
-        val req = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-        createRequisitionMetadataRequests += req
-        requisitionMetadata {}
-      }
-      onBlocking { refuseRequisitionMetadata(any()) }.thenAnswer { invocation ->
-        val req = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
-        refuseRequisitionMetadataRequests += req
-        requisitionMetadata {}
-      }
+      onBlocking { createRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val req = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
+          createRequisitionMetadataRequests += req
+          requisitionMetadata {}
+        }
+      onBlocking { refuseRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val req = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+          refuseRequisitionMetadataRequests += req
+          requisitionMetadata {}
+        }
     }
 
   override val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
@@ -124,8 +127,11 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val requisitionMetadataStub: RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
-    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  private val requisitionMetadataStub:
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
 
   @Test

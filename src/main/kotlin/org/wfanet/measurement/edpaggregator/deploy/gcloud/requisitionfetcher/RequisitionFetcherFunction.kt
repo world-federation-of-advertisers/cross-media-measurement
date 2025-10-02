@@ -41,11 +41,10 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import java.util.UUID
 
 /**
  * A Google Cloud Function that fetches and stores requisitions for each configured data provider.
@@ -109,12 +108,18 @@ class RequisitionFetcherFunction : HttpFunction {
     val cmmsSigningCerts = loadSigningCerts(dataProviderConfig.cmmsConnection)
     val cmmsPublicChannel = buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
 
-    val requisitionMetadataStorageSigningCerts = loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
-    val requisitionMetadataStoragePublicChannel = buildMutualTlsChannel(metadataStorageTarget, requisitionMetadataStorageSigningCerts, metadataStorageCertHost)
-
+    val requisitionMetadataStorageSigningCerts =
+      loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
+    val requisitionMetadataStoragePublicChannel =
+      buildMutualTlsChannel(
+        metadataStorageTarget,
+        requisitionMetadataStorageSigningCerts,
+        metadataStorageCertHost,
+      )
 
     val requisitionsStub = RequisitionsCoroutineStub(cmmsPublicChannel)
-    val requisitionMetadataStub = RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
+    val requisitionMetadataStub =
+      RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(cmmsPublicChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
@@ -219,11 +224,14 @@ class RequisitionFetcherFunction : HttpFunction {
      * @throws IllegalStateException if any of the required file paths are missing in the
      *   configuration.
      */
-    private fun loadSigningCerts(transportLayerSecurityParams: TransportLayerSecurityParams): SigningCerts {
+    private fun loadSigningCerts(
+      transportLayerSecurityParams: TransportLayerSecurityParams
+    ): SigningCerts {
       return SigningCerts.fromPemFiles(
         certificateFile = checkNotNull(File(transportLayerSecurityParams.certFilePath)),
         privateKeyFile = checkNotNull(File(transportLayerSecurityParams.privateKeyFilePath)),
-        trustedCertCollectionFile = checkNotNull(File(transportLayerSecurityParams.certCollectionFilePath)),
+        trustedCertCollectionFile =
+          checkNotNull(File(transportLayerSecurityParams.certCollectionFilePath)),
       )
     }
 
