@@ -185,7 +185,6 @@ class RequisitionFetcherFunctionTest {
     val groupedRequisitions: GroupedRequisitions = anyMsg.unpack(GroupedRequisitions::class.java)
 
     assertThat(groupedRequisitions.groupId).isNotEmpty()
-    println(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime)
     assertThat(groupedRequisitions.eventGroupMapList[0].details.collectionIntervalsList[0].startTime).isEqualTo(
       EVENT_GROUP_ENTRY.value.collectionInterval.startTime
     )
