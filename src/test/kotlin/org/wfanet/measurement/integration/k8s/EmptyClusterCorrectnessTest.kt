@@ -531,6 +531,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   runId,
                   internalModelProvidersClient =
                     ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
+                  outputDir = outputDir,
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                   outputDir = outputDir,
                 )

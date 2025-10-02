@@ -27,6 +27,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -62,6 +63,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -76,9 +79,12 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
@@ -91,6 +97,10 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
+import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationFiltersPageTokenKt
@@ -430,6 +440,166 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
   }
+
+  @Test
+  fun `report with metric calculation spec with model line has the expected result`() =
+    runBlocking {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+      val eventGroups: List<EventGroup> = listEventGroups()
+
+      val llv2EventGroups: List<EventGroup> =
+        eventGroups.filter {
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
+            it.cmmsDataProvider
+          )!! in ALL_EDP_WITHOUT_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+
+      val hmssEventGroups: List<EventGroup> =
+        eventGroups.filter {
+          inProcessCmmsComponents.getDataProviderDisplayNameFromDataProviderName(
+            it.cmmsDataProvider
+          )!! in ALL_EDP_WITH_HMSS_CAPABILITIES_DISPLAY_NAMES
+        }
+
+      val eventGroupEntries: List<Pair<EventGroup, String>> =
+        listOf(
+          llv2EventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+          hmssEventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_55_PLUS_VALUE}",
+        )
+
+      val createdPrimitiveReportingSets: List<ReportingSet> =
+        createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+      val compositeReportingSet = reportingSet {
+        displayName = "composite"
+        composite =
+          ReportingSetKt.composite {
+            expression =
+              ReportingSetKt.setExpression {
+                operation = ReportingSet.SetExpression.Operation.UNION
+                lhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    reportingSet = createdPrimitiveReportingSets[0].name
+                  }
+                rhs =
+                  ReportingSetKt.SetExpressionKt.operand {
+                    reportingSet = createdPrimitiveReportingSets[1].name
+                  }
+              }
+          }
+      }
+
+      val createdCompositeReportingSet =
+        publicReportingSetsClient
+          .withCallCredentials(credentials)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSet = compositeReportingSet
+              reportingSetId = "def"
+            }
+          )
+
+      val modelSuite =
+        inProcessCmmsComponents.kingdom.internalModelSuitesClient.createModelSuite(
+          modelSuite {
+            this.externalModelProviderId =
+              apiIdToExternalId(
+                ModelProviderKey.fromName(inProcessCmmsComponents.modelProviderResourceName)!!
+                  .modelProviderId
+              )
+            displayName = "display-name"
+            description = "description"
+          }
+        )
+
+      val modelLine =
+        inProcessCmmsComponents.kingdom.internalModelLinesClient.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            displayName = "display-name"
+            description = "description"
+            activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+            type = ModelLine.Type.PROD
+          }
+        )
+
+      val createdMetricCalculationSpec =
+        publicMetricCalculationSpecsClient
+          .withCallCredentials(credentials)
+          .createMetricCalculationSpec(
+            createMetricCalculationSpecRequest {
+              parent = measurementConsumerData.name
+              metricCalculationSpec = metricCalculationSpec {
+                displayName = "union reach"
+                metricSpecs += metricSpec {
+                  reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+                  vidSamplingInterval = VID_SAMPLING_INTERVAL
+                }
+                this.modelLine =
+                  ModelLineKey(
+                      externalIdToApiId(modelLine.externalModelProviderId),
+                      externalIdToApiId(modelLine.externalModelSuiteId),
+                      externalIdToApiId(modelLine.externalModelLineId),
+                    )
+                    .toName()
+              }
+              metricCalculationSpecId = "fed"
+            }
+          )
+
+      val report = report {
+        reportingMetricEntries +=
+          ReportKt.reportingMetricEntry {
+            key = createdCompositeReportingSet.name
+            value =
+              ReportKt.reportingMetricCalculationSpec {
+                metricCalculationSpecs += createdMetricCalculationSpec.name
+              }
+          }
+        timeIntervals = timeIntervals { timeIntervals += EVENT_RANGE.toInterval() }
+      }
+
+      val createdReport =
+        publicReportsClient
+          .withCallCredentials(credentials)
+          .createReport(
+            createReportRequest {
+              parent = measurementConsumerData.name
+              this.report = report
+              reportId = "report"
+            }
+          )
+
+      val retrievedReport = pollForCompletedReport(createdReport.name)
+      assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
+      val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
+        eventGroupEntries.map { (eventGroup, filter) ->
+          buildEventGroupSpec(eventGroup, filter, EVENT_RANGE.toInterval())
+        }
+      val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
+
+      val reachResult =
+        retrievedReport.metricCalculationResultsList
+          .single()
+          .resultAttributesList
+          .single()
+          .metricResult
+          .reach
+      val actualResult =
+        MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+      val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+
+      assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+
+      val measurements: List<Measurement> = listMeasurements()
+      assertThat(measurements).hasSize(1)
+      assertThat(measurements[0].protocolConfig.protocolsList).hasSize(1)
+      assertThat(measurements[0].protocolConfig.protocolsList[0].hasReachOnlyLiquidLegionsV2())
+        .isTrue()
+    }
 
   @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
