@@ -91,7 +91,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * - Parallelism: one coroutine per resolved data source
  * - Memory: bounded by batch size and number of concurrent readers
  *
- * @property impressionMetadataService facade providing data sources for intervals.
+ * @property impressionDataSourceProvider facade providing data sources for intervals.
  * @property eventGroupDetailsList event groups with their collection intervals.
  * @property modelLine model line to use for fetching impressions
  * @property kmsClient KMS client for decryption operations
@@ -100,7 +100,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * @property batchSize batch size for event reading
  */
 class StorageEventSource(
-  private val impressionMetadataService: ImpressionMetadataService,
+  private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val eventGroupDetailsList: List<EventGroupDetails>,
   private val modelLine: String,
   private val kmsClient: KmsClient?,
@@ -166,7 +166,7 @@ class StorageEventSource(
     val allSources =
       eventGroupDetailsList.flatMap { details ->
         details.collectionIntervalsList.flatMap { interval ->
-          impressionMetadataService.listImpressionDataSources(
+          impressionDataSourceProvider.listImpressionDataSources(
             modelLine,
             details.eventGroupReferenceId,
             interval,

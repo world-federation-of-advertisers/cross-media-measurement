@@ -21,6 +21,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.timestamp
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -53,6 +54,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -139,6 +141,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
@@ -277,6 +282,28 @@ class ResultsFulfillerAppTest {
     mesosRecordIoStorageClient.writeBlob(IMPRESSIONS_BLOB_KEY, impressionsFlow)
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
+
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+        interval = interval {
+          startTime = timestamp {
+            seconds = start.epochSecond
+            nanos = start.nano
+          }
+          endTime = timestamp {
+            seconds = end.epochSecond
+            nanos = end.nano
+          }
+        }
+      }
+    })
 
     val app =
       ResultsFulfillerApp(
@@ -719,6 +746,28 @@ class ResultsFulfillerAppTest {
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
 
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+        interval = interval {
+          startTime = timestamp {
+            seconds = start.epochSecond
+            nanos = start.nano
+          }
+          endTime = timestamp {
+            seconds = end.epochSecond
+            nanos = end.nano
+          }
+        }
+      }
+    })
+
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
@@ -829,6 +878,28 @@ class ResultsFulfillerAppTest {
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
+
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+        interval = interval {
+          startTime = timestamp {
+            seconds = start.epochSecond
+            nanos = start.nano
+          }
+          endTime = timestamp {
+            seconds = end.epochSecond
+            nanos = end.nano
+          }
+        }
+      }
+    })
 
     val app =
       ResultsFulfillerApp(
