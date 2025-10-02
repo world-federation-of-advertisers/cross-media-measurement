@@ -32,7 +32,6 @@ object Errors {
     IMPRESSION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-    REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
     REQUISITION_METADATA_ALREADY_EXISTS,
     REQUISITION_METADATA_STATE_INVALID,
     DATA_PROVIDER_MISMATCH,
@@ -148,37 +147,6 @@ class RequisitionMetadataNotFoundByCmmsRequisitionException(
       return RequisitionMetadataNotFoundByCmmsRequisitionException(
         internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
         internalMetadata.getValue(InternalErrors.Metadata.CMMS_REQUISITION),
-        cause,
-      )
-    }
-  }
-}
-
-class RequisitionMetadataNotFoundByBlobUriException(
-  dataProviderResourceName: String,
-  blobUri: String,
-  cause: Throwable? = null,
-) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI,
-    "RequisitionMetadata with Blob URI $blobUri for DataProvider with resource name $dataProviderResourceName not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
-      Errors.Metadata.BLOB_URI to blobUri,
-    ),
-    cause,
-  ) {
-  companion object : Factory<RequisitionMetadataNotFoundByBlobUriException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_BLOB_URI
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): RequisitionMetadataNotFoundByBlobUriException {
-      return RequisitionMetadataNotFoundByBlobUriException(
-        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
-        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
         cause,
       )
     }
