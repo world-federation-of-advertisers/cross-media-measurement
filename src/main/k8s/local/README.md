@@ -318,6 +318,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --define=reporting_public_api_target=localhost:9443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g \
+  --define=access_public_api_target=localhost:8443 \
+  --define=principal_name=principals/123
   --define edp1_name=dataProviders/UjUpwCTmq0o \
   --define edp2_name=dataProviders/cV4YC9sZVKQ \
   --define edp3_name=dataProviders/DJweaNsZVJY \

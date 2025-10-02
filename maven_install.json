@@ -1159,6 +1159,13 @@
       },
       "version": "4.12.0"
     },
+    "com.squareup.okhttp3:okhttp-tls": {
+      "shasums": {
+        "jar": "969896cca029c2bb436cbdf7dc325de0f27e5629e246f3920c9b6c2f6be63af4",
+        "sources": "15ac83e2cda9b6dfc1e58ebdaeb7e571f05858eb3786934e6558e118ae8a2126"
+      },
+      "version": "4.12.0"
+    },
     "com.squareup.okio:okio": {
       "shasums": {
         "jar": "8e63292e5c53bb93c4a6b0c213e79f15990fed250c1340f1c343880e1c9c39b5",
@@ -5046,6 +5053,11 @@
       "com.squareup.okio:okio",
       "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     ],
+    "com.squareup.okhttp3:okhttp-tls": [
+      "com.squareup.okhttp3:okhttp",
+      "com.squareup.okio:okio",
+      "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    ],
     "com.squareup.okio:okio": [
       "com.squareup.okio:okio-jvm"
     ],
@@ -7836,6 +7848,11 @@
       "okhttp3.internal.publicsuffix",
       "okhttp3.internal.tls",
       "okhttp3.internal.ws"
+    ],
+    "com.squareup.okhttp3:okhttp-tls": [
+      "okhttp3.tls",
+      "okhttp3.tls.internal",
+      "okhttp3.tls.internal.der"
     ],
     "com.squareup.okio:okio-jvm": [
       "okio",
@@ -12804,6 +12821,8 @@
       "com.squareup.okhttp3:logging-interceptor",
       "com.squareup.okhttp3:logging-interceptor:jar:sources",
       "com.squareup.okhttp3:okhttp",
+      "com.squareup.okhttp3:okhttp-tls",
+      "com.squareup.okhttp3:okhttp-tls:jar:sources",
       "com.squareup.okhttp3:okhttp:jar:sources",
       "com.squareup.okio:okio",
       "com.squareup.okio:okio-jvm",
