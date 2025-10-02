@@ -291,10 +291,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
 
-      val reportName = ReportKey(
-        MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
-        "some-report-id",
-      ).toName()
+      val reportName =
+        ReportKey(
+            MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+            "some-report-id",
+          )
+          .toName()
 
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
