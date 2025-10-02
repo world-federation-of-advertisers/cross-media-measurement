@@ -16,11 +16,11 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.common.hash.Hashing
 import io.grpc.Channel
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.File
-import com.google.common.hash.Hashing
-import io.grpc.StatusException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
@@ -71,11 +71,11 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.integration.common.EventQuery
+import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.dataprovider.toPopulationSpec
@@ -125,12 +125,10 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     reportingTestHarness.testCreateReport("$runId-test-report")
   }
 
-
   @Test(timeout = 1 * 60 * 1000)
   fun `basic report can be created and retrieved`() = runBlocking {
     reportingTestHarness.testBasicReportCreationAndRetrieval("$runId-test-basic-report")
   }
-
 
   @Test
   fun `population measurement completes with expected result`() = runBlocking {

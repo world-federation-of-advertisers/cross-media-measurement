@@ -289,7 +289,9 @@ class ReportingUserSimulator(
         .scheme("https")
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
-        .addPathSegments("v2alpha/${measurementConsumerName}/basicReports/${basicReportKey.basicReportId}")
+        .addPathSegments(
+          "v2alpha/${measurementConsumerName}/basicReports/${basicReportKey.basicReportId}"
+        )
         .build()
 
     val createBasicReportRequest =
@@ -343,10 +345,12 @@ class ReportingUserSimulator(
 
     assertThat(retrievedBasicReportBuilder.build())
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport.copy {
-        name = basicReportKey.toName()
-        state = BasicReport.State.RUNNING
-      })
+      .isEqualTo(
+        basicReport.copy {
+          name = basicReportKey.toName()
+          state = BasicReport.State.RUNNING
+        }
+      )
 
     val createdBasicReportBuilder = BasicReport.newBuilder()
     JsonFormat.parser()
@@ -395,7 +399,12 @@ class ReportingUserSimulator(
     val primitiveReportingSet = reportingSet {
       primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
       if (isCampaignGroup) {
-        campaignGroup = ReportingSetKey(MeasurementConsumerKey.fromName(measurementConsumerName)!!, reportingSetId).toName()
+        campaignGroup =
+          ReportingSetKey(
+              MeasurementConsumerKey.fromName(measurementConsumerName)!!,
+              reportingSetId,
+            )
+            .toName()
       }
     }
 
