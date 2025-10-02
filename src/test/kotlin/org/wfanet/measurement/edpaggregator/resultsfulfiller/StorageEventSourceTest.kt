@@ -27,7 +27,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
 import com.google.protobuf.timestamp
 import com.google.type.interval
-import kotlinx.coroutines.flow.emptyFlow
 import java.io.File
 import java.nio.file.Files
 import java.time.LocalDate
@@ -116,8 +115,8 @@ class StorageEventSourceTest {
     return Triple(kmsClient, kekUri, serializedEncryptionKey)
   }
 
-  private fun createImpressionService(metadataTmpPath: File): StorageImpressionMetadataService {
-    return StorageImpressionMetadataService(
+  private fun createImpressionService(metadataTmpPath: File): ImpressionDataSourceProvider {
+    return ImpressionDataSourceProvider(
       impressionMetadataStub = impressionMetadataStub,
       dataProvider = "dataProviders/123",
       impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
@@ -258,7 +257,7 @@ class StorageEventSourceTest {
     val impressionService = createImpressionService(tmp.root)
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionService,
+        impressionDataSourceProvider = impressionService,
         eventGroupDetailsList = eventGroupDetailsList,
         modelLine = modelLine,
         kmsClient = null,
@@ -302,7 +301,7 @@ class StorageEventSourceTest {
     val impressionService = createImpressionService(tmp.root)
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionService,
+        impressionDataSourceProvider = impressionService,
         eventGroupDetailsList = eventGroupDetailsList,
         modelLine = modelLine,
         kmsClient = null,
@@ -368,7 +367,7 @@ class StorageEventSourceTest {
       val impressionService = createImpressionService(metadataTmpPath)
       val eventSource =
         StorageEventSource(
-          impressionMetadataService = impressionService,
+          impressionDataSourceProvider = impressionService,
           eventGroupDetailsList = eventGroupDetailsList,
           modelLine = modelLine,
           kmsClient = kmsClient,
@@ -436,7 +435,7 @@ class StorageEventSourceTest {
     val impressionService = createImpressionService(metadataTmpPath)
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionService,
+        impressionDataSourceProvider = impressionService,
         eventGroupDetailsList = listOf(eventGroupDetails),
         modelLine = modelLine,
         kmsClient = null,
@@ -507,7 +506,7 @@ class StorageEventSourceTest {
     val impressionService = createImpressionService(metadataTmpPath)
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionService,
+        impressionDataSourceProvider = impressionService,
         eventGroupDetailsList = eventGroupDetails,
         modelLine = modelLine,
         kmsClient = kmsClient,
@@ -570,7 +569,7 @@ class StorageEventSourceTest {
     val impressionService = createImpressionService(metadataTmpPath)
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionService,
+        impressionDataSourceProvider = impressionService,
         eventGroupDetailsList = listOf(eventGroupDetails),
         modelLine = modelLine,
         kmsClient = kmsClient,

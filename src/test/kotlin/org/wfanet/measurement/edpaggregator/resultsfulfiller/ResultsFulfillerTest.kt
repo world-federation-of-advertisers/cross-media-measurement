@@ -133,8 +133,6 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 
@@ -258,7 +256,7 @@ class ResultsFulfillerTest {
       listOf(DIRECT_REQUISITION),
     )
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
         impressionMetadataStub = impressionMetadataStub,
         dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
@@ -285,7 +283,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
@@ -355,7 +353,7 @@ class ResultsFulfillerTest {
     )
 
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
         impressionMetadataStub = impressionMetadataStub,
         dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
@@ -386,7 +384,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,

@@ -24,7 +24,7 @@ kt_jvm_library(
         ":event_reader",
         ":event_source",
         ":frequency_vector",
-        ":impression_metadata_service",
+        ":impression_data_source_provider",
         ":impression_read_exception",
         ":model_line_info",
         ":noiser_selector",
@@ -125,7 +125,7 @@ kt_jvm_library(
         ":event_batch",
         ":event_reader",
         ":event_source",
-        ":impression_metadata_service",
+        ":impression_data_source_provider",
         ":labeled_event",
         ":storage_event_reader",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
@@ -235,10 +235,9 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "impression_metadata_service",
+    name = "impression_data_source_provider",
     srcs = [
-        "ImpressionMetadataService.kt",
-        "StorageImpressionMetadataService.kt",
+        "ImpressionDataSourceProvider.kt",
     ],
     deps = [
         ":impression_read_exception",
