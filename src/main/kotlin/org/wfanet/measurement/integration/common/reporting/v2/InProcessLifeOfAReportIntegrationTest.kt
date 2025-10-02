@@ -280,7 +280,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
-          modelLine = modelLine.name,
+          defaultModelLineName = modelLine.name,
           verboseGrpcLogging = false,
         )
       }
