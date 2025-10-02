@@ -183,7 +183,7 @@ class ReportingUserSimulator(
       BasicReportKey(
         cmmsMeasurementConsumerId =
           MeasurementConsumerKey.fromName(measurementConsumerName)!!.measurementConsumerId,
-        basicReportId = "basicReport-$runId",
+        basicReportId = "basic-report-$runId",
       )
 
     val basicReport = basicReport {
