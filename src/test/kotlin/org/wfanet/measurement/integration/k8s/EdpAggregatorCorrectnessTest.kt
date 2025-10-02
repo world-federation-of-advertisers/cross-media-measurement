@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.timestamp
@@ -33,6 +34,7 @@ import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -69,6 +71,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSi
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.time.format.DateTimeFormatter
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -211,6 +214,69 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     companion object {
       private const val EVENT_GROUP_SYNC_TIMEOUT = 30_000L
       private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 3000L
+    }
+  }
+
+  private class MaybeCreateDoneBlobs : TestRule {
+
+    private val bucket = TEST_CONFIG.storageBucket
+    private val storageClient = StorageOptions.getDefaultInstance().service
+    private val googleProjectId: String =
+      System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
+
+    override fun apply(base: Statement, description: Description): Statement {
+      return object : Statement() {
+        override fun evaluate() {
+          runBlocking {
+            logger.info("Creating DONE blobs to trigger the DataAvailabilitySync if not exists already...")
+            maybeCreateDoneBlobs()
+
+            logger.info("Event Group Sync completed.")
+          }
+          base.evaluate()
+        }
+      }
+    }
+
+    private fun deleteExistingDoneBlobs() {
+      buildPaths().forEach { path ->
+        val objectName = "${path}done"
+        storageClient.delete(bucket, objectName)
+      }
+    }
+
+    private suspend fun maybeCreateDoneBlobs() {
+      buildPaths().forEach { path ->
+        val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
+        val selectedStorageClient = SelectedStorageClient(
+          blobUri = doneBlobUri,
+          rootDirectory = null,
+          projectId = googleProjectId,
+        )
+        println("Reading DONE blob...")
+        val blob = selectedStorageClient.getBlob(doneBlobUri.key)
+
+        if (blob == null) {
+          println("DONE blob not found, creating a new one...")
+          selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        }
+      }
+    }
+
+    companion object {
+      private val bucket = TEST_CONFIG.storageBucket
+      private val BASE_PATH =
+        "gs://$bucket/edp/edp7/{date}/done"
+      private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+      private val START_DATE: LocalDate = LocalDate.parse("2021-03-15", DATE_FORMATTER)
+      private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
+
+      fun buildPaths(): List<String> {
+        return generateSequence(START_DATE) { it.plusDays(1) }
+          .takeWhile { !it.isAfter(END_DATE) }
+          .map { BASE_PATH.replace("{date}", it.format(DATE_FORMATTER)) }
+          .toList()
+      }
     }
   }
 
@@ -397,10 +463,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val ZONE_ID = ZoneId.of("UTC")
 
     private val uploadEventGroup = UploadEventGroup()
+    private val maybeCreateDoneBlobs = MaybeCreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
     @JvmField
-    val chainedRule = chainRulesSequentially(uploadEventGroup, measurementSystem)
+    val chainedRule = chainRulesSequentially(uploadEventGroup, maybeCreateDoneBlobs, measurementSystem)
   }
 }
