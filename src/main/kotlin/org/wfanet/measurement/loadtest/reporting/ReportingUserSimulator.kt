@@ -27,10 +27,10 @@ import io.grpc.StatusException
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.time.delay
-import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -299,11 +299,11 @@ class ReportingUserSimulator(
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(FormBody.Builder().add("basic_report", basicReport.toString()).build())
+        .post(basicReport.toString().toRequestBody())
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
-    println("create basic report request: $createBasicReportRequest")
+    println("create basic report request: ${createBasicReportRequest.body}")
 
     val createdBasicReportJson: String =
       try {
