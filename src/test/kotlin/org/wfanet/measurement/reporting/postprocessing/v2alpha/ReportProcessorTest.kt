@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.abs
+import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -84,8 +85,20 @@ class ReportProcessorTest {
           reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
         )
         .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
+      assertEquals(
+        reportProcessingOutput.reportPostProcessorLog.issuesList,
+        listOf(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR),
+      )
       assertThat(reportProcessingOutput.reportPostProcessorLog.results.values.first().errorMessage)
         .contains("Cumulative measurements must be reach measurements.")
+
+      // Verifies that the log result do not have union status due to parsing issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
 
       val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
 
@@ -114,6 +127,15 @@ class ReportProcessorTest {
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -141,6 +163,22 @@ class ReportProcessorTest {
         ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
+      // Verifies that the log result has union status.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+      assertEquals(
+        reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
+        listOf(
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+        )
+          .sorted(),
+      )
+
       val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -166,6 +204,22 @@ class ReportProcessorTest {
     val updatedReport =
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(6)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+    assertEquals(
+      reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
+      listOf(
+        ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+        ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+      )
+        .sorted(),
+    )
 
     val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
 
@@ -195,6 +249,15 @@ class ReportProcessorTest {
       val updatedReport =
         ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+      // Verifies that the log result does not have union status due to the missing population data.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
 
       val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
 
