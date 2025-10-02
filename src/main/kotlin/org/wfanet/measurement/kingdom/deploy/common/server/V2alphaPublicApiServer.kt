@@ -21,12 +21,19 @@ import java.io.File
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
+import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.ContextKeys
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.ApiChangeMetricsInterceptor
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.RateLimiterProvider
 import org.wfanet.measurement.common.grpc.RateLimitingServerInterceptor
@@ -163,16 +170,39 @@ private fun run(
           ?.toHexString(KEY_ID_FORMAT)
       }::getRateLimiter
     )
+  val apiChangeMetricsInterceptor = ApiChangeMetricsInterceptor { context ->
+    when (val principal: MeasurementPrincipal? = ContextKeys.PRINCIPAL_CONTEXT_KEY.get(context)) {
+      is DuchyPrincipal,
+      is ModelProviderPrincipal,
+      is DataProviderPrincipal -> principal.resourceKey.toName()
+
+      is AccountPrincipal,
+      is MeasurementConsumerPrincipal -> "measurementConsumers"
+
+      null -> null
+    }
+  }
 
   val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
   val services: List<ServerServiceDefinition> =
     listOf(
       AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri, serviceDispatcher)
-        .withInterceptors(accountInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          accountInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ApiKeysService(InternalApiKeysCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(accountInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          accountInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       CertificatesService(InternalCertificatesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -180,6 +210,7 @@ private fun run(
         ),
       DataProvidersService(internalDataProvidersStub, serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -187,6 +218,7 @@ private fun run(
         ),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -197,6 +229,7 @@ private fun run(
           serviceDispatcher,
         )
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -212,6 +245,7 @@ private fun run(
           coroutineContext = serviceDispatcher,
         )
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -222,6 +256,7 @@ private fun run(
           serviceDispatcher,
         )
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           accountInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
@@ -230,6 +265,7 @@ private fun run(
         ),
       PublicKeysService(InternalPublicKeysCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -237,6 +273,7 @@ private fun run(
         ),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -247,21 +284,37 @@ private fun run(
           InternalExchangesCoroutineStub(channel),
           serviceDispatcher,
         )
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ExchangeStepsService(
           internalRecurringExchangesCoroutineStub,
           internalExchangeStepsCoroutineStub,
           serviceDispatcher,
         )
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
           internalExchangeStepsCoroutineStub,
           serviceDispatcher,
         )
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelProvidersService(InternalModelProviderCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
@@ -269,23 +322,54 @@ private fun run(
         ),
       ModelLinesService(InternalModelLinesCoroutineStub(channel), serviceDispatcher)
         .withInterceptors(
+          apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
           akidPrincipalInterceptor,
           rateLimitingInterceptor,
           akidInterceptor,
         ),
       ModelShardsService(InternalModelShardsCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelSuitesService(InternalModelSuitesCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelReleasesService(InternalModelReleasesCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelOutagesService(InternalModelOutagesCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       ModelRolloutsService(InternalModelRolloutsCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
       PopulationsService(InternalPopulationsCoroutineStub(channel), serviceDispatcher)
-        .withInterceptors(akidPrincipalInterceptor, rateLimitingInterceptor, akidInterceptor),
+        .withInterceptors(
+          apiChangeMetricsInterceptor,
+          akidPrincipalInterceptor,
+          rateLimitingInterceptor,
+          akidInterceptor,
+        ),
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
