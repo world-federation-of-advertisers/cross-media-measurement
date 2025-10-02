@@ -19,5 +19,8 @@ databaseChangeLog:
   - include:
       file: create-impression-metadata-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: drop-blob-uri-index.sql
+      relativeToChangeLogFile: true
 
 

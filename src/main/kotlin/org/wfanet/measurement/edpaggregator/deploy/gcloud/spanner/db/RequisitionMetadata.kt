@@ -18,14 +18,16 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import kotlin.text.trimIndent
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByBlobUriException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -33,8 +35,11 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 
 data class RequisitionMetadataResult(
@@ -124,32 +129,63 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisit
   return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
-suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUri(
+fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
   dataProviderResourceId: String,
-  blobUri: String,
-): RequisitionMetadataResult {
+  filter: ListRequisitionMetadataRequest.Filter?,
+  limit: Int,
+  after: ListRequisitionMetadataPageToken.After? = null,
+): Flow<RequisitionMetadataResult> {
   val sql = buildString {
     appendLine(RequisitionMetadataEntity.BASE_SQL)
-    appendLine(
-      """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-        AND BlobUri = @blobUri
-      """
-        .trimIndent()
-    )
+
+    val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
+
+    if (filter != null) {
+      if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+        conjuncts.add("State = @state")
+      }
+      if (filter.groupId.isNotEmpty()) {
+        conjuncts.add("GroupId = @groupId")
+      }
+    }
+
+    if (after != null) {
+      conjuncts.add(
+        "(UpdateTime > @afterUpdateTime OR (UpdateTime = @afterUpdateTime AND RequisitionMetadataResourceId > @afterRequisitionMetadataResourceId))"
+      )
+    }
+
+    if (conjuncts.isNotEmpty()) {
+      appendLine("WHERE " + conjuncts.joinToString(" AND "))
+    }
+
+    appendLine("ORDER BY UpdateTime ASC, RequisitionMetadataResourceId ASC")
+    appendLine("LIMIT @limit")
   }
 
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("blobUri").to(blobUri)
-        }
-      )
-      .singleOrNullIfEmpty()
-      ?: throw RequisitionMetadataNotFoundByBlobUriException(dataProviderResourceId, blobUri)
+  val query =
+    statement(sql) {
+      bind("limit").to(limit.toLong())
+      bind("dataProviderResourceId").to(dataProviderResourceId)
 
-  return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
+      if (filter != null) {
+        if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+          bind("state").to(filter.state.number.toLong())
+        }
+        if (filter.groupId.isNotEmpty()) {
+          bind("groupId").to(filter.groupId)
+        }
+      }
+
+      if (after != null) {
+        bind("afterUpdateTime").to(after.updateTime.toGcloudTimestamp())
+        bind("afterRequisitionMetadataResourceId").to(after.requisitionMetadataResourceId)
+      }
+    }
+
+  return executeQuery(query, Options.tag("action=readRequisitionMetadata")).map { row ->
+    RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
+  }
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateRequestId(
