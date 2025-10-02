@@ -303,7 +303,7 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
-    println("create basic report request: ${createBasicReportRequest.body}")
+    println("create basic report request body: ${JsonFormat.printer().print(basicReport)}")
 
     val createdBasicReportJson: String =
       try {

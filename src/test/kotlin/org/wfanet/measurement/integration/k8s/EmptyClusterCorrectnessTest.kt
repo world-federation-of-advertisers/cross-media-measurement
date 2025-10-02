@@ -471,7 +471,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .generateCredentials(
             audience = openIdProvidersConfig.audience,
             subject = principal.user.subject,
-            scopes = setOf("reporting.basicReports.get"),
+            scopes = setOf("reporting.basicReports.create", "reporting.basicReports.get"),
           )
 
       return ReportingUserSimulator(
