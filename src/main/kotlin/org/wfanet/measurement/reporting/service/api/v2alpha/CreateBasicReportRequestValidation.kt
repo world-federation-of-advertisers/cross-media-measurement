@@ -49,7 +49,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  *
  * @param request
  * @param campaignGroup
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
@@ -57,7 +57,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -87,12 +87,12 @@ fun validateCreateBasicReportRequest(
 
   validateReportingImpressionQualificationFilters(
     request.basicReport.impressionQualificationFiltersList,
-    eventTemplateFieldsMap,
+    eventTemplateFieldsByPath,
   )
   validateResultGroupSpecs(
     request.basicReport.resultGroupSpecsList,
     campaignGroup,
-    eventTemplateFieldsMap,
+    eventTemplateFieldsByPath,
   )
 }
 
@@ -101,7 +101,7 @@ fun validateCreateBasicReportRequest(
  *
  * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
  * @param campaignGroup [ReportingSet] to validate against
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
@@ -109,7 +109,7 @@ fun validateCreateBasicReportRequest(
 fun validateResultGroupSpecs(
   resultGroupSpecs: List<ResultGroupSpec>,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
@@ -137,7 +137,7 @@ fun validateResultGroupSpecs(
     }
 
     if (resultGroupSpec.hasDimensionSpec()) {
-      validateDimensionSpec(resultGroupSpec.dimensionSpec, eventTemplateFieldsMap)
+      validateDimensionSpec(resultGroupSpec.dimensionSpec, eventTemplateFieldsByPath)
     } else {
       throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
     }
@@ -187,18 +187,18 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  * Validates a [DimensionSpec]
  *
  * @param dimensionSpec [DimensionSpec] to validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateDimensionSpec(
   dimensionSpec: DimensionSpec,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   val groupingEventTemplateFieldsSet: Set<String> = buildSet {
     if (dimensionSpec.hasGrouping()) {
-      validateDimensionSpecGrouping(dimensionSpec.grouping, eventTemplateFieldsMap)
+      validateDimensionSpecGrouping(dimensionSpec.grouping, eventTemplateFieldsByPath)
       for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
         add(eventTemplateFieldPath)
       }
@@ -220,7 +220,7 @@ fun validateDimensionSpec(
     }
 
     for (eventTemplateField in eventFilter.termsList) {
-      validateDimensionSpecEventTemplateField(eventTemplateField, eventTemplateFieldsMap)
+      validateDimensionSpecEventTemplateField(eventTemplateField, eventTemplateFieldsByPath)
       if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
         throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
@@ -236,14 +236,14 @@ fun validateDimensionSpec(
  * Validates a [DimensionSpec.Grouping]
  *
  * @param grouping [DimensionSpec.Grouping] to validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateDimensionSpecGrouping(
   grouping: DimensionSpec.Grouping,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (grouping.eventTemplateFieldsList.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -253,7 +253,7 @@ fun validateDimensionSpecGrouping(
 
   for (eventTemplateFieldPath in grouping.eventTemplateFieldsList) {
     val eventTemplateFieldInfo =
-      eventTemplateFieldsMap[eventTemplateFieldPath]
+      eventTemplateFieldsByPath[eventTemplateFieldPath]
         ?: throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
         ) { fieldName ->
@@ -282,14 +282,14 @@ fun validateDimensionSpecGrouping(
  * Validates an [EventTemplateField] for a [DimensionSpec]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateDimensionSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (eventTemplateField.path.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -297,7 +297,7 @@ fun validateDimensionSpecEventTemplateField(
     )
   } else {
     val eventTemplateFieldInfo =
-      eventTemplateFieldsMap[eventTemplateField.path]
+      eventTemplateFieldsByPath[eventTemplateField.path]
         ?: throw InvalidFieldValueException(
           "basic_report.result_group_specs.dimension_spec.filters.terms.path"
         ) { fieldName ->
@@ -374,7 +374,7 @@ fun validateDimensionSpecEventTemplateField(
  * Validates an [EventTemplateField] for an [CustomImpressionQualificationFilterSpec]
  *
  * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @param mediaType [MediaType] to check against if set
  * @throws [RequiredFieldNotSetException] when validation fails
@@ -382,7 +382,7 @@ fun validateDimensionSpecEventTemplateField(
  */
 fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
   mediaType: MediaType,
 ) {
   if (eventTemplateField.path.isEmpty()) {
@@ -391,7 +391,7 @@ fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
     )
   } else {
     val eventTemplateFieldInfo =
-      eventTemplateFieldsMap[eventTemplateField.path]
+      eventTemplateFieldsByPath[eventTemplateField.path]
         ?: throw InvalidFieldValueException(
           "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
         ) { fieldName ->
@@ -581,14 +581,14 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
  *
  * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter]
  *   to validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateReportingImpressionQualificationFilters(
   reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (reportingImpressionQualificationFilters.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
@@ -614,7 +614,7 @@ fun validateReportingImpressionQualificationFilters(
       customImpressionQualificationFilterUsed = true
       validateCustomImpressionQualificationFilterSpec(
         impressionQualificationFilter.custom,
-        eventTemplateFieldsMap,
+        eventTemplateFieldsByPath,
       )
     } else {
       throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
@@ -627,14 +627,14 @@ fun validateReportingImpressionQualificationFilters(
  *
  * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
  *   validate
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateCustomImpressionQualificationFilterSpec(
   customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ) {
   if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -677,7 +677,7 @@ fun validateCustomImpressionQualificationFilterSpec(
         for (eventTemplateField in eventFilter.termsList) {
           validateCustomImpressionQualificationFilterSpecEventTemplateField(
             eventTemplateField,
-            eventTemplateFieldsMap,
+            eventTemplateFieldsByPath,
             filterSpec.mediaType,
           )
         }
