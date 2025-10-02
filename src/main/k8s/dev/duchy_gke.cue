@@ -114,7 +114,7 @@ duchy: #SpannerDuchy & {
 	_kingdom_system_api_target:       #KingdomSystemApiTarget
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
 	_blob_storage_flags:              _cloudStorageConfig.flags
-	_verbose_grpc_logging:            "false"
+	_verbose_grpc_logging:            "true"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
 
