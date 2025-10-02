@@ -149,6 +149,7 @@ class ReportSummaryProcessor:
         metric_subsets_by_parent={
             ami: children_metric} if children_metric else {},
         cumulative_inconsistency_allowed_edp_combinations={},
+        population_size=self._report_summary.population,
     )
 
     corrected_report, report_post_processor_result = \
