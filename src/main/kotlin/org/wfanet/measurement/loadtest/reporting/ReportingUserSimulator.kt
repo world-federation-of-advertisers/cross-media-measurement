@@ -303,6 +303,8 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
+    println("create basic report request: $createBasicReportRequest")
+
     val createdBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
