@@ -408,7 +408,8 @@ class DataAvailabilitySyncTest {
     val written = mutableListOf<String>()
 
     intervals.forEachIndexed { index, (startSeconds, endSeconds) ->
-      val blobUri = "some_blob_uri_$index"
+      val blobUri = "$bucket/${folderPrefix}some_blob_uri_$index"
+      val objectKey = "${folderPrefix}some_blob_uri_$index"
       val details = blobDetails {
         this.blobUri = blobUri
         eventGroupReferenceId = "event${index + 1}"
@@ -440,7 +441,7 @@ class DataAvailabilitySyncTest {
       val bytes = details.serialize(encoding)
       storageClient.writeBlob(key, bytes)
       if (createImpressionFile) {
-        storageClient.writeBlob(blobUri, emptyFlow())
+        storageClient.writeBlob(objectKey, emptyFlow())
       }
 
       written += key
