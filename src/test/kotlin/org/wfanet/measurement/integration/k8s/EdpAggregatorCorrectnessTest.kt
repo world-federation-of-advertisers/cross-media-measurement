@@ -238,13 +238,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private fun deleteExistingDoneBlobs() {
-      buildPaths().forEach { path ->
-        val objectName = "${path}done"
-        storageClient.delete(bucket, objectName)
-      }
-    }
-
     private suspend fun maybeCreateDoneBlobs() {
       buildPaths().forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
