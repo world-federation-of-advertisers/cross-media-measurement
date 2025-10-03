@@ -312,12 +312,15 @@ class ReportingUserSimulator(
     val createdBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
+
+        if (!response.isSuccessful) {
+          throw Exception("Error creating Basic Report: ${response.code} ${response.message}")
+        }
+
         response.body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error creating Basic Report", e)
       }
-
-    println("Created Basic Report: $createdBasicReportJson")
 
     logger.info("Basic Report created")
 
@@ -339,6 +342,11 @@ class ReportingUserSimulator(
     val retrievedBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
+
+        if (!response.isSuccessful) {
+          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message}")
+        }
+
         response.body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
