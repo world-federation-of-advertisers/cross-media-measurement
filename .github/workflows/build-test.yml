@@ -24,6 +24,11 @@ on:
       - main
       - 'releases/**'
   workflow_dispatch:
+    inputs:
+      use-cache-for-coverage:
+        type: boolean
+        default: true
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -130,8 +135,10 @@ jobs:
         id: run-coverage
         env:
           COVERAGE_EXCLUSIONS: ${{ steps.compute-coverage-exclusions.outputs.exclusion_filter }}
+          USE_CACHE: ${{ inputs.use-cache-for-coverage && 'yes' || 'no' }}
         run: >
-          bazel coverage 
+          bazel coverage
+          --cache_test_results=${USE_CACHE}
           --experimental_split_coverage_postprocessing 
           --experimental_fetch_all_coverage_outputs 
           --instrumentation_filter="//src/main/kotlin/.*,//src/main/python/.*,//src/main/cc/.*,-@.*,-src/main/.*/testing.*,-src/main/.*/loadtest.*,${COVERAGE_EXCLUSIONS}"
