@@ -86,9 +86,9 @@ locals {
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
     { data_availability_tls_key                     = var.data_availability_tls_key },
+    { data_availability_tls_pem                     = var.data_availability_tls_pem },
     { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
     { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
-    { data_availability_tls_pem                     = var.data_availability_tls_pem },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
     { metadata_storage_root_ca                      = var.metadata_storage_root_ca },
     { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
@@ -96,7 +96,6 @@ locals {
   )
 
   data_watcher_secrets_access = [
-    "metadata_storage_root_ca",
     "secure_computation_root_ca",
     "data_watcher_tls_key",
     "data_watcher_tls_pem",
