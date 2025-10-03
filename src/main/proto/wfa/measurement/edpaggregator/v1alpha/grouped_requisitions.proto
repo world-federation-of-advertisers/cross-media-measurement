@@ -78,4 +78,7 @@ message GroupedRequisitions {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = UNORDERED_LIST
   ];
+
+  // The ID for the group of requisitions this entry belongs to.
+  string group_id = 4 [(google.api.field_behavior) = REQUIRED];
 }

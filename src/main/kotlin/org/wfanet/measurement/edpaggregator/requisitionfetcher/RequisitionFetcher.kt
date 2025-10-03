@@ -17,10 +17,12 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
+import com.google.protobuf.Timestamp
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
@@ -31,26 +33,28 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
  *
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param storageClient client used to store [Requisition]s
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
  * @param storagePathPrefix the blob key prefix to use when storing a [Requisition]
  * @param requisitionGrouper the instance of [RequisitionGrouper] to use to group requisitions
- * @param groupedRequisitionsIdGenerator deterministic ID generator
  * @param responsePageSize
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
-  val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -69,8 +73,6 @@ class RequisitionFetcher(
 
     var requisitionsCount = 0
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
-    // a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
@@ -93,8 +95,16 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
+    // Filter requisitions excluding those that have not been written into
+    // RequisitionMetadataStorage yet.
+    val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
+      parent = dataProviderName
+    }
+    val latestCmmsCreateTime =
+      requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
+    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
+      requisitionGrouper.groupRequisitions(latestRequisitions)
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -111,11 +121,9 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      val groupedRequisitionId = groupedRequisitionsIdGenerator(groupedRequisition)
+      val groupedRequisitionId = groupedRequisition.groupId
       val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
 
-      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped
-      // requisitions were stored already.
       if (
         groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
       ) {
@@ -126,6 +134,17 @@ class RequisitionFetcher(
     }
 
     return storedGroupedRequisitions
+  }
+
+  fun Flow<Requisition>.filterNewerThan(reference: Timestamp): Flow<Requisition> =
+    this.filter { requisition -> requisition.updateTime.isAfter(reference) }
+
+  fun Timestamp.isAfter(other: Timestamp): Boolean {
+    return when {
+      this.seconds > other.seconds -> true
+      this.seconds < other.seconds -> false
+      else -> this.nanos > other.nanos
+    }
   }
 
   companion object {

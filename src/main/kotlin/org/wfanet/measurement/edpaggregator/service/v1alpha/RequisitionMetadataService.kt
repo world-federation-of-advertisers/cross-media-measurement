@@ -106,7 +106,9 @@ class RequisitionMetadataService(
 
     // Validate report format.
     ReportKey.fromName(request.requisitionMetadata.report)
-      ?: throw InvalidFieldValueException("requisition_metadata.report")
+      ?: throw InvalidFieldValueException(
+          "requisition_metadata.report: ${request.requisitionMetadata.report}"
+        )
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalRequest = internalCreateRequisitionMetadataRequest {
@@ -270,7 +272,6 @@ class RequisitionMetadataService(
       when (request.lookupKeyCase) {
         LookupRequisitionMetadataRequest.LookupKeyCase.CMMS_REQUISITION ->
           cmmsRequisition = request.cmmsRequisition
-
         LookupRequisitionMetadataRequest.LookupKeyCase.LOOKUPKEY_NOT_SET ->
           throw InvalidFieldValueException("requisition_metadata.lookup_key")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)

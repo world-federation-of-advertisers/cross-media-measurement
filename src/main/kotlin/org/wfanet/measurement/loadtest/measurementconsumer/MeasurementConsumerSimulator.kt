@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
@@ -119,6 +120,7 @@ import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.VidSamplingInterval as StatsVidSamplingInterval
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -149,7 +151,12 @@ abstract class MeasurementConsumerSimulator(
   private val expectedDirectNoiseMechanism: NoiseMechanism,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
-  private val reportName: String = "some-report-id",
+  private val reportName: String =
+    ReportKey(
+        MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+        "some-report-id",
+      )
+      .toName(),
   private val modelLineName: String = "some-model-line",
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {

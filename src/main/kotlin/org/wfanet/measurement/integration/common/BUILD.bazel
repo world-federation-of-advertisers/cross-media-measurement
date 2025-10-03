@@ -115,6 +115,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_edp_aggregator_system_api",
+    srcs = [
+        "InProcessEdpAggregatorSystemApi.kt",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":configs",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:services",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "configs",
     srcs = ["Configs.kt"],
     data = [
@@ -315,6 +335,7 @@ kt_jvm_library(
     ],
     deps = [
         ":configs",
+        ":in_process_edp_aggregator_system_api",
         ":in_process_kingdom",
         ":in_process_secure_computation_public_api",
         ":synthetic_generation_specs",
