@@ -101,16 +101,7 @@ class ReportingUserSimulator(
   suspend fun testCreateReport(runId: String) {
     logger.info("Creating report...")
 
-    val eventGroup =
-      listEventGroups()
-        .filter {
-          it.eventGroupReferenceId.startsWith(
-            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-          )
-        }
-        .firstOrNull {
-          getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
-        } ?: listEventGroups().first()
+    val eventGroup = getEventGroup()
     val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup, runId)
     val createdMetricCalculationSpec = createMetricCalculationSpec(runId)
 
@@ -161,17 +152,7 @@ class ReportingUserSimulator(
   suspend fun testBasicReportCreationAndRetrieval(runId: String) {
     logger.info("Creating Basic Report...")
 
-    val eventGroup =
-      listEventGroups()
-        .filter {
-          it.eventGroupReferenceId.startsWith(
-            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-          )
-        }
-        .firstOrNull {
-          getDataProvider(it.cmmsDataProvider).capabilities.honestMajorityShareShuffleSupported
-        } ?: listEventGroups().first()
-
+    val eventGroup = getEventGroup()
     val dataProvider =
       dataProvidersClient.getDataProvider(
         getDataProviderRequest { name = eventGroup.cmmsDataProvider }
@@ -363,24 +344,35 @@ class ReportingUserSimulator(
       .isEqualTo(createdBasicReportBuilder.build().createTime)
   }
 
-  private suspend fun listEventGroups(): List<EventGroup> {
+  private suspend fun getEventGroup(): EventGroup {
+    var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
     try {
-      return buildList {
-        var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
-        do {
-          response =
-            eventGroupsClient.listEventGroups(
-              listEventGroupsRequest {
-                parent = measurementConsumerName
-                pageToken = response.nextPageToken
-              }
-            )
-          addAll(response.eventGroupsList)
-        } while (response.nextPageToken.isNotEmpty())
-      }
+      do {
+        response =
+          eventGroupsClient.listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementConsumerName
+              pageToken = response.nextPageToken
+            }
+          )
+
+        val eventGroup: EventGroup? =
+          response.eventGroupsList
+            .first {
+              it.eventGroupReferenceId.startsWith(
+                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+              )
+            }
+
+        if (eventGroup != null) {
+          return eventGroup
+        }
+      } while (response.nextPageToken.isNotEmpty())
     } catch (e: StatusException) {
-      throw Exception("Error listing EventGroups", e)
+      throw Exception("Error getting EventGroup", e)
     }
+
+    return response.eventGroupsList.first()
   }
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
