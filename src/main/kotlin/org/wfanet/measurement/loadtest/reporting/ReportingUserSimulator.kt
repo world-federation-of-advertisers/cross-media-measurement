@@ -290,18 +290,22 @@ class ReportingUserSimulator(
         .scheme("https")
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
-        .addPathSegments(
-          "v2alpha/${measurementConsumerName}/basicReports"
-        )
+        .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
         .build()
 
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(JsonFormat.printer().print(createBasicReportRequest {
-          this.basicReport = basicReport
-          basicReportId = basicReportKey.basicReportId
-        }).toRequestBody())
+        .post(
+          JsonFormat.printer()
+            .print(
+              createBasicReportRequest {
+                this.basicReport = basicReport
+                basicReportId = basicReportKey.basicReportId
+              }
+            )
+            .toRequestBody()
+        )
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
@@ -313,7 +317,6 @@ class ReportingUserSimulator(
         throw Exception("Error creating Basic Report", e)
       }
 
-    println("createdBasicReportJson: $createdBasicReportJson")
     logger.info("Basic Report created")
 
     val getBasicReportUrl =
@@ -339,7 +342,6 @@ class ReportingUserSimulator(
         throw Exception("Error retrieving Basic Report", e)
       }
 
-    println("retrievedBasicReportJson: $retrievedBasicReportJson")
     logger.info("Basic Report retrieval succeeded")
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
