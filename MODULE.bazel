@@ -40,6 +40,7 @@ bazel_dep(
     version = "0.120.0",
     repo_name = "wfa_common_jvm",
 )
+
 # DO_NOT_SUBMIT: Use version
 archive_override(
     module_name = "common-jvm",

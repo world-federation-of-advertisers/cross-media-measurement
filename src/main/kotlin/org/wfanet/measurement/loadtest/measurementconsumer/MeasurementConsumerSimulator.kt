@@ -594,6 +594,7 @@ abstract class MeasurementConsumerSimulator(
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    logger.info { "111111111111111111111111111111111111" }
     val measurementInfo =
       createMeasurement(
         measurementConsumer,
@@ -880,8 +881,10 @@ abstract class MeasurementConsumerSimulator(
     maxDataProviders: Int = 20,
     eventGroupFilter: ((EventGroup) -> Boolean)? = null,
   ): MeasurementInfo {
+    logger.info { "2222222222222222222222222222222222222222222222222222222222" }
     val eventGroups: List<EventGroup> =
       listEventGroups(measurementConsumer.name).filterEventGroups().toList()
+    logger.info { "333333333333333333333333333333333333333333333333333333333" }
     check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     val nonceHashes = mutableListOf<ByteString>()
     val keyToDataProviderMap: Map<DataProviderKey, DataProvider> =
@@ -889,7 +892,7 @@ abstract class MeasurementConsumerSimulator(
         .groupBy { extractDataProviderKey(it.name) }
         .entries
         .associate { it.key to getDataProvider(it.key.toName()) }
-
+    logger.info { "44444444444444444444444444444444444444444444444444444444" }
     val requisitions: List<RequisitionInfo> =
       eventGroups
         .filter { eventGroupFilter?.invoke(it) ?: true }
@@ -916,6 +919,7 @@ abstract class MeasurementConsumerSimulator(
             timePercentage,
           )
         }
+    logger.info { "555555555555555555555555555555555555555555555555555555555" }
     val measurementSpec =
       newMeasurementSpec(measurementConsumer.publicKey.message, nonceHashes, vidSamplingInterval)
     return createMeasurementInfo(measurementConsumer, measurementSpec, requisitions, runId)
@@ -953,6 +957,7 @@ abstract class MeasurementConsumerSimulator(
     requisitions: List<RequisitionInfo>,
     runId: String,
   ): MeasurementInfo {
+    logger.info { "666666666666666666666666666666666666666666666666666666" }
     val request = createMeasurementRequest {
       parent = measurementConsumer.name
       measurement = measurement {
@@ -963,6 +968,7 @@ abstract class MeasurementConsumerSimulator(
         this.measurementReferenceId = runId
       }
     }
+    logger.info { "7777777777777777777777777777777777777777777777777777777" }
     val measurement: Measurement =
       try {
         measurementsClient
@@ -971,6 +977,7 @@ abstract class MeasurementConsumerSimulator(
       } catch (e: StatusException) {
         throw Exception("Error creating Measurement", e)
       }
+    logger.info { "88888888888888888888888888888888888888888888888888888" }
 
     return MeasurementInfo(measurement, measurementSpec, requisitions)
   }

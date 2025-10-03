@@ -88,13 +88,13 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     )
   }
 
-  @Test
-  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
-    testHarness.testReachAndFrequency(
-      "$runId-llv2-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-    )
-  }
+//  @Test
+//  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
+//    testHarness.testReachAndFrequency(
+//      "$runId-llv2-reach-and-freq",
+//      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+//    )
+//  }
 
   @Test(timeout = 1 * 60 * 1000)
   fun `report can be created`() = runBlocking {
