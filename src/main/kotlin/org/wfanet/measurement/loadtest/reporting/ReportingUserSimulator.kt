@@ -31,7 +31,6 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
@@ -349,12 +348,11 @@ class ReportingUserSimulator(
           )
 
         val eventGroup: EventGroup? =
-          response.eventGroupsList
-            .first {
-              it.eventGroupReferenceId.startsWith(
-                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-              )
-            }
+          response.eventGroupsList.first {
+            it.eventGroupReferenceId.startsWith(
+              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+            )
+          }
 
         if (eventGroup != null) {
           return eventGroup
