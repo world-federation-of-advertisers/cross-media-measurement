@@ -37,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -177,12 +176,9 @@ class DataAvailabilitySync(
     }
     try {
       throttler.onReady {
-        impressionMetadataServiceStub.batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            parent = dataProviderName
-            requests += createImpressionMetadataRequests
-          }
-        )
+        createImpressionMetadataRequests.forEach {
+          impressionMetadataServiceStub.createImpressionMetadata(it)
+        }
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)

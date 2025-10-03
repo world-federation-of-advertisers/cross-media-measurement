@@ -53,8 +53,8 @@ import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemSto
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -76,8 +76,8 @@ class DataAvailabilitySyncFunctionTest {
 
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
-        .thenReturn(BatchCreateImpressionMetadataResponse.getDefaultInstance())
+      onBlocking { createImpressionMetadata(any<CreateImpressionMetadataRequest>()) }
+        .thenReturn(ImpressionMetadata.getDefaultInstance())
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
           computeModelLineBoundsResponse {
@@ -196,7 +196,7 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
