@@ -355,16 +355,18 @@ class ReportingUserSimulator(
           )
 
         val eventGroup: EventGroup? =
-          response.eventGroupsList.filter {
-            it.eventGroupReferenceId.startsWith(
-              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-            )
-          }.firstOrNull {
-            dataProviderByName
-              .getOrPut(it.cmmsDataProvider) { getDataProvider(it.cmmsDataProvider) }
-              .capabilities
-              .honestMajorityShareShuffleSupported
-          }
+          response.eventGroupsList
+            .filter {
+              it.eventGroupReferenceId.startsWith(
+                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+              )
+            }
+            .firstOrNull {
+              dataProviderByName
+                .getOrPut(it.cmmsDataProvider) { getDataProvider(it.cmmsDataProvider) }
+                .capabilities
+                .honestMajorityShareShuffleSupported
+            }
 
         if (eventGroup != null) {
           return eventGroup
