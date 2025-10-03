@@ -31,10 +31,8 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
@@ -85,7 +83,6 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 /** Simulator for Reporting operations on the Reporting public API. */
 class ReportingUserSimulator(
   private val measurementConsumerName: String,
-  private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
   private val metricCalculationSpecsClient:
@@ -153,11 +150,6 @@ class ReportingUserSimulator(
     logger.info("Creating Basic Report...")
 
     val eventGroup = getEventGroup()
-    val dataProvider =
-      dataProvidersClient.getDataProvider(
-        getDataProviderRequest { name = eventGroup.cmmsDataProvider }
-      )
-
     val campaignGroup = createPrimitiveReportingSet(eventGroup, runId, isCampaignGroup = true)
 
     val basicReportKey =
@@ -200,7 +192,7 @@ class ReportingUserSimulator(
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
-        reportingUnit = reportingUnit { components += dataProvider.name }
+        reportingUnit = reportingUnit { components += eventGroup.cmmsEventGroup }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
           grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
@@ -373,14 +365,6 @@ class ReportingUserSimulator(
     }
 
     return response.eventGroupsList.first()
-  }
-
-  private suspend fun getDataProvider(dataProviderName: String): DataProvider {
-    try {
-      return dataProvidersClient.getDataProvider(getDataProviderRequest { name = dataProviderName })
-    } catch (e: StatusException) {
-      throw Exception("Error getting DataProvider $dataProviderName", e)
-    }
   }
 
   private suspend fun createPrimitiveReportingSet(

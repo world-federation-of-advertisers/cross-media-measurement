@@ -482,7 +482,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,
-        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient =
           org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub(
             publicApiChannel
