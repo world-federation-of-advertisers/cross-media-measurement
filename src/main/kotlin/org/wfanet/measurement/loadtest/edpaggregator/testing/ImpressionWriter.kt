@@ -111,9 +111,9 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/$ds/metadata"
+        "$impressionsBasePath/$ds/metadata.binpb"
       } else {
-        "ds/$ds/$eventGroupPath/metadata"
+        "ds/$ds/$eventGroupPath/metadata.binpb"
       }
 
       val impressionsMetadataFileUri =
