@@ -231,28 +231,22 @@ class ReportingUserSimulator(
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
+          // TODO(@tristanvuong2021): Include population after figuring out how to set default model
+          // line
+          populationSize = false
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
-                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
-                  grps = true
                 }
               stackedIncrementalReach = false
             }
@@ -261,22 +255,14 @@ class ReportingUserSimulator(
               nonCumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
-                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
-                  grps = true
                 }
               nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
