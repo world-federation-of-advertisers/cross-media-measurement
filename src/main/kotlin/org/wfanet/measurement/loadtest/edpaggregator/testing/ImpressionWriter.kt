@@ -32,6 +32,8 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.time.ZoneOffset
+import com.google.type.interval
 
 /**
  * A class responsible for writing labeled impression data to storage with encryption.
@@ -123,10 +125,18 @@ class ImpressionsWriter(
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, storagePath)
 
+      val zoneId = ZoneOffset.UTC
+      val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
+      val endOfDay = localDate.plusDays(1).atStartOfDay(zoneId).toInstant().toProtoTime()
+
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
         this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
+        this.interval = interval {
+          startTime = startOfDay
+          endTime = endOfDay
+        }
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
