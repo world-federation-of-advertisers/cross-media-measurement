@@ -295,8 +295,6 @@ class ReportingUserSimulator(
         )
         .build()
 
-    println("create basic report url: $createBasicReportUrl")
-
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
@@ -307,22 +305,15 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
-    println("create basic report request body: ${JsonFormat.printer().print(createBasicReportRequest {
-      this.basicReport = basicReport
-      basicReportId = basicReportKey.basicReportId
-    })}")
-
     val createdBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
-
         response.body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error creating Basic Report", e)
       }
 
-    println("Created Basic Report: $createdBasicReportJson")
-
+    println("createdBasicReportJson: $createdBasicReportJson")
     logger.info("Basic Report created")
 
     val getBasicReportUrl =
@@ -343,12 +334,12 @@ class ReportingUserSimulator(
     val retrievedBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
-
         response.body!!.bytes().decodeToString()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
 
+    println("retrievedBasicReportJson: $retrievedBasicReportJson")
     logger.info("Basic Report retrieval succeeded")
 
     val retrievedBasicReportBuilder = BasicReport.newBuilder()
