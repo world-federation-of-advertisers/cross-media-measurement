@@ -31,7 +31,10 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
@@ -64,6 +67,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
+import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
@@ -82,6 +86,7 @@ import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 /** Simulator for Reporting operations on the Reporting public API. */
 class ReportingUserSimulator(
   private val measurementConsumerName: String,
+  private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
   private val metricCalculationSpecsClient:
@@ -94,6 +99,8 @@ class ReportingUserSimulator(
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
+  private val dataProviderByName: MutableMap<String, DataProvider> = mutableMapOf()
+
   suspend fun testCreateReport(runId: String) {
     logger.info("Creating report...")
 
@@ -191,7 +198,7 @@ class ReportingUserSimulator(
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
-        reportingUnit = reportingUnit { components += eventGroup.cmmsEventGroup }
+        reportingUnit = reportingUnit { components += eventGroup.cmmsDataProvider }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
           grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
@@ -348,10 +355,15 @@ class ReportingUserSimulator(
           )
 
         val eventGroup: EventGroup? =
-          response.eventGroupsList.first {
+          response.eventGroupsList.filter {
             it.eventGroupReferenceId.startsWith(
               TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
             )
+          }.firstOrNull {
+            dataProviderByName
+              .getOrPut(it.cmmsDataProvider) { getDataProvider(it.cmmsDataProvider) }
+              .capabilities
+              .honestMajorityShareShuffleSupported
           }
 
         if (eventGroup != null) {
@@ -363,6 +375,14 @@ class ReportingUserSimulator(
     }
 
     return response.eventGroupsList.first()
+  }
+
+  private suspend fun getDataProvider(dataProviderName: String): DataProvider {
+    try {
+      return dataProvidersClient.getDataProvider(getDataProviderRequest { name = dataProviderName })
+    } catch (e: StatusException) {
+      throw Exception("Error getting DataProvider $dataProviderName", e)
+    }
   }
 
   private suspend fun createPrimitiveReportingSet(
