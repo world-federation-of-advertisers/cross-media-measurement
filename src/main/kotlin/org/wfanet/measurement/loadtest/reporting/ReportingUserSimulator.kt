@@ -317,6 +317,8 @@ class ReportingUserSimulator(
         throw Exception("Error creating Basic Report", e)
       }
 
+    println("Created Basic Report: $createdBasicReportJson")
+
     logger.info("Basic Report created")
 
     val getBasicReportUrl =
