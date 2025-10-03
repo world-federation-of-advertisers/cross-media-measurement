@@ -107,10 +107,15 @@ locals {
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                          "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                          "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
                                           "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+                                          "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
                                           "--trusted-cert-collection-secret-id", "trusted-root-ca",
+                                          "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
                                           "--kingdom-public-api-target", var.kingdom_public_api_target,
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
                                           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
