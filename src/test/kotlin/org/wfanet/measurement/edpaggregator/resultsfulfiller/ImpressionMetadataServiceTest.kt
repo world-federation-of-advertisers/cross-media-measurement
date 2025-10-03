@@ -28,11 +28,19 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 
 @RunWith(JUnit4::class)
 class ImpressionMetadataServiceTest {
@@ -41,11 +49,22 @@ class ImpressionMetadataServiceTest {
   val modelLine = "model-line-1"
   val impressionsBlobDetailsUriPrefix = "file:///meta-bucket/"
 
+  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(impressionMetadataServiceMock)
+  }
+
+  private val impressionMetadataStub: ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
   private fun createService() =
-    StorageImpressionMetadataService(
+    ImpressionDataSourceProvider(
+      impressionMetadataStub = impressionMetadataStub,
+      dataProvider = "dataProviders/123",
       impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
-      impressionsBlobDetailsUriPrefix = impressionsBlobDetailsUriPrefix,
-      zoneIdForDates = ZoneId.of("UTC"),
     )
 
   @Test
@@ -70,6 +89,26 @@ class ImpressionMetadataServiceTest {
 
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
     val end = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$bucketName/$key"
+        interval = interval {
+          startTime = timestamp {
+            seconds = start.epochSecond
+            nanos = start.nano
+          }
+          endTime = timestamp {
+            seconds = end.epochSecond
+            nanos = end.nano
+          }
+        }
+      }
+    })
+
     val sources =
       svc.listImpressionDataSources(
         modelLine = modelLine,
@@ -99,6 +138,15 @@ class ImpressionMetadataServiceTest {
     val rootDir = tmp.root
     val bucketName = "meta-bucket"
     File(rootDir, bucketName).mkdirs()
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$bucketName/metadata"
+      }
+    })
 
     val date = LocalDate.of(2025, 2, 1)
     val start = date.atStartOfDay(ZoneId.of("UTC")).toInstant()

@@ -22,7 +22,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
-import java.time.ZoneOffset
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -45,6 +44,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 
 /**
  * Application for fulfilling results in the CMMS.
@@ -60,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
+ * @param impressionMetadataStub used to get impressions metadata from ImpressionMetadataStorage
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
@@ -77,6 +78,7 @@ class ResultsFulfillerApp(
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
@@ -140,12 +142,11 @@ class ResultsFulfillerApp(
     val kmsClient = kmsClients[fulfillerParams.dataProvider]
     requireNotNull(kmsClient) { "KMS client not found for ${fulfillerParams.dataProvider}" }
 
-    val impressionsMetadataService =
-      StorageImpressionMetadataService(
+    val impressionsDataSourceProvider =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = fulfillerParams.dataProvider,
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
-        impressionsBlobDetailsUriPrefix =
-          fulfillerParams.storageParams.labeledImpressionsBlobDetailsUriPrefix,
-        zoneIdForDates = ZoneOffset.UTC,
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -191,7 +192,7 @@ class ResultsFulfillerApp(
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
         pipelineConfiguration = pipelineConfiguration,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,

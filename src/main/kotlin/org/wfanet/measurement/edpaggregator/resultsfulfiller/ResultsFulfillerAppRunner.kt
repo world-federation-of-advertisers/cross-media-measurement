@@ -49,6 +49,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
@@ -316,8 +317,8 @@ class ResultsFulfillerAppRunner : Runnable {
       )
 
     val requisitionMetadataClient = RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val impressionMetadataClient = ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
     val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
-
     val duchiesMap = buildDuchyMap()
 
     val requisitionStubFactory =
@@ -337,6 +338,7 @@ class ResultsFulfillerAppRunner : Runnable {
         parser = parser,
         workItemsClient = workItemsClient,
         requisitionMetadataStub = requisitionMetadataClient,
+        impressionMetadataStub = impressionMetadataClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
