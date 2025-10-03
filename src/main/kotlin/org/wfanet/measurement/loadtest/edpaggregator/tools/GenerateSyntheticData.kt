@@ -189,7 +189,7 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events, impressionMetadataBasePath, modelLine)
+      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
     }
   }
 
