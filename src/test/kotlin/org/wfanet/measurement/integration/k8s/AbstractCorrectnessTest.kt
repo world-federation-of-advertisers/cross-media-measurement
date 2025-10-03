@@ -70,12 +70,12 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   private val reportingTestHarness: ReportingUserSimulator
     get() = measurementSystem.reportingTestHarness
 
-  @Test(timeout = 10 * 60 * 1000)
+  @Test(timeout = 3 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
     testHarness.testImpression("$runId-impression")
   }
 
-  @Test(timeout = 10 * 60 * 1000)
+  @Test(timeout = 3 * 60 * 1000)
   fun `duration measurement completes with expected result`() = runBlocking {
     testHarness.testDuration("$runId-duration")
   }
@@ -96,7 +96,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 //    )
 //  }
 
-  @Test(timeout = 1 * 60 * 1000)
+  @Test(timeout = 3 * 60 * 1000)
   fun `report can be created`() = runBlocking {
     reportingTestHarness.testCreateReport("$runId-test-report")
   }
