@@ -179,6 +179,7 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      requisitionMetadataStub = requisitionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
@@ -256,7 +257,12 @@ class InProcessEdpAggregatorComponents(
     }
 
     dataWatcher =
-      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
+      DataWatcher(
+        workItemsClient,
+        requisitionMetadataClient,
+        watchedPaths,
+        idTokenProvider = TestIdTokenProvider(),
+      )
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
