@@ -176,7 +176,7 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
-    val eventGroupPath = "model-line/$modelLine/event-group-reference-id/$eventGroupReferenceId"
+    val eventGroupPath = "model-line/${modelLine.getModelLineName()}/event-group-reference-id/$eventGroupReferenceId"
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
@@ -189,9 +189,12 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events, impressionMetadataBasePath)
+      impressionWriter.writeLabeledImpressionData(events, impressionMetadataBasePath, modelLine)
     }
   }
+
+  fun String.getModelLineName(): String =
+    this.substringAfterLast("/")
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

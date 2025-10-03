@@ -72,7 +72,9 @@ class ImpressionsWriter(
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Sequence<LabeledEventDateShard<T>>,
-    impressionsBasePath: String? = null) {
+    impressionsBasePath: String? = null,
+    blobModelLine: String? = "some-model-line"
+  ) {
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -137,6 +139,7 @@ class ImpressionsWriter(
           startTime = startOfDay
           endTime = endOfDay
         }
+        this.modelLine = blobModelLine
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
