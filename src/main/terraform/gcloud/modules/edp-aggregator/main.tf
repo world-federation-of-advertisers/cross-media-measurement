@@ -340,6 +340,13 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
