@@ -306,6 +306,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
               setOf(
                 "reporting.basicReports.create",
                 "reporting.reports.create",
+                "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
           )
