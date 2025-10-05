@@ -36,6 +36,7 @@ import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequest
+import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequestKt
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
@@ -60,6 +61,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelRelease as InternalModelRelease
@@ -71,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequestKt.filt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest as internalGetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.streamModelReleasesRequest as internalStreamModelReleasesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
@@ -456,6 +459,34 @@ class ModelReleasesServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listModelReleases succeeds when filtering by Population across ModelSuites`() {
+    val request = listModelReleasesRequest {
+      parent = "$MODEL_PROVIDER_NAME/modelSuites/-"
+      filter = ListModelReleasesRequestKt.filter { populationIn += POPULATION_NAME }
+    }
+
+    runBlocking {
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) { service.listModelReleases(request) }
+    }
+
+    val internalRequest: StreamModelReleasesRequest =
+      verifyAndCapture(internalModelLinesMock, ModelReleasesCoroutineImplBase::streamModelReleases)
+    assertThat(internalRequest)
+      .isEqualTo(
+        internalStreamModelReleasesRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter = filter {
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            populationKeyIn += populationKey {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              externalPopulationId = EXTERNAL_POPULATION_ID
+            }
+          }
+        }
+      )
   }
 
   @Test

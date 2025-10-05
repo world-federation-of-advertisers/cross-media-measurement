@@ -12,6 +12,7 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher/testing:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher/testing:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/testing:__subpackages__",
@@ -94,6 +95,13 @@ filegroup(
 )
 
 filegroup(
+    name = "edp_aggregator_trusted_certs",
+    srcs = [
+        "edp_aggregator_root.pem",
+    ],
+)
+
+filegroup(
     name = "encryption_public_keys",
     srcs = [
         ":mc_enc_public.pb",
@@ -133,6 +141,13 @@ genrule(
     name = "gen_mp_trusted_certs",
     srcs = [":mp_trusted_certs"],
     outs = ["mp_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_edp_aggregator_trusted_certs",
+    srcs = [":edp_aggregator_trusted_certs"],
+    outs = ["edp_aggregator_trusted_certs.pem"],
     cmd = "cat $(SRCS) > $@",
 )
 
@@ -277,19 +292,22 @@ filegroup(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__subpackages__"],
 )
 
-PDP1_TLS_SRCS = [
-    "pdp1_tls.key",
-    "pdp1_tls.pem",
-]
-
 PDP1_TLS_RENAMES = {
     "pdp1_tls.pem": "tls.crt",
     "pdp1_tls.key": "tls.key",
 }
 
+filegroup(
+    name = "pdp1_tls_srcs",
+    srcs = [
+        "pdp1_tls.key",
+        "pdp1_tls.pem",
+    ],
+)
+
 pkg_files(
     name = "pdp1_tls_files",
-    srcs = PDP1_TLS_SRCS,
+    srcs = [":pdp1_tls_srcs"],
     renames = PDP1_TLS_RENAMES,
     visibility = ["//visibility:private"],
 )
@@ -304,7 +322,8 @@ kustomization_dir(
     name = "pdp1_tls",
     srcs = [
         "pdp_tls_kustomization.yaml",
-    ] + PDP1_TLS_SRCS,
+        ":pdp1_tls_srcs",
+    ],
     renames = {
         "pdp_tls_kustomization.yaml": "kustomization.yaml",
     } | PDP1_TLS_RENAMES,
@@ -342,6 +361,39 @@ kustomization_dir(
     renames = {
         "pdp_cs_kustomization.yaml": "kustomization.yaml",
     } | PDP1_CS_RENAMES,
+)
+
+EDP_AGGREGATOR_TLS_SRCS = [
+    "edp_aggregator_tls.pem",
+    "edp_aggregator_tls.key",
+]
+
+EDP_AGGREGATOR_TLS_RENAMES = {
+    "edp_aggregator_tls.pem": "tls.crt",
+    "edp_aggregator_tls.key": "tls.key",
+}
+
+pkg_files(
+    name = "edp_aggregator_tls_files",
+    srcs = EDP_AGGREGATOR_TLS_SRCS,
+    renames = EDP_AGGREGATOR_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "edp_aggregator_tls_archive",
+    srcs = [":edp_aggregator_tls_files"],
+    out = "edp_aggregator_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "edp_aggregator_tls",
+    srcs = [
+        "edp_aggregator_tls_kustomization.yaml",
+    ] + EDP_AGGREGATOR_TLS_SRCS,
+    renames = {
+        "edp_aggregator_tls_kustomization.yaml": "kustomization.yaml",
+    } | EDP_AGGREGATOR_TLS_RENAMES,
 )
 
 pkg_tar(

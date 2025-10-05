@@ -85,9 +85,9 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
       ResourceSetup(
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
+        internalCertificatesClient = kingdom.internalCertificatesClient,
         accountsClient = publicAccountsClient,
         apiKeysClient = publicApiKeysClient,
-        internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "67890",
         requiredDuchies = listOf(),
