@@ -98,14 +98,12 @@ message ReportSummaryV2 {
 
   // Identifies the filtered demographic groups this report summary applies to.
   //
-  // If the report supports demographic filtering, the field contains either a
-  // list of demographic group string identifiers that were included (e.g.,
-  // ["MALE_YEARS_16_TO_34", "FEMALE_YEARS_16_TO_34"]), or a single string "-"
-  // which indicates that all demographic groups were included (equivalent to no
-  // filter).
-  //
-  // If the report supports demographic, the field contains exactly one string
-  // identifying the single demographic slice (e.g., ["FEMALE_YEARS_35_TO_54"]).
+  // The demographic_groups field contains a list of strings, each corresponds
+  // to a single demographic group identifier. For examples:
+  // - For a report summary on a subset of groups: ["MALE_AGE_GROUP1",
+  // "FEMALE_AGE_GROUP1"].
+  // - For a report summary on a single group: ["MALE_AGE_GROUP1"].
+  // - For a report summary on the whole population (no filter): ["-"].
   repeated string demographic_groups = 2;
 
   // The total population size of the selected demographic groups in this report
