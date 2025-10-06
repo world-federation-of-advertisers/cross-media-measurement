@@ -206,6 +206,8 @@ message ListRequisitionMetadataRequest {
         [(google.api.field_behavior) = OPTIONAL];
     // Filter by the group ID of the requisition.
     string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
+    // Filter by the report resource name of the requisition.
+    string report = 3 [(google.api.field_behavior) = OPTIONAL];
   }
   // The filter to apply to the list. All filter fields are optional.
   // (-- api-linter: core::0132::request-field-types=disabled

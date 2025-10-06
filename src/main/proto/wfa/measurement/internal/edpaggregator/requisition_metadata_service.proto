@@ -116,6 +116,7 @@ message ListRequisitionMetadataRequest {
   message Filter {
     RequisitionMetadataState state = 1;
     string group_id = 2;
+    string report = 3;
   }
   Filter filter = 1;
 

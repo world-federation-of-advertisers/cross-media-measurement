@@ -18,27 +18,40 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.type.Interval
 import com.google.type.interval
-import java.util.UUID
+import io.grpc.StatusException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.RequisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.storage.StorageClient
+import java.util.UUID
+
+data class EventGroupWrapper(val eventGroupReferenceId: String, val intervals: MutableList<Interval>)
 
 /**
  * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
@@ -49,17 +62,19 @@ class RequisitionGrouperByReportId(
   private val dataProviderName: String,
   private val blobUriPrefix: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val storageClient: StorageClient,
+  private val responsePageSize: Int? = null,
+  throttler: Throttler,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
-  throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
 
   /**
    * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
    * group.
    */
   override suspend fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
+    groupedRequisitions: List<GroupedRequisitions>,
   ): List<GroupedRequisitions> {
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
       groupedRequisitions.groupBy {
@@ -83,23 +98,38 @@ class RequisitionGrouperByReportId(
   private suspend fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
   ): List<GroupedRequisitions> {
-
-    return groupedByReport.toList().mapNotNull {
-      (reportId: String, groups: List<GroupedRequisitions>) ->
+    return groupedByReport.toList().mapNotNull { (reportId, groups) ->
       val requisitionGroupId = UUID.randomUUID().toString()
       val requisitions = groups.flatMap { it.requisitionsList }
+
       try {
-        requisitionValidator.validateModelLines(groups, reportId = reportId)
-        // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once
-        // available
-        for (requisition in requisitions) {
-          createRequisitionMetadata(
-            requisition.requisition.unpack(Requisition::class.java),
-            requisitionGroupId,
-          )
+
+        // List existing requisition metadata for the current report
+        val existingRequisitionMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
+        val existingCmmsRequisitions = existingRequisitionMetadata.map { it.cmmsRequisition }
+        // List grouped requisitions that should have been persisted already
+        val existingRequisitionsInStorage: Set<String> = listGroupedRequisitionBlob(existingRequisitionMetadata)
+
+        // Filter out groups whose single requisition has already been fully processed.
+        // A requisition is considered "fully processed" only if it exists both in:
+        //   1. The RequisitionMetadata storage (i.e., metadata already created), AND
+        //   2. The GroupedRequisition blob in Google Cloud Storage (i.e., data already written).
+        //
+        // This ensures that if metadata was written but the blob upload failed
+        // (for example, due to an exception), the requisition will still be reprocessed.
+        val filteredGroups = groups.filter { group ->
+          val requisition = group.requisitionsList.single().requisition.unpack(Requisition::class.java)
+
+          val isInMetadata = requisition.name in existingCmmsRequisitions
+          val isInStorage = requisition.name in existingRequisitionsInStorage
+
+          !(isInMetadata && isInStorage)
         }
+
+        requisitionValidator.validateModelLines(filteredGroups, reportId = reportId)
+
         val entries =
-          groups
+          filteredGroups
             .flatMap { it.eventGroupMapList }
             .groupBy { it.eventGroup }
             .map { (eventGroupName: String, eventGroupMapEntries: List<EventGroupMapEntry>) ->
@@ -115,22 +145,99 @@ class RequisitionGrouperByReportId(
                 }
               }
             }
+
         groupedRequisitions {
           this.modelLine = groups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
           this.requisitions += requisitions
           this.groupId = requisitionGroupId
         }
+
       } catch (e: InvalidRequisitionException) {
-        requisitions.forEach { requisitionEntry: RequisitionEntry ->
-          val requisition = requisitionEntry.requisition.unpack(Requisition::class.java)
-          refuseRequisition(requisition, e.refusal)
-          val requisitionMetadata: RequisitionMetadata =
-            createRequisitionMetadata(requisition, requisitionGroupId)
-          refuseRequisitionMetadata(requisitionMetadata, e.refusal.message)
-        }
+        refuseAllRequisitions(requisitions, requisitionGroupId, e.refusal, e.message)
+        null
+      } catch (e: StatusException) {
+        refuseAllRequisitions(requisitions, requisitionGroupId)
+        null
+      } catch (e: Exception) {
+        refuseAllRequisitions(requisitions, requisitionGroupId)
         null
       }
+    }
+  }
+
+  /**
+   * Merges overlapping or contiguous time intervals into a minimal set of non-overlapping intervals.
+   *
+   * @param intervals The list of [Interval] objects to be merged.
+   * @return A list of merged, non-overlapping [Interval] objects, sorted by start time.
+   */
+  private fun unionIntervals(intervals: List<Interval>): List<Interval> {
+    val sorted = intervals.sortedBy { it.startTime.toInstant() }
+    val result = mutableListOf<Interval>()
+    var current = sorted.first()
+    for (i in 1 until sorted.size) {
+      val next = sorted[i]
+      if (current.endTime.toInstant() >= next.startTime.toInstant()) {
+        current = interval {
+          startTime = current.startTime
+          endTime = maxOf(current.endTime.toInstant(), next.endTime.toInstant()).toProtoTime()
+        }
+      } else {
+        result.add(current)
+        current = next
+      }
+    }
+    result.add(current)
+    return result
+  }
+
+  private suspend fun listGroupedRequisitionBlob(existingRequisitionMetadata: List<RequisitionMetadata>) : Set<String> {
+    val groupId =  existingRequisitionMetadata.single().groupId
+    val blobKey = "$storagePathPrefix/${groupId}"
+    val blob = storageClient.getBlob(blobKey) ?: return emptySet()
+    val groupedRequisitions = blob.read().map { bytes -> GroupedRequisitions.parseFrom(bytes) }
+    return groupedRequisitions.requisitionsList.map { entry ->
+      val requisition = entry.requisition.unpack(Requisition::class.java)
+      requisition.name
+    }.toSet()
+  }
+
+  private suspend fun listRequisitionMetadataByReportId(reportName: String): List<RequisitionMetadata> {
+    val requisitionMetadataList: Flow<RequisitionMetadata> =
+      requisitionMetadataStub
+        .listResources { pageToken: String ->
+          val request = listRequisitionMetadataRequest {
+            parent = dataProviderName
+            filter = ListRequisitionMetadataRequestKt.filter { report = reportName }
+            if (responsePageSize != null) {
+              pageSize = responsePageSize
+            }
+            this.pageToken = pageToken
+          }
+          val response: ListRequisitionMetadataResponse =
+            try {
+              requisitionMetadataStub.listRequisitionMetadata(request)
+            } catch (e: StatusException) {
+              throw Exception("Error listing requisitions", e)
+            }
+          ResourceList(response.requisitionMetadataList, response.nextPageToken)
+        }
+        .flattenConcat()
+    return requisitionMetadataList.toList()
+  }
+
+  private suspend fun refuseAllRequisitions(
+    requisitions: List<GroupedRequisitions.RequisitionEntry>,
+    requisitionGroupId: String,
+    refusal: Requisition.Refusal = Requisition.Refusal.JUSTIFICATION_UNSPECIFIED,
+    errorMessage: String? = ""
+  ) {
+    requisitions.forEach { entry ->
+      val requisition = entry.requisition.unpack(Requisition::class.java)
+      refuseRequisition(requisition, refusal)
+      val requisitionMetadata = createRequisitionMetadata(requisition, requisitionGroupId)
+      refuseRequisitionMetadata(requisitionMetadata, errorMessage ?: "Validation failed")
     }
   }
 
@@ -168,26 +275,6 @@ class RequisitionGrouperByReportId(
       refusalMessage = message
     }
     requisitionMetadataStub.refuseRequisitionMetadata(request)
-  }
-
-  private fun unionIntervals(intervals: List<Interval>): List<Interval> {
-    val sorted = intervals.sortedBy { it.startTime.toInstant() }
-    val result = mutableListOf<Interval>()
-    var current = sorted.first()
-    for (i in 1 until sorted.size) {
-      val next = sorted[i]
-      if (current.endTime.toInstant() >= next.startTime.toInstant()) {
-        current = interval {
-          startTime = current.startTime
-          endTime = maxOf(current.endTime.toInstant(), next.endTime.toInstant()).toProtoTime()
-        }
-      } else {
-        result.add(current)
-        current = next
-      }
-    }
-    result.add(current)
-    return result
   }
 
   private fun getReportId(requisition: Requisition): String {
