@@ -122,6 +122,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:all_der_files",
         "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:mp_trusted_certs",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:permissions_config.textproto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_config.textproto",
     ],

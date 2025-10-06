@@ -38,6 +38,25 @@ jobs:
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@v2
 
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --remote_download_outputs=all
+          EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
       - name: Set up Java & Maven
         uses: actions/setup-java@v3
         with:
@@ -81,4 +100,15 @@ jobs:
           artifact-id: event-group-sync
           artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
           bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar
+
+      - name: Build and Deploy Data Availability Sync
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        uses: ./.github/actions/build-and-push-uber-jar
+        with:
+          package-version: ${{ steps.get-artifact-version.outputs.artifact-version }}
+          artifact-id: data-availability-sync
+          artifact-group-id: org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
+          bazel_target_label: //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction_deploy.jar
 

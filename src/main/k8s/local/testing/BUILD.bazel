@@ -57,6 +57,21 @@ cue_dump(
     ],
 )
 
+cue_dump(
+    name = "population_requisition_fulfiller",
+    cue_tags = {
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+        "pdp_name": "{pdp_name}",
+        "pdp_cert_name": "{pdp_cert_name}",
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/local:population_requisition_fulfiller_cue",
+    ],
+)
+
 kustomization_dir(
     name = "config_files",
     srcs = [
@@ -67,8 +82,12 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set",
     ],
-    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+    renames = {
+        "config_files_kustomization.yaml": "kustomization.yaml",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set": "event_message_descriptor_set.pb",
+    },
     tags = ["manual"],
 )
 
@@ -83,10 +102,12 @@ kustomization_dir(
         "//src/main/k8s/testing/secretfiles:impression_qualification_filter_config.textproto",
         "//src/main/k8s/testing/secretfiles:known_event_group_metadata_type_set",
         "//src/main/k8s/testing/secretfiles:metric_spec_config.textproto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set",
     ],
     renames = {
         "config_files_kustomization.yaml": "kustomization.yaml",
         "empty_encryption_key_pair_config.textproto": "encryption_key_pair_config.textproto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set": "event_message_descriptor_set.pb",
     },
 )
 
@@ -108,6 +129,18 @@ kustomization_dir(
 )
 
 kustomization_dir(
+    name = "pdp",
+    srcs = [":population_requisition_fulfiller"],
+    generate_kustomization = True,
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/local:pdp_config",
+        "//src/main/k8s/testing/secretfiles:pdp1_consent_signaling",
+        "//src/main/k8s/testing/secretfiles:pdp1_tls",
+    ],
+)
+
+kustomization_dir(
     name = "cmms",
     srcs = [
         ":duchies",
@@ -123,6 +156,7 @@ kustomization_dir(
         ":config_files",
         ":db_creds",
         ":mc_config",
+        ":pdp",
         "//src/main/k8s/testing/secretfiles:kustomization",
     ],
 )

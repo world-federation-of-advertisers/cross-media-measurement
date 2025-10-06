@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
@@ -114,6 +115,7 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+    @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
     @CommandLine.Option(
       names = ["--system-measurement-consumer"],
       description =
@@ -361,8 +363,7 @@ private object V2AlphaPublicApiServer {
             InternalReportingSetsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
             ReportsCoroutineStub(inProcessReportsChannel),
-            // TODO(@tristanvuong2021#2761): Switch to non-null value using flags
-            null,
+            eventMessageFlags.eventDescriptor,
             basicReportMetricSpecConfig,
             SecureRandom().asKotlinRandom(),
             authorization,

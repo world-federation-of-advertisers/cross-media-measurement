@@ -40,7 +40,7 @@ message ReportResult {
     // Indicates that the metrics for a ReportingSet are for the
     // primitive Venn diagram region entailed by sub-ReportingSets
     PRIMITIVE = 2;
-  }  // `MeasurementConsumer` ID from the CMMS public API.
+  }
 
   // The CMMS Measurement Consumer ID
   string cmms_measurement_consumer_id = 1;
@@ -64,14 +64,60 @@ message ReportResult {
     // The event template dimensions the result is grouped by
     // Each event template field path may exist at most once in this list.
     repeated EventTemplateField groupings = 6;
-    // The filter, sans the IQF criteria, that was applied to these results.
-    EventFilter event_filter = 7;
+    // The filters, sans the IQF criteria, that were applied to these results.
+    repeated EventFilter event_filters = 7;
     int32 population_size = 8;
     // Represents the results for a reporting window with respect to a
     // ReportingSetResult.
     message ReportingWindowResult {
       google.type.Date window_start_date = 1;
       google.type.Date window_end_date = 2;
+
+      // Represents noisy result values with respect to a ReportingWindowResult.
+      //
+      // The combination of (cmms_measurement_consumer_id,
+      //                     external_report_result_id,
+      //                     external_noisy_report_result_value_id)
+      // is unique.
+      message NoisyReportResultValues {
+        fixed64 external_noisy_report_result_value_id = 1;
+
+        message NoisyMetricSet {
+          // Statistics of a scalar value
+          message UnivariateStatistics {
+            // The standard deviation of the associated scalar variable value.
+            //
+            // Can be used to find different confidence intervals.
+            double standard_deviation = 1;
+          }
+
+          message ReachResult {
+            int64 value = 1;
+            UnivariateStatistics univariate_statistics = 2;
+          }
+
+          message HistogramResult {
+            message BinResult {
+              double value = 1;
+              UnivariateStatistics univariate_statistics = 2;
+            }
+            repeated BinResult bins = 1;
+          }
+
+          message ImpressionCountResult {
+            int64 value = 1;
+            UnivariateStatistics univariate_statistics = 2;
+          }
+
+          ReachResult reach = 1;
+          HistogramResult frequencyHistogram = 2;
+          ImpressionCountResult impression_count = 3;
+        }
+
+        NoisyMetricSet cumulative_results = 2;
+        NoisyMetricSet non_cumulative_results = 3;
+      }
+
       // Represents result values with respect to a ReportingWindowResult.
       //
       // The combination of (cmms_measurement_consumer_id,
@@ -80,17 +126,16 @@ message ReportResult {
       // is unique.
       message ReportResultValues {
         fixed64 external_report_result_value_id = 1;
-        enum ResultType {
-          RESULT_TYPE_UNSPECIFIED = 0;
-          NOISY = 1;
-          DENOISED = 2;
-        }
-        ResultType result_type = 2;
         ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
         ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
       }
+
+      oneof report_result_values {
+        NoisyReportResultValues noisy_report_result_values = 3;
+        ReportResultValues denoised_report_result_values = 4;
+      }
     }
-    repeated ReportingWindowResult reporting_window_result = 9;
+    repeated ReportingWindowResult reporting_window_results = 9;
   }
-  repeated ReportingSetResult reporting_set_result = 4;
+  repeated ReportingSetResult reporting_set_results = 4;
 }

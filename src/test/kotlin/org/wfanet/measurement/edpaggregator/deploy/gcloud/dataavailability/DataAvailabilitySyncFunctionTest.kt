@@ -55,11 +55,11 @@ import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponseKt.modelLineAvailability
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -78,12 +78,12 @@ class DataAvailabilitySyncFunctionTest {
     mockService {
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenReturn(BatchCreateImpressionMetadataResponse.getDefaultInstance())
-      onBlocking { computeModelLinesAvailability(any<ComputeModelLinesAvailabilityRequest>()) }
+      onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
-          computeModelLinesAvailabilityResponse {
-            modelLineAvailabilities += modelLineAvailability {
-              modelLine = "some-model-line"
-              availability = interval {
+          computeModelLineBoundsResponse {
+            modelLineBounds += modelLineBoundMapEntry {
+              key = "some-model-line"
+              value = interval {
                 startTime = timestamp { seconds = 1735689600 } // 2025-01-01T00:00:00Z
                 endTime = timestamp { seconds = 1736467200 } // 2025-01-10T00:00:00Z
               }
@@ -133,7 +133,7 @@ class DataAvailabilitySyncFunctionTest {
   fun `sync registersUnregisteredImpressionMetadata`() {
 
     val localImpressionBlobUri = "edp/edp_name/timestamp/impressions"
-    val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.pb"
+    val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.binpb"
     val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
 
     val blobDetails = blobDetails {
@@ -196,7 +196,7 @@ class DataAvailabilitySyncFunctionTest {
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLinesAvailability(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   companion object {
