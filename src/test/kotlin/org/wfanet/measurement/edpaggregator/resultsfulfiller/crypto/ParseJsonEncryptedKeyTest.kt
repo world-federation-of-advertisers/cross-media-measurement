@@ -16,19 +16,26 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.crypto
 
+import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.aead.AeadKey
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadKey
+import com.google.protobuf.ByteString
 import java.util.Base64
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.tink.AeadStorageClient
+import org.wfanet.measurement.common.crypto.tink.StreamingAeadStorageClient
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class ParseJsonEncryptedKeyTest {
@@ -62,6 +69,19 @@ class ParseJsonEncryptedKeyTest {
 
     val keysetHandle = parseJsonEncryptedKey(ciphertext, kmsAead, null)
     assert(keysetHandle.primary.key is AeadKey)
+
+    val wrappedStorageClient = InMemoryStorageClient()
+    val serializedEncryptionKey =
+      ByteString.copyFrom(
+        TinkProtoKeysetFormat.serializeEncryptedKeyset(
+          keysetHandle,
+          kmsClient.getAead(kekUri),
+          byteArrayOf(),
+        )
+      )
+    val storageClient =
+      wrappedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+    assertThat(storageClient).isInstanceOf(AeadStorageClient::class.java)
   }
 
   @Test
@@ -95,6 +115,19 @@ class ParseJsonEncryptedKeyTest {
 
     val keysetHandle = parseJsonEncryptedKey(ciphertext, kmsAead, null)
     assert(keysetHandle.primary.key is StreamingAeadKey)
+
+    val wrappedStorageClient = InMemoryStorageClient()
+    val serializedEncryptionKey =
+      ByteString.copyFrom(
+        TinkProtoKeysetFormat.serializeEncryptedKeyset(
+          keysetHandle,
+          kmsClient.getAead(kekUri),
+          byteArrayOf(),
+        )
+      )
+    val storageClient =
+      wrappedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+    assertThat(storageClient).isInstanceOf(StreamingAeadStorageClient::class.java)
   }
 
   companion object {}
