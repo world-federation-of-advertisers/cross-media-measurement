@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import com.google.protobuf.Any
 import com.google.type.Interval
 import com.google.type.interval
+import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -37,6 +38,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 
 /**
  * An interface to group a list of requisitions.
@@ -83,9 +88,69 @@ abstract class RequisitionGrouper(
         e.requisitions.forEach { refuseRequisition(it, e.refusal) }
         return null
       }
+    val requisitionSpec: RequisitionSpec =
+      try {
+        requisitionValidator.validateRequisitionSpec(requisition)
+      } catch (e: InvalidRequisitionException) {
+        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        return null
+      }
+    val eventGroupMapEntries =
+      try {
+        getEventGroupMapEntries(requisitionSpec)
+      } catch (e: StatusException) {
+        logger.severe(
+          "Exception getting event group map for requisition ${requisition.name}: ${e.message}"
+        )
+        // For now, we skip this requisition. However, we could refuse it in the future.
+        return null
+      }
     return groupedRequisitions {
       modelLine = measurementSpec.modelLine
       this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
+      this.eventGroupMap +=
+        eventGroupMapEntries.map {
+          eventGroupMapEntry {
+            this.eventGroup = it.key
+            details = it.value
+          }
+        }
+    }
+  }
+
+  private suspend fun getEventGroupMapEntries(
+    requisitionSpec: RequisitionSpec
+  ): Map<String, EventGroupDetails> {
+    val eventGroupMap = mutableMapOf<String, EventGroupDetails>()
+    for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
+      val eventGroupName = eventGroupEntry.key
+      if (eventGroupName in eventGroupMap) {
+        eventGroupMap[eventGroupName] =
+          eventGroupMap
+            .getValue(eventGroupName)
+            .toBuilder()
+            .apply {
+              val newCollectionIntervalList =
+                this.collectionIntervalsList + eventGroupEntry.value.collectionInterval
+              this.collectionIntervalsList.clear()
+              this.collectionIntervalsList +=
+                newCollectionIntervalList.sortedBy { it.startTime.toInstant() }
+            }
+            .build()
+      } else {
+        eventGroupMap[eventGroupName] = eventGroupDetails {
+          val eventGroup = getEventGroup(eventGroupName)
+          this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
+          this.collectionIntervals += eventGroupEntry.value.collectionInterval
+        }
+      }
+    }
+    return eventGroupMap
+  }
+
+  private suspend fun getEventGroup(name: String): EventGroup {
+    return throttler.onReady {
+      eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
     }
   }
 

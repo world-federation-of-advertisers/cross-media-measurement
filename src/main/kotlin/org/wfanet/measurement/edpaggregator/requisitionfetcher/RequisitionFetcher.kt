@@ -17,12 +17,10 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
-import com.google.protobuf.Timestamp
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
@@ -34,7 +32,6 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -95,16 +92,8 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
-    // Filter requisitions excluding those that have not been written into
-    // RequisitionMetadataStorage yet.
-    val fetchLatestCmmsCreateTimeRequest = fetchLatestCmmsCreateTimeRequest {
-      parent = dataProviderName
-    }
-    val latestCmmsCreateTime =
-      requisitionMetadataStub.fetchLatestCmmsCreateTime(fetchLatestCmmsCreateTimeRequest)
-    val latestRequisitions = requisitions.filterNewerThan(latestCmmsCreateTime).toList()
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(latestRequisitions)
+      requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -121,12 +110,11 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      val groupedRequisitionId = groupedRequisition.groupId
-      val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
-
       if (
-        groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
+        groupedRequisition.requisitionsList.isNotEmpty()
       ) {
+        val groupedRequisitionId = groupedRequisition.groupId
+        val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
@@ -134,17 +122,6 @@ class RequisitionFetcher(
     }
 
     return storedGroupedRequisitions
-  }
-
-  fun Flow<Requisition>.filterNewerThan(reference: Timestamp): Flow<Requisition> =
-    this.filter { requisition -> requisition.updateTime.isAfter(reference) }
-
-  fun Timestamp.isAfter(other: Timestamp): Boolean {
-    return when {
-      this.seconds > other.seconds -> true
-      this.seconds < other.seconds -> false
-      else -> this.nanos > other.nanos
-    }
   }
 
   companion object {

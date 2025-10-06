@@ -24,7 +24,9 @@ import java.time.Clock
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.runBlocking
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -37,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -53,9 +56,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 
 @RunWith(JUnit4::class)
 class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
+
+  @Rule
+  @JvmField val tempFolder = TemporaryFolder()
 
   private val createRequisitionMetadataRequests = mutableListOf<CreateRequisitionMetadataRequest>()
   private val refuseRequisitionMetadataRequests = mutableListOf<RefuseRequisitionMetadataRequest>()
@@ -67,7 +75,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   private val requisitionMetadataServiceMock:
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
       onBlocking { createRequisitionMetadata(any()) }
         .thenAnswer { invocation ->
           val req = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
@@ -108,11 +116,15 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   }
 
   override val requisitionGrouper: RequisitionGrouper by lazy {
+    val storageClient = FileSystemStorageClient(tempFolder.root)
     RequisitionGrouperByReportId(
       requisitionValidator = requisitionValidator,
       dataProviderName = DATA_PROVIDER_NAME,
       blobUriPrefix = "some-prefix",
       requisitionMetadataStub = requisitionMetadataStub,
+      storageClient,
+      100,
+      STORAGE_PATH_PREFIX,
       eventGroupsClient = eventGroupsStub,
       requisitionsClient = requisitionsStub,
       throttler = throttler,
@@ -134,126 +146,126 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     )
   }
 
-//  @Test
-//  fun `able to combine two GroupedRequisitions to a single GroupedRequisitions`() {
-//    val requisition2 =
-//      TestRequisitionData.REQUISITION.copy {
-//        val requisitionSpec =
-//          TestRequisitionData.REQUISITION_SPEC.copy {
-//            events =
-//              RequisitionSpecKt.events {
-//                eventGroups +=
-//                  RequisitionSpecKt.eventGroupEntry {
-//                    key = TestRequisitionData.EVENT_GROUP_NAME
-//                    value =
-//                      RequisitionSpecKt.EventGroupEntryKt.value {
-//                        collectionInterval = interval {
-//                          startTime =
-//                            TestRequisitionData.TIME_RANGE.start
-//                              .plus(1, ChronoUnit.HOURS)
-//                              .toProtoTime()
-//                          endTime =
-//                            TestRequisitionData.TIME_RANGE.endExclusive
-//                              .plus(1, ChronoUnit.HOURS)
-//                              .toProtoTime()
-//                        }
-//                        filter =
-//                          RequisitionSpecKt.eventFilter {
-//                            expression =
-//                              "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-//                                "person.gender == ${Person.Gender.FEMALE_VALUE}"
-//                          }
-//                      }
-//                  }
-//              }
-//          }
-//        this.encryptedRequisitionSpec =
-//          encryptRequisitionSpec(
-//            signedMessage { message = requisitionSpec.pack() },
-//            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
-//          )
-//      }
-//
-//    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-//      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
-//    }
-//    assertThat(groupedRequisitions).hasSize(1)
-//    val groupedRequisition = groupedRequisitions.single()
-//    assertThat(groupedRequisition.eventGroupMapList.single())
-//      .isEqualTo(
-//        eventGroupMapEntry {
-//          eventGroup = "dataProviders/someDataProvider/eventGroups/name"
-//          details = eventGroupDetails {
-//            eventGroupReferenceId = "some-event-group-reference-id"
-//            collectionIntervals +=
-//              listOf(
-//                interval {
-//                  startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
-//                  endTime =
-//                    TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
-//                }
-//              )
-//          }
-//        }
-//      )
-//    assertThat(
-//        groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
-//      )
-//      .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
-//
-//    assertThat(groupedRequisition.modelLine).isEqualTo("some-model-line")
-//    assertThat(createRequisitionMetadataRequests).hasSize(2)
-//  }
-//
-//  @Test
-//  fun `does not combine disparate time intervals`() {
-//    val requisition2 =
-//      TestRequisitionData.REQUISITION.copy {
-//        val requisitionSpec =
-//          TestRequisitionData.REQUISITION_SPEC.copy {
-//            events =
-//              RequisitionSpecKt.events {
-//                eventGroups +=
-//                  RequisitionSpecKt.eventGroupEntry {
-//                    key = TestRequisitionData.EVENT_GROUP_NAME
-//                    value =
-//                      RequisitionSpecKt.EventGroupEntryKt.value {
-//                        collectionInterval = interval {
-//                          startTime =
-//                            TestRequisitionData.TIME_RANGE.start
-//                              .plus(100, ChronoUnit.HOURS)
-//                              .toProtoTime()
-//                          endTime =
-//                            TestRequisitionData.TIME_RANGE.endExclusive
-//                              .plus(100, ChronoUnit.HOURS)
-//                              .toProtoTime()
-//                        }
-//                        filter =
-//                          RequisitionSpecKt.eventFilter {
-//                            expression =
-//                              "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-//                                "person.gender == ${Person.Gender.FEMALE_VALUE}"
-//                          }
-//                      }
-//                  }
-//              }
-//          }
-//        this.encryptedRequisitionSpec =
-//          encryptRequisitionSpec(
-//            signedMessage { message = requisitionSpec.pack() },
-//            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
-//          )
-//      }
-//
-//    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
-//      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
-//    }
-//    assertThat(groupedRequisitions).hasSize(1)
-//    assertThat(
-//        groupedRequisitions.single().eventGroupMapList.single().details.collectionIntervalsList
-//      )
-//      .hasSize(2)
-//  }
+  @Test
+  fun `able to combine two GroupedRequisitions to a single GroupedRequisitions`() {
+    val requisition2 =
+      TestRequisitionData.REQUISITION.copy {
+        val requisitionSpec =
+          TestRequisitionData.REQUISITION_SPEC.copy {
+            events =
+              RequisitionSpecKt.events {
+                eventGroups +=
+                  RequisitionSpecKt.eventGroupEntry {
+                    key = TestRequisitionData.EVENT_GROUP_NAME
+                    value =
+                      RequisitionSpecKt.EventGroupEntryKt.value {
+                        collectionInterval = interval {
+                          startTime =
+                            TestRequisitionData.TIME_RANGE.start
+                              .plus(1, ChronoUnit.HOURS)
+                              .toProtoTime()
+                          endTime =
+                            TestRequisitionData.TIME_RANGE.endExclusive
+                              .plus(1, ChronoUnit.HOURS)
+                              .toProtoTime()
+                        }
+                        filter =
+                          RequisitionSpecKt.eventFilter {
+                            expression =
+                              "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                                "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                          }
+                      }
+                  }
+              }
+          }
+        this.encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
+    assertThat(groupedRequisitions).hasSize(1)
+    val groupedRequisition = groupedRequisitions.single()
+    assertThat(groupedRequisition.eventGroupMapList.single())
+      .isEqualTo(
+        eventGroupMapEntry {
+          eventGroup = "dataProviders/someDataProvider/eventGroups/name"
+          details = eventGroupDetails {
+            eventGroupReferenceId = "some-event-group-reference-id"
+            collectionIntervals +=
+              listOf(
+                interval {
+                  startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                  endTime =
+                    TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+                }
+              )
+          }
+        }
+      )
+    assertThat(
+        groupedRequisition.requisitionsList.map { it.requisition.unpack(Requisition::class.java) }
+      )
+      .isEqualTo(listOf(TestRequisitionData.REQUISITION, requisition2))
+
+    assertThat(groupedRequisition.modelLine).isEqualTo("some-model-line")
+    assertThat(createRequisitionMetadataRequests).hasSize(2)
+  }
+
+  @Test
+  fun `does not combine disparate time intervals`() {
+    val requisition2 =
+      TestRequisitionData.REQUISITION.copy {
+        val requisitionSpec =
+          TestRequisitionData.REQUISITION_SPEC.copy {
+            events =
+              RequisitionSpecKt.events {
+                eventGroups +=
+                  RequisitionSpecKt.eventGroupEntry {
+                    key = TestRequisitionData.EVENT_GROUP_NAME
+                    value =
+                      RequisitionSpecKt.EventGroupEntryKt.value {
+                        collectionInterval = interval {
+                          startTime =
+                            TestRequisitionData.TIME_RANGE.start
+                              .plus(100, ChronoUnit.HOURS)
+                              .toProtoTime()
+                          endTime =
+                            TestRequisitionData.TIME_RANGE.endExclusive
+                              .plus(100, ChronoUnit.HOURS)
+                              .toProtoTime()
+                        }
+                        filter =
+                          RequisitionSpecKt.eventFilter {
+                            expression =
+                              "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                                "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                          }
+                      }
+                  }
+              }
+          }
+        this.encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+
+    val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
+    assertThat(groupedRequisitions).hasSize(1)
+    assertThat(
+        groupedRequisitions.single().eventGroupMapList.single().details.collectionIntervalsList
+      )
+      .hasSize(2)
+  }
 
   @Test
   fun `skips if multiple model ids are used for the same report id`() {
@@ -274,6 +286,7 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
   }
 
   companion object {
+    private const val STORAGE_PATH_PREFIX = "test-requisitions"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
   }
 }
