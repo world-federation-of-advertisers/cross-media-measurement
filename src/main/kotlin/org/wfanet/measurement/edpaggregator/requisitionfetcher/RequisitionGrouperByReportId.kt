@@ -109,12 +109,9 @@ class RequisitionGrouperByReportId(
       // List existing requisition metadata for the current report
       val existingRequisitionMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
       val existingCmmsRequisitions = existingRequisitionMetadata.map { it.cmmsRequisition }.toSet()
-println("======================1")
       if (existingRequisitionMetadata.isNotEmpty()) {
-        println("======================2")
         results.addAll(maybeFixExistingGroupedRequisitions(existingRequisitionMetadata, groups))
       }
-      println("======================3")
       // Filter out groups whose single requisitions has already persisted to RequisitionMetadata storage.
       val filteredGroups = groups.filter { group ->
         val requisition = group.requisitionsList.single().requisition.unpack(Requisition::class.java)

@@ -52,54 +52,6 @@ class SingleRequisitionGrouper(
     return groupedRequisitions
   }
 
-//  override suspend fun combineGroupedRequisitions(
-//    groupedRequisitions: List<GroupedRequisitions>
-//  ): List<GroupedRequisitions> {
-//    return groupedRequisitions.mapNotNull { group ->
-//      try {
-//        data class Acc(val refId: String, val intervals: MutableList<Interval>)
-//        val acc = linkedMapOf<String, Acc>()
-//
-//        for (entry in group.requisitionsList) {
-//          val req = entry.requisition.unpack(Requisition::class.java)
-//          val spec: RequisitionSpec = requisitionValidator.validateRequisitionSpec(req)
-//          val perReqMap: Map<String, EventGroupDetails> = getEventGroupMapEntries(spec)
-//          for ((egName, details) in perReqMap) {
-//            val a = acc.getOrPut(egName) { Acc(details.eventGroupReferenceId, mutableListOf()) }
-//            a.intervals += details.collectionIntervalsList
-//          }
-//        }
-//
-//        val entries = acc.map { (egName, a) ->
-//          val combined = unionIntervals(a.intervals)
-//          eventGroupMapEntry {
-//            eventGroup = egName
-//            details = eventGroupDetails {
-//              eventGroupReferenceId = a.refId
-//              this.collectionIntervals += combined
-//            }
-//          }
-//        }
-//
-//        groupedRequisitions {
-//          modelLine = group.modelLine
-//          this.requisitions += group.requisitionsList
-//          this.eventGroupMap += entries
-//          groupId = group.groupId
-//        }
-//      } catch (e: InvalidRequisitionException) {
-//        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
-//        null
-//      } catch (e: io.grpc.StatusException) {
-//        logger.severe("EventGroup lookup failed for group ${group.groupId}: ${e.message}")
-//        null
-//      } catch (e: io.grpc.StatusRuntimeException) {
-//        logger.severe("EventGroup lookup failed for group ${group.groupId}: ${e.status} ${e.message}")
-//        null
-//      }
-//    }
-//  }
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
