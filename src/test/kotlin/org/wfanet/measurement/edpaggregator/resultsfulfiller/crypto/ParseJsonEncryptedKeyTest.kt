@@ -26,7 +26,9 @@ import com.google.crypto.tink.aead.AeadKey
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadKey
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.util.Base64
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +37,7 @@ import org.wfanet.measurement.common.crypto.tink.AeadStorageClient
 import org.wfanet.measurement.common.crypto.tink.StreamingAeadStorageClient
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -82,6 +85,10 @@ class ParseJsonEncryptedKeyTest {
     val storageClient =
       wrappedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
     assertThat(storageClient).isInstanceOf(AeadStorageClient::class.java)
+
+    runBlocking { storageClient.writeBlob("some-blob-key", "some-content".toByteStringUtf8()) }
+    val readData = runBlocking { storageClient.getBlob("some-blob-key")!!.read().flatten() }
+    assertThat(readData).isEqualTo("some-content".toByteStringUtf8())
   }
 
   @Test
@@ -128,6 +135,10 @@ class ParseJsonEncryptedKeyTest {
     val storageClient =
       wrappedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
     assertThat(storageClient).isInstanceOf(StreamingAeadStorageClient::class.java)
+
+    runBlocking { storageClient.writeBlob("some-blob-key", "some-content".toByteStringUtf8()) }
+    val readData = runBlocking { storageClient.getBlob("some-blob-key")!!.read().flatten() }
+    assertThat(readData).isEqualTo("some-content".toByteStringUtf8())
   }
 
   companion object {}
