@@ -16,8 +16,7 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
-        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
-        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
         "//imports/java/io/opentelemetry/sdk:sdk_logs",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
@@ -34,7 +33,6 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/extension:kotlin",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -54,7 +52,7 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api:semconv",
         "//imports/java/io/opentelemetry/extension:kotlin",
         "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
-        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
         "//imports/java/io/opentelemetry/sdk:sdk_logs",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
