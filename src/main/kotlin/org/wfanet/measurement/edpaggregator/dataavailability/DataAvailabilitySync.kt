@@ -241,7 +241,6 @@ class DataAvailabilitySync(
             throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
           }
 
-        logger.info("Metadata blob: $blobDetails")
         // Validate intervals
         require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
           "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
