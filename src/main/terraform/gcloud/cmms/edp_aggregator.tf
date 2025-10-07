@@ -222,3 +222,8 @@ module "edp_aggregator" {
   edp_aggregator_service_account_name           = "edp-aggregator-internal"
   spanner_instance                              = google_spanner_instance.spanner_instance
 }
+
+output "edpa_otel_collector_grpc_endpoint" {
+  description = "OTLP gRPC endpoint for EDPA OpenTelemetry Collector"
+  value       = module.edp_aggregator.otel_collector_grpc_endpoint
+}
