@@ -318,7 +318,7 @@ class RequisitionGrouperByReportId(
       cmmsCreateTime = requisition.updateTime
       this.report = reportId
     }
-    val createRequisitionMetadataRequestId = "$requisitionGroupId:${requisition.name}"
+    val createRequisitionMetadataRequestId = UUID.randomUUID().toString()
     val request = createRequisitionMetadataRequest {
       parent = dataProviderName
       requisitionMetadata = metadata
