@@ -145,7 +145,7 @@ locals {
                                           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--model-line", "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs",
+                                          "--model-line", "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
                                           "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
                                           "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,

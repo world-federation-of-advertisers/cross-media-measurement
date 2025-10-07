@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.timestamp
@@ -217,7 +216,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
   }
 
-  private class MaybeCreateDoneBlobs : TestRule {
+  private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
     private val storageClient = StorageOptions.getDefaultInstance().service
@@ -229,7 +228,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         override fun evaluate() {
           runBlocking {
             logger.info("Creating DONE blobs to trigger the DataAvailabilitySync if not exists already...")
-            maybeCreateDoneBlobs()
+            createDoneBlobs()
 
             logger.info("Event Group Sync completed.")
           }
@@ -238,7 +237,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
-    private suspend fun maybeCreateDoneBlobs() {
+    private suspend fun createDoneBlobs() {
       buildPaths().forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient = SelectedStorageClient(
@@ -249,25 +248,38 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         println("Reading DONE blob...")
         val blob = selectedStorageClient.getBlob(doneBlobUri.key)
 
-        if (blob == null) {
-          println("DONE blob not found, creating a new one...")
-          selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        if (blob != null) {
+          blob.delete()
         }
+
+        println("Creating a new DONE blob at path: $path...")
+        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
       }
     }
 
     companion object {
       private val bucket = TEST_CONFIG.storageBucket
-      private val BASE_PATH =
-        "gs://$bucket/edp/edp7/{date}/done"
       private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
       private val START_DATE: LocalDate = LocalDate.parse("2021-03-15", DATE_FORMATTER)
       private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
 
       fun buildPaths(): List<String> {
+//        return generateSequence(START_DATE) { it.plusDays(1) }
+//          .takeWhile { !it.isAfter(END_DATE) }
+//          .map { BASE_PATH.replace("{date}", it.format(DATE_FORMATTER)) }
+//          .toList()
+        val basePaths = listOf(
+          "gs://$bucket/edp/edp7/{date}/done",
+          "gs://$bucket/edp/edpa_meta/{date}/done"
+        )
+
         return generateSequence(START_DATE) { it.plusDays(1) }
           .takeWhile { !it.isAfter(END_DATE) }
-          .map { BASE_PATH.replace("{date}", it.format(DATE_FORMATTER)) }
+          .flatMap { date ->
+            basePaths.map { basePath ->
+              basePath.replace("{date}", date.format(DATE_FORMATTER))
+            }
+          }
           .toList()
       }
     }
@@ -371,7 +383,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         syntheticPopulationSpec,
         syntheticEventGroupMap,
         reportName,
-        "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs",
+        "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -456,11 +468,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val ZONE_ID = ZoneId.of("UTC")
 
     private val uploadEventGroup = UploadEventGroup()
-    private val maybeCreateDoneBlobs = MaybeCreateDoneBlobs()
+    private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
     @JvmField
-    val chainedRule = chainRulesSequentially(uploadEventGroup, maybeCreateDoneBlobs, measurementSystem)
+    val chainedRule = chainRulesSequentially(uploadEventGroup, createDoneBlobs, measurementSystem)
   }
 }
