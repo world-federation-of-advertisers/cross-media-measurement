@@ -34,7 +34,7 @@ class DataWatcherSubscribingStorageClient(
 
     for (dataWatcher in subscribingWatchers) {
       logger.info("Receiving path $blobKey")
-      dataWatcher.receivePath("$storagePrefix$blobKey")
+      dataWatcher.receivePath("$storagePrefix$blobKey", blobCreateTime = null)
     }
 
     return blob
