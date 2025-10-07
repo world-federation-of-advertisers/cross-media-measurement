@@ -313,51 +313,51 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private fun triggerRequisitionFetcher() {
 
       // Delete existing requisitions from storage bucket
-      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
-
-      blobs.iterateAll().forEach { blob ->
-        storageClient.delete(bucket, blob.name)
-        println("Deleted: ${blob.name}")
-      }
-
-      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
-      // `RequisitionFetcher`.
-      runBlocking {
-        withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
-          var areRequisitionsReady: Boolean
-
-          do {
-            val jwt = TEST_CONFIG.authIdToken
-            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
-
-            val client = HttpClient.newHttpClient()
-            val request =
-              HttpRequest.newBuilder()
-                .uri(URI.create(requisitionFetcherEndpoint))
-                .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer $jwt")
-                .GET()
-                .build()
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            check(response.statusCode() == 200)
-
-            val blobCount =
-              storageClient
-                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
-                .iterateAll()
-                .count()
-
-            areRequisitionsReady = blobCount > 0
-
-            if (!areRequisitionsReady) {
-              logger.info("Waiting for requisitions to appear...")
-              delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
-            } else {
-              logger.info("Requisitions written to the Storage Client")
-            }
-          } while (!areRequisitionsReady)
-        }
-      }
+//      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+//
+//      blobs.iterateAll().forEach { blob ->
+//        storageClient.delete(bucket, blob.name)
+//        println("Deleted: ${blob.name}")
+//      }
+//
+//      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
+//      // `RequisitionFetcher`.
+//      runBlocking {
+//        withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
+//          var areRequisitionsReady: Boolean
+//
+//          do {
+//            val jwt = TEST_CONFIG.authIdToken
+//            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
+//
+//            val client = HttpClient.newHttpClient()
+//            val request =
+//              HttpRequest.newBuilder()
+//                .uri(URI.create(requisitionFetcherEndpoint))
+//                .timeout(Duration.ofSeconds(120))
+//                .header("Authorization", "Bearer $jwt")
+//                .GET()
+//                .build()
+//            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+//            check(response.statusCode() == 200)
+//
+//            val blobCount =
+//              storageClient
+//                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+//                .iterateAll()
+//                .count()
+//
+//            areRequisitionsReady = blobCount > 0
+//
+//            if (!areRequisitionsReady) {
+//              logger.info("Waiting for requisitions to appear...")
+//              delay(REQUISITIONS_SYNC_POLLING_INTERVAL)
+//            } else {
+//              logger.info("Requisitions written to the Storage Client")
+//            }
+//          } while (!areRequisitionsReady)
+//        }
+//      }
     }
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
