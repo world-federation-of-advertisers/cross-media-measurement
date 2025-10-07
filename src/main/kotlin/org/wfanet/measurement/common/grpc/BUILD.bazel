@@ -25,6 +25,8 @@ kt_jvm_library(
     srcs = ["Interceptors.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
