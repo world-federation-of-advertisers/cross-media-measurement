@@ -22,6 +22,8 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.metrics.Meter
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -117,6 +119,31 @@ class RequisitionFetcherTest {
           .isNotNull()
       }
     }
+  }
+
+  @Test
+  fun `fetchAndStoreRequisitions with custom meter completes successfully`() = runBlocking {
+    whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(listOf(GROUPED_REQUISITIONS))
+
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val testMeter: Meter = GlobalOpenTelemetry.getMeter("test")
+    val fetcher =
+      RequisitionFetcher(
+        requisitionsStub,
+        storageClient,
+        DATA_PROVIDER_NAME,
+        STORAGE_PATH_PREFIX,
+        requisitionGrouper,
+        ::createDeterministicId,
+        meter = testMeter,
+      )
+
+    // Verify that the fetcher completes successfully with telemetry enabled
+    fetcher.fetchAndStoreRequisitions()
+
+    // Verify that requisitions were stored (metric emission is implicit)
+    val blobKey = "$STORAGE_PATH_PREFIX/${createDeterministicId(GROUPED_REQUISITIONS)}"
+    assertThat(storageClient.getBlob(blobKey)).isNotNull()
   }
 
   companion object {

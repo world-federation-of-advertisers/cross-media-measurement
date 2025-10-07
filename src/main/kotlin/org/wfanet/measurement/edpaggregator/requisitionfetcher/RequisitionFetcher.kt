@@ -18,15 +18,24 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -52,7 +61,29 @@ class RequisitionFetcher(
   private val requisitionGrouper: RequisitionGrouper,
   val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
+  private val meter: Meter = Instrumentation.meter,
 ) {
+
+  private val fetchLatencyHistogram =
+    meter
+      .histogramBuilder("edpa.requisition_fetcher.fetch_latency")
+      .setDescription("Latency from requisition fetch start to storage completion")
+      .setUnit("s")
+      .build()
+
+  private val requisitionsFetchedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.requisitions_fetched")
+      .setDescription("Number of requisitions fetched from Kingdom")
+      .setUnit("{requisition}")
+      .build()
+
+  private val storageWritesCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.requisition_fetcher.storage_writes")
+      .setDescription("Number of grouped requisitions written to storage")
+      .setUnit("{write}")
+      .build()
 
   /**
    * Fetches and stores unfulfilled requisitions from a data provider.
@@ -67,6 +98,7 @@ class RequisitionFetcher(
   suspend fun fetchAndStoreRequisitions() {
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
+    val startMark = TimeSource.Monotonic.markNow()
     var requisitionsCount = 0
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
@@ -97,6 +129,31 @@ class RequisitionFetcher(
       requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
+    // Emit fetch latency metric for each report_id in the grouped requisitions
+    groupedRequisition.forEach { grouped ->
+      val reportId = extractReportId(grouped)
+      if (reportId != null) {
+        val latencySeconds = startMark.elapsedNow().inWholeMilliseconds / 1000.0
+        fetchLatencyHistogram.record(
+          latencySeconds,
+          Attributes.builder()
+            .put(DATA_PROVIDER_KEY, dataProviderName)
+            .put(REPORT_ID_KEY, reportId)
+            .put(SERVICE_NAME_KEY, "requisition-fetcher")
+            .build()
+        )
+      }
+    }
+
+    // Emit requisitions fetched counter
+    requisitionsFetchedCounter.add(
+      requisitionsCount.toLong(),
+      Attributes.builder()
+        .put(DATA_PROVIDER_KEY, dataProviderName)
+        .put(SERVICE_NAME_KEY, "requisition-fetcher")
+        .build()
+    )
+
     logger.info {
       "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
     }
@@ -122,13 +179,54 @@ class RequisitionFetcher(
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1
+
+        // Emit storage write metric
+        val reportId = extractReportId(groupedRequisition)
+        val attributes = if (reportId != null) {
+          Attributes.builder()
+            .put(DATA_PROVIDER_KEY, dataProviderName)
+            .put(REPORT_ID_KEY, reportId)
+            .put(SERVICE_NAME_KEY, "requisition-fetcher")
+            .build()
+        } else {
+          Attributes.builder()
+            .put(DATA_PROVIDER_KEY, dataProviderName)
+            .put(SERVICE_NAME_KEY, "requisition-fetcher")
+            .build()
+        }
+        storageWritesCounter.add(1, attributes)
       }
     }
 
     return storedGroupedRequisitions
   }
 
+  /**
+   * Extracts the report_id from a GroupedRequisitions object.
+   *
+   * @param groupedRequisitions The grouped requisitions to extract report_id from
+   * @return The report_id string, or null if not found
+   */
+  private fun extractReportId(groupedRequisitions: GroupedRequisitions): String? {
+    return try {
+      if (groupedRequisitions.requisitionsList.isNotEmpty()) {
+        val firstEntry = groupedRequisitions.requisitionsList.first()
+        val requisition = firstEntry.requisition.unpack(Requisition::class.java)
+        val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+        measurementSpec.reportingMetadata.report
+      } else {
+        null
+      }
+    } catch (e: Exception) {
+      logger.warning("Failed to extract report_id: ${e.message}")
+      null
+    }
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val DATA_PROVIDER_KEY = AttributeKey.stringKey("data_provider")
+    private val REPORT_ID_KEY = AttributeKey.stringKey("report_id")
+    private val SERVICE_NAME_KEY = AttributeKey.stringKey("service.name")
   }
 }

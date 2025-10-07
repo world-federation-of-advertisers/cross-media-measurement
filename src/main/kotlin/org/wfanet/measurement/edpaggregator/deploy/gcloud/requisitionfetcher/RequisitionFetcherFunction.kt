@@ -20,6 +20,8 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.metrics.Meter
 import java.io.File
 import java.security.MessageDigest
 import java.time.Clock
@@ -133,6 +135,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionGrouper = requisitionGrouper,
       groupedRequisitionsIdGenerator = ::createDeterministicId,
       responsePageSize = pageSize,
+      meter = meter,
     )
   }
 
@@ -189,6 +192,11 @@ class RequisitionFetcherFunction : HttpFunction {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
       }
+    }
+
+    // Initialize OpenTelemetry meter at global scope to avoid cold-start overhead
+    private val meter: Meter by lazy {
+      GlobalOpenTelemetry.getMeter("requisition-fetcher")
     }
 
     fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
