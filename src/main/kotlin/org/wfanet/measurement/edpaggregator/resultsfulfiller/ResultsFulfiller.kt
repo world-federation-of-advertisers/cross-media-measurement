@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -125,6 +126,8 @@ class ResultsFulfiller(
       groupedRequisitions.eventGroupMapList.associate {
         it.eventGroup to it.details.eventGroupReferenceId
       }
+    // Get requisitions metadata for the groupId of the grouped requisitions
+    val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
     totalRequisitions.addAndGet(requisitions.size)
 
@@ -174,7 +177,7 @@ class ResultsFulfiller(
         flow {
           val start = TimeSource.Monotonic.markNow()
           try {
-            fulfillSingleRequisition(req, frequencyVector, populationSpec)
+            fulfillSingleRequisition(req, frequencyVector, populationSpec, requisitionsMetadata)
             val elapsedMs = start.elapsedNow().inWholeMilliseconds
             fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
             processedCount++
@@ -202,11 +205,16 @@ class ResultsFulfiller(
     requisition: Requisition,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
+    requisitionsMetadata: List<RequisitionMetadata>
   ) {
 
     // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionsMetadata = listRequisitionMetadata()
-    requisitionsMetadata.collect {requisitionMetadata ->
+    val requisitionMetadata = requisitionsMetadata.find {
+      it.cmmsRequisition == requisition.name
+    }
+    if (requisitionMetadata == null) {
+      logger.info("No matching RequisitionMetadata found for requisition ${requisition.name}")
+    } else {
       signalRequisitionStartProcessing(requisitionMetadata)
     }
 
@@ -233,16 +241,16 @@ class ResultsFulfiller(
         frequencyData,
         populationSpec,
       )
-    val buildElapsedMs = buildStart.elapsedNow().inWholeMilliseconds
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    requisitionsMetadata.collect {requisitionMetadata ->
+    if (requisitionMetadata == null) {
+      logger.info("No matching RequisitionMetadata found for requisition ${requisition.name}")
+    } else {
       signalRequisitionFulfilled(requisitionMetadata)
     }
 
-    val sendElapsedMs = sendStart.elapsedNow().inWholeMilliseconds
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }
 
@@ -272,7 +280,8 @@ class ResultsFulfiller(
     logger.info(stats)
   }
 
-  private suspend fun listRequisitionMetadata(): Flow<RequisitionMetadata> {
+  // List requisitions metadata for the goup id being processed.
+  private suspend fun listRequisitionMetadata(): List<RequisitionMetadata> {
     val requisitionsMetadata: Flow<RequisitionMetadata> = requisitionMetadataStub
       .listResources { pageToken: String ->
         val request = listRequisitionMetadataRequest {
@@ -287,7 +296,7 @@ class ResultsFulfiller(
           try {
             requisitionMetadataStub.listRequisitionMetadata(request)
           } catch (e: StatusException) {
-            throw Exception("Error listing requisitions", e)
+            throw Exception("Error listing requisition metadata for group id: ${groupedRequisitions.groupId}", e)
           }
         ResourceList(
           response.requisitionMetadataList,
@@ -295,7 +304,7 @@ class ResultsFulfiller(
         )
       }
       .flattenConcat()
-      return requisitionsMetadata
+      return requisitionsMetadata.toList()
   }
 
   private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata) {

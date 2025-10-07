@@ -219,6 +219,9 @@ class RequisitionMetadataService(
           if (request.filter.groupId.isNotEmpty()) {
             groupId = request.filter.groupId
           }
+          if (request.filter.report.isNotEmpty()) {
+            report = request.filter.report
+          }
         }
       }
 

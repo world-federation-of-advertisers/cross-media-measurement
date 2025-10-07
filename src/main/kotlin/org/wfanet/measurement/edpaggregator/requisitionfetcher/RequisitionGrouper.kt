@@ -17,10 +17,12 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
+import com.google.type.Interval
+import com.google.type.interval
 import io.grpc.StatusException
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import java.util.logging.Level
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -31,12 +33,15 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 
 /**
  * An interface to group a list of requisitions.
@@ -45,14 +50,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
  * groups, facilitating efficient execution.
  *
  * @param requisitionValidator: The [RequisitionValidator] to use to validate the requisition.
- * @param eventGroupsClient The gRPC client used to interact with event groups.
  * @param requisitionsClient The gRPC client used to interact with requisitions.
  * @param throttler used to throttle gRPC requests
  */
 abstract class RequisitionGrouper(
   private val requisitionValidator: RequisitionsValidator,
-  private val eventGroupsClient: EventGroupsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
+  private val eventGroupsClient: EventGroupsCoroutineStub,
   private val throttler: Throttler,
 ) {
 
@@ -72,7 +76,7 @@ abstract class RequisitionGrouper(
 
   /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
   protected suspend abstract fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
+    groupedRequisitions: List<GroupedRequisitions>,
   ): List<GroupedRequisitions>
 
   /* Maps a single [Requisition] to a single [GroupedRequisition]. */
@@ -114,27 +118,6 @@ abstract class RequisitionGrouper(
     }
   }
 
-  protected suspend fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
-    try {
-      throttler.onReady {
-        logger.info("Requisition ${requisition.name} was refused. $refusal")
-        val request = refuseRequisitionRequest {
-          this.name = requisition.name
-          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
-        }
-        requisitionsClient.refuseRequisition(request)
-      }
-    } catch (e: Exception) {
-      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
-    }
-  }
-
-  private suspend fun getEventGroup(name: String): EventGroup {
-    return throttler.onReady {
-      eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
-    }
-  }
-
   private suspend fun getEventGroupMapEntries(
     requisitionSpec: RequisitionSpec
   ): Map<String, EventGroupDetails> {
@@ -163,6 +146,27 @@ abstract class RequisitionGrouper(
       }
     }
     return eventGroupMap
+  }
+
+  private suspend fun getEventGroup(name: String): EventGroup {
+    return throttler.onReady {
+      eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
+    }
+  }
+
+  protected suspend fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
+    try {
+      throttler.onReady {
+        logger.info("Requisition ${requisition.name} was refused. $refusal")
+        val request = refuseRequisitionRequest {
+          this.name = requisition.name
+          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
+        }
+        requisitionsClient.refuseRequisition(request)
+      }
+    } catch (e: Exception) {
+      logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
+    }
   }
 
   companion object {
