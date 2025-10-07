@@ -25,6 +25,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.io.File
 import java.nio.file.Files
@@ -46,6 +47,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
@@ -122,6 +126,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequi
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -130,6 +135,8 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {
@@ -137,7 +144,10 @@ class ResultsFulfillerTest {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
 
-  private val requisitionMetadataServiceMock = mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase = mockService {
+    onBlocking { startProcessingRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+  }
 
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
     data class FulfillRequisitionInvocation(val requests: List<FulfillRequisitionRequest>)
@@ -206,6 +216,20 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
+      listRequisitionMetadataResponse {
+        requisitionMetadata += requisitionMetadata {
+          state = RequisitionMetadata.State.STORED
+          cmmsCreateTime = timestamp { seconds = 12345 }
+          cmmsRequisition = REQUISITION_NAME
+          blobUri = "some-prefix"
+          blobTypeUrl = "some-blob-type-url"
+          groupId = "an-existing-group-id"
+          report = "report-name"
+        }
+      }
+    )
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -288,6 +312,9 @@ class ResultsFulfillerTest {
       .frequencyDistribution()
       .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
       .of(expectedFrequencyDistribution)
+
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { startProcessingRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
   @Test
@@ -302,6 +329,21 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
+      listRequisitionMetadataResponse {
+        requisitionMetadata += requisitionMetadata {
+          state = RequisitionMetadata.State.STORED
+          cmmsCreateTime = timestamp { seconds = 12345 }
+          cmmsRequisition = REQUISITION_NAME
+          blobUri = "some-prefix"
+          blobTypeUrl = "some-blob-type-url"
+          groupId = "an-existing-group-id"
+          report = "report-name"
+        }
+      }
+    )
+
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -374,6 +416,8 @@ class ResultsFulfillerTest {
     assertThat(fulfilledRequisitions[0].header.honestMajorityShareShuffle.dataProviderCertificate)
       .isEqualTo(DATA_PROVIDER_CERTIFICATE_NAME)
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { startProcessingRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
   private suspend fun createData(
