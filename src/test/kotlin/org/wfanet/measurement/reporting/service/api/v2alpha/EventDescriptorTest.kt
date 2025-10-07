@@ -39,8 +39,8 @@ class EventDescriptorTest {
     val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
     val eventDescriptor = EventDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventDescriptor.eventTemplateFieldsMap).hasSize(6)
-    assertThat(eventDescriptor.eventTemplateFieldsMap)
+    assertThat(eventDescriptor.eventTemplateFieldsByPath).hasSize(6)
+    assertThat(eventDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
         EventDescriptor.EventTemplateFieldInfo(
