@@ -20,15 +20,26 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.ClientInterceptors
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
 import java.io.File
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
@@ -41,6 +52,9 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -64,23 +78,24 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+    Tracing.withW3CTraceContext(request.headers) { handleRequest(response) }
+  }
 
-    val errors = mutableListOf<String>()
-    for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-
-      try {
-        validateConfig(dataProviderConfig)
-        val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
-        runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
-      } catch (e: IllegalArgumentException) {
-        val errorMsg = "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
-        errors.add(errorMsg)
-        logger.log(Level.SEVERE, errorMsg, e)
-      } catch (e: Exception) {
-        val errorMsg =
-          "Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider}"
-        errors.add(errorMsg)
-        logger.log(Level.SEVERE, errorMsg, e)
+  private fun handleRequest(response: HttpResponse) {
+    try {
+      val errors = mutableListOf<String>()
+      for (dataProviderConfig in requisitionFetcherConfig.configsList) {
+        val result = processDataProvider(dataProviderConfig)
+        result.failure?.let { failure ->
+          val errorMsg =
+            if (failure is IllegalArgumentException) {
+              "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
+            } else {
+              "Failed to fetch and store requisitions for ${dataProviderConfig.dataProvider}"
+            }
+          errors.add(errorMsg)
+          logger.log(Level.SEVERE, errorMsg, failure)
+        }
       }
 
       if (errors.isNotEmpty()) {
@@ -90,8 +105,67 @@ class RequisitionFetcherFunction : HttpFunction {
         response.setStatusCode(200)
         response.writer.write("All requisitions fetched successfully")
       }
+    } finally {
+      // Critical for Cloud Functions: flush metrics before function freezes
+      EdpaTelemetry.flush()
     }
   }
+
+  /**
+   * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
+   *
+   * @param dataProviderConfig configuration for the data provider.
+   * @return a [ProviderResult] capturing any failure that occurred.
+   */
+  private fun processDataProvider(
+    dataProviderConfig: DataProviderRequisitionConfig
+  ): ProviderResult =
+    withDataProviderTelemetry(dataProviderConfig.dataProvider) {
+      validateConfig(dataProviderConfig)
+      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
+      runBlocking(Context.current().asContextElement()) {
+        requisitionFetcher.fetchAndStoreRequisitions()
+      }
+    }
+
+  private fun withDataProviderTelemetry(
+    dataProviderName: String,
+    block: () -> Unit,
+  ): ProviderResult =
+    Tracing.trace(
+      spanName = SPAN_DATA_PROVIDER_EXECUTION,
+      attributes = Attributes.of(ATTR_DATA_PROVIDER_KEY, dataProviderName),
+    ) {
+      val span = Span.current()
+      return@trace try {
+        block()
+        span.addEvent(
+          EVENT_DATA_PROVIDER_COMPLETED,
+          Attributes.of(
+            ATTR_DATA_PROVIDER_KEY,
+            dataProviderName,
+            ATTR_STATUS_KEY,
+            STATUS_SUCCESS,
+          ),
+        )
+        ProviderResult()
+      } catch (e: Exception) {
+        span.addEvent(
+          EVENT_DATA_PROVIDER_FAILED,
+          Attributes.of(
+            ATTR_DATA_PROVIDER_KEY,
+            dataProviderName,
+            ATTR_STATUS_KEY,
+            STATUS_FAILURE,
+            ATTR_ERROR_TYPE_KEY,
+            e::class.simpleName ?: e::class.java.simpleName ?: e::class.java.name,
+          ),
+        )
+        ProviderResult(e)
+      }
+    }
+
+  private data class ProviderResult(val failure: Exception? = null)
 
   /**
    * Creates a [RequisitionFetcher] instance for the given data provider configuration.
@@ -105,22 +179,25 @@ class RequisitionFetcherFunction : HttpFunction {
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
-    val cmmsSigningCerts = loadSigningCerts(dataProviderConfig.cmmsConnection)
-    val cmmsPublicChannel = buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
 
-    val requisitionMetadataStorageSigningCerts =
-      loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
-    val requisitionMetadataStoragePublicChannel =
-      buildMutualTlsChannel(
+    // Create instrumented gRPC channels with mutual TLS and OpenTelemetry tracing
+    val instrumentedCmmsChannel =
+      createInstrumentedChannel(
+        dataProviderConfig.cmmsConnection,
+        kingdomTarget,
+        kingdomCertHost,
+      )
+    val instrumentedMetadataChannel =
+      createInstrumentedChannel(
+        dataProviderConfig.requisitionMetadataStorageConnection,
         metadataStorageTarget,
-        requisitionMetadataStorageSigningCerts,
         metadataStorageCertHost,
       )
 
-    val requisitionsStub = RequisitionsCoroutineStub(cmmsPublicChannel)
+    val requisitionsStub = RequisitionsCoroutineStub(instrumentedCmmsChannel)
     val requisitionMetadataStub =
-      RequisitionMetadataServiceCoroutineStub(requisitionMetadataStoragePublicChannel)
-    val eventGroupsStub = EventGroupsCoroutineStub(cmmsPublicChannel)
+      RequisitionMetadataServiceCoroutineStub(instrumentedMetadataChannel)
+    val eventGroupsStub = EventGroupsCoroutineStub(instrumentedCmmsChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
     val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
@@ -190,8 +267,35 @@ class RequisitionFetcherFunction : HttpFunction {
     }
   }
 
+  /**
+   * Creates an instrumented gRPC channel with mutual TLS and OpenTelemetry tracing.
+   *
+   * @param tlsParams The TLS security parameters containing certificate paths.
+   * @param target The gRPC target address.
+   * @param certHost Optional server name to verify in the TLS certificate.
+   * @return An instrumented gRPC channel ready for use with stubs.
+   */
+  private fun createInstrumentedChannel(
+    tlsParams: TransportLayerSecurityParams,
+    target: String,
+    certHost: String?,
+  ): io.grpc.Channel {
+    val signingCerts = loadSigningCerts(tlsParams)
+    val channel = buildMutualTlsChannel(target, signingCerts, certHost)
+    return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val ATTR_DATA_PROVIDER_KEY = AttributeKey.stringKey("data_provider_name")
+    private val ATTR_STATUS_KEY = AttributeKey.stringKey("status")
+    private val ATTR_ERROR_TYPE_KEY = AttributeKey.stringKey("error_type")
+    private const val STATUS_SUCCESS = "success"
+    private const val STATUS_FAILURE = "failure"
+    private const val SPAN_DATA_PROVIDER_EXECUTION = "requisition_fetcher.data_provider"
+    private const val EVENT_DATA_PROVIDER_COMPLETED =
+      "requisition_fetcher.data_provider_completed"
+    private const val EVENT_DATA_PROVIDER_FAILED = "requisition_fetcher.data_provider_failed"
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val metadataStorageTarget = EnvVars.checkNotNullOrEmpty("METADATA_STORAGE_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
@@ -201,6 +305,15 @@ class RequisitionFetcherFunction : HttpFunction {
     private val grpcRequestInterval: Duration =
       (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
     private const val DEFAULT_PAGE_SIZE = 50
+
+    init {
+      EdpaTelemetry.ensureInitialized()
+    }
+
+    // OpenTelemetry gRPC instrumentation (uses globally registered OpenTelemetry from EdpaTelemetry)
+    private val grpcTelemetry by lazy {
+      GrpcTelemetry.create(Instrumentation.openTelemetry)
+    }
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")

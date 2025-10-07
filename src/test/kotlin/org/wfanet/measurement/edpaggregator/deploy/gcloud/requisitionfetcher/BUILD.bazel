@@ -10,6 +10,11 @@ kt_jvm_test(
     size = "small",
     timeout = "short",
     srcs = ["RequisitionFetcherFunctionTest.kt"],
+    jvm_flags = [
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     data = [
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
