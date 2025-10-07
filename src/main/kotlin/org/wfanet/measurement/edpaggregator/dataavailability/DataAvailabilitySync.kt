@@ -37,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -177,12 +176,9 @@ class DataAvailabilitySync(
     }
     try {
       throttler.onReady {
-        impressionMetadataServiceStub.batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            parent = dataProviderName
-            requests += createImpressionMetadataRequests
-          }
-        )
+        createImpressionMetadataRequests.forEach {
+          impressionMetadataServiceStub.createImpressionMetadata(it)
+        }
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)
@@ -213,7 +209,7 @@ class DataAvailabilitySync(
    * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param blobUri the blob uri.
+   * @param doneBlobUri the blob uri.
    * @return a map where each key is a `modelLine` string and each value is the list of
    *   [ImpressionMetadata] objects associated with that model line.
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
@@ -221,7 +217,7 @@ class DataAvailabilitySync(
    */
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
-    blobUri: BlobUri,
+    doneBlobUri: BlobUri,
   ): Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs
@@ -245,18 +241,26 @@ class DataAvailabilitySync(
             throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
           }
 
+        logger.info("Metadata blob: $blobDetails")
         // Validate intervals
         require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
           "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
         }
-
-        val metadata_blob_uri = "${blobUri.asUriString()}${blobUri.bucket}/${blob.blobKey}"
-        val impressionBlob = storageClient.getBlob(blobDetails.blobUri)
+        val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+        val metadataBlobUri = when (doneBlobUri.scheme) {
+          "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${blob.blobKey}"
+          "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${blob.blobKey}"
+          else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+        }
+        logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
+        val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
         if (impressionBlob == null) {
-          logger.info("Encrypted impressions blob non found for metadata: $metadata_blob_uri.")
+          logger.info("Encrypted impressions blob non found for metadata: ${blob.blobKey}.")
         } else {
+          logger.info("MetadataBlobUri is: $metadataBlobUri")
           val impressionMetadata = impressionMetadata {
-            this.blobUri = metadata_blob_uri
+            this.blobUri = metadataBlobUri
+            blobTypeUrl = BLOB_TYPE_URL
             eventGroupReferenceId = blobDetails.eventGroupReferenceId
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
@@ -298,5 +302,6 @@ class DataAvailabilitySync(
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
+    private const val BLOB_TYPE_URL = "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }
 }
