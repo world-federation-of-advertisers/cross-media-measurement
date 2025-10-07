@@ -260,6 +260,7 @@ class DataAvailabilitySync(
           logger.info("MetadataBlobUri is: $metadataBlobUri")
           val impressionMetadata = impressionMetadata {
             this.blobUri = metadataBlobUri
+            blobTypeUrl = BLOB_TYPE_URL
             eventGroupReferenceId = blobDetails.eventGroupReferenceId
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
@@ -301,5 +302,6 @@ class DataAvailabilitySync(
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
+    private const val BLOB_TYPE_URL = "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }
 }
