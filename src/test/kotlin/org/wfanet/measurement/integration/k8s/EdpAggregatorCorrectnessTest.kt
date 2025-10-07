@@ -33,6 +33,7 @@ import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -46,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -65,8 +67,10 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.time.format.DateTimeFormatter
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -212,6 +216,71 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
   }
 
+  private class CreateDoneBlobs : TestRule {
+
+    private val bucket = TEST_CONFIG.storageBucket
+    private val storageClient = StorageOptions.getDefaultInstance().service
+    private val googleProjectId: String =
+      System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
+
+    override fun apply(base: Statement, description: Description): Statement {
+      return object : Statement() {
+        override fun evaluate() {
+          runBlocking {
+            logger.info("Creating DONE blobs to trigger the DataAvailabilitySync if not exists already...")
+            createDoneBlobs()
+
+            logger.info("Event Group Sync completed.")
+          }
+          base.evaluate()
+        }
+      }
+    }
+
+    private suspend fun createDoneBlobs() {
+      buildPaths().forEach { path ->
+        val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
+        val selectedStorageClient = SelectedStorageClient(
+          blobUri = doneBlobUri,
+          rootDirectory = null,
+          projectId = googleProjectId,
+        )
+        println("Reading DONE blob...")
+        val blob = selectedStorageClient.getBlob(doneBlobUri.key)
+
+        if (blob != null) {
+          blob.delete()
+        }
+
+        println("Creating a new DONE blob at path: $path...")
+        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+      }
+    }
+
+    companion object {
+      private val bucket = TEST_CONFIG.storageBucket
+      private val DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+      private val START_DATE: LocalDate = LocalDate.parse("2021-03-15", DATE_FORMATTER)
+      private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
+
+      fun buildPaths(): List<String> {
+        val basePaths = listOf(
+          "gs://$bucket/edp/edp7/{date}/done",
+          "gs://$bucket/edp/edpa_meta/{date}/done"
+        )
+
+        return generateSequence(START_DATE) { it.plusDays(1) }
+          .takeWhile { !it.isAfter(END_DATE) }
+          .flatMap { date ->
+            basePaths.map { basePath ->
+              basePath.replace("{date}", date.format(DATE_FORMATTER))
+            }
+          }
+          .toList()
+      }
+    }
+  }
+
   private class RunningMeasurementSystem : MeasurementSystem, TestRule {
     override val runId: String by lazy { UUID.randomUUID().toString() }
 
@@ -289,6 +358,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
 
+      val reportName =
+        ReportKey(
+            MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+            "some-report-id",
+          )
+          .toName()
+
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
@@ -302,6 +378,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
+        reportName,
+        "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
@@ -386,10 +464,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val ZONE_ID = ZoneId.of("UTC")
 
     private val uploadEventGroup = UploadEventGroup()
+    private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
     @ClassRule
     @JvmField
-    val chainedRule = chainRulesSequentially(uploadEventGroup, measurementSystem)
+    val chainedRule = chainRulesSequentially(uploadEventGroup, createDoneBlobs, measurementSystem)
   }
 }
