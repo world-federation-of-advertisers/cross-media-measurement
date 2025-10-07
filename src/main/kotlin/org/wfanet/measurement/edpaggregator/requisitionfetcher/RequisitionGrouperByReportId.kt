@@ -21,7 +21,6 @@ import com.google.type.interval
 import io.grpc.StatusException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -53,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGro
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.storage.StorageClient
 import java.util.UUID
+import java.util.logging.Logger
 
 data class EventGroupWrapper(val eventGroupReferenceId: String, val intervals: MutableList<Interval>)
 
@@ -110,7 +110,7 @@ class RequisitionGrouperByReportId(
       val existingRequisitionMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
       val existingCmmsRequisitions = existingRequisitionMetadata.map { it.cmmsRequisition }.toSet()
       if (existingRequisitionMetadata.isNotEmpty()) {
-        results.addAll(maybeFixExistingGroupedRequisitions(existingRequisitionMetadata, groups))
+        results.addAll(getUnwrittenRequisitions(existingRequisitionMetadata, groups))
       }
       // Filter out groups whose single requisitions has already persisted to RequisitionMetadata storage.
       val filteredGroups = groups.filter { group ->
@@ -159,46 +159,36 @@ class RequisitionGrouperByReportId(
     }
   }
 
-  private suspend fun maybeFixExistingGroupedRequisitions(
+  private suspend fun getUnwrittenRequisitions(
     existingRequisitionMetadata: List<RequisitionMetadata>,
     groups: List<GroupedRequisitions>
   ): List<GroupedRequisitions> {
-
     // Requisition metadata may already have stored multiple groups for the same report
     val requisitionMetadataByGroupId = existingRequisitionMetadata.groupBy { it.groupId }
     val fixedGroupedRequisitions = mutableListOf<GroupedRequisitions>()
 
     for ((reqMetadataGroupId, metadataRequisitionssForGroup) in requisitionMetadataByGroupId) {
-
       val storedGroupedRequisition: GroupedRequisitions? = readGroupedRequisitionBlob(reqMetadataGroupId)
-      val requisitionNamesInStorage: Set<String> =
-        storedGroupedRequisition?.requisitionsList
-          ?.map { entry -> entry.requisition.unpack(Requisition::class.java).name }
-          ?.toSet()
-          ?: emptySet()
+
+      if (storedGroupedRequisition != null) continue
+
       val existingCmmsRequisitionNames: Set<String> = metadataRequisitionssForGroup.map { it.cmmsRequisition }.toSet()
-      val missingRequisitionNamesFromStorage: Set<String> = existingCmmsRequisitionNames - requisitionNamesInStorage
 
-      if (missingRequisitionNamesFromStorage.isEmpty()) continue
-
-      val missingGroupedRequisition: List<GroupedRequisitions> =
+      val missingGroupedRequisitions: List<GroupedRequisitions> =
         groups.filter { group ->
           val entry = group.requisitionsList.single()
-          entry.requisition.unpack(Requisition::class.java).name in missingRequisitionNamesFromStorage
+          entry.requisition.unpack(Requisition::class.java).name in existingCmmsRequisitionNames
         }
 
-      val combinedRequisitions =
-        ((storedGroupedRequisition?.requisitionsList ?: emptyList()) + missingGroupedRequisition.flatMap { it.requisitionsList })
-          .distinctBy { it.requisition.unpack(Requisition::class.java).name }
+      if (missingGroupedRequisitions.isEmpty()) {
+        logger.info("GroupedRequisitions blob not found. Unable to create it with existing unfulfilled requisitions.")
+        continue
+      }
 
-      val combinedEventGroupMap =
-        buildEventGroupEntries(
-          listOfNotNull(storedGroupedRequisition) + missingGroupedRequisition
-        )
+      val combinedRequisitions = missingGroupedRequisitions.flatMap { it.requisitionsList }
+      val combinedEventGroupMap = buildEventGroupEntries(missingGroupedRequisitions)
 
-      val existingModelLine =
-        storedGroupedRequisition?.modelLine?.takeIf { it.isNotBlank() }
-          ?: missingGroupedRequisition.firstOrNull()?.modelLine.orEmpty()
+      val existingModelLine = missingGroupedRequisitions.firstOrNull()?.modelLine.orEmpty()
 
       fixedGroupedRequisitions += groupedRequisitions {
         modelLine = existingModelLine
@@ -315,7 +305,7 @@ class RequisitionGrouperByReportId(
     requisitionGroupId: String,
   ): RequisitionMetadata {
 
-    val requisitionBlobUri = "$blobUriPrefix/$requisitionGroupId"
+    val requisitionBlobUri = "$blobUriPrefix/$storagePathPrefix/$requisitionGroupId"
     val reportId = getReportId(requisition)
 
     val metadata = requisitionMetadata {
@@ -352,6 +342,7 @@ class RequisitionGrouperByReportId(
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val GROUPED_REQUISITION_BLOB_TYPE_URL =
       ProtoReflection.getTypeUrl(GroupedRequisitions.getDescriptor())
   }
