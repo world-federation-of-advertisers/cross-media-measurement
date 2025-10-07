@@ -17,7 +17,11 @@
 package org.wfanet.measurement.edpaggregator.eventgroups
 
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
 import java.util.logging.Logger
+import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -34,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -42,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 
 /*
  * Syncs event groups with the CMMS Public API.
@@ -54,13 +60,46 @@ class EventGroupSync(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
+  private val metrics: EventGroupSyncMetrics = EventGroupSyncMetrics(Instrumentation.meter),
 ) {
+
+  /** Creates metric attributes with data provider name. */
+  private fun metricAttributes(): Attributes =
+    Attributes.of(
+      ATTR_DATA_PROVIDER_NAME,
+      edpName,
+    )
 
   suspend fun sync(): Flow<MappedEventGroup> = flow {
     val syncedEventGroups: Map<String, CmmsEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
+
     eventGroups.collect { eventGroup: EventGroup ->
-      try {
+      syncEventGroupItem(eventGroup, syncedEventGroups)?.let { emit(it) }
+    }
+  }
+
+  /**
+   * Syncs a single event group item.
+   *
+   * @param eventGroup The event group to sync
+   * @param syncedEventGroups A map of event group reference IDs to CmmsEventGroups
+   * @return MappedEventGroup if sync succeeds, null if sync fails
+   */
+  private suspend fun syncEventGroupItem(
+    eventGroup: EventGroup,
+    syncedEventGroups: Map<String, CmmsEventGroup>,
+  ): MappedEventGroup? {
+    val eventGroupRefId = eventGroup.eventGroupReferenceId
+
+    return try {
+      withEventGroupSyncItemSpan(eventGroupRefId) {
+        // Start timing for sync latency
+        val syncStartTime = TimeSource.Monotonic.markNow()
+
+        // Record sync attempt
+        metrics.syncAttempts.add(1, metricAttributes())
+
         validateEventGroup(eventGroup)
         val syncedEventGroup: CmmsEventGroup =
           if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
@@ -75,20 +114,46 @@ class EventGroupSync(
           } else {
             createCmmsEventGroup(edpName, eventGroup)
           }
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-          }
-        )
-      } catch (e: Exception) {
-        logger.severe(
-          "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
-        )
+
+        // Record sync success and latency
+        metrics.syncSuccess.add(1, metricAttributes())
+
+        val syncLatency = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
+        metrics.syncLatency.record(syncLatency, metricAttributes())
+
+        mappedEventGroup {
+          eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+          eventGroupResource = syncedEventGroup.name
+        }
       }
-      eventGroup.eventGroupReferenceId
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+
+      // Record sync failure
+      metrics.syncFailure.add(1, metricAttributes())
+
+      logger.severe(
+        "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
+      )
+      // Note: sync attempt was already recorded, but no success/latency on failure
+      null
     }
   }
+
+  private suspend fun <T> withEventGroupSyncItemSpan(
+    eventGroupReferenceId: String,
+    block: suspend () -> T,
+  ): T =
+    traceSuspending(
+      spanName = SPAN_EVENT_GROUP_SYNC_ITEM,
+      attributes = Attributes.of(
+        ATTR_EVENT_GROUP_REFERENCE_ID,
+        eventGroupReferenceId,
+        ATTR_DATA_PROVIDER_NAME,
+        edpName,
+      ),
+      block = block,
+    )
 
   /*
    * Updates the Cmms Public API with a [CmmsEventGroup].
@@ -189,6 +254,12 @@ class EventGroupSync(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val ATTR_DATA_PROVIDER_NAME =
+      AttributeKey.stringKey("edpa.data_provider_name")
+    private val ATTR_EVENT_GROUP_REFERENCE_ID =
+      AttributeKey.stringKey("edpa.event_group_reference_id")
+    private const val SPAN_EVENT_GROUP_SYNC_ITEM = "edpa.event_group_sync.item"
 
     /*
      * Validates that event groups fields are populated
