@@ -156,6 +156,9 @@ class RequisitionFetcherFunctionTest {
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
             "GRPC_REQUEST_INTERVAL" to "1s",
+            "OTEL_METRICS_EXPORTER" to "none",
+            "OTEL_TRACES_EXPORTER" to "none",
+            "OTEL_LOGS_EXPORTER" to "none",
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
