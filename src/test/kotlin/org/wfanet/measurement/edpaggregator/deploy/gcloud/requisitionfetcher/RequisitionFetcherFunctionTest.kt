@@ -21,6 +21,11 @@ import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.netty.handler.ssl.ClientAuth
 import java.net.URI
 import java.net.http.HttpClient
@@ -110,6 +115,22 @@ class RequisitionFetcherFunctionTest {
       }
   }
 
+  private val traceparentMetadataKey =
+    Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
+  @Volatile private var capturedTraceparent: String? = null
+
+  private val traceContextCapturingInterceptor =
+    object : ServerInterceptor {
+      override fun <ReqT, RespT> interceptCall(
+        call: ServerCall<ReqT, RespT>,
+        headers: Metadata,
+        next: ServerCallHandler<ReqT, RespT>,
+      ): ServerCall.Listener<ReqT> {
+        capturedTraceparent = headers.get(traceparentMetadataKey)
+        return next.startCall(call, headers)
+      }
+    }
+
   /** Grpc server to handle calls to RequisitionService. */
   private lateinit var grpcServer: CommonServer
 
@@ -119,6 +140,7 @@ class RequisitionFetcherFunctionTest {
   /** Sets up the infrastructure before each test. */
   @Before
   fun startInfra() {
+    capturedTraceparent = null
 
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
@@ -129,7 +151,10 @@ class RequisitionFetcherFunctionTest {
           nameForLogging = "RequisitionsServiceServer",
           services =
             listOf(
-              requisitionsServiceMock.bindService(),
+              ServerInterceptors.intercept(
+                requisitionsServiceMock.bindService(),
+                traceContextCapturingInterceptor,
+              ),
               eventGroupsServiceMock.bindService(),
               requisitionMetadataServiceMock.bindService(),
             ),
@@ -156,6 +181,9 @@ class RequisitionFetcherFunctionTest {
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
             "GRPC_REQUEST_INTERVAL" to "1s",
+            "OTEL_METRICS_EXPORTER" to "none",
+            "OTEL_TRACES_EXPORTER" to "none",
+            "OTEL_LOGS_EXPORTER" to "none",
           )
         )
       logger.info("Started RequisitionFetcher process on port $port")
@@ -200,6 +228,23 @@ class RequisitionFetcherFunctionTest {
       .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.endTime)
     assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId)
       .isEqualTo(EVENT_GROUP_REFERENCE_ID)
+  }
+
+  @Test
+  fun `trace context is propagated to outbound gRPC calls`() {
+    val url = "http://localhost:${functionProcess.port}"
+    val (expectedTraceId, traceparent) = newTraceparent()
+    val client = HttpClient.newHttpClient()
+    val getRequest =
+      HttpRequest.newBuilder().uri(URI.create(url)).GET().header("traceparent", traceparent).build()
+
+    val getResponse = client.send(getRequest, BodyHandlers.ofString())
+    assertThat(getResponse.statusCode()).isEqualTo(200)
+
+    val recordedTraceparent = capturedTraceparent
+    assertThat(recordedTraceparent).isNotNull()
+    val propagatedTraceId = traceIdFromTraceparent(recordedTraceparent!!)
+    assertThat(propagatedTraceId).isEqualTo(expectedTraceId)
   }
 
   companion object {
@@ -365,5 +410,31 @@ class RequisitionFetcherFunctionTest {
         trustedCertCollectionFile = SECRETS_DIR.resolve("edp7_root.pem").toFile(),
       )
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private fun newTraceparent(): Pair<String, String> {
+      val traceId = randomHex(16)
+      val spanId = randomHex(8)
+      return traceId to "00-$traceId-$spanId-01"
+    }
+
+    private fun traceIdFromTraceparent(traceparent: String): String {
+      val parts = traceparent.split("-")
+      require(parts.size >= 4) { "Invalid traceparent header: $traceparent" }
+      return parts[1]
+    }
+
+    private fun randomHex(numBytes: Int): String {
+      val bytes = ByteArray(numBytes)
+      Random.nextBytes(bytes)
+      return bytes.toHex()
+    }
+
+    private fun ByteArray.toHex(): String {
+      return buildString(size * 2) {
+        for (byte in this@toHex) {
+          append("%02x".format(byte.toInt() and 0xFF))
+        }
+      }
+    }
   }
 }
