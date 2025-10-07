@@ -149,9 +149,11 @@ class RequisitionGrouperByReportId(
 
         results.add(newGroupedRequisitions)
       } catch (e: InvalidRequisitionException) {
+        logger.info("Invalid requisition exception: $e")
         refuseAllRequisitions(requisitions, requisitionGroupId, existingCmmsRequisitions, e.refusal.justification, e.message ?: "Invalid requisition")
       } catch (e: Exception) {
-        refuseAllRequisitions(requisitions, requisitionGroupId, existingCmmsRequisitions)
+        logger.info("Error while grouping requisitions: $e")
+        refuseAllRequisitions(requisitions, requisitionGroupId, existingCmmsRequisitions, Refusal.Justification.DECLINED)
       }
 
       results
@@ -279,7 +281,7 @@ class RequisitionGrouperByReportId(
     requisitions: List<GroupedRequisitions.RequisitionEntry>,
     requisitionGroupId: String,
     existingCmmsRequisitions: Collection<String>,
-    refusalJustification: Refusal.Justification = Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
+    refusalJustification: Refusal.Justification,
     refusalMessage: String = ""
   ) {
 
