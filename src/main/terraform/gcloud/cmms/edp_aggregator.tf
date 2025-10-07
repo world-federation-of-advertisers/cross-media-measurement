@@ -40,6 +40,30 @@ locals {
     is_binary_format  = false
   }
 
+  data_availability_tls_key = {
+      secret_id         = "edpa-data-availability-tls-key"
+      secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.key"),
+      is_binary_format  = false
+    }
+
+  data_availability_tls_pem = {
+    secret_id         = "edpa-data-availability-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.pem"),
+    is_binary_format  = false
+  }
+
+  requisition_fetcher_tls_key = {
+    secret_id         = "edpa-requisition-fetcher-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.key"),
+    is_binary_format  = false
+  }
+
+  requisition_fetcher_tls_pem = {
+    secret_id         = "edpa-requisition-fetcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.pem"),
+    is_binary_format  = false
+  }
+
   secure_computation_root_ca = {
     secret_id         = "securecomputation-root-ca"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"),
@@ -121,7 +145,7 @@ locals {
                                           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--model-line", "some-model-line",
+                                          "--model-line", "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
                                           "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
                                           "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,
@@ -221,10 +245,15 @@ module "edp_aggregator" {
   results_fulfiller_population_spec             = local.results_fulfiller_population_spec
   event_group_sync_service_account_name         = "edpa-event-group-sync"
   event_group_sync_function_name                = "event-group-sync"
+  data_availability_sync_function_name          = "data-availability-sync"
   edpa_tee_app_tls_key                          = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                          = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                          = local.data_watcher_tls_key
   data_watcher_tls_pem                          = local.data_watcher_tls_pem
+  data_availability_tls_key                     = local.data_availability_tls_key
+  data_availability_tls_pem                     = local.data_availability_tls_pem
+  requisition_fetcher_tls_key                   = local.requisition_fetcher_tls_key
+  requisition_fetcher_tls_pem                   = local.requisition_fetcher_tls_pem
   secure_computation_root_ca                    = local.secure_computation_root_ca
   metadata_storage_root_ca                      = local.metadata_storage_root_ca
   trusted_root_ca_collection                    = local.trusted_root_ca_collection
