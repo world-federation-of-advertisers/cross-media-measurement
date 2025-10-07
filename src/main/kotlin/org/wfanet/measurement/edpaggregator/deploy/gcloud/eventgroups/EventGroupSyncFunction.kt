@@ -20,6 +20,9 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.protobuf.util.JsonFormat
+import io.grpc.ClientInterceptors
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
@@ -64,7 +67,11 @@ class EventGroupSyncFunction() : HttpFunction {
       buildMutualTlsChannel(kingdomTarget, signingCerts, kingdomCertHost)
         .withShutdownTimeout(channelShutdownDuration)
 
-    val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
+    // Use official OpenTelemetry gRPC instrumentation for automatic span and metric creation
+    val grpcTelemetry = GrpcTelemetry.create(GlobalOpenTelemetry.get())
+    val instrumentedChannel = ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
+
+    val eventGroupsClient = EventGroupsCoroutineStub(instrumentedChannel)
     val eventGroups = runBlocking {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
