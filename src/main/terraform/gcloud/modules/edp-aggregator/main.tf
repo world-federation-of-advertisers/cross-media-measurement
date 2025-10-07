@@ -85,6 +85,8 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { data_availability_tls_key                     = var.data_availability_tls_key },
+    { data_availability_tls_pem                     = var.data_availability_tls_pem },
     { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
     { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
@@ -108,6 +110,16 @@ locals {
     ]
   ])
 
+  data_availability_sync_secrets_access = concat(
+    [
+      "metadata_storage_root_ca",
+      "trusted_root_ca_collection",
+      "data_availability_tls_key",
+      "data_availability_tls_pem",
+    ],
+    local.edp_tls_keys
+  )
+
   requisition_fetcher_secrets_access = concat(
     [
       "trusted_root_ca_collection",
@@ -122,11 +134,6 @@ locals {
     ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
-
-  data_availability_sync_secrets_access = concat(
-      ["trusted_root_ca_collection"],
-      local.edp_tls_keys
-    )
 
   cloud_function_secret_pairs = tomap({
     data_watcher            = local.data_watcher_secrets_access,
@@ -334,6 +341,13 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
@@ -364,6 +378,13 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   depends_on = [module.event_group_sync_cloud_function]
   service  = var.event_group_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service  = var.data_availability_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
