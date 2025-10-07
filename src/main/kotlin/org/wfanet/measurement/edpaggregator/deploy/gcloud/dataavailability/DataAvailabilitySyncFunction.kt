@@ -21,6 +21,7 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import java.io.BufferedReader
 import java.io.File
@@ -31,6 +32,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.OpenTelemetryClientInterceptor
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -87,6 +89,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     val cmmsPublicChannel =
       createPublicChannel(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+    val instrumentedCmmsChannel = ClientInterceptors.intercept(cmmsPublicChannel, OpenTelemetryClientInterceptor())
 
     val impressionMetadataStoragePublicChannel =
       createPublicChannel(
@@ -94,10 +97,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         impressionMetadataTarget,
         impressionMetadataCertHost,
       )
+    val instrumentedImpMetadataChannel = ClientInterceptors.intercept(
+      impressionMetadataStoragePublicChannel,
+      OpenTelemetryClientInterceptor()
+    )
 
-    val dataProvidersClient = DataProvidersCoroutineStub(cmmsPublicChannel)
+    val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
     val impressionMetadataServicesClient =
-      ImpressionMetadataServiceCoroutineStub(impressionMetadataStoragePublicChannel)
+      ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
