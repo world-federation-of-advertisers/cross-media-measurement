@@ -298,7 +298,7 @@ class ResultsFulfiller(
           try {
             requisitionMetadataStub.listRequisitionMetadata(request)
           } catch (e: StatusException) {
-            throw Exception("Error listing requisitions", e)
+            throw Exception("Error listing requisition metadata for group id: ${groupedRequisitions.groupId}", e)
           }
         ResourceList(
           response.requisitionMetadataList,
