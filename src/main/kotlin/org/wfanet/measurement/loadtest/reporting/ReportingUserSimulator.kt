@@ -324,11 +324,10 @@ class ReportingUserSimulator(
 
     logger.info("Basic Report retrieval succeeded")
 
-    val retrievedBasicReport = BasicReport.newBuilder().also {
-      JsonFormat.parser()
-        .ignoringUnknownFields()
-        .merge(retrievedBasicReportJson, it)
-    }.build()
+    val retrievedBasicReport =
+      BasicReport.newBuilder()
+        .also { JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it) }
+        .build()
 
     assertThat(retrievedBasicReport)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
@@ -339,21 +338,17 @@ class ReportingUserSimulator(
         }
       )
 
-    val createdBasicReport = BasicReport.newBuilder().also {
-      JsonFormat.parser()
-        .ignoringUnknownFields()
-        .merge(createdBasicReportJson, it)
-    }.build()
+    val createdBasicReport =
+      BasicReport.newBuilder()
+        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
+        .build()
 
-    assertThat(retrievedBasicReport.createTime)
-      .isEqualTo(createdBasicReport.createTime)
+    assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
   private suspend fun getEventGroup(): EventGroup {
     val resourceLists: Flow<ResourceList<EventGroup, String?>> =
-      eventGroupsClient.listResources(500, null) {
-        pageToken: String?,
-        remaining: Int ->
+      eventGroupsClient.listResources(500, null) { pageToken: String?, remaining: Int ->
         val listEventGroupsResponse =
           eventGroupsClient.listEventGroups(
             listEventGroupsRequest {
@@ -365,27 +360,29 @@ class ReportingUserSimulator(
             }
           )
 
-        val nextPageToken =
-          listEventGroupsResponse.nextPageToken.ifEmpty {
-            null
-          }
+        val nextPageToken = listEventGroupsResponse.nextPageToken.ifEmpty { null }
 
         ResourceList(listEventGroupsResponse.eventGroupsList, nextPageToken)
       }
 
-    return checkNotNull(resourceLists
-      .map {  resourceList ->
-        resourceList.resources.firstOrNull { eventGroup ->
-          eventGroup.eventGroupReferenceId.startsWith(
-            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-          ) && dataProviderByName
-            .getOrPut(eventGroup.cmmsDataProvider) { getDataProvider(eventGroup.cmmsDataProvider) }
-            .capabilities
-            .honestMajorityShareShuffleSupported
+    return checkNotNull(
+      resourceLists
+        .map { resourceList ->
+          resourceList.resources.firstOrNull { eventGroup ->
+            eventGroup.eventGroupReferenceId.startsWith(
+              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+            ) &&
+              dataProviderByName
+                .getOrPut(eventGroup.cmmsDataProvider) {
+                  getDataProvider(eventGroup.cmmsDataProvider)
+                }
+                .capabilities
+                .honestMajorityShareShuffleSupported
+          }
         }
-      }
-      .filter { it != null }
-      .first())
+        .filter { it != null }
+        .first()
+    )
   }
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
