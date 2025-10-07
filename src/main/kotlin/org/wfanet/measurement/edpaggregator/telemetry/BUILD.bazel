@@ -17,7 +17,6 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
-        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
         "//imports/java/io/opentelemetry/sdk:sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
     ],
