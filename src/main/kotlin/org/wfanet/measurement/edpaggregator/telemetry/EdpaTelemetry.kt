@@ -21,11 +21,13 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.trace.Tracer
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Classes
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Cpu
-import io.opentelemetry.instrumentation.runtimemetrics.java8.GarbageCollector
-import io.opentelemetry.instrumentation.runtimemetrics.java8.MemoryPools
-import io.opentelemetry.instrumentation.runtimemetrics.java8.Threads
+// JVM runtime metrics temporarily disabled due to dependency version mismatch
+// TODO(#issue): Re-enable after updating semconv dependency
+// import io.opentelemetry.instrumentation.runtimemetrics.java8.Classes
+// import io.opentelemetry.instrumentation.runtimemetrics.java8.Cpu
+// import io.opentelemetry.instrumentation.runtimemetrics.java8.GarbageCollector
+// import io.opentelemetry.instrumentation.runtimemetrics.java8.MemoryPools
+// import io.opentelemetry.instrumentation.runtimemetrics.java8.Threads
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
@@ -114,12 +116,13 @@ object EdpaTelemetry {
         .setTracerProvider(tracerProvider)
         .build()
 
-    // Install JVM runtime metrics instrumentation
-    Classes.registerObservers(openTelemetry)
-    Cpu.registerObservers(openTelemetry)
-    GarbageCollector.registerObservers(openTelemetry)
-    MemoryPools.registerObservers(openTelemetry)
-    Threads.registerObservers(openTelemetry)
+    // JVM runtime metrics temporarily disabled due to dependency version mismatch
+    // TODO(#issue): Re-enable after updating semconv dependency to match instrumentation version
+    // Classes.registerObservers(openTelemetry)
+    // Cpu.registerObservers(openTelemetry)
+    // GarbageCollector.registerObservers(openTelemetry)
+    // MemoryPools.registerObservers(openTelemetry)
+    // Threads.registerObservers(openTelemetry)
 
     // Create meter and tracer instances
     meter = openTelemetry.getMeter("edpa-instrumentation")

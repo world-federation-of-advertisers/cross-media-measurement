@@ -17,7 +17,18 @@
 package org.wfanet.measurement.edpaggregator.eventgroups
 
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.api.trace.Tracer
 import java.util.logging.Logger
+import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -35,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMe
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
@@ -54,39 +66,129 @@ class EventGroupSync(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
+  private val meter: Meter = Instrumentation.meter,
+  private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
+  // Telemetry instruments
+  private val syncAttemptsCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.sync_attempts")
+      .setDescription("Number of Event Group sync attempts")
+      .build()
+
+  private val syncSuccessCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.event_group.sync_success")
+      .setDescription("Number of successful Event Group syncs")
+      .build()
+
+  private val syncLatencyHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("edpa.event_group.sync_latency")
+      .setDescription("Time to complete Event Group sync operation")
+      .setUnit("s")
+      .build()
 
   suspend fun sync(): Flow<MappedEventGroup> = flow {
-    val syncedEventGroups: Map<String, CmmsEventGroup> =
-      fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
-    eventGroups.collect { eventGroup: EventGroup ->
-      try {
-        validateEventGroup(eventGroup)
-        val syncedEventGroup: CmmsEventGroup =
-          if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
-            val existingEventGroup: CmmsEventGroup =
-              syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
-            val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
-            if (updatedEventGroup != existingEventGroup) {
-              updateCmmsEventGroup(updatedEventGroup)
-            } else {
-              existingEventGroup
-            }
-          } else {
-            createCmmsEventGroup(edpName, eventGroup)
+    val syncSpan = tracer.spanBuilder("EventGroupSync")
+      .setAttribute("data_provider_key", edpName)
+      .setAttribute("source", "kingdom")
+      .startSpan()
+    val syncScope = syncSpan.makeCurrent()
+
+    try {
+      val syncedEventGroups: Map<String, CmmsEventGroup> =
+        fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
+
+      eventGroups.collect { eventGroup: EventGroup ->
+        val eventGroupRefId = eventGroup.eventGroupReferenceId
+
+        val itemSpan = tracer.spanBuilder("EventGroupSync.Item")
+          .setAttribute("event_group_reference_id", eventGroupRefId)
+          .setAttribute("data_provider_key", edpName)
+          .startSpan()
+        val itemScope = itemSpan.makeCurrent()
+
+        try {
+          // Start timing for sync latency
+          val syncStartTime = TimeSource.Monotonic.markNow()
+
+          // Record sync attempt
+          syncAttemptsCounter.add(
+            1,
+            Attributes.of(
+              AttributeKey.stringKey("data_provider_key"), edpName
+            )
+          )
+
+          try {
+            validateEventGroup(eventGroup)
+            val syncedEventGroup: CmmsEventGroup =
+              if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
+                val existingEventGroup: CmmsEventGroup =
+                  syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
+                val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
+                if (updatedEventGroup != existingEventGroup) {
+                  updateCmmsEventGroup(updatedEventGroup)
+                } else {
+                  existingEventGroup
+                }
+              } else {
+                createCmmsEventGroup(edpName, eventGroup)
+              }
+            emit(
+              mappedEventGroup {
+                eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
+                eventGroupResource = syncedEventGroup.name
+              }
+            )
+
+            // Record sync success and latency
+            syncSuccessCounter.add(
+              1,
+              Attributes.of(
+                AttributeKey.stringKey("data_provider_key"), edpName
+              )
+            )
+
+            val syncLatency = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
+            syncLatencyHistogram.record(
+              syncLatency,
+              Attributes.of(
+                AttributeKey.stringKey("data_provider_key"), edpName
+              )
+            )
+
+            itemSpan.setStatus(StatusCode.OK)
+          } catch (e: Exception) {
+            if (e is CancellationException) throw e
+
+            itemSpan.recordException(e)
+            itemSpan.setStatus(StatusCode.ERROR, e.message ?: "Event Group sync failed")
+
+            logger.severe(
+              "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
+            )
+            // Note: sync attempt was already recorded, but no success/latency on failure
           }
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-          }
-        )
-      } catch (e: Exception) {
-        logger.severe(
-          "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
-        )
+        } finally {
+          itemScope.close()
+          itemSpan.end()
+        }
+
+        eventGroup.eventGroupReferenceId
       }
-      eventGroup.eventGroupReferenceId
+
+      syncSpan.setStatus(StatusCode.OK)
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+
+      syncSpan.recordException(e)
+      syncSpan.setStatus(StatusCode.ERROR, e.message ?: "EventGroupSync failed")
+      throw e
+    } finally {
+      syncScope.close()
+      syncSpan.end()
     }
   }
 
