@@ -17,9 +17,24 @@
 package org.wfanet.measurement.common.grpc
 
 import io.grpc.BindableService
+import io.grpc.CallOptions
+import io.grpc.Channel
+import io.grpc.ClientCall
+import io.grpc.ClientInterceptor
+import io.grpc.ForwardingClientCall
+import io.grpc.ForwardingClientCallListener
+import io.grpc.Metadata
+import io.grpc.MethodDescriptor
 import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
+import io.grpc.Status
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.Meter
+import kotlin.time.TimeSource
+import org.wfanet.measurement.common.Instrumentation
 
 /**
  * Creates a new [ServerServiceDefinition] whose [io.grpc.ServerCallHandler]s will call
@@ -51,3 +66,66 @@ fun BindableService.withInterceptor(interceptor: ServerInterceptor): ServerServi
 fun BindableService.withInterceptors(
   vararg interceptors: ServerInterceptor
 ): ServerServiceDefinition = ServerInterceptors.intercept(this, *interceptors)
+
+/**
+ * OpenTelemetry client interceptor that records `rpc.client.duration` metrics for gRPC calls.
+ *
+ * Records histogram metric with attributes:
+ * - `rpc.service`: Full service name (e.g., "wfanet.measurement.api.v2alpha.EventGroups")
+ * - `rpc.method`: Method name (e.g., "CreateEventGroup")
+ * - `rpc.grpc.status_code`: gRPC status code (0 = OK)
+ *
+ * Usage:
+ * ```kotlin
+ * val channel = buildMutualTlsChannel(...)
+ *   .intercept(OpenTelemetryClientInterceptor())
+ * ```
+ */
+class OpenTelemetryClientInterceptor(
+  private val meter: Meter = Instrumentation.meter
+) : ClientInterceptor {
+
+  private val rpcClientDuration: DoubleHistogram =
+    meter
+      .histogramBuilder("rpc.client.duration")
+      .setDescription("Duration of gRPC client calls")
+      .setUnit("s")
+      .build()
+
+  override fun <ReqT, RespT> interceptCall(
+    method: MethodDescriptor<ReqT, RespT>,
+    callOptions: CallOptions,
+    next: Channel
+  ): ClientCall<ReqT, RespT> {
+    val startTime = TimeSource.Monotonic.markNow()
+
+    return object : ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(
+      next.newCall(method, callOptions)
+    ) {
+      override fun start(responseListener: Listener<RespT>, headers: Metadata) {
+        val listener = object : ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(
+          responseListener
+        ) {
+          override fun onClose(status: Status, trailers: Metadata) {
+            // Record RPC duration
+            val duration = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+            val serviceName = method.serviceName ?: "unknown"
+            val methodName = method.bareMethodName ?: "unknown"
+
+            rpcClientDuration.record(
+              duration,
+              Attributes.of(
+                AttributeKey.stringKey("rpc.service"), serviceName,
+                AttributeKey.stringKey("rpc.method"), methodName,
+                AttributeKey.longKey("rpc.grpc.status_code"), status.code.value().toLong()
+              )
+            )
+
+            super.onClose(status, trailers)
+          }
+        }
+        super.start(listener, headers)
+      }
+    }
+  }
+}
