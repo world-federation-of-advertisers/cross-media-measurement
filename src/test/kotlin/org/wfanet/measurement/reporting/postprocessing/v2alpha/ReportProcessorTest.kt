@@ -27,6 +27,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest.Companion.hasConsistentMeasurements
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -173,9 +174,9 @@ class ReportProcessorTest {
       assertEquals(
         reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
         listOf(
-          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
-          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
-        )
+            ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+            ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+          )
           .sorted(),
       )
 
@@ -215,9 +216,9 @@ class ReportProcessorTest {
     assertEquals(
       reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
       listOf(
-        ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
-        ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
-      )
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+        )
         .sorted(),
     )
 
