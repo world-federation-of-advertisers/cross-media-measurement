@@ -21,15 +21,22 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -84,7 +91,27 @@ class DataAvailabilitySync(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
+  private val meter: Meter = Instrumentation.meter,
 ) {
+  // Telemetry instruments
+  private val syncDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("edpa.data_availability.sync_duration")
+      .setDescription("Duration of data availability sync fetch and write cycle")
+      .setUnit("s")
+      .build()
+
+  private val recordsSyncedCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.records_synced")
+      .setDescription("Number of impression metadata records synced per EDP")
+      .build()
+
+  private val cmmsRpcErrorsCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.cmms_rpc_errors")
+      .setDescription("Number of CMMS API call errors")
+      .build()
 
   /**
    * Synchronizes impression availability data after a completion signal.
@@ -97,70 +124,121 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
   suspend fun sync(doneBlobPath: String) {
+    // Start timing for sync duration
+    val syncStartTime = TimeSource.Monotonic.markNow()
 
-    // 1. Crawl for metadata files
-    val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-    val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+    try {
+      // 1. Crawl for metadata files
+      val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-    require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
-      "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
-    }
+      require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
+        "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
+      }
 
-    val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> =
-      storageClient.listBlobs(doneBlobFolderPath)
+      val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      val impressionMetadataBlobs: Flow<StorageClient.Blob> =
+        storageClient.listBlobs(doneBlobFolderPath)
 
-    // 1. Retrieve blob details from storage and build a map and validate them
-    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
-      createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+      // 1. Retrieve blob details from storage and build a map and validate them
+      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
+        createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
-    if (impressionMetadataMap.isEmpty()) {
-      logger.info("There were no valid impressions metadata.")
-      return
-    }
+      if (impressionMetadataMap.isEmpty()) {
+        logger.info("There were no valid impressions metadata.")
+        // Record sync duration even if no records
+        recordSyncDuration(syncStartTime, 0)
+        return
+      }
 
-    // 2. Save ImpressionMetadata using ImpressionMetadataStorage
-    impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
+      // Count total records
+      val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
-    // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
-    // found in the storage folder and update kingdom availability
-    // Collect all model lines
-    val modelLines = impressionMetadataMap.keys.toList()
+      // 2. Save ImpressionMetadata using ImpressionMetadataStorage
+      impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-    val modelLineBounds: ComputeModelLineBoundsResponse =
-      impressionMetadataServiceStub.computeModelLineBounds(
-        computeModelLineBoundsRequest {
-          parent = dataProviderName
-          this.modelLines += modelLines
+      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
+      // found in the storage folder and update kingdom availability
+      // Collect all model lines
+      val modelLines = impressionMetadataMap.keys.toList()
+
+      val modelLineBounds: ComputeModelLineBoundsResponse =
+        impressionMetadataServiceStub.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            parent = dataProviderName
+            this.modelLines += modelLines
+          }
+        )
+
+      // Build availability entries from the response
+      val availabilityEntries =
+        modelLineBounds.modelLineBoundsList.map { bound ->
+          dataAvailabilityMapEntry {
+            key = bound.key
+            value = interval {
+              startTime = bound.value.startTime
+              endTime = bound.value.endTime
+            }
+          }
         }
-      )
 
-    // Build availability entries from the response
-    val availabilityEntries =
-      modelLineBounds.modelLineBoundsList.map { bound ->
-        dataAvailabilityMapEntry {
-          key = bound.key
-          value = interval {
-            startTime = bound.value.startTime
-            endTime = bound.value.endTime
+      if (availabilityEntries.isNotEmpty()) {
+        throttler.onReady {
+          try {
+            dataProvidersStub.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
+          } catch (e: StatusException) {
+            // Record CMMS RPC error
+            cmmsRpcErrorsCounter.add(
+              1,
+              Attributes.of(
+                AttributeKey.stringKey("data_provider_key"), dataProviderName,
+                AttributeKey.stringKey("rpc_method"), "ReplaceDataAvailabilityIntervals",
+                AttributeKey.stringKey("status_code"), e.status.code.name
+              )
+            )
+            throw Exception("Error replacing DataAvailability intervals", e)
           }
         }
       }
 
-    if (availabilityEntries.isNotEmpty()) {
-      throttler.onReady {
-        try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Error replacing DataAvailability intervals", e)
-        }
-      }
+      // Record successful sync
+      recordSyncDuration(syncStartTime, totalRecords)
+
+      // Record records synced
+      recordsSyncedCounter.add(
+        totalRecords.toLong(),
+        Attributes.of(
+          AttributeKey.stringKey("data_provider_key"), dataProviderName
+        )
+      )
+    } catch (e: Exception) {
+      // Record sync duration even on failure
+      val syncDuration = syncStartTime.elapsedNow().inWholeMilliseconds / 1000.0
+      syncDurationHistogram.record(
+        syncDuration,
+        Attributes.of(
+          AttributeKey.stringKey("data_provider_key"), dataProviderName,
+          AttributeKey.stringKey("status"), "error"
+        )
+      )
+      throw e
     }
+  }
+
+  private fun recordSyncDuration(startTime: TimeSource.Monotonic.ValueTimeMark, recordCount: Int) {
+    val syncDuration = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+    syncDurationHistogram.record(
+      syncDuration,
+      Attributes.of(
+        AttributeKey.stringKey("data_provider_key"), dataProviderName,
+        AttributeKey.stringKey("status"), "success"
+      )
+    )
   }
 
   private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
