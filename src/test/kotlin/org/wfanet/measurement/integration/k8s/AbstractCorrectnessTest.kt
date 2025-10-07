@@ -43,6 +43,7 @@ import org.wfanet.measurement.access.v1alpha.addPolicyBindingMembersRequest
 import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
+import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.lookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
@@ -378,13 +379,15 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       }
 
       var mcUserRole: Role = Role.getDefaultInstance()
-      val roles = rolesStub.listRoles(listRolesRequest { pageSize = 1000 }).rolesList
+      val roles = rolesStub.listRoles(listRolesRequest { pageSize = 100 }).rolesList
       for (role in roles) {
         if (
           role.resourceTypesList.contains(mcResourceType) &&
             role.permissionsList.containsAll(permissions)
         ) {
           mcUserRole = role
+        } else if (role.name == mcUserRoleKey.toName()) {
+          rolesStub.deleteRole(deleteRoleRequest { name = role.name })
         }
       }
       if (mcUserRole.name.isEmpty()) {

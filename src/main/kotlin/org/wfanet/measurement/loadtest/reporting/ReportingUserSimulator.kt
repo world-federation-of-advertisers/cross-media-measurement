@@ -26,6 +26,11 @@ import com.google.type.timeZone
 import io.grpc.StatusException
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.time.delay
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -36,6 +41,8 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
@@ -45,7 +52,6 @@ import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
-import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
@@ -67,7 +73,6 @@ import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventGroup
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
@@ -319,12 +324,13 @@ class ReportingUserSimulator(
 
     logger.info("Basic Report retrieval succeeded")
 
-    val retrievedBasicReportBuilder = BasicReport.newBuilder()
-    JsonFormat.parser()
-      .ignoringUnknownFields()
-      .merge(retrievedBasicReportJson, retrievedBasicReportBuilder)
+    val retrievedBasicReport = BasicReport.newBuilder().also {
+      JsonFormat.parser()
+        .ignoringUnknownFields()
+        .merge(retrievedBasicReportJson, it)
+    }.build()
 
-    assertThat(retrievedBasicReportBuilder.build())
+    assertThat(retrievedBasicReport)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         basicReport.copy {
@@ -333,50 +339,53 @@ class ReportingUserSimulator(
         }
       )
 
-    val createdBasicReportBuilder = BasicReport.newBuilder()
-    JsonFormat.parser()
-      .ignoringUnknownFields()
-      .merge(createdBasicReportJson, createdBasicReportBuilder)
+    val createdBasicReport = BasicReport.newBuilder().also {
+      JsonFormat.parser()
+        .ignoringUnknownFields()
+        .merge(createdBasicReportJson, it)
+    }.build()
 
-    assertThat(retrievedBasicReportBuilder.build().createTime)
-      .isEqualTo(createdBasicReportBuilder.build().createTime)
+    assertThat(retrievedBasicReport.createTime)
+      .isEqualTo(createdBasicReport.createTime)
   }
 
   private suspend fun getEventGroup(): EventGroup {
-    var response: ListEventGroupsResponse = ListEventGroupsResponse.getDefaultInstance()
-    try {
-      do {
-        response =
+    val resourceLists: Flow<ResourceList<EventGroup, String?>> =
+      eventGroupsClient.listResources(500, null) {
+        pageToken: String?,
+        remaining: Int ->
+        val listEventGroupsResponse =
           eventGroupsClient.listEventGroups(
             listEventGroupsRequest {
               parent = measurementConsumerName
-              pageToken = response.nextPageToken
+              pageSize = remaining
+              if (pageToken != null) {
+                this.pageToken = pageToken
+              }
             }
           )
 
-        val eventGroup: EventGroup? =
-          response.eventGroupsList
-            .filter {
-              it.eventGroupReferenceId.startsWith(
-                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-              )
-            }
-            .firstOrNull {
-              dataProviderByName
-                .getOrPut(it.cmmsDataProvider) { getDataProvider(it.cmmsDataProvider) }
-                .capabilities
-                .honestMajorityShareShuffleSupported
-            }
+        val nextPageToken =
+          listEventGroupsResponse.nextPageToken.ifEmpty {
+            null
+          }
 
-        if (eventGroup != null) {
-          return eventGroup
+        ResourceList(listEventGroupsResponse.eventGroupsList, nextPageToken)
+      }
+
+    return checkNotNull(resourceLists
+      .map {  resourceList ->
+        resourceList.resources.firstOrNull { eventGroup ->
+          eventGroup.eventGroupReferenceId.startsWith(
+            TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+          ) && dataProviderByName
+            .getOrPut(eventGroup.cmmsDataProvider) { getDataProvider(eventGroup.cmmsDataProvider) }
+            .capabilities
+            .honestMajorityShareShuffleSupported
         }
-      } while (response.nextPageToken.isNotEmpty())
-    } catch (e: StatusException) {
-      throw Exception("Error getting EventGroup", e)
-    }
-
-    return response.eventGroupsList.first()
+      }
+      .filter { it != null }
+      .first())
   }
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
