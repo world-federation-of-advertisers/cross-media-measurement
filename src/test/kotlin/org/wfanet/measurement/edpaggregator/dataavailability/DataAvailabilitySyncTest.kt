@@ -21,6 +21,13 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.data.MetricData
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
@@ -36,6 +43,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -69,6 +77,20 @@ class DataAvailabilitySyncTest {
 
   private val bucket = "file:///my-bucket"
   private val folderPrefix = "edp/edpa_edp/timestamp/"
+  private val dataProviderKeyAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
+  private val syncStatusAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.sync_status")
+  private val rpcMethodAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
+  private val statusCodeAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+
+  companion object {
+    private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
+    private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
+    private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+  }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -130,6 +152,30 @@ class DataAvailabilitySyncTest {
 
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private data class MetricsTestEnvironment(
+    val metrics: DataAvailabilitySyncMetrics,
+    val metricExporter: InMemoryMetricExporter,
+    val metricReader: PeriodicMetricReader,
+    val meterProvider: SdkMeterProvider,
+  ) {
+    fun close() {
+      meterProvider.close()
+    }
+  }
+
+  private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    val metricExporter = InMemoryMetricExporter.create()
+    val metricReader = PeriodicMetricReader.create(metricExporter)
+    val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val meter = meterProvider.get("data-availability-sync-test")
+    return MetricsTestEnvironment(
+      DataAvailabilitySyncMetrics(meter),
+      metricExporter,
+      metricReader,
+      meterProvider,
+    )
   }
 
   @get:Rule
@@ -362,6 +408,102 @@ class DataAvailabilitySyncTest {
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
+  }
+
+  @Test
+  fun `sync emits success metrics`() {
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking { seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)) }
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          metrics = metricsEnv.metrics,
+        )
+
+      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val durationPoint = metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+      assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+      assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+
+      val recordsPoint = metricByName.getValue(RECORDS_SYNCED_METRIC).longSumData.points.single()
+      assertThat(recordsPoint.value).isEqualTo(1)
+      assertThat(recordsPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+      assertThat(recordsPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `sync emits failure metrics when replaceDataAvailabilityIntervals fails`() {
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    runBlocking { seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)) }
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          metrics = metricsEnv.metrics,
+        )
+
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+
+      try {
+        assertFailsWith<Exception> {
+          runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+        }
+      } finally {
+        wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+          .thenAnswer { DataProvider.getDefaultInstance() }
+      }
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val durationPoint = metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+      assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("failed")
+      assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+
+      assertThat(metricByName.containsKey(RECORDS_SYNCED_METRIC)).isFalse()
+
+      val cmmsErrorPoint =
+        metricByName.getValue(CMMS_RPC_ERRORS_METRIC).longSumData.points.single()
+      assertThat(cmmsErrorPoint.value).isEqualTo(1)
+      assertThat(cmmsErrorPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+      assertThat(cmmsErrorPoint.attributes.get(rpcMethodAttributeKey))
+        .isEqualTo("ReplaceDataAvailabilityIntervals")
+      assertThat(cmmsErrorPoint.attributes.get(statusCodeAttributeKey))
+        .isEqualTo(Status.Code.UNAVAILABLE.name)
+    } finally {
+      metricsEnv.close()
+    }
   }
 
   @Test
