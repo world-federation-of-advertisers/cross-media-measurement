@@ -75,6 +75,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 
@@ -91,7 +92,7 @@ class RequisitionFetcherFunctionTest {
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
       onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
       onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }

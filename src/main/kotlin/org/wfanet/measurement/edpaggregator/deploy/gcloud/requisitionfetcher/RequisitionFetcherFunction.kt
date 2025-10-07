@@ -131,9 +131,12 @@ class RequisitionFetcherFunction : HttpFunction {
         dataProviderConfig.dataProvider,
         requisitionBlobPrefix,
         requisitionMetadataStub,
+        storageClient,
+        pageSize,
+        dataProviderConfig.storagePathPrefix,
+        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
         eventGroupsStub,
         requisitionsStub,
-        MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval),
       )
 
     return RequisitionFetcher(

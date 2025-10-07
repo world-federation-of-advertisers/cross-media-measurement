@@ -16,11 +16,24 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import java.util.logging.Logger
+import io.grpc.StatusException
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
+import com.google.type.Interval
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 
 /**
  * Naively does not combine a set of requisition. Generally not recommended for production use
@@ -29,9 +42,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 class SingleRequisitionGrouper(
   requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
-  requisitionsClient: RequisitionsCoroutineStub,
   throttler: Throttler,
-) : RequisitionGrouper(requisitionValidator, eventGroupsClient, requisitionsClient, throttler) {
+  requisitionsClient: RequisitionsCoroutineStub,
+) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
 
   override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>
