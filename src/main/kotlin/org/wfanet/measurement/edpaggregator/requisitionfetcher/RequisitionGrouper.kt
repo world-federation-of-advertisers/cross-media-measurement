@@ -160,7 +160,10 @@ abstract class RequisitionGrouper(
         logger.info("Requisition ${requisition.name} was refused. $refusal")
         val request = refuseRequisitionRequest {
           this.name = requisition.name
-          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
+          this.refusal = RequisitionKt.refusal {
+            justification = refusal.justification
+            message = refusal.message
+          }
         }
         requisitionsClient.refuseRequisition(request)
       }
