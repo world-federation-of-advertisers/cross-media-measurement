@@ -51,6 +51,8 @@ STANDARD_DEVIATION_TEST_THRESHOLD = 7.0
 
 CONSISTENCY_TEST_TOLERANCE = 1.0
 
+LARGE_CORRECTION_THRESHOLD = 1.0
+
 
 def fuzzy_equal(val: float, target: float, tolerance: float) -> bool:
   """Checks if two float values are approximately equal within an absolute tolerance."""
@@ -788,7 +790,15 @@ class Report:
           continue
 
         difference = abs(corrected_measurement.value - measurement.value)
-        if difference > STANDARD_DEVIATION_TEST_THRESHOLD*measurement.sigma:
+
+        # LARGE_CORRECTION_THRESHOLD is used to prevent the false positive cases
+        # where sigma is zero. For metric with zero standard deviation, its
+        # corrected value must be far enough from the original value to be
+        # considered a large correction.
+        if difference > max(
+          STANDARD_DEVIATION_TEST_THRESHOLD*measurement.sigma,
+          LARGE_CORRECTION_THRESHOLD
+        ):
           logging.warning(
             f"Measurement {measurement.name} has a large correction: original="
             f"{measurement.value}, corrected={corrected_measurement.value}, "
