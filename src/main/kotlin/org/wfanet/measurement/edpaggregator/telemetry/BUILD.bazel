@@ -17,7 +17,8 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
-        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        # JVM runtime metrics temporarily disabled due to dependency version mismatch
+        # "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
         "//imports/java/io/opentelemetry/sdk:sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
     ],
@@ -49,7 +50,8 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
-        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        # JVM runtime metrics temporarily disabled due to dependency version mismatch
+        # "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
         "//imports/java/io/opentelemetry/sdk:sdk",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
