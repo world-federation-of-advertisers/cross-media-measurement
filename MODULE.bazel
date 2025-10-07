@@ -240,8 +240,16 @@ maven.install(
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
         "com.squareup.okhttp3:okhttp:4.12.0",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
-        "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
-        "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
+
+        # OpenTelemetry instrumentation (only alpha versions available)
+        "io.opentelemetry.instrumentation:opentelemetry-grpc-1.6:2.0.0-alpha",
+        "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry-java8:2.0.0-alpha",
+        "io.opentelemetry.instrumentation:opentelemetry-java-http-client:2.0.0-alpha",
+
+        # Google Cloud OpenTelemetry exporters
+        # exporter-metrics comes transitively from google-cloud-storage at 0.33.0
+        "com.google.cloud.opentelemetry:exporter-trace:0.33.0",
+
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
