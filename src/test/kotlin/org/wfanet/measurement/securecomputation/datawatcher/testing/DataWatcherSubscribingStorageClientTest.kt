@@ -27,7 +27,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
@@ -50,6 +50,8 @@ class DataWatcherSubscribingStorageClientTest :
     val dataWatcher: DataWatcher = mock {}
     subscribingStorageClient.subscribe(dataWatcher)
     subscribingStorageClient.writeBlob("some-blob-key", flowOf("some-contents".toByteStringUtf8()))
-    verify(dataWatcher, times(1)).receivePath("file:///some-bucket/some-blob-key")
+    verifyBlocking(dataWatcher, times(1)) {
+      receivePath("file:///some-bucket/some-blob-key", null)
+    }
   }
 }

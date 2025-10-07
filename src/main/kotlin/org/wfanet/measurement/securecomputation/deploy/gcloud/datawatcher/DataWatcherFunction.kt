@@ -20,20 +20,25 @@ import com.google.cloud.functions.CloudEventsFunction
 import com.google.events.cloud.storage.v1.StorageObjectData
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
+import io.grpc.ClientInterceptors
 import io.cloudevents.CloudEvent
 import java.io.File
 import java.nio.file.Paths
 import java.time.Duration
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 
 /*
  * Cloud Function receives a CloudEvent. If the cloud event path matches config, it calls the
@@ -43,29 +48,41 @@ class DataWatcherFunction : CloudEventsFunction {
 
   override fun accept(event: CloudEvent) {
     logger.fine("Starting DataWatcherFunction")
+    try {
+      val cloudEventData =
+        requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
+      val data =
+        StorageObjectData.newBuilder()
+          .apply { JsonFormat.parser().merge(cloudEventData, this) }
+          .build()
 
-    val cloudEventData =
-      requireNotNull(event.getData()) { "event must have data" }.toBytes().decodeToString()
-    val data =
-      StorageObjectData.newBuilder()
-        .apply { JsonFormat.parser().merge(cloudEventData, this) }
-        .build()
-
-    val blobKey: String = data.getName()
-    val bucket: String = data.getBucket()
-    val path = "$scheme://$bucket/$blobKey"
-    logger.info("Receiving path $path")
-    val size = data.size
-    if (size == 0L) {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2653): Update logic once
-      // metadata storage are in place
-      // Temporary accept empty blob if path ends with "done"
-      if (!path.lowercase().endsWith(VALID_EMPTY_BLOB_NAME)) {
-        logger.info("Skipping processing: file '$path' is empty and not a done marker")
-        return
+      val blobKey: String = data.getName()
+      val bucket: String = data.getBucket()
+      val path = "$scheme://$bucket/$blobKey"
+      logger.info("Receiving path $path")
+      val size = data.size
+      if (size == 0L) {
+        // TODO(world-federation-of-advertisers/cross-media-measurement#2653): Update logic once
+        // metadata storage are in place
+        // Temporary accept empty blob if path ends with "done"
+        if (!path.lowercase().endsWith(VALID_EMPTY_BLOB_NAME)) {
+          logger.info("Skipping processing: file '$path' is empty and not a done marker")
+          return
+        }
       }
+
+      val blobCreateTime =
+        if (data.hasTimeCreated())
+          Instant.ofEpochSecond(
+            data.timeCreated.seconds,
+            data.timeCreated.nanos.toLong(),
+          )
+        else null
+
+      runBlocking { dataWatcher.receivePath(path, blobCreateTime) }
+    } finally {
+      EdpaTelemetry.flush()
     }
-    runBlocking { dataWatcher.receivePath(path) }
   }
 
   companion object {
@@ -83,6 +100,7 @@ class DataWatcherFunction : CloudEventsFunction {
         System.getenv("CONTROL_PLANE_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
           ?: DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS
       )
+    private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
     private fun checkNotEmpty(envVar: String): String {
       val value = System.getenv(envVar)
@@ -131,7 +149,11 @@ class DataWatcherFunction : CloudEventsFunction {
         .withShutdownTimeout(channelShutdownTimeout)
     }
 
-    private val workItemsStub by lazy { WorkItemsCoroutineStub(publicChannel) }
+    private val workItemsStub by lazy {
+      val instrumentedChannel =
+        ClientInterceptors.intercept(publicChannel, grpcTelemetry.newClientInterceptor())
+      WorkItemsCoroutineStub(instrumentedChannel)
+    }
 
     private const val CONFIG_BLOB_KEY = "data-watcher-config.textproto"
     private val dataWatcherConfig by lazy {
@@ -148,6 +170,10 @@ class DataWatcherFunction : CloudEventsFunction {
         workItemsStub = workItemsStub,
         dataWatcherConfigs = dataWatcherConfig.watchedPathsList,
       )
+    }
+
+    init {
+      EdpaTelemetry.ensureInitialized()
     }
   }
 }

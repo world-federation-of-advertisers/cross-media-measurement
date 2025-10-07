@@ -23,11 +23,15 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
+import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
+import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -46,23 +50,48 @@ class DataWatcher(
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
+  private val httpClient: HttpClient = HttpClient.newHttpClient(),
+  private val metrics: DataWatcherMetrics = DataWatcherMetrics.instance,
+
 ) {
-  suspend fun receivePath(path: String) {
+
+  suspend fun receivePath(path: String, blobCreateTime: Instant? = null) {
     logger.info("Received Path: $path")
     for (config in dataWatcherConfigs) {
       try {
         val regex = config.sourcePathRegex.toRegex()
         if (regex.matches(path)) {
           logger.info("${config.identifier}: Matched path: $path")
-          when (config.sinkConfigCase) {
-            WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
-              sendToControlPlane(config, path)
+
+          val sinkType = config.sinkConfigCase.name
+          Tracing.trace(
+            spanName = "data_watcher.process",
+            attributes =
+              mapOf(
+                "blob_path" to path,
+                "sink_type" to sinkType,
+                "config_identifier" to config.identifier,
+              ),
+          ) {
+            when (config.sinkConfigCase) {
+              WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
+                sendToControlPlane(config, path)
+              }
+
+              WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK -> {
+                sendToHttpEndpoint(config, path, blobCreateTime)
+              }
+
+              WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
+                error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
             }
-            WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK -> {
-              sendToHttpEndpoint(config, path)
-            }
-            WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
-              error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
+          }
+
+          blobCreateTime?.let { doneTime ->
+            val nowMillis = System.currentTimeMillis()
+            val deltaMillis = nowMillis - doneTime.toEpochMilli()
+            val latencySeconds = deltaMillis.coerceAtLeast(0).toDouble() / 1000.0
+            metrics.recordMatchLatency(sinkType = sinkType, latencySeconds = latencySeconds)
           }
         } else {
           logger.info("$path does not match ${config.sourcePathRegex}")
@@ -91,24 +120,30 @@ class DataWatcher(
       }
     }
     workItemsStub.createWorkItem(request)
+
+    metrics.incrementQueueWrites(queueConfig.queue)
+    logger.info("${config.identifier}: Created work item $workItemId for queue ${queueConfig.queue}")
   }
 
-  private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
+  private fun sendToHttpEndpoint(config: WatchedPath, path: String, blobCreateTime: Instant?) {
 
     val idToken: IdToken =
       idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
     val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
-    val client = HttpClient.newHttpClient()
-    val request =
+    logger.info("${config.identifier}: Sending HTTP request to ${httpEndpointConfig.endpointUri}")
+    val requestBuilder =
       HttpRequest.newBuilder()
         .uri(URI.create(httpEndpointConfig.endpointUri))
         .header("Authorization", "Bearer $jwt")
         .header(DATA_WATCHER_PATH_HEADER, path)
         .POST(HttpRequest.BodyPublishers.ofString(httpEndpointConfig.appParams.toJson()))
-        .build()
-    val response = client.send(request, BodyHandlers.ofString())
+    if (blobCreateTime != null && path.isDoneMarker()) {
+      requestBuilder.header(DONE_BLOB_TIMESTAMP_HEADER, blobCreateTime.toEpochMilli().toString())
+    }
+    val request = requestBuilder.build()
+    val response = httpClient.send(request, BodyHandlers.ofString())
     logger.fine("${config.identifier}: Response status: ${response.statusCode()}")
     logger.fine("${config.identifier}: Response body: ${response.body()}")
     check(response.statusCode() == 200)
@@ -117,5 +152,11 @@ class DataWatcher(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val DONE_BLOB_TIMESTAMP_HEADER: String = "X-DataWatcher-Done-Timestamp"
+    private const val DONE_SUFFIX = "done"
+
+    private fun String.isDoneMarker(): Boolean {
+      return lowercase().endsWith(DONE_SUFFIX)
+    }
   }
 }
