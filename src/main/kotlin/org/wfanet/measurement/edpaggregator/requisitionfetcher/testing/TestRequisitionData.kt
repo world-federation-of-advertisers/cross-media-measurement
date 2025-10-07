@@ -63,7 +63,7 @@ object TestRequisitionData {
       )
     )
   private const val EDP_ID = "someDataProvider"
-  private const val EDP_NAME = "dataProviders/$EDP_ID"
+  const val EDP_NAME = "dataProviders/$EDP_ID"
 
   private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
   private const val MEASUREMENT_NAME = "$MC_NAME/measurements/BBBBBBBBBHs"
