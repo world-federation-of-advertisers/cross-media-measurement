@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.common.hash.Hashing
 import io.grpc.Channel
+import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.File
@@ -44,6 +45,7 @@ import org.wfanet.measurement.access.v1alpha.createPolicyRequest
 import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
+import org.wfanet.measurement.access.v1alpha.getRoleRequest
 import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.lookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
@@ -366,31 +368,41 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
           .keys
           .map { PermissionKey(it).toName() }
 
-      val createRoleRequest = createRoleRequest {
-        roleId = mcUserRoleKey.roleId
-        role = role {
-          resourceTypes += mcResourceType
-          this.permissions +=
-            PERMISSIONS_CONFIG.permissionsMap
-              .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
-              .keys
-              .map { PermissionKey(it).toName() }
+      var mcUserRole: Role = Role.getDefaultInstance()
+      try {
+        val role = rolesStub.getRole(getRoleRequest {
+          name = mcUserRoleKey.toName()
+        })
+
+        if (
+          role.resourceTypesList.contains(mcResourceType) &&
+          role.permissionsList.containsAll(permissions)
+        ) {
+          mcUserRole = role
+        } else {
+          rolesStub.deleteRole(deleteRoleRequest { name = role.name })
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) {
+          // Role not found so will create it
+        } else {
+          throw e
         }
       }
 
-      var mcUserRole: Role = Role.getDefaultInstance()
-      val roles = rolesStub.listRoles(listRolesRequest { pageSize = 100 }).rolesList
-      for (role in roles) {
-        if (
-          role.resourceTypesList.contains(mcResourceType) &&
-            role.permissionsList.containsAll(permissions)
-        ) {
-          mcUserRole = role
-        } else if (role.name == mcUserRoleKey.toName()) {
-          rolesStub.deleteRole(deleteRoleRequest { name = role.name })
-        }
-      }
       if (mcUserRole.name.isEmpty()) {
+        val createRoleRequest = createRoleRequest {
+          roleId = mcUserRoleKey.roleId
+          role = role {
+            resourceTypes += mcResourceType
+            this.permissions +=
+              PERMISSIONS_CONFIG.permissionsMap
+                .filterValues { it.protectedResourceTypesList.contains(mcResourceType) }
+                .keys
+                .map { PermissionKey(it).toName() }
+          }
+        }
+
         mcUserRole = rolesStub.createRole(createRoleRequest)
       }
 

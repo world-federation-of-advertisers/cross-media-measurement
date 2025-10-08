@@ -29,8 +29,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.time.delay
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -361,28 +359,25 @@ class ReportingUserSimulator(
           )
 
         val nextPageToken = listEventGroupsResponse.nextPageToken.ifEmpty { null }
+        val validEventGroup: EventGroup? = listEventGroupsResponse.eventGroupsList
+          .firstOrNull { eventGroup ->
+              eventGroup.eventGroupReferenceId.startsWith(
+                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+              ) &&
+                dataProviderByName
+                  .getOrPut(eventGroup.cmmsDataProvider) {
+                    getDataProvider(eventGroup.cmmsDataProvider)
+                  }
+                  .capabilities
+                  .honestMajorityShareShuffleSupported
+            }
 
-        ResourceList(listEventGroupsResponse.eventGroupsList, nextPageToken)
+        val resources = validEventGroup ?.let { listOf(it) } ?: emptyList()
+
+        ResourceList(resources, nextPageToken)
       }
 
-    return checkNotNull(
-      resourceLists
-        .map { resourceList ->
-          resourceList.resources.firstOrNull { eventGroup ->
-            eventGroup.eventGroupReferenceId.startsWith(
-              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-            ) &&
-              dataProviderByName
-                .getOrPut(eventGroup.cmmsDataProvider) {
-                  getDataProvider(eventGroup.cmmsDataProvider)
-                }
-                .capabilities
-                .honestMajorityShareShuffleSupported
-          }
-        }
-        .filter { it != null }
-        .first()
-    )
+    return resourceLists.filter { it.resources.isNotEmpty()  }.first().resources.first()
   }
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
