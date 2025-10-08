@@ -314,3 +314,21 @@ variable "spanner_database_name" {
   default     = "edp-aggregator"
   nullable    = false
 }
+
+variable "requisition_fetcher_tls_key" {
+  description = "Requisition Fetcher tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "requisition_fetcher_tls_pem" {
+  description = "Requisition Fetcher tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
