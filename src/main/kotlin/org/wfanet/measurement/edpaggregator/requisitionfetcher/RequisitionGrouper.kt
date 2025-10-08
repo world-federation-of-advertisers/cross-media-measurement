@@ -110,14 +110,14 @@ abstract class RequisitionGrouper(
       try {
         requisitionValidator.validateMeasurementSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        refuseRequisition(e.requisitions.single(), e.refusal)
         return null
       }
     val requisitionSpec: RequisitionSpec =
       try {
         requisitionValidator.validateRequisitionSpec(requisition)
       } catch (e: InvalidRequisitionException) {
-        e.requisitions.forEach { refuseRequisition(it, e.refusal) }
+        refuseRequisition(e.requisitions.single(), e.refusal)
         return null
       }
     val eventGroupMapEntries =
