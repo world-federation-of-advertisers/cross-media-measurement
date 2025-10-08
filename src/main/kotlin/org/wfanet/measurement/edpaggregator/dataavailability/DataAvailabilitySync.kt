@@ -221,13 +221,13 @@ class DataAvailabilitySync(
   ): Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs
-      .filter { blob ->
-        val fileName = blob.blobKey.substringAfterLast("/").lowercase()
+      .filter { impressionMetadataBlob ->
+        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
         METADATA_FILE_NAME in fileName
       }
-      .collect { blob ->
-        val fileName = blob.blobKey.substringAfterLast("/").lowercase()
-        val bytes: ByteString = blob.read().flatten()
+      .collect { impressionMetadataBlob ->
+        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
+        val bytes: ByteString = impressionMetadataBlob.read().flatten()
 
         // Build the blob details object
         val blobDetails =
@@ -246,15 +246,20 @@ class DataAvailabilitySync(
           "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
         }
         val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-        val metadataBlobUri = when (doneBlobUri.scheme) {
-          "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${blob.blobKey}"
-          "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${blob.blobKey}"
-          else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
-        }
+        val metadataBlobUri =
+          when (doneBlobUri.scheme) {
+            "gs" ->
+              "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+            "file" ->
+              "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+            else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+          }
         logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
         val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
         if (impressionBlob == null) {
-          logger.info("Encrypted impressions blob non found for metadata: ${blob.blobKey}.")
+          logger.info(
+            "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
+          )
         } else {
           logger.info("MetadataBlobUri is: $metadataBlobUri")
           val impressionMetadata = impressionMetadata {
@@ -301,6 +306,7 @@ class DataAvailabilitySync(
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
-    private const val BLOB_TYPE_URL = "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+    private const val BLOB_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }
 }
