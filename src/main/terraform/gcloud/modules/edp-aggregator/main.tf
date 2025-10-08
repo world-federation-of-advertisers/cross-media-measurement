@@ -87,8 +87,6 @@ locals {
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
     { data_availability_tls_key                     = var.data_availability_tls_key },
     { data_availability_tls_pem                     = var.data_availability_tls_pem },
-    { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
-    { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
     { metadata_storage_root_ca                      = var.metadata_storage_root_ca },
     { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
@@ -121,12 +119,7 @@ locals {
   )
 
   requisition_fetcher_secrets_access = concat(
-    [
-      "trusted_root_ca_collection",
-      "requisition_fetcher_tls_pem",
-      "requisition_fetcher_tls_key",
-      "metadata_storage_root_ca"
-    ],
+    ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
 
