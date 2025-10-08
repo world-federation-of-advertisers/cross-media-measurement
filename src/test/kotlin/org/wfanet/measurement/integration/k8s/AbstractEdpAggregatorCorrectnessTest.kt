@@ -75,17 +75,17 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
-//  @Test
-//  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
-//    runBlocking {
-//      // Use frontend simulator to create a direct reach and frequency measurement and verify its
-//      // result.
-//      mcSimulator.testDirectReachOnly(
-//        "1234",
-//        1,
-//        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
-//      )
-//    }
+  @Test
+  fun `create a direct reach-only measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
+      mcSimulator.testDirectReachOnly(
+        "1234",
+        1,
+        eventGroupFilter = EVENT_GROUP_FILTERING_LAMBDA_DIRECT_MEASUREMENTS,
+      )
+    }
 //
 //  @Test
 //  fun `create incremental direct reach only measurements in same report and check the result is equal to the expected result`() =
