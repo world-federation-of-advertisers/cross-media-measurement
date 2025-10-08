@@ -32,7 +32,7 @@ from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_post_processor_result_pb2
 
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
@@ -714,6 +714,7 @@ class Report:
             edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._index_to_measurement_name[measurement_index] = measurement.name
+          self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
@@ -726,6 +727,7 @@ class Report:
               edp_combination, period, frequency)
             self._measurement_name_to_index[measurement.name] = measurement_index
             self._index_to_measurement_name[measurement_index] = measurement.name
+            self._measurement_name_to_measurement[measurement.name] = measurement
             self._max_standard_deviation = max(self._max_standard_deviation,
                                                measurement.sigma)
             measurement_index += 1
@@ -737,11 +739,15 @@ class Report:
             edp_combination, period)
           self._measurement_name_to_index[measurement.name] = measurement_index
           self._index_to_measurement_name[measurement_index] = measurement.name
+          self._measurement_name_to_measurement[measurement.name] = measurement
           self._max_standard_deviation = max(self._max_standard_deviation,
                                              measurement.sigma)
           measurement_index += 1
 
     self._num_vars = measurement_index
+
+  def get_all_measurement_names(self) -> list[str]:
+    return list(self._measurement_name_to_measurement.keys())
 
   def get_measurement_from_name(self, measurement_name: str) -> Measurement:
     if measurement_name not in self._measurement_name_to_measurement:
