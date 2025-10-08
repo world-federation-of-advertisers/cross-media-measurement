@@ -1106,27 +1106,6 @@ abstract class RequisitionMetadataServiceTest {
   }
 
   @Test
-  fun `listRequisitionMetadata filters by report`(): Unit = runBlocking {
-    val created =
-      createRequisitionMetadata(
-        REQUISITION_METADATA_2,
-        REQUISITION_METADATA_3,
-        REQUISITION_METADATA_4,
-      )
-
-    val response =
-      service.listRequisitionMetadata(
-        listRequisitionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListRequisitionMetadataRequestKt.filter { report = REPORT_2 }
-        }
-      )
-
-    assertThat(response)
-      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created.last() })
-  }
-
-  @Test
   fun `listRequisitionMetadata filters by requisitionMetadataState`() = runBlocking {
     val created =
       createRequisitionMetadata(
@@ -1228,7 +1207,6 @@ abstract class RequisitionMetadataServiceTest {
     private val GROUP_ID_2 = "group-2"
     private val CMMS_CREATE_TIME = timestamp { seconds = 12345 }
     private val REPORT = "measurementConsumers/measurement-consumer-1/reports/report-1"
-    private val REPORT_2 = "measurementConsumers/measurement-consumer-1/reports/report-2"
     private val WORK_ITEM = "workItems/work-item-1"
     private val REFUSAL_MESSAGE = "refused by a reason"
     private val CREATE_REQUEST_ID = UUID.randomUUID().toString()
@@ -1274,7 +1252,7 @@ abstract class RequisitionMetadataServiceTest {
       blobTypeUrl = BLOB_TYPE_URL
       groupId = GROUP_ID_2
       cmmsCreateTime = CMMS_CREATE_TIME
-      report = REPORT_2
+      report = REPORT
     }
   }
 }

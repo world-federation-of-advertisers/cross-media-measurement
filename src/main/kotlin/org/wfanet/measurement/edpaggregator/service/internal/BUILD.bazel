@@ -4,7 +4,6 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
     ],
 )

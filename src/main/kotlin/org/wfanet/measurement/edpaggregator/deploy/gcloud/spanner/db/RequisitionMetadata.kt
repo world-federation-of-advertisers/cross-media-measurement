@@ -147,9 +147,6 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
       if (filter.groupId.isNotEmpty()) {
         conjuncts.add("GroupId = @groupId")
       }
-      if (filter.report.isNotEmpty()) {
-        conjuncts.add("Report = @report")
-      }
     }
 
     if (after != null) {
@@ -177,9 +174,6 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
         }
         if (filter.groupId.isNotEmpty()) {
           bind("groupId").to(filter.groupId)
-        }
-        if (filter.report.isNotEmpty()) {
-          bind("report").to(filter.report)
         }
       }
 
