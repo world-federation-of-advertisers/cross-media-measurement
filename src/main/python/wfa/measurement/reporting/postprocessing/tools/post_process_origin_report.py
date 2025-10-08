@@ -30,9 +30,9 @@ from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_summary_pb2
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
@@ -129,7 +129,8 @@ class ReportSummaryProcessor:
     for policy in all_policies:
       whole_campaign_measurements = build_measurement_set(
           self._whole_campaign_reaches.get(policy, {}),
-          self._whole_campaign_k_reaches.get(policy, {}), self._whole_campaign_impressions.get(policy, {})
+          self._whole_campaign_k_reaches.get(policy, {}),
+          self._whole_campaign_impressions.get(policy, {})
       )
       metric_reports[policy] = MetricReport(
           weekly_cumulative_reaches=self._weekly_cumulative_reaches.get(policy, {}),

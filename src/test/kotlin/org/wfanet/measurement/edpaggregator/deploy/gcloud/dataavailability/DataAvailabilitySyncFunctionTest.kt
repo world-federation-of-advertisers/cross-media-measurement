@@ -53,10 +53,10 @@ import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemSto
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
@@ -76,8 +76,8 @@ class DataAvailabilitySyncFunctionTest {
 
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
-        .thenReturn(BatchCreateImpressionMetadataResponse.getDefaultInstance())
+      onBlocking { createImpressionMetadata(any<CreateImpressionMetadataRequest>()) }
+        .thenReturn(ImpressionMetadata.getDefaultInstance())
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
           computeModelLineBoundsResponse {
@@ -132,8 +132,9 @@ class DataAvailabilitySyncFunctionTest {
   @Test
   fun `sync registersUnregisteredImpressionMetadata`() {
 
-    val localImpressionBlobUri = "edp/edp_name/timestamp/impressions"
-    val localMetadataBlobUri = "edp/edp_name/timestamp/metadata.binpb"
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
     val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
 
     val blobDetails = blobDetails {
@@ -179,8 +180,8 @@ class DataAvailabilitySyncFunctionTest {
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     runBlocking {
-      storageClient.writeBlob(localImpressionBlobUri, emptyFlow())
-      storageClient.writeBlob(localMetadataBlobUri, flowOf(blobDetails.toByteString()))
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
     }
     // In practice, the DataWatcher makes this HTTP call
     val client = HttpClient.newHttpClient()
@@ -195,7 +196,7 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
