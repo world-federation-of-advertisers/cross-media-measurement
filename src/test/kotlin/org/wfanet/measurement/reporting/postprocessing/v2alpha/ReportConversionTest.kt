@@ -23,12 +23,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.FrequencyResultKt.binResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.frequencyResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.impressionCountResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.measurementResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.reachAndFrequencyResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.reachResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.FrequencyResultKt.binResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.frequencyResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.impressionCountResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.measurementResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.reachAndFrequencyResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.reachResult
+import org.wfanet.measurement.internal.reporting.postprocessing.measurementDetail
+import org.wfanet.measurement.internal.reporting.postprocessing.reportSummary
 
 @RunWith(JUnit4::class)
 class ReportConversionTest {
