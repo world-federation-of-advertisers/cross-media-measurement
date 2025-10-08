@@ -46,7 +46,6 @@ import org.wfanet.measurement.access.v1alpha.createPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.deleteRoleRequest
 import org.wfanet.measurement.access.v1alpha.getRoleRequest
-import org.wfanet.measurement.access.v1alpha.listRolesRequest
 import org.wfanet.measurement.access.v1alpha.lookupPolicyRequest
 import org.wfanet.measurement.access.v1alpha.lookupPrincipalRequest
 import org.wfanet.measurement.access.v1alpha.policy
@@ -370,13 +369,11 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
 
       var mcUserRole: Role = Role.getDefaultInstance()
       try {
-        val role = rolesStub.getRole(getRoleRequest {
-          name = mcUserRoleKey.toName()
-        })
+        val role = rolesStub.getRole(getRoleRequest { name = mcUserRoleKey.toName() })
 
         if (
           role.resourceTypesList.contains(mcResourceType) &&
-          role.permissionsList.containsAll(permissions)
+            role.permissionsList.containsAll(permissions)
         ) {
           mcUserRole = role
         } else {

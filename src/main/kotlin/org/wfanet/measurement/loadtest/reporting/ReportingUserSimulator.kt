@@ -359,25 +359,25 @@ class ReportingUserSimulator(
           )
 
         val nextPageToken = listEventGroupsResponse.nextPageToken.ifEmpty { null }
-        val validEventGroup: EventGroup? = listEventGroupsResponse.eventGroupsList
-          .firstOrNull { eventGroup ->
-              eventGroup.eventGroupReferenceId.startsWith(
-                TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
-              ) &&
-                dataProviderByName
-                  .getOrPut(eventGroup.cmmsDataProvider) {
-                    getDataProvider(eventGroup.cmmsDataProvider)
-                  }
-                  .capabilities
-                  .honestMajorityShareShuffleSupported
-            }
+        val validEventGroup: EventGroup? =
+          listEventGroupsResponse.eventGroupsList.firstOrNull { eventGroup ->
+            eventGroup.eventGroupReferenceId.startsWith(
+              TestIdentifiers.SIMULATOR_EVENT_GROUP_REFERENCE_ID_PREFIX
+            ) &&
+              dataProviderByName
+                .getOrPut(eventGroup.cmmsDataProvider) {
+                  getDataProvider(eventGroup.cmmsDataProvider)
+                }
+                .capabilities
+                .honestMajorityShareShuffleSupported
+          }
 
-        val resources = validEventGroup ?.let { listOf(it) } ?: emptyList()
+        val resources = validEventGroup?.let { listOf(it) } ?: emptyList()
 
         ResourceList(resources, nextPageToken)
       }
 
-    return resourceLists.filter { it.resources.isNotEmpty()  }.first().resources.first()
+    return resourceLists.filter { it.resources.isNotEmpty() }.first().resources.first()
   }
 
   private suspend fun getDataProvider(dataProviderName: String): DataProvider {
