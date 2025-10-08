@@ -21,6 +21,7 @@ import com.google.type.interval
 import io.grpc.StatusException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import com.google.protobuf.Any
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -264,7 +265,7 @@ class RequisitionGrouperByReportId(
     logger.info("Reading blob with key: $blobKey")
     val blob = storageClient.getBlob(blobKey) ?: return null
     logger.info("Found blob for key: $blobKey")
-    return GroupedRequisitions.parseFrom(blob.read().flatten())
+    return Any.parseFrom(blob.read().flatten()).unpack(GroupedRequisitions::class.java)
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
