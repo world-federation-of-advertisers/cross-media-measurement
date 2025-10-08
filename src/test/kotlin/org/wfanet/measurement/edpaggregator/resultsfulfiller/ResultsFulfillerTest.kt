@@ -125,6 +125,8 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -135,6 +137,8 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
@@ -180,12 +184,15 @@ class ResultsFulfillerTest {
     }
   }
 
+  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionFulfillmentMock)
     addService(requisitionMetadataServiceMock)
+    addService(impressionMetadataServiceMock)
   }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
@@ -202,7 +209,23 @@ class ResultsFulfillerTest {
     RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val impressionMetadataStub: ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+
+  private fun createImpressionMetadataList(
+    dates: List<LocalDate>,
+    eventGroupRef: String,
+  ): List<ImpressionMetadata> {
+    return dates.map { date ->
+      impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
+      }
+    }
+  }
 
   @Test
   fun `runWork processes direct requisition successfully`() = runBlocking {
@@ -217,6 +240,16 @@ class ResultsFulfillerTest {
         }
       }
 
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(
+      impressionMetadataServiceMock.listImpressionMetadata(any())
+    ).thenReturn(listImpressionMetadataResponse {
+      impressionMetadata += impressionMetadataList
+    })
+
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
       listRequisitionMetadataResponse {
         requisitionMetadata += requisitionMetadata {
@@ -230,6 +263,7 @@ class ResultsFulfillerTest {
         }
       }
     )
+
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -245,10 +279,10 @@ class ResultsFulfillerTest {
       listOf(DIRECT_REQUISITION),
     )
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        zoneIdForDates = ZoneOffset.UTC,
       )
 
     val fulfillerSelector =
@@ -272,7 +306,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
@@ -360,10 +394,10 @@ class ResultsFulfillerTest {
     )
 
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        zoneIdForDates = ZoneOffset.UTC,
       )
 
     val fulfillerSelector =
@@ -391,7 +425,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
