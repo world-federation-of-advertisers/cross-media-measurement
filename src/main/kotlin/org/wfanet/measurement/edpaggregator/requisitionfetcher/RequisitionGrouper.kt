@@ -33,15 +33,12 @@ import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 
 /**
  * An interface to group a list of requisitions.
@@ -79,7 +76,35 @@ abstract class RequisitionGrouper(
     groupedRequisitions: List<GroupedRequisitions>,
   ): List<GroupedRequisitions>
 
-  /* Maps a single [Requisition] to a single [GroupedRequisition]. */
+/**
+ * Maps a single [Requisition] into a [GroupedRequisitions] object suitable for aggregation.
+ *
+ * This method performs a series of validation and enrichment steps to ensure the requisition is
+ * properly structured and associated with the correct event groups before being grouped.
+ *
+ * The process includes:
+ * 1. **Validating the MeasurementSpec** — Ensures that the measurement specification attached to
+ *    the requisition is valid and compatible with the expected data model.
+ * 2. **Validating the RequisitionSpec** — Confirms that the requisition’s own specification is
+ *    internally consistent and meets protocol expectations.
+ * 3. **Fetching Event Group Details** — Uses the [EventGroupsCoroutineStub] to resolve event group
+ *    references, attaching their reference IDs and collection intervals.
+ *
+ * If any of these steps fail due to an [InvalidRequisitionException] or gRPC error:
+ * - The requisition is immediately **refused** via a gRPC call to the Kingdom.
+ * - These refusal are not logged to the Requisition Metadata Storage and will be **instrumented**
+ *   using telemetry.
+ *
+ * Requisitions that pass validation are returned as a [GroupedRequisitions] object containing:
+ * - The validated model line (from the [MeasurementSpec]).
+ * - A packed [Any] representation of the original [Requisition].
+ * - A map of associated event groups, each containing its reference ID and collection intervals.
+ *
+ * @param requisition The [Requisition] to validate, enrich, and map into a grouped form.
+ * @return A single [GroupedRequisitions] object if successful, or `null` if the requisition was
+ *   invalid or could not be processed.
+ *
+ */
   private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
     val measurementSpec: MeasurementSpec =
       try {
@@ -160,7 +185,10 @@ abstract class RequisitionGrouper(
         logger.info("Requisition ${requisition.name} was refused. $refusal")
         val request = refuseRequisitionRequest {
           this.name = requisition.name
-          this.refusal = RequisitionKt.refusal { justification = refusal.justification }
+          this.refusal = RequisitionKt.refusal {
+            justification = refusal.justification
+            message = refusal.message
+          }
         }
         requisitionsClient.refuseRequisition(request)
       }
