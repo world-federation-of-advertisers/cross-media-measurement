@@ -22,6 +22,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import kotlinx.coroutines.flow.emptyFlow
 import java.time.Clock
+import com.google.protobuf.Any
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.runBlocking
@@ -339,7 +340,9 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     val firstBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/an-existing-group-id"
     val secondBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/another-existing-group-id"
     val blobKey = "$STORAGE_PATH_PREFIX/an-existing-group-id"
-    storageClient.writeBlob(blobKey, emptyFlow())
+    val defaultGroupedRequisitions = GroupedRequisitions.getDefaultInstance()
+
+    storageClient.writeBlob(blobKey, Any.pack(defaultGroupedRequisitions).toByteString())
 
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
       listRequisitionMetadataResponse {
@@ -504,7 +507,9 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     val storageClient = FileSystemStorageClient(tempFolder.root)
     val createdBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/an-existing-group-id"
     val blobKey = "$STORAGE_PATH_PREFIX/an-existing-group-id"
-    storageClient.writeBlob(blobKey, emptyFlow())
+    val defaultGroupedRequisitions = GroupedRequisitions.getDefaultInstance()
+
+    storageClient.writeBlob(blobKey, Any.pack(defaultGroupedRequisitions).toByteString())
 
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
       listRequisitionMetadataResponse {

@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.unpack
+import com.google.protobuf.Any
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -57,8 +58,42 @@ import java.util.logging.Logger
 data class EventGroupWrapper(val eventGroupReferenceId: String, val intervals: MutableList<Interval>)
 
 /**
- * Groups requisitions by Report ID. Assumes that the collection intervals for a report are not
- * disparate.
+ * A [RequisitionGrouper] implementation that groups requisitions by **Report ID**.
+ *
+ * This class ensures that all [Requisition]s belonging to the same report are combined into a
+ * single [GroupedRequisitions] message. It assumes that the collection intervals for a report are
+ * not disparate and can therefore be merged safely.
+ *
+ * ### Interaction with Requisition Metadata Storage
+ *
+ * The grouping and persistence process heavily depends on the
+ * [RequisitionMetadataServiceCoroutineStub] (`requisitionMetadataStub`), which is responsible for
+ * creating, listing, and updating requisition metadata records in the persistent storage layer.
+ *
+ * The general flow of operations is as follows:
+ * 1. The grouper lists existing requisition metadata entries for the report using
+ *    `listRequisitionMetadataByReportId()`.
+ * 2. It filters out requisitions that have already been persisted.
+ * 3. For newly encountered requisitions, it creates metadata entries via
+ *    `createRequisitionMetadata()`, linking them to a generated requisition group ID.
+ * 4. If any validation fails, it marks the affected requisitions as **refused** by calling
+ *    `refuseRequisitionMetadata()`.
+ * 5. When existing metadata references a missing blob in [StorageClient], it re-creates the
+ *    missing grouped requisition blob using the metadata information.
+ *
+ * The final grouped requisitions, including both recovered and newly created entries, are returned
+ * to the caller for further processing.
+ *
+ * @property requisitionValidator Validates that all grouped requisitions are consistent and compatible.
+ * @property dataProviderName The name of the data provider resource, used as the parent in metadata requests.
+ * @property blobUriPrefix Prefix URI used to construct blob paths for storing grouped requisitions.
+ * @property requisitionMetadataStub Stub for communicating with the Requisition Metadata Service.
+ * @property storageClient Client used to check for and read existing grouped requisition blobs.
+ * @property responsePageSize Optional page size for listing requisition metadata.
+ * @property storagePathPrefix Prefix path within the blob storage for grouped requisitions.
+ * @property throttler Limits API call concurrency to prevent overload.
+ * @property eventGroupsClient gRPC stub for retrieving event group details.
+ * @property requisitionsClient gRPC stub for interacting with requisitions.
  */
 class RequisitionGrouperByReportId(
   private val requisitionValidator: RequisitionsValidator,
@@ -73,10 +108,17 @@ class RequisitionGrouperByReportId(
   requisitionsClient: RequisitionsCoroutineStub,
 ) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
 
-  /**
-   * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
-   * group.
-   */
+/**
+ * Groups a list of [GroupedRequisitions] by their associated report ID and merges them
+ * into a single grouped requisition per report.
+ *
+ * Each input group is expected to contain exactly one requisition. The report ID is extracted
+ * from the [MeasurementSpec] associated with the requisition. The method ensures that all
+ * requisitions for the same report are combined under a single `groupId`.
+ *
+ * @param groupedRequisitions A list of [GroupedRequisitions] objects to combine.
+ * @return A list of [GroupedRequisitions], each representing all requisitions for a single report.
+ */
   override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>,
   ): List<GroupedRequisitions> {
@@ -96,8 +138,30 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Combines Grouped Requisitions by ReportId and then unions their collection intervals per event
-   * group.
+   * Combines [GroupedRequisitions] by report ID and merges their collection intervals per event group.
+   *
+   * For each report ID, this method:
+   * 1. Lists existing [RequisitionMetadata] records using
+   *    [listRequisitionMetadataByReportId].
+   * 2. Checks which requisitions already exist in metadata storage and excludes them from further processing.
+   * 3. Recovers any missing grouped requisition blobs for existing metadata entries via
+   *    [getUnwrittenRequisitions].
+   * 4. Validates the model lines for all new groups using [requisitionValidator].
+   * 5. Creates metadata entries for new requisitions by calling [createRequisitionMetadata].
+   * 6. In case of validation errors, marks the affected requisitions as **refused** in metadata
+   *    using [refuseRequisitionMetadata].
+   *
+   * ### Interaction with Requisition Metadata Storage
+   *
+   * - Reads metadata through `listRequisitionMetadataByReportId()`.
+   * - Writes new entries with `createRequisitionMetadata()`.
+   * - Marks invalid or failed requisitions with `refuseRequisitionMetadata()`.
+   * - Recovers incomplete groups (metadata without corresponding blobs) through
+   *   [getUnwrittenRequisitions].
+   *
+   * @param groupedByReport A map of report IDs to lists of grouped requisitions belonging to that report.
+   * @return A list of combined [GroupedRequisitions] objects—some newly created, others recovered from metadata.
+   *
    */
   private suspend fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
@@ -159,6 +223,26 @@ class RequisitionGrouperByReportId(
     }
   }
 
+  /**
+   * Identifies and reconstructs [GroupedRequisitions] whose metadata already exists but
+   * whose blob representation has not been written to the [StorageClient].
+   *
+   * This situation can occur if a previous grouping operation successfully created
+   * [RequisitionMetadata] entries but failed before writing the corresponding
+   * [GroupedRequisitions] blob.
+   *
+   * This function:
+   * - Reads existing [RequisitionMetadata] entries for the report.
+   * - Groups them by `groupId`.
+   * - Checks for each `groupId` whether the corresponding blob exists in [StorageClient].
+   * - For groups missing a blob, reconstructs a minimal [GroupedRequisitions] object
+   *   containing all requisitions listed in metadata.
+   *
+   * @param existingRequisitionMetadata The list of metadata entries retrieved for the current report.
+   * @param groups The list of grouped requisitions to match against metadata.
+   * @return A list of [GroupedRequisitions] reconstructed for groups with missing blobs.
+   *
+   */
   private suspend fun getUnwrittenRequisitions(
     existingRequisitionMetadata: List<RequisitionMetadata>,
     groups: List<GroupedRequisitions>
@@ -247,7 +331,7 @@ class RequisitionGrouperByReportId(
   private suspend fun readGroupedRequisitionBlob(groupId: String) : GroupedRequisitions? {
     val blobKey = "$storagePathPrefix/${groupId}"
     val blob = storageClient.getBlob(blobKey) ?: return null
-    return GroupedRequisitions.parseFrom(blob.read().flatten())
+    return Any.parseFrom(blob.read().flatten()).unpack(GroupedRequisitions::class.java)
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
