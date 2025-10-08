@@ -214,11 +214,12 @@ class ResultsFulfiller(
     val requisitionMetadata = requisitionsMetadata.find {
       it.cmmsRequisition == requisition.name
     }
-    if (requisitionMetadata == null) {
-      logger.info("No matching RequisitionMetadata found for requisition ${requisition.name}")
-    } else {
-      signalRequisitionStartProcessing(requisitionMetadata)
+
+    require(requisitionMetadata != null) {
+      "Requisition metadata not found for requisition: ${requisition.name}"
     }
+
+    val updateRequisitionMetadata = signalRequisitionStartProcessing(requisitionMetadata)
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
@@ -247,11 +248,7 @@ class ResultsFulfiller(
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    if (requisitionMetadata == null) {
-      logger.info("No matching RequisitionMetadata found for requisition ${requisition.name}")
-    } else {
-      signalRequisitionFulfilled(requisitionMetadata)
-    }
+    signalRequisitionFulfilled(updateRequisitionMetadata)
 
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }
@@ -309,20 +306,20 @@ class ResultsFulfiller(
       return requisitionsMetadata.toList()
   }
 
-  private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata) {
+  private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata): RequisitionMetadata {
     val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
     }
-    requisitionMetadataStub.startProcessingRequisitionMetadata(startProcessingRequisitionMetadataRequest)
+    return requisitionMetadataStub.startProcessingRequisitionMetadata(startProcessingRequisitionMetadataRequest)
   }
 
-  private suspend fun signalRequisitionFulfilled(requisitionMetadata: RequisitionMetadata) {
+  private suspend fun signalRequisitionFulfilled(requisitionMetadata: RequisitionMetadata): RequisitionMetadata {
     val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
     }
-    requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
+    return requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
   }
 
   companion object {
