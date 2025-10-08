@@ -45,4 +45,6 @@ message ImpressionMetadata {
 
   // The etag of ImpressionMetadata
   string etag = 11;
+
+  string create_request_id = 12;
 }
