@@ -29,7 +29,7 @@ data class Services(
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
 ) {
-  fun toList(): List<BindableService> = listOf(requisitionMetadata)
+  fun toList(): List<BindableService> = listOf(requisitionMetadata, impressionMetadata)
 
   companion object {
     fun build(
