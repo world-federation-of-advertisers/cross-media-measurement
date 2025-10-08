@@ -1244,6 +1244,7 @@ abstract class MeasurementConsumerSimulator(
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
       this.modelLine = modelLineName
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
@@ -1284,6 +1285,7 @@ abstract class MeasurementConsumerSimulator(
       this.vidSamplingInterval = vidSamplingInterval
       this.nonceHashes += nonceHashes
       this.modelLine = modelLineName
+      this.reportingMetadata = reportingMetadata { report = reportName }
     }
   }
 
