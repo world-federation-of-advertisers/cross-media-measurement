@@ -315,10 +315,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // Delete existing requisitions from storage bucket
       val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
 
-      blobs.iterateAll().forEach { blob ->
-        storageClient.delete(bucket, blob.name)
-        println("Deleted: ${blob.name}")
-      }
+      val originalBlobCount = blobs.iterateAll().count()
+      println("Found $originalBlobCount grouped requisitions file")
+//      blobs.iterateAll().forEach { blob ->
+//        storageClient.delete(bucket, blob.name)
+//        println("Deleted: ${blob.name}")
+//      }
 
       // Wait until requisitions for EDP have status == UNFULFILLED before triggering
       // `RequisitionFetcher`.
@@ -347,7 +349,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
                 .iterateAll()
                 .count()
 
-            areRequisitionsReady = blobCount > 0
+            areRequisitionsReady = blobCount > originalBlobCount
 
             if (!areRequisitionsReady) {
               logger.info("Waiting for requisitions to appear...")
