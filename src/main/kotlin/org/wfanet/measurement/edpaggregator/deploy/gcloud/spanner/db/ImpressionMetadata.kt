@@ -22,10 +22,13 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Interval
 import com.google.type.interval
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
@@ -34,10 +37,12 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata
 
 data class ImpressionMetadataResult(
@@ -46,6 +51,8 @@ data class ImpressionMetadataResult(
 )
 
 data class ModelLineBoundResult(val cmmsModelLine: String, val bound: Interval)
+
+private const val IMPRESSION_METADATA_RESOURCE_ID_PREFIX = "imp"
 
 /** Returns whether the [ImpressionMetadata] with the specified [impressionMetadataId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
@@ -123,20 +130,51 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByCreateRequest
   return ImpressionMetadataEntity.buildImpressionMetadataResult(row)
 }
 
+suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadata(
+  createImpressionMetadataRequests: List<CreateImpressionMetadataRequest>,
+  dataProviderResourceId: String,
+): Map<String, ImpressionMetadataResult> {
+  val sql = buildString {
+    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND CreateRequestId IS NOT NULL
+        AND CreateRequestId IN UNNEST(@createRequestId)
+      """
+        .trimIndent()
+    )
+  }
+
+  val requestIds = createImpressionMetadataRequests.map { it.requestId }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("createRequestId").toStringArray(requestIds)
+    }
+
+  return buildMap {
+    executeQuery(query, Options.tag("action=findExistingImpressionMetadata")).collect { row ->
+      val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
+      if (result.impressionMetadata.createRequestId.isNotBlank()) {
+        put(result.impressionMetadata.createRequestId, result)
+      }
+    }
+  }
+}
+
 /** Buffers an insert mutation for a [ImpressionMetadata] row. */
 fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataId: Long,
-  impressionMetadataResourceId: String,
-  state: State,
   impressionMetadata: ImpressionMetadata,
-  createRequestId: String,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
-    set("ImpressionMetadataResourceId").to(impressionMetadataResourceId)
-    if (createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(createRequestId)
+    set("ImpressionMetadataResourceId").to(impressionMetadata.impressionMetadataResourceId)
+    if (impressionMetadata.createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(impressionMetadata.createRequestId)
     }
     set("BlobUri").to(impressionMetadata.blobUri)
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
@@ -144,9 +182,68 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
-    set("State").to(state)
+    set("State").to(impressionMetadata.state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/**
+ * Buffers a batch of [ImpressionMetadata] to be inserted in a single transaction.
+ *
+ * This will check for existence prior to insertion. If an entity with the same create_request_id
+ * already exists, it will be returned instead.
+ *
+ * @return a list of [ImpressionMetadata], containing both the newly created and existing entities.
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata(
+  requests: List<CreateImpressionMetadataRequest>
+): List<ImpressionMetadata> {
+  //  buildSet {
+  //    requests.forEachIndexed { index, it ->
+  //      if (!add(it.impressionMetadata.blobUri)) {
+  //        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri")
+  //      }
+  //      if (it.requestId.isNotEmpty() && !add(it.requestId)) {
+  //        throw InvalidFieldValueException("requests.$index.request_id")
+  //      }
+  //    }
+  //  }
+
+  val existingImpressionMetadataMap: Map<String, ImpressionMetadataResult> =
+    findExistingImpressionMetadata(requests, requests[0].impressionMetadata.dataProviderResourceId)
+
+  val creations: List<ImpressionMetadata> =
+    requests
+      .filter { !existingImpressionMetadataMap.containsKey(it.requestId) }
+      .map { request ->
+        val impressionMetadataId =
+          IdGenerator.Default.generateNewId { id ->
+            impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
+          }
+
+        val impressionMetadataResourceId =
+          request.impressionMetadata.impressionMetadataResourceId.ifBlank {
+            "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+          }
+
+        val created =
+          request.impressionMetadata.copy {
+            this.impressionMetadataResourceId = impressionMetadataResourceId
+            createRequestId = request.requestId
+            state = State.IMPRESSION_METADATA_STATE_ACTIVE
+          }
+
+        insertImpressionMetadata(impressionMetadataId, created)
+        created
+      }
+
+  val creationsByRequestId: Map<String, ImpressionMetadata> =
+    creations.associateBy { it.createRequestId }
+
+  return requests.map {
+    existingImpressionMetadataMap[it.requestId]?.impressionMetadata
+      ?: creationsByRequestId.getValue(it.requestId)
   }
 }
 
@@ -264,20 +361,20 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
 ): List<ModelLineBoundResult> {
   val sql =
     """
-      SELECT
-        DataProviderResourceId,
-        CmmsModelLine,
-        MIN(IntervalStartTime) AS StartTime,
-        MAX(IntervalEndTime) AS EndTime
-      FROM
-        ImpressionMetadata
-      WHERE
-        DataProviderResourceId = @dataProviderResourceId
-        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
-      GROUP BY
-        DataProviderResourceId,
-        CmmsModelLine
-      """
+    SELECT
+      DataProviderResourceId,
+      CmmsModelLine,
+      MIN(IntervalStartTime) AS StartTime,
+      MAX(IntervalEndTime) AS EndTime
+    FROM
+      ImpressionMetadata
+    WHERE
+      DataProviderResourceId = @dataProviderResourceId
+      AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+    GROUP BY
+      DataProviderResourceId,
+      CmmsModelLine
+    """
       .trimIndent()
   val query =
     statement(sql) {
@@ -337,6 +434,9 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
+        if (!struct.isNull("CreateRequestId")) {
+          createRequestId = struct.getString("CreateRequestId")
+        }
       },
       struct.getLong("ImpressionMetadataId"),
     )

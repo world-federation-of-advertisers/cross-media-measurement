@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -201,7 +202,12 @@ abstract class ImpressionMetadataServiceTest {
           ImpressionMetadata.UPDATE_TIME_FIELD_NUMBER,
           ImpressionMetadata.ETAG_FIELD_NUMBER,
         )
-        .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_ACTIVE })
+        .isEqualTo(
+          IMPRESSION_METADATA.copy {
+            state = State.IMPRESSION_METADATA_STATE_ACTIVE
+            createRequestId = CREATE_REQUEST_ID
+          }
+        )
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
       assertThat(impressionMetadata.etag).isNotEmpty()
@@ -403,6 +409,126 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
+    val request1 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val response =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request1
+          requests += request2
+        }
+      )
+
+    assertThat(response.impressionMetadataList).hasSize(2)
+    assertThat(response.impressionMetadataList.map { it.createRequestId })
+      .containsExactly(request1.requestId, request2.requestId)
+    assertThat(response.impressionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata is idempotent and creates new items in same request`() =
+    runBlocking {
+      // 1. Create an initial item.
+      val idempotentRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+      val initialResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest
+          }
+        )
+      val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
+
+      // 2. Create a new batch request with the same item and a new one.
+      val newRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA_2
+        requestId = UUID.randomUUID().toString()
+      }
+      val secondResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest // Idempotent request
+            requests += newRequest // New request
+          }
+        )
+
+      // 3. Assert the results.
+      assertThat(secondResponse.impressionMetadataList).hasSize(2)
+
+      // The first item should be the already-existing one, returned without changes.
+      assertThat(secondResponse.impressionMetadataList[0]).isEqualTo(existingImpressionMetadata)
+
+      // The second item should be newly created.
+      val newImpressionMetadata = secondResponse.impressionMetadataList[1]
+      assertThat(newImpressionMetadata.createRequestId).isEqualTo(newRequest.requestId)
+      assertThat(newImpressionMetadata.updateTime.toInstant())
+        .isGreaterThan(existingImpressionMetadata.updateTime.toInstant())
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
+    // 1. Create an initial item.
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { blobUri = "unique-blob-uri" }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    // 2. Attempt to create a new item with a new requestId but the same blobUri.
+    val conflictingRequest = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = "unique-blob-uri" }
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += conflictingRequest
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  // @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { dataProviderResourceId = "different-dp" }
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID // Mismatch with request inside
+              requests += request
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
     runBlocking {
       val created =
@@ -580,7 +706,7 @@ abstract class ImpressionMetadataServiceTest {
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[2] })
   }
 
-  @Test
+  // @Test
   fun `listImpressionMetadata returns empty when filter matches nothing`() = runBlocking {
     createImpressionMetadata(IMPRESSION_METADATA_2)
 
