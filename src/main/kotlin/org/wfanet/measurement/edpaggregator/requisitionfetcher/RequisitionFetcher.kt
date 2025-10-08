@@ -92,6 +92,7 @@ class RequisitionFetcher(
         }
         .flattenConcat()
 
+    logger.info("Fetched requisitions from the Kingdom.")
     val groupedRequisition: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(requisitions.toList())
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)

@@ -70,7 +70,9 @@ abstract class RequisitionGrouper(
    * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
    */
   suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    logger.info("Requisition Grouper: mapping requisitions...")
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
+    logger.info("Requisition Grouper: requisitions mapping completed: ${mappedRequisitions.size}")
     return combineGroupedRequisitions(mappedRequisitions)
   }
 

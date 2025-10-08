@@ -80,6 +80,7 @@ class RequisitionGrouperByReportId(
   override suspend fun combineGroupedRequisitions(
     groupedRequisitions: List<GroupedRequisitions>,
   ): List<GroupedRequisitions> {
+    logger.info("Running combineGroupedRequisitions...")
     val groupedByReport: Map<String, List<GroupedRequisitions>> =
       groupedRequisitions.groupBy {
         val measurementSpec: MeasurementSpec =
@@ -91,6 +92,7 @@ class RequisitionGrouperByReportId(
             .unpack()
         measurementSpec.reportingMetadata.report
       }
+    logger.info("Invoking combinedByReportId...")
     val combinedByReportId: List<GroupedRequisitions> = combineByReportId(groupedByReport)
     return combinedByReportId
   }
@@ -102,22 +104,26 @@ class RequisitionGrouperByReportId(
   private suspend fun combineByReportId(
     groupedByReport: Map<String, List<GroupedRequisitions>>
   ): List<GroupedRequisitions> {
+    logger.info("Combining requisitions by report id: ${groupedByReport.size}")
     return groupedByReport.toList().flatMap { (reportId, groups) ->
+      logger.info("Processing report: $reportId")
       val results = mutableListOf<GroupedRequisitions>()
       val requisitionGroupId = UUID.randomUUID().toString()
 
       // List existing requisition metadata for the current report
       val existingRequisitionMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
+      logger.info("existingRequisitionMetadata for report $reportId: ${existingRequisitionMetadata.size}")
       val existingCmmsRequisitions = existingRequisitionMetadata.map { it.cmmsRequisition }.toSet()
       if (existingRequisitionMetadata.isNotEmpty()) {
         results.addAll(getUnwrittenRequisitions(existingRequisitionMetadata, groups))
       }
+      logger.info("Filtering new groups")
       // Filter out groups whose single requisitions has already persisted to RequisitionMetadata storage.
       val filteredGroups = groups.filter { group ->
         val requisition = group.requisitionsList.single().requisition.unpack(Requisition::class.java)
         requisition.name !in existingCmmsRequisitions
       }
-
+      logger.info("New groups size: ${filteredGroups.size}")
       if (filteredGroups.isEmpty()) {
         return@flatMap results
       }
@@ -125,11 +131,11 @@ class RequisitionGrouperByReportId(
       val requisitions = filteredGroups.flatMap { it.requisitionsList }
 
       try {
-
+        logger.info("Validating model lines...")
         requisitionValidator.validateModelLines(filteredGroups, reportId = reportId)
-
+        logger.info("Model lines are valid")
         val entries = buildEventGroupEntries(filteredGroups)
-
+        logger.info("Built event group entries")
         // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once
         // available
         // Create requisition metadata for requisition that were not created already
@@ -139,7 +145,7 @@ class RequisitionGrouperByReportId(
             requisitionGroupId,
           )
         }
-
+        logger.info("Created requisitions metadata")
         val newGroupedRequisitions = groupedRequisitions {
           this.modelLine = filteredGroups.firstOrNull()?.modelLine ?: ""
           this.eventGroupMap += entries
@@ -170,11 +176,16 @@ class RequisitionGrouperByReportId(
     val fixedGroupedRequisitions = mutableListOf<GroupedRequisitions>()
 
     for ((reqMetadataGroupId, metadataRequisitionssForGroup) in requisitionMetadataByGroupId) {
+      println("Get getUnwrittenRequisitions: $reqMetadataGroupId. Reading blob at key: $reqMetadataGroupId")
       val storedGroupedRequisition: GroupedRequisitions? = readGroupedRequisitionBlob(reqMetadataGroupId)
 
       if (storedGroupedRequisition != null) continue
 
+      println("Blob not found, continue processing...")
+
       val existingCmmsRequisitionNames: Set<String> = metadataRequisitionssForGroup.map { it.cmmsRequisition }.toSet()
+
+      println("existingCmmsRequisitionNames size: ${existingCmmsRequisitionNames.size}")
 
       val missingGroupedRequisitions: List<GroupedRequisitions> =
         groups.filter { group ->
@@ -191,6 +202,8 @@ class RequisitionGrouperByReportId(
       val combinedEventGroupMap = buildEventGroupEntries(missingGroupedRequisitions)
 
       val existingModelLine = missingGroupedRequisitions.firstOrNull()?.modelLine.orEmpty()
+
+      println("Creating groupedRequisition for missing blob")
 
       fixedGroupedRequisitions += groupedRequisitions {
         modelLine = existingModelLine
@@ -248,7 +261,9 @@ class RequisitionGrouperByReportId(
 
   private suspend fun readGroupedRequisitionBlob(groupId: String) : GroupedRequisitions? {
     val blobKey = "$storagePathPrefix/${groupId}"
+    logger.info("Reading blob with key: $blobKey")
     val blob = storageClient.getBlob(blobKey) ?: return null
+    logger.info("Found blob for key: $blobKey")
     return GroupedRequisitions.parseFrom(blob.read().flatten())
   }
 
@@ -324,6 +339,7 @@ class RequisitionGrouperByReportId(
       requisitionMetadata = metadata
       requestId = createRequisitionMetadataRequestId
     }
+    logger.info("Creating requisitions metadata, request: $request")
     return requisitionMetadataStub.createRequisitionMetadata(request)
   }
 
