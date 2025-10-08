@@ -33,7 +33,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchCreateImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
@@ -48,6 +48,8 @@ import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSet
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
@@ -60,6 +62,8 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
@@ -107,55 +111,42 @@ class SpannerImpressionMetadataService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val initialState = State.IMPRESSION_METADATA_STATE_ACTIVE
+    return batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
+          requests += request
+        }
+      )
+      .impressionMetadataList
+      .single()
+  }
+
+  override suspend fun batchCreateImpressionMetadata(
+    request: BatchCreateImpressionMetadataRequest
+  ): BatchCreateImpressionMetadataResponse {
+    val dataProviderResourceId = request.dataProviderResourceId
+    if (request.requestsList.isEmpty()) {
+      return BatchCreateImpressionMetadataResponse.getDefaultInstance()
+    }
+
+    request.requestsList.forEachIndexed { index, it ->
+      if (it.impressionMetadata.dataProviderResourceId != dataProviderResourceId) {
+        throw InvalidFieldValueException(
+            "requests.$index.impression_metadata.data_provider_resource_id"
+          ) {
+            "All requests must be for the same DataProvider"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      validateImpressionMetadataRequest(it)
+    }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=createImpressionMetadata"))
-    val impressionMetadata: ImpressionMetadata =
+      databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
+
+    val results =
       try {
-        transactionRunner.run { txn ->
-          if (request.requestId.isNotEmpty()) {
-            try {
-              UUID.fromString(request.requestId)
-            } catch (e: IllegalArgumentException) {
-              throw InvalidFieldValueException("request_id", e)
-                .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-            }
-
-            val existing: ImpressionMetadataResult? =
-              txn.getImpressionMetadataByCreateRequestId(
-                request.impressionMetadata.dataProviderResourceId,
-                request.requestId,
-              )
-            if (existing != null) {
-              return@run existing.impressionMetadata
-            }
-          }
-
-          val impressionMetadataId =
-            idGenerator.generateNewId { id ->
-              txn.impressionMetadataExists(request.impressionMetadata.dataProviderResourceId, id)
-            }
-          val impressionMetadataResourceId =
-            request.impressionMetadata.impressionMetadataResourceId.ifEmpty {
-              IMPRESSION_METADATA_PREFIX + UUID.randomUUID()
-            }
-
-          txn.insertImpressionMetadata(
-            impressionMetadataId,
-            impressionMetadataResourceId,
-            initialState,
-            request.impressionMetadata,
-            request.requestId,
-          )
-          request.impressionMetadata.copy {
-            state = initialState
-            this.impressionMetadataResourceId = impressionMetadataResourceId
-            clearCreateTime()
-            clearUpdateTime()
-            clearEtag()
-          }
-        }
+        transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
           throw ImpressionMetadataAlreadyExistsException(e)
@@ -164,15 +155,20 @@ class SpannerImpressionMetadataService(
         throw e
       }
 
-    return if (impressionMetadata.hasCreateTime()) {
-      impressionMetadata
-    } else {
-      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      impressionMetadata.copy {
-        createTime = commitTimestamp
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
-      }
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return batchCreateImpressionMetadataResponse {
+      impressionMetadata +=
+        results.map { result ->
+          if (result.hasCreateTime()) {
+            result
+          } else {
+            result.copy {
+              createTime = commitTimestamp
+              updateTime = commitTimestamp
+              etag = ETags.computeETag(commitTimestamp.toInstant())
+            }
+          }
+        }
     }
   }
 
