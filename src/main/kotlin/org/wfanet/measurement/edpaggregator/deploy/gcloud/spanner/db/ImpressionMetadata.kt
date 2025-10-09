@@ -130,6 +130,13 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByCreateRequest
   return ImpressionMetadataEntity.buildImpressionMetadataResult(row)
 }
 
+/**
+ * Finds existing [ImpressionMetadata] for a list of create requests.
+ *
+ * @param createImpressionMetadataRequests the list of [CreateImpressionMetadataRequest]
+ * @param dataProviderResourceId the resource ID of the parent DataProvider
+ * @return a [Map] of create request ID to [ImpressionMetadataResult]
+ */
 suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadata(
   createImpressionMetadataRequests: List<CreateImpressionMetadataRequest>,
   dataProviderResourceId: String,
