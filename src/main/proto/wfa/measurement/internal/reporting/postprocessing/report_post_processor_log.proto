@@ -61,7 +61,15 @@ message ReportPostProcessorLog {
 
     // The process crashed or terminated unexpectedly due to an internal error.
     INTERNAL_ERROR = 6;
+
+    // There are large corrections.
+    HAS_LARGE_CORRECTIONS = 7;
   }
 
   repeated ReportPostProcessorIssue issues = 4;
+
+  // True if the corrected report has issues that make it untrustworthy.
+  // This could be due to the solver failing, unexpected large corrections, or
+  // other fatal errors.
+  bool is_report_unreliable = 5;
 }

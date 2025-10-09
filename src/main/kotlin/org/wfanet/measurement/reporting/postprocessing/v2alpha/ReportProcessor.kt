@@ -339,7 +339,23 @@ interface ReportProcessor {
         ) {
           foundIssues.add(ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION)
         }
+
+        // Checks for large corrections.
+        if (result.largeCorrectionsList.isNotEmpty()) {
+          foundIssues.add(ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS)
+        }
       }
+
+      val isUnreliable =
+        foundIssues
+          .intersect(
+            listOf(
+              ReportPostProcessorIssue.INTERNAL_ERROR,
+              ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS,
+              ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND,
+            )
+          )
+          .isNotEmpty()
 
       val updatedReport: Report = updateReport(report, correctedMeasurementsMap)
 
@@ -348,6 +364,7 @@ interface ReportProcessor {
         createTime = report.createTime
         results.putAll(resultMap)
         issues.addAll(foundIssues)
+        isReportUnreliable = isUnreliable
       }
 
       return ReportProcessingOutput(
