@@ -105,8 +105,9 @@ class ReportProcessorTest {
       assertThat(result.postCorrectionQuality.unionStatus)
         .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
 
-      // Verifies that the field isReportUnreliable is set to True due to the INTERNAL_ERROR issue.
-      assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isTrue()
+      // Verifies that the field postprocessingSuccessful is set to False due to the INTERNAL_ERROR
+      // issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isFalse()
 
       val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
 
@@ -144,8 +145,8 @@ class ReportProcessorTest {
       .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
     assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
 
-    // Verifies that the field isReportUnreliable is set properly.
-    assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isFalse()
+    // Verifies that the field postprocessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isTrue()
 
     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
@@ -190,8 +191,8 @@ class ReportProcessorTest {
           .sorted(),
       )
 
-      // Verifies that the field isReportUnreliable is set properly.
-      assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isFalse()
+      // Verifies that the field postprocessingSuccessful is set properly.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isTrue()
 
       val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
@@ -235,8 +236,8 @@ class ReportProcessorTest {
         .sorted(),
     )
 
-    // Verifies that the field isReportUnreliable is set properly.
-    assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isFalse()
+    // Verifies that the field postprocessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isTrue()
 
     val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
 
@@ -276,8 +277,8 @@ class ReportProcessorTest {
         .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
       assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
 
-      // Verifies that the field isReportUnreliable is set properly.
-      assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isFalse()
+      // Verifies that the field postprocessingSuccessful is set properly.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isTrue()
 
       val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
 
@@ -315,8 +316,8 @@ class ReportProcessorTest {
       listOf(ReportPostProcessorLog.ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS),
     )
 
-    // Verifies that the field isReportUnreliable is set to True.
-    assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isTrue()
+    // Verifies that the field postprocessingSuccessful is set to False.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postprocessingSuccessful).isFalse()
 
     val expectedBlobKey = "20240723/20240723160310_c1acdfb43b3476998977072c89efcc9.textproto"
 

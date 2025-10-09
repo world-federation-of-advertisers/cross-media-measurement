@@ -346,7 +346,7 @@ interface ReportProcessor {
         }
       }
 
-      val isUnreliable =
+      val isSuccessful =
         foundIssues
           .intersect(
             listOf(
@@ -355,7 +355,7 @@ interface ReportProcessor {
               ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND,
             )
           )
-          .isNotEmpty()
+          .isEmpty()
 
       val updatedReport: Report = updateReport(report, correctedMeasurementsMap)
 
@@ -364,7 +364,7 @@ interface ReportProcessor {
         createTime = report.createTime
         results.putAll(resultMap)
         issues.addAll(foundIssues)
-        isReportUnreliable = isUnreliable
+        postprocessingSuccessful = isSuccessful
       }
 
       return ReportProcessingOutput(
