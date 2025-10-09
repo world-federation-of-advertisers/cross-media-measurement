@@ -27,6 +27,7 @@ import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
@@ -323,7 +324,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
-        reportingGatewayHost = TEST_CONFIG.reportingGatewayTarget,
+        reportingGatewayHost = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host,
         reportingGatewayPort = 8443,
         reportingAccessToken = bearerTokenCallCredentials.token,
       )
