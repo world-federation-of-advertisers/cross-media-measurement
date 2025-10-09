@@ -21,7 +21,6 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -33,6 +32,7 @@ import java.io.File
 import java.nio.file.Files
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Base64
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
@@ -60,7 +60,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import java.util.Base64
 
 @RunWith(JUnit4::class)
 class StorageEventSourceTest {
@@ -95,25 +94,28 @@ class StorageEventSourceTest {
     return Triple(kmsClient, kekUri, serializedEncryptionKey)
   }
 
-  private fun createJsonKmsSetup(kmsClient: FakeKmsClient, serializedEncryptionKey: ByteString): String {
+  private fun createJsonKmsSetup(
+    kmsClient: FakeKmsClient,
+    serializedEncryptionKey: ByteString,
+  ): String {
 
-    val handle = TinkProtoKeysetFormat.parseEncryptedKeyset(
-      serializedEncryptionKey.toByteArray(),
-      kmsClient.getAead(kekUri),
-      byteArrayOf()
-    )
+    val handle =
+      TinkProtoKeysetFormat.parseEncryptedKeyset(
+        serializedEncryptionKey.toByteArray(),
+        kmsClient.getAead(kekUri),
+        byteArrayOf(),
+      )
 
-    val keyProto = CleartextKeysetHandle.getKeyset(handle)
-      .keyList
-      .first()
-      .keyData
-      .value
-      .let { com.google.crypto.tink.proto.AesGcmHkdfStreamingKey.parseFrom(it) }
+    val keyProto =
+      CleartextKeysetHandle.getKeyset(handle).keyList.first().keyData.value.let {
+        com.google.crypto.tink.proto.AesGcmHkdfStreamingKey.parseFrom(it)
+      }
 
     val keyValueB64 = Base64.getEncoder().encodeToString(keyProto.keyValue.toByteArray())
 
     // Example hardcoded JSON (client side)
-    val encryptionKeyJson = """
+    val encryptionKeyJson =
+      """
     {
       "aesGcmHkdfStreamingKey": {
         "version": ${keyProto.version},
@@ -125,11 +127,13 @@ class StorageEventSourceTest {
         "keyValue": "$keyValueB64"
       }
     }
-  """.trimIndent()
+  """
+        .trimIndent()
 
-
-    val ciphertext = kmsClient.getAead(kekUri)
-      .encrypt(encryptionKeyJson.toByteArray(Charsets.UTF_8), byteArrayOf())
+    val ciphertext =
+      kmsClient
+        .getAead(kekUri)
+        .encrypt(encryptionKeyJson.toByteArray(Charsets.UTF_8), byteArrayOf())
 
     return Base64.getEncoder().encodeToString(ciphertext)
   }
@@ -193,12 +197,12 @@ class StorageEventSourceTest {
     val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
     metadataBucketDir.mkdirs()
     val metadataFs = FileSystemStorageClient(metadataBucketDir)
-    val key =
-      "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+    val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
     val blobDetailsBytes: ByteString =
       if (useJson) {
         // 👇 Hardcoded JSON mode
-        val blobDetailsJson = """
+        val blobDetailsJson =
+          """
         {
           "blobUri": "file:///impressions/$date/$eventGroupRef",
           "encryptedDek": {
@@ -214,7 +218,8 @@ class StorageEventSourceTest {
             "endTime": "2025-01-02T00:00:00Z"
           }
         }
-      """.trimIndent()
+      """
+            .trimIndent()
         ByteString.copyFrom(blobDetailsJson, Charsets.UTF_8)
       } else {
         // 👇 Binary protobuf mode (existing behavior)
@@ -225,15 +230,16 @@ class StorageEventSourceTest {
           ciphertext = serializedEncryptionKey
         }
         blobDetails {
-          blobUri = "file:///impressions/$date/$eventGroupRef"
-          this.encryptedDek = encryptedDek
-          eventGroupReferenceId = eventGroupRef
-          this.modelLine = modelLine
-          interval = interval {
-            startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
-            endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            blobUri = "file:///impressions/$date/$eventGroupRef"
+            this.encryptedDek = encryptedDek
+            eventGroupReferenceId = eventGroupRef
+            this.modelLine = modelLine
+            interval = interval {
+              startTime = date.atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+              endTime = date.plusDays(1).atStartOfDay(ZoneId.of("UTC")).toInstant().toProtoTime()
+            }
           }
-        }.toByteString()
+          .toByteString()
       }
     metadataFs.writeBlob(key, blobDetailsBytes)
   }
@@ -412,75 +418,75 @@ class StorageEventSourceTest {
     }
 
   @Test
-  fun `generateEventBatches deduplicates EventReaders for overlapping intervals using JSON format`(): Unit =
-    runBlocking {
-      // Set up separate directories for impressions and metadata
-      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-      val metadataTmpPath = tmp.root
-      val eventGroupRef = "event-group-1"
+  fun `generateEventBatches deduplicates EventReaders for overlapping intervals using JSON format`():
+    Unit = runBlocking {
+    // Set up separate directories for impressions and metadata
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "event-group-1"
 
-      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-      val jsonEncryptionKey = createJsonKmsSetup(kmsClient, serializedEncryptionKey)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val jsonEncryptionKey = createJsonKmsSetup(kmsClient, serializedEncryptionKey)
 
-      // Create impression files and metadata for Jan 1, 2, and 3
-      for (date in
+    // Create impression files and metadata for Jan 1, 2, and 3
+    for (date in
       listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))) {
-        createImpressionFilesForDate(
-          impressionsTmpPath,
-          metadataTmpPath,
-          date,
-          eventGroupRef,
-          kmsClient,
-          kekUri,
-          serializedEncryptionKey,
-          useJson = true,
-          jsonSerializedEncryptionKey = jsonEncryptionKey
-        )
-      }
-
-      // Create an event group with overlapping intervals
-      // Interval 1: Jan 1-3 (exclusive end: Jan 1, 2), Interval 2: Jan 2-4 (exclusive end: Jan 2,
-      // 3)
-      // Total dates without dedup: 4, unique dates with dedup: 3 (Jan 1, 2, 3)
-      val eventGroupDetailsList =
-        listOf(
-          createEventGroupDetailsWithMultipleIntervals(
-            eventGroupRef,
-            listOf(
-              Pair(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 3)), // Jan 1, 2 (exclusive end)
-              Pair(
-                LocalDate.of(2025, 1, 2),
-                LocalDate.of(2025, 1, 4),
-              ), // Jan 2, 3 (exclusive end, overlap on 2)
-            ),
-          )
-        )
-
-      val impressionService = createImpressionService(metadataTmpPath)
-      val eventSource =
-        StorageEventSource(
-          impressionMetadataService = impressionService,
-          eventGroupDetailsList = eventGroupDetailsList,
-          modelLine = modelLine,
-          kmsClient = kmsClient,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-          descriptor = TestEvent.getDescriptor(),
-          batchSize = 1000,
-        )
-
-      val batches = eventSource.generateEventBatches().toList()
-
-      // Verify the total number of events emitted
-      val totalEvents = batches.flatMap { it.events }.size
-      // With deduplication: 3 unique dates × 5 events per date = 15 events
-      assertThat(totalEvents).isEqualTo(15)
-
-      // Verify we have exactly 3 batches (one per unique date)
-      assertThat(batches).hasSize(3)
-
-      // Verify each batch contains the expected number of events
-      assertThat(batches.all { it.events.size == 5 }).isTrue()
+      createImpressionFilesForDate(
+        impressionsTmpPath,
+        metadataTmpPath,
+        date,
+        eventGroupRef,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+        useJson = true,
+        jsonSerializedEncryptionKey = jsonEncryptionKey,
+      )
     }
+
+    // Create an event group with overlapping intervals
+    // Interval 1: Jan 1-3 (exclusive end: Jan 1, 2), Interval 2: Jan 2-4 (exclusive end: Jan 2,
+    // 3)
+    // Total dates without dedup: 4, unique dates with dedup: 3 (Jan 1, 2, 3)
+    val eventGroupDetailsList =
+      listOf(
+        createEventGroupDetailsWithMultipleIntervals(
+          eventGroupRef,
+          listOf(
+            Pair(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 3)), // Jan 1, 2 (exclusive end)
+            Pair(
+              LocalDate.of(2025, 1, 2),
+              LocalDate.of(2025, 1, 4),
+            ), // Jan 2, 3 (exclusive end, overlap on 2)
+          ),
+        )
+      )
+
+    val impressionService = createImpressionService(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionMetadataService = impressionService,
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    // Verify the total number of events emitted
+    val totalEvents = batches.flatMap { it.events }.size
+    // With deduplication: 3 unique dates × 5 events per date = 15 events
+    assertThat(totalEvents).isEqualTo(15)
+
+    // Verify we have exactly 3 batches (one per unique date)
+    assertThat(batches).hasSize(3)
+
+    // Verify each batch contains the expected number of events
+    assertThat(batches.all { it.events.size == 5 }).isTrue()
+  }
 
   @Test
   fun `generateEventBatches handles EventReader exception`(): Unit = runBlocking {

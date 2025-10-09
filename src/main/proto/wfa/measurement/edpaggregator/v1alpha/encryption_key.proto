@@ -20,31 +20,46 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "EncryptionKeyProto";
 
+// Hash type
 enum HashType {
+  // UNKNOWN_HASH
   UNKNOWN_HASH = 0;
-  SHA1 = 1;  // Using SHA1 for digital signature is deprecated but HMAC-SHA1 is
-  // fine.
+  // Using SHA1 for digital signature is deprecated
+  SHA1 = 1;
+  // SHA384
   SHA384 = 2;
+  // SHA256
   SHA256 = 3;
+  // SHA512
   SHA512 = 4;
+  // SHA224
   SHA224 = 5;
 }
 
+// Params used for [AesGcmHkdfStreamingKey]
 message AesGcmHkdfStreamingParams {
+  // ciphertext_segment_size
   uint32 ciphertext_segment_size = 1;
-  uint32 derived_key_size = 2;  // size of AES-GCM keys derived for each segment
+  // size of AES-GCM keys derived for each segment
+  uint32 derived_key_size = 2;
+  // hkdf_hash_type
   HashType hkdf_hash_type = 3;
 }
 
-
+// Wrapper of AesGcmHkdfStreamingKey
 message AesGcmHkdfStreamingKey {
+  // Version of AesGcmHkdfStreamingKey
   uint32 version = 1;
+  // Params of AesGcmHkdfStreamingKey
   AesGcmHkdfStreamingParams params = 2;
-  bytes key_value = 3;  // Placeholder for ctype and debug_redact.
+  // Placeholder for ctype and debug_redact.
+  bytes key_value = 3;
 }
 
+// The Encryption Key object
 message EncryptionKey {
   oneof key {
+    // AesGcmHkdfStreamingKey key type
     AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 1;
   }
 }

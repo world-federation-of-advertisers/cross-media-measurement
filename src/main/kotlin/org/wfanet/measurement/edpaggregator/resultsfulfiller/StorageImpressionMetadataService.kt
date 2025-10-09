@@ -16,17 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.crypto.tink.CleartextKeysetHandle
-import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.TinkProtoKeysetFormat
-import com.google.crypto.tink.proto.AesGcmHkdfStreamingParams
-import com.google.crypto.tink.proto.HashType
-import com.google.crypto.tink.proto.KeyData
-import com.google.crypto.tink.proto.KeyStatusType
-import com.google.crypto.tink.proto.Keyset
-import com.google.crypto.tink.proto.OutputPrefixType
-import com.google.crypto.tink.proto.AesGcmHkdfStreamingKey
-import com.google.crypto.tink.BinaryKeysetReader
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
@@ -41,12 +30,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.HashType as EdpAggregatorHashType
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptionKey
-import java.security.SecureRandom
-import kotlin.math.absoluteValue
 
 /**
  * Storage-backed [ImpressionMetadataService].
@@ -151,18 +135,16 @@ class StorageImpressionMetadataService(
         )
 
     val bytes: ByteString = blob.read().flatten()
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing logic based on file extension
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing
+    // logic based on file extension
     return try {
       BlobDetails.parseFrom(bytes)
     } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
       val builder = BlobDetails.newBuilder()
-      JsonFormat.parser().ignoringUnknownFields()
-        .merge(bytes.toString(Charsets.UTF_8), builder)
+      JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(Charsets.UTF_8), builder)
       builder.build()
     }
-
   }
-
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
