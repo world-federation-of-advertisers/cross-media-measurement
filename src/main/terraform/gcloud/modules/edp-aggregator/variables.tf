@@ -332,3 +332,10 @@ variable "requisition_fetcher_tls_pem" {
     is_binary_format  = bool
   })
 }
+
+variable "edp_aggregator_api_server_ip_address" {
+  description = "IP address for edp aggregator public API server"
+  type        = string
+  nullable    = true
+  default     = null
+}
