@@ -30,6 +30,8 @@ import com.google.crypto.tink.proto.OutputPrefixType
 import com.google.protobuf.util.JsonFormat
 import java.security.SecureRandom
 import kotlin.math.absoluteValue
+import org.wfanet.measurement.edpaggregator.v1alpha.AesGcmHkdfStreamingKey as EdpAggregatorAesGcmHkdfStreamingKey
+import org.wfanet.measurement.edpaggregator.v1alpha.AesGcmKey as EdpAggregatorAesGcmKey
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptionKey
 import org.wfanet.measurement.edpaggregator.v1alpha.HashType as EdpAggregatorHashType
 
@@ -45,34 +47,14 @@ fun parseJsonEncryptedKey(
 
   val encryptionKey = builder.build()
 
-  val aesKey =
+  val keyData =
     when (encryptionKey.keyCase) {
-      EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY -> encryptionKey.aesGcmHkdfStreamingKey
+      EncryptionKey.KeyCase.AES_GCM_HKDF_STREAMING_KEY ->
+        buildAesStreamingKeyData(encryptionKey.aesGcmHkdfStreamingKey)
+      EncryptionKey.KeyCase.AES_GCM_KEY -> buildAesGcmKeyData(encryptionKey.aesGcmKey)
       EncryptionKey.KeyCase.KEY_NOT_SET ->
         throw IllegalArgumentException("EncryptionKey has no key_type set")
     }
-
-  val params =
-    AesGcmHkdfStreamingParams.newBuilder()
-      .setDerivedKeySize(aesKey.params.derivedKeySize)
-      .setHkdfHashType(aesKey.params.hkdfHashType.mapHashTypeCloneToTink())
-      .setCiphertextSegmentSize(aesKey.params.ciphertextSegmentSize)
-      .build()
-
-  val tinkKey =
-    AesGcmHkdfStreamingKey.newBuilder()
-      .setParams(params)
-      .setKeyValue(aesKey.keyValue)
-      .setVersion(aesKey.version)
-      .build()
-
-  val keyData =
-    KeyData.newBuilder()
-      .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey")
-      .setKeyMaterialType(KeyData.KeyMaterialType.SYMMETRIC)
-      .setValue(tinkKey.toByteString())
-      .build()
-
   val keyId = SecureRandom().nextInt().absoluteValue
   val ks =
     Keyset.newBuilder()
@@ -87,6 +69,45 @@ fun parseJsonEncryptedKey(
       .build()
 
   return CleartextKeysetHandle.read(BinaryKeysetReader.withBytes(ks.toByteArray()))
+}
+
+private fun buildAesStreamingKeyData(
+  aesStreamingKey: EdpAggregatorAesGcmHkdfStreamingKey
+): KeyData {
+  val params =
+    AesGcmHkdfStreamingParams.newBuilder()
+      .setDerivedKeySize(aesStreamingKey.params.derivedKeySize)
+      .setHkdfHashType(aesStreamingKey.params.hkdfHashType.mapHashTypeCloneToTink())
+      .setCiphertextSegmentSize(aesStreamingKey.params.ciphertextSegmentSize)
+      .build()
+
+  val tinkKey =
+    AesGcmHkdfStreamingKey.newBuilder()
+      .setParams(params)
+      .setKeyValue(aesStreamingKey.keyValue)
+      .setVersion(aesStreamingKey.version)
+      .build()
+
+  val keyData =
+    KeyData.newBuilder()
+      .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmHkdfStreamingKey")
+      .setKeyMaterialType(KeyData.KeyMaterialType.SYMMETRIC)
+      .setValue(tinkKey.toByteString())
+      .build()
+  return keyData
+}
+
+private fun buildAesGcmKeyData(aesGcmKey: EdpAggregatorAesGcmKey): KeyData {
+  val tinkKey =
+    com.google.crypto.tink.proto.AesGcmKey.newBuilder()
+      .setKeyValue(aesGcmKey.keyValue)
+      .setVersion(aesGcmKey.version)
+      .build()
+  return KeyData.newBuilder()
+    .setTypeUrl("type.googleapis.com/google.crypto.tink.AesGcmKey")
+    .setKeyMaterialType(KeyData.KeyMaterialType.SYMMETRIC)
+    .setValue(tinkKey.toByteString())
+    .build()
 }
 
 private fun EdpAggregatorHashType.mapHashTypeCloneToTink(): HashType =
