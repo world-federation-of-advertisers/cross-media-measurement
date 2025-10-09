@@ -145,7 +145,7 @@ class RequisitionGrouperByReportId(
 
     for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
       val requisitionsMetadata: List<RequisitionMetadata> =
-        listRequisitionMetadataByReportId(reportId)
+        listStoredRequisitionMetadataByReportId(reportId)
       val groupedRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
         requisitionsMetadata.groupBy { it.groupId }
       groupedRequisitions.addAll(
@@ -189,17 +189,12 @@ class RequisitionGrouperByReportId(
         try {
           requisitionValidator.validateRequisitionSpec(requisition)
         } catch (exception: InvalidRequisitionException) {
-          refusals[requisition] = buildRefusal(exception, requisition)
+          refusals[requisition] = exception.refusal
           return@forEach
         }
       // Get Event Group Map Entries
-      val eventGroupMapEntries =
-        try {
-          getEventGroupMapEntries(spec)
-        } catch (exception: StatusException) {
-          refusals[requisition] = buildRefusal(exception, requisition)
-          return@forEach
-        }
+      val eventGroupMapEntries = getEventGroupMapEntries(spec)
+
       // Create a single GroupedRequisition for the requisition
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
       groupedRequisitions += groupedRequisitions {
@@ -231,6 +226,10 @@ class RequisitionGrouperByReportId(
   /**
    * Merges multiple [GroupedRequisitions] belonging to the same group into one.
    *
+   * This function assumes that the provided [groupedRequisitions] list has been
+   * **pre-validated** — meaning all entries belong to the same group and have
+   * consistent [modelLine] and related metadata.
+   *
    * ### High-Level Flow
    * 1. Combine requisitions and event group maps for the given group.
    * 2. Merge overlapping collection intervals.
@@ -251,37 +250,6 @@ class RequisitionGrouperByReportId(
       this.groupId = groupId
     }
   }
-
-  /**
-   * Builds a [Refusal] object representing the reason a [Requisition] could not be processed.
-   *
-   * This method converts exceptions raised during validation or gRPC calls into standardized
-   * [Refusal] messages that can be sent to the Kingdom and recorded in the Requisition Metadata
-   * Storage.
-   *
-   * ### Accepted Exceptions
-   * - **[InvalidRequisitionException]** — Occurs when the requisition fails validation. The refusal
-   *   is built using the detailed justification and message from the exception itself.
-   * - **[StatusException]** — Occurs when a gRPC call to [getEventGroupMapEntries] fails. In this
-   *   case, a default refusal is constructed with:
-   *     - `justification = UNFULFILLABLE`
-   *     - `message = "Failed to process <requisition.name>: <exception.message>"`
-   *
-   * Any other exception type is handled using the same default justification and message format.
-   *
-   * @param e The exception that caused the requisition to be refused.
-   * @param requisition The requisition being refused.
-   * @return A [Refusal] describing the reason for the failure.
-   */
-  fun buildRefusal(e: Exception, requisition: Requisition): Refusal =
-    when (e) {
-      is InvalidRequisitionException -> e.refusal
-      else ->
-        refusal {
-          justification = Requisition.Refusal.Justification.UNFULFILLABLE
-          message = "Failed to process ${requisition.name}: ${e.message}"
-        }
-    }
 
   /**
    * Creates a new [GroupedRequisitions] for **new or unseen requisitions** not yet recorded in
@@ -462,7 +430,7 @@ class RequisitionGrouperByReportId(
    * Storage.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listRequisitionMetadataByReportId(
+  private suspend fun listStoredRequisitionMetadataByReportId(
     reportName: String
   ): List<RequisitionMetadata> {
     val requisitionMetadataList: Flow<RequisitionMetadata> =
@@ -478,12 +446,7 @@ class RequisitionGrouperByReportId(
             pageSize = responsePageSize
             this.pageToken = pageToken
           }
-          val response: ListRequisitionMetadataResponse =
-            try {
-              requisitionMetadataStub.listRequisitionMetadata(request)
-            } catch (e: StatusException) {
-              throw Exception("Error listing requisitions", e)
-            }
+          val response: ListRequisitionMetadataResponse = requisitionMetadataStub.listRequisitionMetadata(request)
           ResourceList(response.requisitionMetadataList, response.nextPageToken)
         }
         .flattenConcat()

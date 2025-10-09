@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
@@ -33,6 +34,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -456,6 +458,19 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     assertThat(refuseRequisitionRequests).hasSize(2)
   }
 
+  @Test
+  fun `skips Requisition when EventGroup not found`() {
+
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+    assertFailsWith<StatusException> {
+      runBlocking {
+        requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
+      }
+    }
+  }
+  
   @Test
   fun `existing multiple requisition metadata resolves correclty into two grouped requisitions`() =
     runBlocking {
