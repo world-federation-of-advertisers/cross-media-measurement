@@ -317,7 +317,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       loadSigningKey(MC_CS_CERT_DER_NAME, MC_CS_PRIVATE_KEY_DER_NAME)
     }
 
-    val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
+    val LOCAL_K8S_PATH: Path = Paths.get("src", "main", "k8s", "local")
     val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File =
       LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
     val OPEN_ID_PROVIDERS_TINK_FILE: File =
@@ -379,7 +379,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
         } else {
           rolesStub.deleteRole(deleteRoleRequest { name = role.name })
         }
-      } catch (e: StatusException) {
+      } catch (e: StatusRuntimeException) {
         if (e.status.code == Status.Code.NOT_FOUND) {
           // Role not found so will create it
         } else {
