@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -84,7 +84,10 @@ abstract class RequisitionGrouper(
    * ### High-Level Flow
    * 1. Validate the requisition’s [MeasurementSpec].
    * 2. On success, return the requisition for grouping.
-   * 3. On failure, refuse the requisition via [refuseRequisitionToKingdom].
+   * 3. On failure, refuse the requisition via [refuseRequisitionToCmms].
+   *
+   * Requisitions without a valid [MeasurementSpec] or `reportId` are **not persisted**
+   * in the metadata store, since a valid `reportId` is required for persistence.
    *
    * @param requisition The requisition to validate.
    * @return The validated requisition, or `null` if refused.
@@ -94,7 +97,7 @@ abstract class RequisitionGrouper(
       requisitionValidator.validateMeasurementSpec(requisition)
       return requisition
     } catch (e: InvalidRequisitionException) {
-      refuseRequisitionToKingdom(e.requisitions.single(), e.refusal)
+      refuseRequisitionToCmms(e.requisitions.single(), e.refusal)
       return null
     }
   }
@@ -141,19 +144,19 @@ abstract class RequisitionGrouper(
   }
 
   /**
-   * Retrieves an [EventGroup] resource from the Kingdom using throttled gRPC access.
+   * Retrieves an [CmmsEventGroup] resource from the Cmms using throttled gRPC access.
    *
    * @param name The full resource name of the event group.
-   * @return The resolved [EventGroup] object.
+   * @return The resolved [CmmsEventGroup] object.
    */
-  private suspend fun getEventGroup(name: String): EventGroup {
+  private suspend fun getEventGroup(name: String): CmmsEventGroup {
     return throttler.onReady {
       eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
     }
   }
 
   /**
-   * Refuses a requisition upstream via the Kingdom.
+   * Refuses a requisition to the Cmms.
    *
    * ### High-Level Flow
    * 1. Logs the refusal locally.
@@ -163,7 +166,7 @@ abstract class RequisitionGrouper(
    * @param requisition The requisition to refuse.
    * @param refusal The reason and message for the refusal.
    */
-  protected suspend fun refuseRequisitionToKingdom(requisition: Requisition, refusal: Requisition.Refusal) {
+  protected suspend fun refuseRequisitionToCmms(requisition: Requisition, refusal: Requisition.Refusal) {
     try {
       throttler.onReady {
         logger.info("Requisition ${requisition.name} was refused. $refusal")

@@ -36,16 +36,31 @@ class InvalidRequisitionException(
 ) : Exception("Invalid requisition: ${refusal.justification}: ${refusal.message}", cause)
 
 /**
- * Validates a requisition. Only refuses requisitions with permanently fatal errors.
+ * Validates a [Requisition], ensuring it is well-formed and ready for processing.
  *
- * @param throttler used to throttle gRPC requests.
- * @param privateEncryptionKey The DataProvider's decryption key used for decrypting requisition
- *   data.
+ * Only requisitions with **permanently fatal errors** (e.g., invalid or unparseable
+ * [MeasurementSpec], or missing `reportId`) are refused.
+ *
+ * @param throttler Used to throttle outgoing gRPC requests.
+ * @param privateEncryptionKey The DataProvider’s private key used to decrypt requisition data.
  */
 class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
     return try {
-      requisition.measurementSpec.unpack()
+      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+
+      if (requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()) {
+        throw InvalidRequisitionException(
+          listOf(requisition),
+          refusal {
+            justification = Refusal.Justification.SPEC_INVALID
+            message = "Unable to parse MeasurementSpec"
+          },
+        )
+      }
+
+      measurementSpec
+
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
       throw InvalidRequisitionException(

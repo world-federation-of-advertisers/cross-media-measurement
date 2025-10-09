@@ -56,6 +56,22 @@ import org.wfanet.measurement.storage.StorageClient
 import java.util.UUID
 import java.util.logging.Logger
 
+/**
+ * Wraps the result of a requisition grouping operation.
+ *
+ * This class represents the outcome of validating and grouping a batch of [Requisition]s.
+ * It contains the successfully grouped [GroupedRequisitions], if any, and a map of
+ * [Requisition]s that were refused during validation or processing.
+ *
+ * - If all requisitions are valid, [groupedRequisitions] contains the merged group and
+ *   [refusals] is empty.
+ * - If some requisitions fail validation, [groupedRequisitions] contains only the valid ones,
+ *   while [refusals] holds the failed requisitions and their corresponding [Refusal] details.
+ * - If all requisitions are invalid, [groupedRequisitions] is `null`.
+ *
+ * @property groupedRequisitions The grouped result of all valid requisitions, or `null` if none passed validation.
+ * @property refusals A map of requisitions that were refused, paired with their refusal reasons.
+ */
 data class GroupedRequisitionsWrapper(
   val groupedRequisitions: GroupedRequisitions?,
   val refusals: Map<Requisition, Refusal>
@@ -131,7 +147,7 @@ class RequisitionGrouperByReportId(
     for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
       val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
       val groupedRequisitionMetadata: Map<String, List<RequisitionMetadata>> = requisitionsMetadata.groupBy { it.groupId }
-      groupedRequisitions.addAll(checkUnwrittenGroupedRequisitions(groupedRequisitionMetadata, requisitionsByReportId))
+      groupedRequisitions.addAll(recoverUnpersistedGroupedRequisitions(groupedRequisitionMetadata, requisitionsByReportId))
       createNewGroupedRequisitions(groupedRequisitionMetadata, requisitionsByReportId)
         ?.let { groupedRequisitions.add(it) }
     }
@@ -167,13 +183,13 @@ class RequisitionGrouperByReportId(
       // Validate requisition spec
       val spec = try {
         requisitionValidator.validateRequisitionSpec(requisition)
-      } catch (exception: Exception) {
+      } catch (exception: InvalidRequisitionException) {
         refusals[requisition] = buildRefusal(exception, requisition); return@forEach
       }
       // Get Event Group Map Entries
       val eventGroupMapEntries = try {
         getEventGroupMapEntries(spec)
-      } catch (exception: Exception) {
+      } catch (exception: StatusException) {
         refusals[requisition] = buildRefusal(exception, requisition); return@forEach
       }
       // Create a single GroupedRequisition for the requisition
@@ -231,10 +247,25 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Builds a refusal object for a failed requisition validation.
+   * Builds a [Refusal] object representing the reason a [Requisition] could not be processed.
    *
-   * Returns the refusal contained in [InvalidRequisitionException] if available,
-   * otherwise builds a generic refusal with justification UNFULFILLABLE.
+   * This method converts exceptions raised during validation or gRPC calls into standardized
+   * [Refusal] messages that can be sent to the Kingdom and recorded in the Requisition Metadata Storage.
+   *
+   * ### Accepted Exceptions
+   * - **[InvalidRequisitionException]** — Occurs when the requisition fails validation.
+   *   The refusal is built using the detailed justification and message from the exception itself.
+   *
+   * - **[StatusException]** — Occurs when a gRPC call to [getEventGroupMapEntries] fails.
+   *   In this case, a default refusal is constructed with:
+   *   - `justification = UNFULFILLABLE`
+   *   - `message = "Failed to process <requisition.name>: <exception.message>"`
+   *
+   * Any other exception type is handled using the same default justification and message format.
+   *
+   * @param e The exception that caused the requisition to be refused.
+   * @param requisition The requisition being refused.
+   * @return A [Refusal] describing the reason for the failure.
    */
   fun buildRefusal(e: Exception, requisition: Requisition): Refusal =
     when (e) {
@@ -277,34 +308,38 @@ class RequisitionGrouperByReportId(
     val groupedRequisitionsWrapper = validateAndGroupRequisitions(unregisteredRequisitions, requisitionGroupId)
     groupedRequisitionsWrapper.refusals.forEach { (requisition, refusal) ->
       // Refuse to Kingdom first, then update Requisition Metadata Storage
-      refuseRequisitionToKingdom(requisition, refusal)
+      refuseRequisitionToCmms(requisition, refusal)
     }
 
-    return try {
-      updateRequisitionMedatada(groupedRequisitionsWrapper,requisitionGroupId)
-      groupedRequisitionsWrapper.groupedRequisitions
-    } catch (exception: Exception){
-      // If an exception occurs, some metadata may be written and the blob will be stored and the next invocation
-      null
-    }
+    updateRequisitionMetadata(groupedRequisitionsWrapper,requisitionGroupId)
+    return groupedRequisitionsWrapper.groupedRequisitions
   }
 
   /**
-   * Updates metadata for successfully created or refused requisitions.
+   * Create metadata for successfully created and refuse the invalid ones.
    *
    * ### High-Level Flow
    * 1. Create [RequisitionMetadata] entries for each successfully grouped requisition.
-   * 2. For refused requisitions, call [createRequisitionMetadata] and [refuseRequisitionMetadata] to persist refusal state.
    */
-  private suspend fun updateRequisitionMedatada(groupedRequisitionWrapper: GroupedRequisitionsWrapper, groupId: String) {
-    groupedRequisitionWrapper.groupedRequisitions?.requisitionsList
+  private suspend fun updateRequisitionMetadata(groupedRequisitionsWrapper: GroupedRequisitionsWrapper, groupId: String) {
+    groupedRequisitionsWrapper.groupedRequisitions?.requisitionsList
       ?.map { it.requisition.unpack(Requisition::class.java) }
       ?.forEach { requisition ->
-        createRequisitionMetadata(requisition, groupId)
+        updateRequisitionMetadata(requisition, groupId)
       }
 
+    refuseRequisitionMetadata(groupedRequisitionsWrapper, groupId)
+  }
+
+  /**
+   * Create requisition metadata.
+   *
+   * ### High-Level Flow
+   * 1. call [updateRequisitionMetadata] and [refuseRequisitionMetadata] to persist refusal state.
+   */
+  private suspend fun refuseRequisitionMetadata(groupedRequisitionWrapper: GroupedRequisitionsWrapper, groupId: String) {
     groupedRequisitionWrapper.refusals.forEach { (requisition, refusal) ->
-      val requisitionMetadata = createRequisitionMetadata(requisition, groupId)
+      val requisitionMetadata = updateRequisitionMetadata(requisition, groupId)
       refuseRequisitionMetadata(requisitionMetadata, refusal.message)
     }
   }
@@ -317,24 +352,23 @@ class RequisitionGrouperByReportId(
    * 2. If missing, re-validate and rebuild the grouped requisition via [validateAndGroupRequisitions].
    * 3. Return successfully rebuilt groups.
    */
-  suspend fun checkUnwrittenGroupedRequisitions(
+  private suspend fun recoverUnpersistedGroupedRequisitions(
     groupedRequisitionMetadata: Map<String, List<RequisitionMetadata>>,
     requisitions: List<Requisition>
   ): List<GroupedRequisitions> =
     groupedRequisitionMetadata.mapNotNull { (groupId, requisitionsMetadataByGroupId) ->
-      try {
-        val blob = readGroupedRequisitionBlob(groupId)
-        if (blob != null) return@mapNotNull null
-        val filteredRequisitions = filterRequisitions(requisitions, requisitionsMetadataByGroupId)
-        val groupedRequisitionsWrapper = validateAndGroupRequisitions(filteredRequisitions, groupId)
-        groupedRequisitionsWrapper.groupedRequisitions ?: run {
-          logger.info("Error while creating GroupedRequisitions for groupId=$groupId")
-          null
-        }
-      } catch (exception: Exception){
-        logger.info("Unable to create GroupedRequisition for existing Requisition Metadata for groupId: $groupId")
-        return emptyList()
+      val blob = readGroupedRequisitionBlob(groupId)
+      if (blob != null) return@mapNotNull null
+      val filteredRequisitions = filterRequisitions(requisitions, requisitionsMetadataByGroupId)
+      val groupedRequisitionsWrapper = validateAndGroupRequisitions(filteredRequisitions, groupId)
+
+      groupedRequisitionsWrapper.refusals.forEach { (requisition, refusal) ->
+        refuseRequisitionToCmms(requisition, refusal)
       }
+
+      refuseRequisitionMetadata(groupedRequisitionsWrapper, groupId)
+
+      groupedRequisitionsWrapper.groupedRequisitions
     }
 
   /**
@@ -342,7 +376,7 @@ class RequisitionGrouperByReportId(
    *
    * Used to match existing metadata entries to current requisitions during recovery.
    */
-  fun filterRequisitions(requisitions: List<Requisition>, requisitionsMetadata: List<RequisitionMetadata>): List<Requisition> {
+  private fun filterRequisitions(requisitions: List<Requisition>, requisitionsMetadata: List<RequisitionMetadata>): List<Requisition> {
     val metadataRequisitionNames = requisitionsMetadata.map { it.cmmsRequisition }.toSet()
     return requisitions.filter {
       it.name in metadataRequisitionNames
@@ -419,7 +453,10 @@ class RequisitionGrouperByReportId(
         .listResources { pageToken: String ->
           val request = listRequisitionMetadataRequest {
             parent = dataProviderName
-            filter = ListRequisitionMetadataRequestKt.filter { report = reportName }
+            filter = ListRequisitionMetadataRequestKt.filter {
+              report = reportName
+              state = RequisitionMetadata.State.STORED
+            }
             pageSize = responsePageSize
             this.pageToken = pageToken
           }
@@ -443,7 +480,7 @@ class RequisitionGrouperByReportId(
    * 2. Persist it via [requisitionMetadataStub.createRequisitionMetadata].
    * 3. Return the created [RequisitionMetadata].
    */
-  private suspend fun createRequisitionMetadata(
+  private suspend fun updateRequisitionMetadata(
     requisition: Requisition,
     requisitionGroupId: String,
   ): RequisitionMetadata {

@@ -22,6 +22,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.time.Clock
 import com.google.protobuf.Any
+import io.grpc.StatusException
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.runBlocking
@@ -392,7 +393,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
             TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
           )
       }
-    requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    assertFailsWith<StatusException> {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
+
     assertThat(refuseRequisitionRequests).hasSize(2)
 
   }
@@ -445,7 +449,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
             TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
           )
       }
-    requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+
+    assertFailsWith<StatusException> {
+      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
+    }
     assertThat(refuseRequisitionRequests).hasSize(2)
 
   }
