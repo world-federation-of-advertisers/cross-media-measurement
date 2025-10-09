@@ -27,7 +27,6 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
@@ -65,7 +64,6 @@ import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRespo
 class SpannerImpressionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
-  private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : ImpressionMetadataServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun getImpressionMetadata(
@@ -165,7 +163,7 @@ class SpannerImpressionMetadataService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
 
-    var results =
+    val results =
       try {
         transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
       } catch (e: SpannerException) {
