@@ -123,6 +123,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
@@ -445,8 +446,13 @@ class ResultsFulfillerTest {
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, metadataTmpPath)
 
-      val encryptedDek =
-        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val encryptedDek = encryptedDek {
+        this.kekUri = kekUri
+        typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+        protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+        ciphertext = serializedEncryptionKey
+      }
+
       val blobDetails =
         BlobDetails.newBuilder()
           .setBlobUri(IMPRESSIONS_FILE_URI)
