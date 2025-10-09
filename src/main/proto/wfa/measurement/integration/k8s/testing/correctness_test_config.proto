@@ -60,8 +60,8 @@ message CorrectnessTestConfig {
   string model_provider = 9
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelProvider"];
 
-  // http target of Reporting gateway server.
-  string reporting_gateway_target = 10;
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 10;
 
   // gRPC target of Access public API server.
   string access_public_api_target = 11;

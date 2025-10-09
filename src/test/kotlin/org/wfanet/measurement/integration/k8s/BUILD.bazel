@@ -101,7 +101,7 @@ expand_template(
         "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
         "{reporting_public_api_target}": "$(reporting_public_api_target)",
         "{reporting_public_api_cert_host}": "localhost",
-        "{reporting_gateway_target}": "$(reporting_gateway_target)",
+        "{reporting_service_endpoint}": "$(reporting_service_endpoint)",
         "{access_public_api_target}": "$(access_public_api_target)",
         "{access_public_api_cert_host}": "localhost",
         "{edp1_name}": TEST_K8S_SETTINGS.edp1_name,

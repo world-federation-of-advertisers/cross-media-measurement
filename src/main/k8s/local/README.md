@@ -316,7 +316,7 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --test_output=streamed \
   --define=kingdom_public_api_target=localhost:8443 \
   --define=reporting_public_api_target=localhost:9443 \
-  --define=reporting_gateway_target=localhost:7443 \
+  --define=reporting_service_endpoint=localhost:7443 \
   --define=access_public_api_target=localhost:6443 \
   --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
   --define=mc_api_key=W9q4zad246g \
