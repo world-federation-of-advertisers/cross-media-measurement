@@ -43,7 +43,7 @@ message AesGcmHkdfStreamingKey {
 // Wrapper of AesGcmKey
 message AesGcmKey {
   // Version of AesGcmKey
-  uint32 version = 1;
+  int32 version = 1;
   // Placeholder for ctype and debug_redact.
   bytes key_value = 2;
 }

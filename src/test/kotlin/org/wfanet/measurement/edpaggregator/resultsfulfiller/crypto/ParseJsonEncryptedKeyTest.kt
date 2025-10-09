@@ -140,5 +140,4 @@ class ParseJsonEncryptedKeyTest {
     val readData = runBlocking { storageClient.getBlob("some-blob-key")!!.read().flatten() }
     assertThat(readData).isEqualTo("some-content".toByteStringUtf8())
   }
-  
 }
