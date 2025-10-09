@@ -49,7 +49,9 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
     return try {
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
 
-      if (requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()) {
+      if (
+        requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()
+      ) {
         throw InvalidRequisitionException(
           listOf(requisition),
           refusal {
@@ -60,7 +62,6 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
       }
 
       measurementSpec
-
     } catch (e: InvalidProtocolBufferException) {
       logger.severe("Unable to parse measurement spec for ${requisition.name}: ${e.message}")
       throw InvalidRequisitionException(

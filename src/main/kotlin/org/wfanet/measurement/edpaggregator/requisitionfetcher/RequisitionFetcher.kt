@@ -31,7 +31,6 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -108,9 +107,7 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      if (
-        groupedRequisition.requisitionsList.isNotEmpty()
-      ) {
+      if (groupedRequisition.requisitionsList.isNotEmpty()) {
         val groupedRequisitionId = groupedRequisition.groupId
         val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")

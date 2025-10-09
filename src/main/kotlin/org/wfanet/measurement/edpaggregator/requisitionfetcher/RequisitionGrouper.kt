@@ -16,9 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import java.util.logging.Level
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -36,9 +36,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 /**
  * Abstract base class for grouping and validating [Requisition]s before aggregation.
  *
- * This class defines the core workflow for transforming raw [Requisition] objects into
- * grouped forms ([GroupedRequisitions]) ready for execution. Subclasses implement specific
- * grouping logic (e.g., by report ID).
+ * This class defines the core workflow for transforming raw [Requisition] objects into grouped
+ * forms ([GroupedRequisitions]) ready for execution. Subclasses implement specific grouping logic
+ * (e.g., by report ID).
  *
  * @param requisitionValidator Validates requisitions and their measurement specs.
  * @param requisitionsClient gRPC client for updating or refusing requisitions in the Kingdom.
@@ -71,8 +71,8 @@ abstract class RequisitionGrouper(
   /**
    * Abstract method for combining validated [Requisition]s into [GroupedRequisitions].
    *
-   * Implementations define the grouping strategy (e.g., by report ID)
-   * and handle additional persistence of metadata logic.
+   * Implementations define the grouping strategy (e.g., by report ID) and handle additional
+   * persistence of metadata logic.
    */
   protected suspend abstract fun createGroupedRequisitions(
     requisitions: List<Requisition>
@@ -86,8 +86,8 @@ abstract class RequisitionGrouper(
    * 2. On success, return the requisition for grouping.
    * 3. On failure, refuse the requisition via [refuseRequisitionToCmms].
    *
-   * Requisitions without a valid [MeasurementSpec] or `reportId` are **not persisted**
-   * in the metadata store, since a valid `reportId` is required for persistence.
+   * Requisitions without a valid [MeasurementSpec] or `reportId` are **not persisted** in the
+   * metadata store, since a valid `reportId` is required for persistence.
    *
    * @param requisition The requisition to validate.
    * @return The validated requisition, or `null` if refused.
@@ -166,16 +166,20 @@ abstract class RequisitionGrouper(
    * @param requisition The requisition to refuse.
    * @param refusal The reason and message for the refusal.
    */
-  protected suspend fun refuseRequisitionToCmms(requisition: Requisition, refusal: Requisition.Refusal) {
+  protected suspend fun refuseRequisitionToCmms(
+    requisition: Requisition,
+    refusal: Requisition.Refusal,
+  ) {
     try {
       throttler.onReady {
         logger.info("Requisition ${requisition.name} was refused. $refusal")
         val request = refuseRequisitionRequest {
           this.name = requisition.name
-          this.refusal = RequisitionKt.refusal {
-            justification = refusal.justification
-            message = refusal.message
-          }
+          this.refusal =
+            RequisitionKt.refusal {
+              justification = refusal.justification
+              message = refusal.message
+            }
         }
         requisitionsClient.refuseRequisition(request)
       }
