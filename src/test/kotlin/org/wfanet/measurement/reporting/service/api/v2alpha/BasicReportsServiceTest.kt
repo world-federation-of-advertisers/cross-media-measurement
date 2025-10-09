@@ -2223,10 +2223,11 @@ class BasicReportsServiceTest {
 
     val request = createBasicReportRequest {
       parent = measurementConsumerKey.toName()
-      basicReport = BASIC_REPORT.copy {
-        campaignGroup = campaignGroupKey.toName()
-        modelLine = "1234"
-      }
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          modelLine = "1234"
+        }
       basicReportId = "a1234"
     }
     val exception =
@@ -6192,28 +6193,23 @@ class BasicReportsServiceTest {
         modelLine = ModelLineKey("1234", "1234", "1234").toName()
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
         }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-          dimensionSpec = dimensionSpec { }
+          dimensionSpec = dimensionSpec {}
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                nonCumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                nonCumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
           }
         }
@@ -6232,11 +6228,10 @@ class BasicReportsServiceTest {
 
       assertThat(createdBasicReport.modelLine).isEqualTo(basicReport.modelLine)
 
-      val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-        service.getBasicReport(getBasicReportRequest {
-          name = createdBasicReport.name
-        })
-      }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+        }
 
       assertThat(response).isEqualTo(createdBasicReport)
     }

@@ -602,8 +602,8 @@ class BasicReportsService(
   }
 
   /**
-   * Build map of MetricCalculationSpec to MetricCalculationSpec resource name using
-   * CampaignGroup resource name as filter.
+   * Build map of MetricCalculationSpec to MetricCalculationSpec resource name using CampaignGroup
+   * resource name as filter.
    */
   private suspend fun buildMetricCalculationSpecToNameMap(
     campaignGroupKey: ReportingSetKey
@@ -625,41 +625,42 @@ class BasicReportsService(
       .associate {
         it.copy {
           clearExternalMetricCalculationSpecId()
-          details = details.copy {
-            val realMetricSpecs = metricSpecs
-            metricSpecs.clear()
-            for (realMetricSpec in realMetricSpecs) {
-              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case enums cannot be null.
-              when (realMetricSpec.typeCase) {
-                MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-                  metricSpecs += metricSpec {
-                    reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+          details =
+            details.copy {
+              val realMetricSpecs = metricSpecs
+              metricSpecs.clear()
+              for (realMetricSpec in realMetricSpecs) {
+                @Suppress(
+                  "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                ) // Protobuf oneof case enums cannot be null.
+                when (realMetricSpec.typeCase) {
+                  MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                    metricSpecs += metricSpec {
+                      reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                    }
                   }
-                }
 
-                MetricSpec.TypeCase.REACH -> {
-                  metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-                }
-
-                MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-                  metricSpecs += metricSpec {
-                    impressionCount = MetricSpecKt.impressionCountParams {}
+                  MetricSpec.TypeCase.REACH -> {
+                    metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
                   }
-                }
 
-                MetricSpec.TypeCase.POPULATION_COUNT -> {
-                  metricSpecs += metricSpec {
-                    populationCount = MetricSpecKt.populationCountParams {}
+                  MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      impressionCount = MetricSpecKt.impressionCountParams {}
+                    }
                   }
-                }
 
-                MetricSpec.TypeCase.WATCH_DURATION,
-                MetricSpec.TypeCase.TYPE_NOT_SET
-                  -> {
+                  MetricSpec.TypeCase.POPULATION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      populationCount = MetricSpecKt.populationCountParams {}
+                    }
+                  }
+
+                  MetricSpec.TypeCase.WATCH_DURATION,
+                  MetricSpec.TypeCase.TYPE_NOT_SET -> {}
                 }
               }
             }
-          }
         } to
           MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
             .toName()
@@ -768,19 +769,20 @@ class BasicReportsService(
   }
 
   private suspend fun createMetricCalculationSpec(
-    metricCalculationSpec: MetricCalculationSpec,
+    metricCalculationSpec: MetricCalculationSpec
   ): MetricCalculationSpec {
     return internalMetricCalculationSpecsStub.createMetricCalculationSpec(
       createMetricCalculationSpecRequest {
-        this.metricCalculationSpec = metricCalculationSpec.copy {
-          details =
-            details.copy {
-              val metricSpecsWithDefault =
-                metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
-              metricSpecs.clear()
-              metricSpecs += metricSpecsWithDefault
-            }
-        }
+        this.metricCalculationSpec =
+          metricCalculationSpec.copy {
+            details =
+              details.copy {
+                val metricSpecsWithDefault =
+                  metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
+                metricSpecs.clear()
+                metricSpecs += metricSpecsWithDefault
+              }
+          }
         externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
       }
     )
