@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.protobuf.Any
 import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -32,6 +33,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import com.google.type.Interval
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 
@@ -40,15 +43,41 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
  * cases.
  */
 class SingleRequisitionGrouper(
-  requisitionValidator: RequisitionsValidator,
+  private val requisitionValidator: RequisitionsValidator,
   eventGroupsClient: EventGroupsCoroutineStub,
   throttler: Throttler,
   requisitionsClient: RequisitionsCoroutineStub,
 ) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
 
-  override suspend fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>
-  ): List<GroupedRequisitions> {
+  override suspend fun createGroupedRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    val groupedRequisitions = mutableListOf<GroupedRequisitions>()
+    requisitions.forEach { requisition ->
+      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+      val spec = try {
+        requisitionValidator.validateRequisitionSpec(requisition)
+      } catch (exception: Exception) {
+        return@forEach
+      }
+      // Get Event Group Map Entries
+      val eventGroupMapEntries = try {
+        getEventGroupMapEntries(spec)
+      } catch (exception: Exception) {
+        return@forEach
+      }
+      groupedRequisitions.add(
+        groupedRequisitions {
+        modelLine = measurementSpec.modelLine
+        this.requisitions += GroupedRequisitionsKt.requisitionEntry { this.requisition = Any.pack(requisition) }
+        this.eventGroupMap +=
+          eventGroupMapEntries.map {
+            eventGroupMapEntry {
+              this.eventGroup = it.key
+              details = it.value
+            }
+          }
+        }
+      )
+    }
     return groupedRequisitions
   }
 
