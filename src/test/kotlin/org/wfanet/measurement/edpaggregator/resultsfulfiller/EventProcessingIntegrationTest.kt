@@ -69,7 +69,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
@@ -77,7 +76,6 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMem
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 /**
  * End-to-end integration tests for event processing with requisitions and event groups.
@@ -1303,9 +1301,7 @@ class EventProcessingIntegrationTest {
     Files.createDirectories(deksBucketDir.toPath())
     val impressionsDekStorageClient = FileSystemStorageClient(deksBucketDir)
 
-    val blobDetails = blobDetails {
-      blobUri = "file:///impressions/$date/$eventGroup"
-    }
+    val blobDetails = blobDetails { blobUri = "file:///impressions/$date/$eventGroup" }
 
     impressionsDekStorageClient.writeBlob(
       "ds/$date/event-group-reference-id/$eventGroup/metadata",
