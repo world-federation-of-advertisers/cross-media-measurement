@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.k8s
 
 import com.google.common.hash.Hashing
+import com.google.rpc.ErrorInfo
 import io.grpc.Channel
 import io.grpc.Status
 import io.grpc.StatusException
@@ -414,11 +415,10 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
         try {
           principalsStub.lookupPrincipal(lookupPrincipalRequest { user = oauthUser })
         } catch (e: StatusRuntimeException) {
-          if (e.errorInfo == null) {
-            throw e
-          }
+          val errorInfo: ErrorInfo =
+            e.errorInfo ?: throw e
 
-          if (e.errorInfo!!.reason == Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name) {
+          if (errorInfo.reason == Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name) {
             principalsStub.createPrincipal(
               createPrincipalRequest {
                 principalId = "mc-user"

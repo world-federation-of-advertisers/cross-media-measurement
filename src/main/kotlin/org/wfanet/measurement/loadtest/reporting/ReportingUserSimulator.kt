@@ -345,20 +345,17 @@ class ReportingUserSimulator(
   }
 
   private suspend fun getEventGroup(): EventGroup {
-    val resourceLists: Flow<ResourceList<EventGroup, String?>> =
-      eventGroupsClient.listResources(500, null) { pageToken: String?, remaining: Int ->
+    val resourceLists: Flow<ResourceList<EventGroup, String>> =
+      eventGroupsClient.listResources(1, "") { pageToken: String, remaining: Int ->
         val listEventGroupsResponse =
           eventGroupsClient.listEventGroups(
             listEventGroupsRequest {
               parent = measurementConsumerName
               pageSize = remaining
-              if (pageToken != null) {
-                this.pageToken = pageToken
-              }
+              this.pageToken = pageToken
             }
           )
 
-        val nextPageToken = listEventGroupsResponse.nextPageToken.ifEmpty { null }
         val validEventGroup: EventGroup? =
           listEventGroupsResponse.eventGroupsList.firstOrNull { eventGroup ->
             eventGroup.eventGroupReferenceId.startsWith(
@@ -374,7 +371,7 @@ class ReportingUserSimulator(
 
         val resources = validEventGroup?.let { listOf(it) } ?: emptyList()
 
-        ResourceList(resources, nextPageToken)
+        ResourceList(resources, listEventGroupsResponse.nextPageToken)
       }
 
     return resourceLists.filter { it.resources.isNotEmpty() }.first().resources.first()
