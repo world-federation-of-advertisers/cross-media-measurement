@@ -53,5 +53,4 @@ message EncryptedDek {
 
   // DEK ciphertext encrypted with kek_uri.
   bytes ciphertext = 4;
-
 }
