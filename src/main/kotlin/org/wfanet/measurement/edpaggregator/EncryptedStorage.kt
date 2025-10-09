@@ -112,6 +112,7 @@ object EncryptedStorage {
       this.kekUri = kekUri
       ciphertext = serializedEncryptionKey
       protobufFormat = ProtobufFormat.BINARY
+      typeUrl = TYPE_URL_TINK_KEYSET
     }
 
     return blobDetails {
