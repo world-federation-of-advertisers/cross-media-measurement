@@ -112,7 +112,7 @@ class StorageEventReader(
             selectedStorageClient,
             kekUri = encryptedDek.kekUri,
             kmsClient = kmsClient,
-            serializedEncryptionKey = encryptedDek.encryptedDek,
+            encryptedDek = encryptedDek,
           )
         }
 
