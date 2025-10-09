@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "grpc",
+    actual = "@maven//:io_opentelemetry_instrumentation_opentelemetry_grpc_1_6",
+)
