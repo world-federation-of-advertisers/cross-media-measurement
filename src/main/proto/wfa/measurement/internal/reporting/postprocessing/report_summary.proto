@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.postprocessing.v2alpha;
+package wfa.measurement.internal.reporting.postprocessing;
 
-option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
 option java_outer_classname = "ReportSummaryProto";
 
