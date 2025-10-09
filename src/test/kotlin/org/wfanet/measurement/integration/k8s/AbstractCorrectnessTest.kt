@@ -415,8 +415,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
         try {
           principalsStub.lookupPrincipal(lookupPrincipalRequest { user = oauthUser })
         } catch (e: StatusRuntimeException) {
-          val errorInfo: ErrorInfo =
-            e.errorInfo ?: throw e
+          val errorInfo: ErrorInfo = e.errorInfo ?: throw e
 
           if (errorInfo.reason == Errors.Reason.PRINCIPAL_NOT_FOUND_FOR_USER.name) {
             principalsStub.createPrincipal(
