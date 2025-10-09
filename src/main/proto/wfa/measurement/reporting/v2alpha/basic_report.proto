@@ -110,7 +110,9 @@ message BasicReport {
 
   // Resource name of a valid `ModelLine` to be used for the metrics.
   //
-  // TODO(tristanvuong2021): Determine validity through EnumerateValidModelLines
+  // TODO(tristanvuong2021): Determine validity through
+  // EnumerateValidModelLines. Also, choose a valid `ModelLine` through
+  // EnumerateValidModelLines if this field isn't specified.
   string model_line = 11 [
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
     (google.api.field_behavior) = IMMUTABLE
