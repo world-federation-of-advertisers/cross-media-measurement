@@ -1,0 +1,112 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.postprocessing;
+
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
+option java_multiple_files = true;
+option java_outer_classname = "ReportSummaryV2Proto";
+
+// Represents a report summary, containing information such as the filtered
+// demographic groups, the corresponding total population size, and a list of
+// metric results.
+message ReportSummaryV2 {
+  // Represents a set of results for a specific combination of data providers
+  // and reporting policies.
+  message ReportSummarySetResult {
+    // Specifies the filter type (e.g. AMI, MRC, CUSTOM).
+    string impression_filter = 1;
+
+    // Specifies the set operation (e.g. "union").
+    string set_operation = 2;
+
+    // The list of data providers whose data is included in these results.
+    repeated string data_providers = 3;
+
+    // Represents a single reach result.
+    message ReachResult {
+      int64 value = 1;
+      double standard_deviation = 2;
+
+      // The unique name that is associated with this result.
+      string metric = 3;
+    }
+
+    // Represents a frequency distribution result.
+    message FrequencyResult {
+      message BinResult {
+        string label = 1;
+        int64 value = 2;
+        double standard_deviation = 3;
+      }
+      repeated BinResult bins = 1;
+
+      // The unique name that is associated with this result.
+      string metric = 2;
+    }
+
+    // Represents an impression count result
+    message ImpressionCountResult {
+      int64 value = 1;
+      double standard_deviation = 2;
+
+      // The unique name that is associated with this result.
+      string metric = 3;
+    }
+
+    // The results for a single result within a reporting window.
+    message ReportSummaryWindowResult {
+      enum MetricFrequencyType {
+        METRIC_FREQUENCY_TYPE_UNSPECIFIED = 0;
+        TOTAL = 1;
+        WEEKLY = 2;
+      }
+
+      MetricFrequencyType metric_frequency_type = 1;
+
+      ReachResult reach = 4;
+      FrequencyResult frequency = 5;
+      ImpressionCountResult impression_count = 6;
+    }
+
+    // A list of cumulative results, ordered by the end date of the window.
+    repeated ReportSummaryWindowResult cumulative_results = 5;
+
+    // A list of non-cumulative results, ordered by the end date of the window.
+    // This can contain both whole-campaign metrics (e.g., where
+    // `metric_frequency_type` is `TOTAL`) and periodic non-cumulative metrics
+    // (e.g., where `metric_frequency_type` is `WEEKLY`).
+    repeated ReportSummaryWindowResult non_cumulative_results = 6;
+  }
+
+  // A list containing the details and results for each set of metrics included
+  // in the report summary.
+  repeated ReportSummarySetResult report_summary_set_results = 1;
+
+  // Identifies the filtered demographic groups this report summary applies to.
+  //
+  // The demographic_groups field contains a list of strings, each corresponds
+  // to a single demographic group identifier. For examples:
+  // - For a report summary on a subset of groups: ["MALE_AGE_GROUP1",
+  // "FEMALE_AGE_GROUP1"].
+  // - For a report summary on a single group: ["MALE_AGE_GROUP1"].
+  // - For a report summary on the whole population (no filter): ["-"].
+  repeated string demographic_groups = 2;
+
+  // The total population size of the selected demographic groups in this report
+  // summary.
+  int64 population = 3;
+}
