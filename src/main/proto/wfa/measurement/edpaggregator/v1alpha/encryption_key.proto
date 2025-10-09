@@ -40,11 +40,22 @@ message AesGcmHkdfStreamingKey {
   bytes key_value = 3;
 }
 
+// Wrapper of AesGcmKey
+message AesGcmKey {
+  // Version of AesGcmKey
+  int32 version = 1;
+  // Placeholder for ctype and debug_redact.
+  bytes key_value = 2;
+}
+
 // The Encryption Key object
 message EncryptionKey {
+  // The type of key
   oneof key {
     // AesGcmHkdfStreamingKey key type
     AesGcmHkdfStreamingKey aes_gcm_hkdf_streaming_key = 1;
+    // AesGcmKey key type
+    AesGcmKey aes_gcm_key = 2;
   }
 }
 
