@@ -52,9 +52,6 @@ message EncryptedDek {
   ProtobufFormat protobuf_format = 3;
 
   // DEK ciphertext encrypted with kek_uri.
-  //
-  // The plaintext is a protobuf message of type
-  // type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey.
   bytes ciphertext = 4;
 
 }
