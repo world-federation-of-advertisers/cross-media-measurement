@@ -425,19 +425,19 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
 ): List<ModelLineBoundResult> {
   val sql =
     """
-    SELECT
-      DataProviderResourceId,
-      CmmsModelLine,
-      MIN(IntervalStartTime) AS StartTime,
-      MAX(IntervalEndTime) AS EndTime
-    FROM
-      ImpressionMetadata
-    WHERE
-      DataProviderResourceId = @dataProviderResourceId
-      AND CmmsModelLine IN UNNEST(@cmmsModelLines)
-    GROUP BY
-      DataProviderResourceId,
-      CmmsModelLine
+      SELECT
+        DataProviderResourceId,
+        CmmsModelLine,
+        MIN(IntervalStartTime) AS StartTime,
+        MAX(IntervalEndTime) AS EndTime
+      FROM
+        ImpressionMetadata
+      WHERE
+        DataProviderResourceId = @dataProviderResourceId
+        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+      GROUP BY
+        DataProviderResourceId,
+        CmmsModelLine
     """
       .trimIndent()
   val query =
