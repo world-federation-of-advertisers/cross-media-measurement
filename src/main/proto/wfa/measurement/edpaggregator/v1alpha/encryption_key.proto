@@ -22,8 +22,8 @@ option java_outer_classname = "EncryptionKeyProto";
 
 // Hash type
 enum HashType {
-  // UNKNOWN_HASH
-  UNKNOWN_HASH = 0;
+  // HASH_TYPE_UNSPECIFIED
+  HASH_TYPE_UNSPECIFIED = 0;
   // Using SHA1 for digital signature is deprecated
   SHA1 = 1;
   // SHA384
@@ -39,9 +39,9 @@ enum HashType {
 // Params used for [AesGcmHkdfStreamingKey]
 message AesGcmHkdfStreamingParams {
   // ciphertext_segment_size
-  uint32 ciphertext_segment_size = 1;
+  int32 ciphertext_segment_size = 1;
   // size of AES-GCM keys derived for each segment
-  uint32 derived_key_size = 2;
+  int32 derived_key_size = 2;
   // hkdf_hash_type
   HashType hkdf_hash_type = 3;
 }
@@ -49,7 +49,7 @@ message AesGcmHkdfStreamingParams {
 // Wrapper of AesGcmHkdfStreamingKey
 message AesGcmHkdfStreamingKey {
   // Version of AesGcmHkdfStreamingKey
-  uint32 version = 1;
+  int32 version = 1;
   // Params of AesGcmHkdfStreamingKey
   AesGcmHkdfStreamingParams params = 2;
   // Placeholder for ctype and debug_redact.

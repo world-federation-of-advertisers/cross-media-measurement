@@ -40,16 +40,21 @@ message EncryptedDek {
   // "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey".
   string type_url = 2;
 
+  // Supported Protobuf format.
   enum ProtobufFormat {
+    // PROTOBUF_FORMAT_UNSPECIFIED
     PROTOBUF_FORMAT_UNSPECIFIED = 0;
+    // BINARY
     BINARY = 1;
+    // JSON
     JSON = 2;
   }
   ProtobufFormat protobuf_format = 3;
 
-  // DEK ciphertext encrypted with [kek_uri][].
+  // DEK ciphertext encrypted with kek_uri.
   //
-  // The plaintext is a protobuf message of type [type_url][] serialized in [protobuf_format][].
+  // The plaintext is a protobuf message of type
+  // type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey.
   bytes ciphertext = 4;
 
 }
