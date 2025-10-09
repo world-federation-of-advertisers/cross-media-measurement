@@ -76,6 +76,7 @@ class ImpressionsWriter(
         .setKekUri(kekUri)
         .setCiphertext(serializedEncryptionKey)
         .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
+        .setTypeUrl("type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey")
         .build()
     events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
       val labeledImpressions: Sequence<LabeledImpression> =
