@@ -64,7 +64,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       BasicReportResultDetails,
       State,
       CreateReportRequestId,
-      ExternalReportId
+      ExternalReportId,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -111,7 +114,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       BasicReportResultDetails,
       State,
       CreateReportRequestId,
-      ExternalReportId
+      ExternalReportId,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -161,7 +167,10 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         BasicReportResultDetails,
         State,
         CreateReportRequestId,
-        ExternalReportId
+        ExternalReportId,
+        CmmsModelProviderId,
+        CmmsModelSuiteId,
+        CmmsModelLineId
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -251,6 +260,9 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("ExternalReportId").to(basicReport.externalReportId)
     }
     set("CreateRequestId").to(requestId)
+    set("CmmsModelProviderId").to(basicReport.cmmsModelProviderId)
+    set("CmmsModelSuiteId").to(basicReport.cmmsModelSuiteId)
+    set("CmmsModelLineId").to(basicReport.cmmsModelLineId)
   }
 }
 
@@ -311,6 +323,15 @@ private fun buildBasicReport(row: Struct): BasicReport {
     }
     if (!row.isNull("ExternalReportId")) {
       externalReportId = row.getString("ExternalReportId")
+    }
+    if (!row.isNull("CmmsModelProviderId")) {
+      cmmsModelProviderId = row.getString("CmmsModelProviderId")
+    }
+    if (!row.isNull("CmmsModelSuiteId")) {
+      cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
+    }
+    if (!row.isNull("CmmsModelLineId")) {
+      cmmsModelLineId = row.getString("CmmsModelLineId")
     }
   }
 }
