@@ -83,9 +83,11 @@ data class GroupedRequisitionsWrapper(
  * 4. **Validate New Requisitions** — Validate unregistered requisitions. On failure, record
  *    refusals to the Kingdom and in metadata storage.
  *
- * 5. **Persist Metadata for New Groups** — Create new [RequisitionMetadata] entries via
- *    `requisitionMetadataStub.createRequisitionMetadata`, associating each requisition with a
- *    generated group ID and blob URI.
+ * 5. **Persist Metadata for New Groups** — For valid requisitions, create new [RequisitionMetadata]
+ *    entries via `requisitionMetadataStub.createRequisitionMetadata`, associating each requisition
+ *    with a generated group ID and blob URI.
+ *    For invalid requisitions, persist refusal states via
+ *    `requisitionMetadataStub.refuseRequisitionMetadata`.
  *
  * @property requisitionValidator Validates that all grouped requisitions are consistent and compatible.
  * @property dataProviderName The name of the data provider resource, used as the parent in metadata requests.
@@ -139,16 +141,20 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Validates a batch of requisitions and merges them into a single [GroupedRequisitions].
+   * Validates a batch of requisitions and merges the valid ones into a single [GroupedRequisitions].
    *
    * ### High-Level Flow
-   * 1. Validate each requisition’s [RequisitionSpec] and event group references.
-   * 2. On validation failure, build a refusal and record it.
-   * 3. On success, assemble a [GroupedRequisitions] with model line and event group map.
-   * 4. Validate model-line consistency across requisitions using [RequisitionsValidator].
-   * 5. Return the merged result and any refusals.
+   * 1. Validate each requisition’s [RequisitionSpec] and its associated event group references.
+   * 2. On validation failure, build a [Refusal] and record it for later persistence.
+   * 3. On success, include the requisition in a temporary [GroupedRequisitions] with its model line
+   *    and event group map.
+   * 4. After all validations, filter out refused requisitions and merge only **valid** ones.
+   * 5. Validate model-line consistency across valid requisitions using [RequisitionsValidator].
+   * 6. Return a [GroupedRequisitionsWrapper] containing:
+   *    - The merged [GroupedRequisitions] (valid requisitions only), or `null` if all failed.
+   *    - A map of all refusals for invalid requisitions.
    *
-   * @return A [GroupedRequisitionsWrapper] containing the merged result and refusal map.
+   * @return A [GroupedRequisitionsWrapper] with the merged result (valid only) and a refusal map.
    */
   suspend fun validateAndGroupRequisitions(
     requisitions: List<Requisition>,
@@ -240,14 +246,17 @@ class RequisitionGrouperByReportId(
     }
 
   /**
-   * Creates a new [GroupedRequisitions] for previously unregistered requisitions.
+   * Creates a new [GroupedRequisitions] for **new or unseen requisitions** not yet recorded in metadata.
    *
    * ### High-Level Flow
-   * 1. Identify requisitions not yet recorded in metadata.
+   * 1. Identify requisitions missing from existing [RequisitionMetadata] entries.
    * 2. Validate and group them via [validateAndGroupRequisitions].
-   * 3. Persist corresponding [RequisitionMetadata] entries through
+   * 3. Persist metadata for valid requisitions using
    *    `requisitionMetadataStub.createRequisitionMetadata`.
-   * 4. Refuse invalid requisitions both upstream (Kingdom) and in metadata storage.
+   * 4. Refuse invalid requisitions both to the Kingdom and in metadata storage using
+   *    `requisitionMetadataStub.refuseRequisitionMetadata`.
+   *
+   * @return A newly created [GroupedRequisitions] if any valid requisitions exist, or `null` otherwise.
    */
   suspend fun createNewGroupedRequisitions(
     groupedRequisitionMetadata: Map<String, List<RequisitionMetadata>>,
