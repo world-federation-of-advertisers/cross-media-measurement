@@ -72,7 +72,11 @@ class ImpressionsWriter(
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setCiphertext(serializedEncryptionKey).setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY).build()
+      EncryptedDek.newBuilder()
+        .setKekUri(kekUri)
+        .setCiphertext(serializedEncryptionKey)
+        .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
+        .build()
     events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
       val labeledImpressions: Sequence<LabeledImpression> =
         labeledEvents.map { it: LabeledEvent<T> ->
