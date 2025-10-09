@@ -191,9 +191,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadata(
   return buildMap {
     executeQuery(query, Options.tag("action=findExistingImpressionMetadata")).collect { row ->
       val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
-      if (result.impressionMetadata.createRequestId.isNotBlank()) {
-        put(result.impressionMetadata.createRequestId, result)
-      }
+      put(row.getString("CreateRequestId"), result)
     }
   }
 }
@@ -202,13 +200,14 @@ suspend fun AsyncDatabaseClient.ReadContext.findExistingImpressionMetadata(
 fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadataId: Long,
   impressionMetadata: ImpressionMetadata,
+  createRequestId: String,
 ) {
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("ImpressionMetadataResourceId").to(impressionMetadata.impressionMetadataResourceId)
-    if (impressionMetadata.createRequestId.isNotEmpty()) {
-      set("CreateRequestId").to(impressionMetadata.createRequestId)
+    if (createRequestId.isNotEmpty()) {
+      set("CreateRequestId").to(createRequestId)
     }
     set("BlobUri").to(impressionMetadata.blobUri)
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
@@ -233,16 +232,6 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
 suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata(
   requests: List<CreateImpressionMetadataRequest>
 ): List<ImpressionMetadata> {
-  //  buildSet {
-  //    requests.forEachIndexed { index, it ->
-  //      if (!add(it.impressionMetadata.blobUri)) {
-  //        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri")
-  //      }
-  //      if (it.requestId.isNotEmpty() && !add(it.requestId)) {
-  //        throw InvalidFieldValueException("requests.$index.request_id")
-  //      }
-  //    }
-  //  }
 
   val existingImpressionMetadataMap: Map<String, ImpressionMetadataResult> =
     findExistingImpressionMetadata(requests, requests[0].impressionMetadata.dataProviderResourceId)
@@ -264,16 +253,18 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
         val created =
           request.impressionMetadata.copy {
             this.impressionMetadataResourceId = impressionMetadataResourceId
-            createRequestId = request.requestId
             state = State.IMPRESSION_METADATA_STATE_ACTIVE
           }
 
-        insertImpressionMetadata(impressionMetadataId, created)
+        insertImpressionMetadata(impressionMetadataId, created, request.requestId)
         created
       }
 
   val creationsByRequestId: Map<String, ImpressionMetadata> =
-    creations.associateBy { it.createRequestId }
+    requests
+      .filter { !existingImpressionMetadataMap.containsKey(it.requestId) }
+      .zip(creations)
+      .associate { (request, impressionMetadata) -> request.requestId to impressionMetadata }
 
   return requests.map {
     existingImpressionMetadataMap[it.requestId]?.impressionMetadata
@@ -316,6 +307,38 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataIdByResourceId(
         impressionMetadataResourceId,
       )
   return row.getLong("ImpressionMetadataId")
+}
+
+/**
+ * Reads the [ImpressionMetadata] with the specified blob uri
+ *
+ * @throws ImpressionMetadataNotFoundException
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByBlobUri(
+  dataProviderResourceId: String,
+  blobUri: String,
+): ImpressionMetadataResult? {
+  val sql = buildString {
+    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+      AND BlobUri = @blobUri
+      """
+        .trimIndent()
+    )
+  }
+
+  val row: Struct =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("blobUri").to(blobUri)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+
+  return ImpressionMetadataEntity.buildImpressionMetadataResult(row)
 }
 
 /** Reads [ImpressionMetadata] ordered by resource ID. */
@@ -468,9 +491,6 @@ private object ImpressionMetadataEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
-        if (!struct.isNull("CreateRequestId")) {
-          createRequestId = struct.getString("CreateRequestId")
-        }
       },
       struct.getLong("ImpressionMetadataId"),
     )

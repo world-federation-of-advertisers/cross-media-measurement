@@ -129,6 +129,8 @@ class SpannerImpressionMetadataService(
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
     }
 
+    val blobUriSet = hashSetOf<String>()
+    val requestIdSet = hashSetOf<String>()
     request.requestsList.forEachIndexed { index, it ->
       if (it.impressionMetadata.dataProviderResourceId != dataProviderResourceId) {
         throw InvalidFieldValueException(
@@ -138,13 +140,39 @@ class SpannerImpressionMetadataService(
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+
+      if (!blobUriSet.add(it.impressionMetadata.blobUri)) {
+        val blobUri = it.impressionMetadata.blobUri
+        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
+            "blob uri $blobUri is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val requestId = it.requestId
+      if (requestId.isNotEmpty()) {
+        try {
+          UUID.fromString(requestId)
+        } catch (e: IllegalArgumentException) {
+          throw InvalidFieldValueException("requests.$index.request_id", e)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        if (!requestIdSet.add(it.requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") {
+              "request id $requestId is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
       validateImpressionMetadataRequest(it)
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
 
-    val results =
+    var results =
       try {
         transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
       } catch (e: SpannerException) {
