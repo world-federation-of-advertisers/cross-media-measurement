@@ -33,6 +33,24 @@ message EncryptedDek {
   // The URI for the key encryption key used with KMS
   string kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // The encrypted data encryption key
-  bytes encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
+  // Protobuf type URL of the serialized key.
+  //
+  // This must be either "type.googleapis.com/google.crypto.tink.Keyset"
+  // or
+  // "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey".
+  string type_url = 2;
+
+  // Supported Protobuf format.
+  enum ProtobufFormat {
+    // PROTOBUF_FORMAT_UNSPECIFIED
+    PROTOBUF_FORMAT_UNSPECIFIED = 0;
+    // BINARY
+    BINARY = 1;
+    // JSON
+    JSON = 2;
+  }
+  ProtobufFormat protobuf_format = 3;
+
+  // DEK ciphertext encrypted with kek_uri.
+  bytes ciphertext = 4;
 }
