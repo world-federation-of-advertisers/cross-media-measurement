@@ -129,7 +129,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {

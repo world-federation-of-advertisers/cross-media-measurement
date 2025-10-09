@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
-import com.google.protobuf.ByteString
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.Message
@@ -31,8 +30,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
-import java.util.Base64
 
 /**
  * Reads labeled events from impression blobs in storage.

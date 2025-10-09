@@ -60,13 +60,13 @@ class ParseJsonEncryptedKeyTest {
     val keyValue = Base64.getEncoder().encodeToString(keyBytes)
     val encryptionKeyJson =
       """
-    {
-      "aesGcmKey": {
-        "version": 0,
-        "keyValue": "$keyValue"
-      }
-    }
-  """
+      {
+          "aesGcmKey": {
+            "version": 0,
+            "keyValue": "$keyValue"
+          }
+       }
+      """
         .trimIndent()
     val ciphertext = kmsAead.encrypt(encryptionKeyJson.toByteArray(Charsets.UTF_8), byteArrayOf())
 
@@ -104,18 +104,18 @@ class ParseJsonEncryptedKeyTest {
     // Example hardcoded JSON (client side)
     val encryptionKeyJson =
       """
-    {
-      "aesGcmHkdfStreamingKey": {
-        "version": 0,
-        "params": {
-          "ciphertextSegmentSize": 1048576,
-          "derivedKeySize": 16,
-          "hkdfHashType": "SHA256"
-        },
-        "keyValue": "$keyValueB64"
+      {
+        "aesGcmHkdfStreamingKey": {
+          "version": 0,
+          "params": {
+            "ciphertextSegmentSize": 1048576,
+            "derivedKeySize": 16,
+            "hkdfHashType": "SHA256"
+          },
+          "keyValue": "$keyValueB64"
+        }
       }
-    }
-  """
+      """
         .trimIndent()
         .trimIndent()
     val ciphertext = kmsAead.encrypt(encryptionKeyJson.toByteArray(Charsets.UTF_8), byteArrayOf())
@@ -140,6 +140,5 @@ class ParseJsonEncryptedKeyTest {
     val readData = runBlocking { storageClient.getBlob("some-blob-key")!!.read().flatten() }
     assertThat(readData).isEqualTo("some-content".toByteStringUtf8())
   }
-
-  companion object {}
+  
 }

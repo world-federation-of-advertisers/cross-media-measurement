@@ -136,7 +136,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
