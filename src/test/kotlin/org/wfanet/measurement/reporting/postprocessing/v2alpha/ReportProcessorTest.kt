@@ -108,7 +108,6 @@ class ReportProcessorTest {
       // Verifies that the field isReportUnreliable is set to True due to the INTERNAL_ERROR issue.
       assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isTrue()
 
-
       val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
 
       // Verify that the log is written to the storage.
@@ -239,7 +238,6 @@ class ReportProcessorTest {
     // Verifies that the field isReportUnreliable is set properly.
     assertThat(reportProcessingOutput.reportPostProcessorLog.isReportUnreliable).isFalse()
 
-
     val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
 
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
@@ -314,9 +312,7 @@ class ReportProcessorTest {
     // Verifies that the log result has issue with large corrections.
     assertEquals(
       reportProcessingOutput.reportPostProcessorLog.issuesList,
-      listOf(
-        ReportPostProcessorLog.ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS,
-      )
+      listOf(ReportPostProcessorLog.ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS),
     )
 
     // Verifies that the field isReportUnreliable is set to True.
@@ -327,10 +323,10 @@ class ReportProcessorTest {
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
     assertThat(
-      ReportPostProcessorLog.parseFrom(
-        inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
       )
-    )
       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
 
