@@ -72,5 +72,5 @@ message ReportPostProcessorLog {
   // resulting corrected report is considered reliable. This will be false if
   // the solver fails, or an internal error occurs, or there are some large
   // corrections.
-  bool postprocessing_successful = 5;
+  bool post_processing_successful = 5;
 }

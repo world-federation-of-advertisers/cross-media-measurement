@@ -364,7 +364,7 @@ interface ReportProcessor {
         createTime = report.createTime
         results.putAll(resultMap)
         issues.addAll(foundIssues)
-        postprocessingSuccessful = isSuccessful
+        postProcessingSuccessful = isSuccessful
       }
 
       return ReportProcessingOutput(
