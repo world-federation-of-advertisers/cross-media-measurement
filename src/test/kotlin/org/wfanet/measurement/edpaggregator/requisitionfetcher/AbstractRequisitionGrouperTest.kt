@@ -21,8 +21,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteStringUtf8
-import io.grpc.Status
-import io.grpc.StatusException
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -44,7 +42,6 @@ import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
-import kotlin.test.assertFailsWith
 
 @RunWith(JUnit4::class)
 abstract class AbstractRequisitionGrouperTest {

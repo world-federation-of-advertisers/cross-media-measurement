@@ -76,7 +76,8 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
   }
 
   fun getRequisitionSpec(requisition: Requisition): RequisitionSpec {
-    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
+    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
+      .unpack()
   }
 
   fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
