@@ -1,0 +1,18 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "opentelemetry_cloudrun_setup",
+    srcs = ["OpenTelemetryCloudRunSetup.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/opentelemetry:metrics",
+        "//imports/java/com/google/cloud/opentelemetry:trace",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:common",
+        "//imports/java/io/opentelemetry/sdk:metrics",
+        "//imports/java/io/opentelemetry/sdk:trace",
+        "@maven//:io_opentelemetry_semconv_opentelemetry_semconv",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+    ],
+)

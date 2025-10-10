@@ -22,6 +22,9 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.api.metrics.Meter
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.api.trace.Tracer
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeSource
@@ -62,6 +65,7 @@ class RequisitionFetcher(
   val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
   private val meter: Meter = Instrumentation.meter,
+  private val tracer: Tracer = Instrumentation.openTelemetry.getTracer("org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher"),
 ) {
 
   private val fetchLatencyHistogram =
@@ -96,66 +100,85 @@ class RequisitionFetcher(
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   suspend fun fetchAndStoreRequisitions() {
-    logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
+    val span = tracer.spanBuilder("RequisitionFetcher.fetchAndStoreRequisitions")
+      .setAttribute("data_provider", dataProviderName)
+      .setAttribute("service.name", "requisition-fetcher")
+      .startSpan()
 
-    val startMark = TimeSource.Monotonic.markNow()
-    var requisitionsCount = 0
+    try {
+      span.makeCurrent().use {
+        logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
-    // a more efficient way to pull only the Requisitions that have not been stored in storage.
-    val requisitions: Flow<Requisition> =
-      requisitionsStub
-        .listResources { pageToken: String ->
-          val request = listRequisitionsRequest {
-            parent = dataProviderName
-            filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
-            if (responsePageSize != null) {
-              pageSize = responsePageSize
+        val startMark = TimeSource.Monotonic.markNow()
+        var requisitionsCount = 0
+
+        // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
+        // a more efficient way to pull only the Requisitions that have not been stored in storage.
+        val requisitions: Flow<Requisition> =
+          requisitionsStub
+            .listResources { pageToken: String ->
+              val request = listRequisitionsRequest {
+                parent = dataProviderName
+                filter = ListRequisitionsRequestKt.filter { states += Requisition.State.UNFULFILLED }
+                if (responsePageSize != null) {
+                  pageSize = responsePageSize
+                }
+                this.pageToken = pageToken
+              }
+              val response: ListRequisitionsResponse =
+                try {
+                  requisitionsStub.listRequisitions(request)
+                } catch (e: StatusException) {
+                  throw Exception("Error listing requisitions", e)
+                }
+              requisitionsCount += response.requisitionsList.size
+              ResourceList(response.requisitionsList, response.nextPageToken)
             }
-            this.pageToken = pageToken
+            .flattenConcat()
+
+        val groupedRequisition: List<GroupedRequisitions> =
+          requisitionGrouper.groupRequisitions(requisitions.toList())
+        val storedRequisitions: Int = storeRequisitions(groupedRequisition)
+
+        // Emit fetch latency metric for each report_id in the grouped requisitions
+        groupedRequisition.forEach { grouped ->
+          val reportId = extractReportId(grouped)
+          if (reportId != null) {
+            val latencySeconds = startMark.elapsedNow().inWholeMilliseconds / 1000.0
+            fetchLatencyHistogram.record(
+              latencySeconds,
+              Attributes.builder()
+                .put(DATA_PROVIDER_KEY, dataProviderName)
+                .put(REPORT_ID_KEY, reportId)
+                .put(SERVICE_NAME_KEY, "requisition-fetcher")
+                .build()
+            )
           }
-          val response: ListRequisitionsResponse =
-            try {
-              requisitionsStub.listRequisitions(request)
-            } catch (e: StatusException) {
-              throw Exception("Error listing requisitions", e)
-            }
-          requisitionsCount += response.requisitionsList.size
-          ResourceList(response.requisitionsList, response.nextPageToken)
         }
-        .flattenConcat()
 
-    val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
-    val storedRequisitions: Int = storeRequisitions(groupedRequisition)
-
-    // Emit fetch latency metric for each report_id in the grouped requisitions
-    groupedRequisition.forEach { grouped ->
-      val reportId = extractReportId(grouped)
-      if (reportId != null) {
-        val latencySeconds = startMark.elapsedNow().inWholeMilliseconds / 1000.0
-        fetchLatencyHistogram.record(
-          latencySeconds,
+        // Emit requisitions fetched counter
+        requisitionsFetchedCounter.add(
+          requisitionsCount.toLong(),
           Attributes.builder()
             .put(DATA_PROVIDER_KEY, dataProviderName)
-            .put(REPORT_ID_KEY, reportId)
             .put(SERVICE_NAME_KEY, "requisition-fetcher")
             .build()
         )
+
+        span.setAttribute("requisitions_count", requisitionsCount.toLong())
+        span.setAttribute("stored_requisitions", storedRequisitions.toLong())
+        span.setStatus(StatusCode.OK)
+
+        logger.info {
+          "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
+        }
       }
-    }
-
-    // Emit requisitions fetched counter
-    requisitionsFetchedCounter.add(
-      requisitionsCount.toLong(),
-      Attributes.builder()
-        .put(DATA_PROVIDER_KEY, dataProviderName)
-        .put(SERVICE_NAME_KEY, "requisition-fetcher")
-        .build()
-    )
-
-    logger.info {
-      "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
+    } catch (e: Exception) {
+      span.recordException(e)
+      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
+      throw e
+    } finally {
+      span.end()
     }
   }
 

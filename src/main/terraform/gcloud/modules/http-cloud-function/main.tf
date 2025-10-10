@@ -26,11 +26,25 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_cloud_funct
   member             = "serviceAccount:${var.terraform_service_account}"
 }
 
+resource "google_project_iam_member" "http_cloud_function_metric_writer" {
+  project = data.google_project.project.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.http_cloud_function_service_account.email}"
+}
+
+resource "google_project_iam_member" "http_cloud_function_trace_agent" {
+  project = data.google_project.project.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.http_cloud_function_service_account.email}"
+}
+
 resource "terraform_data" "deploy_http_cloud_function" {
 
   depends_on = [
     google_service_account.http_cloud_function_service_account,
     google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
+    google_project_iam_member.http_cloud_function_metric_writer,
+    google_project_iam_member.http_cloud_function_trace_agent,
   ]
 
   triggers_replace = [var.uber_jar_path]

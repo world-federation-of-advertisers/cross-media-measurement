@@ -254,6 +254,12 @@ maven.install(
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.cloud:google-cloud-secretmanager",
+        "com.google.cloud.opentelemetry:exporter-trace:0.35.0",
+        "com.google.cloud.opentelemetry:exporter-metrics:0.35.0",
+        "io.opentelemetry:opentelemetry-sdk:1.44.1",
+        "io.opentelemetry:opentelemetry-sdk-trace:1.44.1",
+        "io.opentelemetry:opentelemetry-sdk-metrics:1.44.1",
+        "io.opentelemetry:opentelemetry-sdk-common:1.44.1",
 
         # AWS
         "software.amazon.awssdk:acmpca",
