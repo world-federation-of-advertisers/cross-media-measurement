@@ -27,6 +27,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -674,7 +675,7 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
   }
 
   @Test
-  fun `streamModelLines can return model lines with a given type`(): Unit = runBlocking {
+  fun `streamModelLines returns ModelLines filtered by type`(): Unit = runBlocking {
     val modelSuite = population.createModelSuite(modelProvidersService, modelSuitesService)
 
     val modelLine1 =
@@ -715,6 +716,70 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     assertThat(modelLines).hasSize(1)
     assertThat(modelLines).contains(modelLine1)
+  }
+
+  @Test
+  fun `streamModelLines returns ModelLines filtered by active interval`(): Unit = runBlocking {
+    val now = clock.instant()
+    val modelProvider = population.createModelProvider(modelProvidersService)
+    val modelSuite = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelSuite2 = population.createModelSuite(modelSuitesService, modelProvider)
+    val modelProvider2 = population.createModelProvider(modelProvidersService)
+    val modelSuite3 = population.createModelSuite(modelSuitesService, modelProvider2)
+    val expectedModelLines =
+      listOf(
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite.externalModelProviderId
+            externalModelSuiteId = modelSuite.externalModelSuiteId
+            type = ModelLine.Type.PROD
+            activeStartTime = now.plus(1L, ChronoUnit.DAYS).toProtoTime()
+          }
+        ),
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite2.externalModelProviderId
+            externalModelSuiteId = modelSuite2.externalModelSuiteId
+            type = ModelLine.Type.PROD
+            activeStartTime = now.plus(2L, ChronoUnit.DAYS).toProtoTime()
+            activeEndTime = now.plus(92L, ChronoUnit.DAYS).toProtoTime()
+          }
+        ),
+        modelLinesService.createModelLine(
+          modelLine {
+            externalModelProviderId = modelSuite3.externalModelProviderId
+            externalModelSuiteId = modelSuite3.externalModelSuiteId
+            type = ModelLine.Type.PROD
+            activeStartTime = now.plus(3L, ChronoUnit.DAYS).toProtoTime()
+            activeEndTime = now.plus(93L, ChronoUnit.DAYS).toProtoTime()
+          }
+        ),
+      )
+    modelLinesService.createModelLine(
+      modelLine {
+        externalModelProviderId = modelSuite.externalModelProviderId
+        externalModelSuiteId = modelSuite.externalModelSuiteId
+        type = ModelLine.Type.PROD
+        activeStartTime = now.plus(1L, ChronoUnit.DAYS).toProtoTime()
+        activeEndTime = now.plus(30L, ChronoUnit.DAYS).toProtoTime()
+      }
+    )
+
+    val responses: List<ModelLine> =
+      modelLinesService
+        .streamModelLines(
+          streamModelLinesRequest {
+            filter = filter {
+              activeIntervalContains = interval {
+                startTime = now.plus(3L, ChronoUnit.DAYS).toProtoTime()
+                endTime = now.plus(90L, ChronoUnit.DAYS).toProtoTime()
+              }
+            }
+          }
+        )
+        .toList()
+
+    assertThat(responses).containsExactlyElementsIn(expectedModelLines)
   }
 
   @Test
