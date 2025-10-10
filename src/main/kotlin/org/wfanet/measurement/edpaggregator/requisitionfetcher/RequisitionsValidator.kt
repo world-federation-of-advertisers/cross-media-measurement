@@ -75,9 +75,13 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
     }
   }
 
+  fun getRequisitionSpec(requisition: Requisition): RequisitionSpec {
+    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
+  }
+
   fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
     return try {
-      decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey).unpack()
+      getRequisitionSpec(requisition)
     } catch (e: GeneralSecurityException) {
       logger.severe("RequisitionSpec decryption failed for ${requisition.name}: ${e.message}")
       throw InvalidRequisitionException(
