@@ -19,12 +19,19 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.util.UUID
 import java.util.logging.Logger
+import kotlin.time.TimeSource
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
@@ -38,6 +45,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * Watcher to observe blob creation events and take the appropriate action for each.
  * @param workItemsStub - the Google Pub Sub Sink to call
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
+ * @param meter - OpenTelemetry meter for instrumentation
  */
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
@@ -46,7 +54,22 @@ class DataWatcher(
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
+  private val meter: Meter = Instrumentation.meter,
 ) {
+  // Telemetry instruments
+  private val processingDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("edpa.data_watcher.processing_duration")
+      .setDescription("Time from regex match to successful sink submission")
+      .setUnit("s")
+      .build()
+
+  private val queueWritesCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_watcher.queue_writes")
+      .setDescription("Number of work items submitted to control plane queue")
+      .build()
+
   suspend fun receivePath(path: String) {
     logger.info("Received Path: $path")
     for (config in dataWatcherConfigs) {
@@ -54,6 +77,10 @@ class DataWatcher(
         val regex = config.sourcePathRegex.toRegex()
         if (regex.matches(path)) {
           logger.info("${config.identifier}: Matched path: $path")
+
+          // Start timing for processing duration
+          val processingStartTime = TimeSource.Monotonic.markNow()
+
           when (config.sinkConfigCase) {
             WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> {
               sendToControlPlane(config, path)
@@ -64,6 +91,16 @@ class DataWatcher(
             WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
               error("${config.identifier}: Invalid sink config: ${config.sinkConfigCase}")
           }
+
+          // Record processing duration
+          val processingDuration = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
+          processingDurationHistogram.record(
+            processingDuration,
+            Attributes.of(
+              AttributeKey.stringKey("config_identifier"), config.identifier,
+              AttributeKey.stringKey("sink_type"), config.sinkConfigCase.name
+            )
+          )
         } else {
           logger.info("$path does not match ${config.sourcePathRegex}")
         }
@@ -91,6 +128,17 @@ class DataWatcher(
       }
     }
     workItemsStub.createWorkItem(request)
+
+    // Record queue write metric
+    queueWritesCounter.add(
+      1,
+      Attributes.of(
+        AttributeKey.stringKey("work_item_id"), workItemId,
+        AttributeKey.stringKey("queue"), queueConfig.queue,
+        AttributeKey.stringKey("config_identifier"), config.identifier
+      )
+    )
+    logger.info("${config.identifier}: Created work item $workItemId for queue ${queueConfig.queue}")
   }
 
   private fun sendToHttpEndpoint(config: WatchedPath, path: String) {
