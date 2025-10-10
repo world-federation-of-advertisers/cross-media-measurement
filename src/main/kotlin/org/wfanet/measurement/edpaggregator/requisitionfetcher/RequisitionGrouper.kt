@@ -57,7 +57,7 @@ abstract class RequisitionGrouper(
    *
    * ### High-Level Flow
    * 1. Each requisition is validated via [mapRequisition].
-   * 2. Invalid requisitions are refused to the Kingdom and excluded.
+   * 2. Invalid requisitions are refused to the Cmms and excluded.
    * 3. Valid requisitions are passed to [createGroupedRequisitions] for combination.
    *
    * @param requisitions Input requisitions to group.

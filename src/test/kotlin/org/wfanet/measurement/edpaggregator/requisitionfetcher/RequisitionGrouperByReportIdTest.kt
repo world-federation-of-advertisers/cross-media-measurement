@@ -465,12 +465,10 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
     assertFailsWith<StatusException> {
-      runBlocking {
-        requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
-      }
+      runBlocking { requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION)) }
     }
   }
-  
+
   @Test
   fun `existing multiple requisition metadata resolves correclty into two grouped requisitions`() =
     runBlocking {
