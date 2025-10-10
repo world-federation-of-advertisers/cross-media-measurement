@@ -30,6 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
@@ -260,9 +261,9 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("ExternalReportId").to(basicReport.externalReportId)
     }
     set("CreateRequestId").to(requestId)
-    set("CmmsModelProviderId").to(basicReport.cmmsModelProviderId)
-    set("CmmsModelSuiteId").to(basicReport.cmmsModelSuiteId)
-    set("CmmsModelLineId").to(basicReport.cmmsModelLineId)
+    set("CmmsModelProviderId").to(basicReport.modelLineKey.cmmsModelProviderId)
+    set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
+    set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
   }
 }
 
@@ -325,13 +326,12 @@ private fun buildBasicReport(row: Struct): BasicReport {
       externalReportId = row.getString("ExternalReportId")
     }
     if (!row.isNull("CmmsModelProviderId")) {
-      cmmsModelProviderId = row.getString("CmmsModelProviderId")
-    }
-    if (!row.isNull("CmmsModelSuiteId")) {
-      cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
-    }
-    if (!row.isNull("CmmsModelLineId")) {
-      cmmsModelLineId = row.getString("CmmsModelLineId")
+      modelLineKey = BasicReportKt.modelLineKey {
+        cmmsModelProviderId = row.getString("CmmsModelProviderId")
+        cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
+        cmmsModelLineId = row.getString("CmmsModelLineId")
+
+      }
     }
   }
 }

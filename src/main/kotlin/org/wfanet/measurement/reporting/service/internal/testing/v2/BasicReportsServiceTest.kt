@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -550,9 +551,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      cmmsModelProviderId = "1234"
-      cmmsModelSuiteId = "1235"
-      cmmsModelLineId = "1236"
+      modelLineKey = BasicReportKt.modelLineKey {
+        cmmsModelProviderId = "1234"
+        cmmsModelSuiteId = "1235"
+        cmmsModelLineId = "1236"
+      }
       details = basicReportDetails {
         title = "title"
         resultGroupSpecs += resultGroupSpec {
@@ -598,9 +601,9 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
 
-    assertThat(createdBasicReport.cmmsModelProviderId).isEqualTo(basicReport.cmmsModelProviderId)
-    assertThat(createdBasicReport.cmmsModelSuiteId).isEqualTo(basicReport.cmmsModelSuiteId)
-    assertThat(createdBasicReport.cmmsModelLineId).isEqualTo(basicReport.cmmsModelLineId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelProviderId).isEqualTo(basicReport.modelLineKey.cmmsModelProviderId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelSuiteId).isEqualTo(basicReport.modelLineKey.cmmsModelSuiteId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelLineId).isEqualTo(basicReport.modelLineKey.cmmsModelLineId)
 
     val retrievedBasicReport =
       service.getBasicReport(
