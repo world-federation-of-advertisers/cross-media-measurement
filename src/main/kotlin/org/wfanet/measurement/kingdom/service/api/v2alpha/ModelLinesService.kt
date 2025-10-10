@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listModelLinesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -320,7 +321,7 @@ class ModelLinesService(
       }
     }
 
-    if (request.dataProvidersList.size == 0) {
+    if (request.dataProvidersList.isEmpty()) {
       failGrpc(Status.INVALID_ARGUMENT) { "Missing data_providers" }
     }
 
@@ -335,15 +336,17 @@ class ModelLinesService(
       }
     }
 
-    val modelSuiteKey = ModelSuiteKey.fromName(request.parent)
-
     val internalModelLines: List<InternalModelLine> =
       try {
         internalClient
           .enumerateValidModelLines(
             enumerateValidModelLinesRequest {
-              externalModelProviderId = apiIdToExternalId(modelSuiteKey!!.modelProviderId)
-              externalModelSuiteId = apiIdToExternalId(modelSuiteKey.modelSuiteId)
+              if (parent.modelProviderId != ResourceKey.WILDCARD_ID) {
+                externalModelProviderId = apiIdToExternalId(parent.modelProviderId)
+              }
+              if (parent.modelSuiteId != ResourceKey.WILDCARD_ID) {
+                externalModelSuiteId = apiIdToExternalId(parent.modelSuiteId)
+              }
               timeInterval = request.timeInterval
               for (dataProviderKey in dataProvidersKeySet) {
                 externalDataProviderIds += apiIdToExternalId(dataProviderKey.dataProviderId)

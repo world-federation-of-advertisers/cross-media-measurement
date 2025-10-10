@@ -1350,7 +1350,7 @@ class ModelLinesServiceTest {
       .thenReturn(internalEnumerateValidModelLinesResponse { modelLines += INTERNAL_MODEL_LINE })
 
     val response =
-      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking {
           service.enumerateValidModelLines(
             enumerateValidModelLinesRequest {
@@ -1382,6 +1382,37 @@ class ModelLinesServiceTest {
             endTime = timestamp { seconds = 200 }
           }
           types += InternalModelLine.Type.PROD
+        }
+      )
+  }
+
+  @Test
+  fun `enumerateValidModelLines requests ModelLines across providers and suites`() = runBlocking {
+    val request = enumerateValidModelLinesRequest {
+      parent = "modelProviders/-/modelSuites/-"
+      timeInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 200 }
+      }
+      dataProviders += DATA_PROVIDER_NAME
+    }
+
+    runBlocking {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        service.enumerateValidModelLines(request)
+      }
+    }
+
+    verifyProtoArgument(
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::enumerateValidModelLines,
+      )
+      .isEqualTo(
+        internalEnumerateValidModelLinesRequest {
+          externalDataProviderIds +=
+            apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+          timeInterval = request.timeInterval
+          types += InternalType.PROD
         }
       )
   }
