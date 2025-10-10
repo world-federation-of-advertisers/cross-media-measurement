@@ -29,7 +29,7 @@ object InternalApiServices {
   ): Services {
     return Services(
       SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator),
-      SpannerImpressionMetadataService(databaseClient, coroutineContext, idGenerator),
+      SpannerImpressionMetadataService(databaseClient, coroutineContext),
     )
   }
 }
