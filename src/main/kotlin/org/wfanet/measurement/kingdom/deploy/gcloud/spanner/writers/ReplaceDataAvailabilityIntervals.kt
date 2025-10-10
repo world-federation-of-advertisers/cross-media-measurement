@@ -18,9 +18,14 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
+import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
+import com.google.type.endTimeOrNull
+import java.time.Instant
+import org.wfanet.measurement.common.contains
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -31,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineInternalKey
@@ -42,6 +48,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineRea
  * Throws one of the following on [execute]:
  * * [DataProviderNotFoundException]
  * * [ModelLineNotFoundException]
+ * * [ModelLineNotActiveException]
  */
 class ReplaceDataAvailabilityIntervals(
   private val request: ReplaceDataAvailabilityIntervalsRequest
@@ -74,37 +81,50 @@ class ReplaceDataAvailabilityIntervals(
   ) {
     val externalModelLineKeys =
       request.dataAvailabilityIntervalsList.concat(existingEntries).map { it.key }.toSet()
-    val keyMapping: Map<ModelLineKey, ModelLineInternalKey> =
-      ModelLineReader.readInternalIds(this, externalModelLineKeys)
-    val replacementIntervals: Map<ModelLineInternalKey, Interval> =
-      request.dataAvailabilityIntervalsList.toMap(keyMapping)
-    val existingIntervals: Map<ModelLineInternalKey, Interval> = existingEntries.toMap(keyMapping)
+    val activeIntervalsByExternalKey: Map<ModelLineKey, ModelLineReader.ActiveIntervalResult> =
+      ModelLineReader.readActiveIntervals(this, externalModelLineKeys)
+    val replacementIntervals: Map<ModelLineReader.ActiveIntervalResult, Interval> =
+      request.dataAvailabilityIntervalsList.toMap(activeIntervalsByExternalKey)
+    val existingIntervals: Map<ModelLineReader.ActiveIntervalResult, Interval> =
+      existingEntries.toMap(activeIntervalsByExternalKey)
 
     if (replacementIntervals == existingIntervals) {
       return // Optimization.
     }
 
-    for ((modelLineKey: ModelLineInternalKey, interval: Interval) in replacementIntervals) {
-      if (existingIntervals.containsKey(modelLineKey)) {
+    for ((modelLineResult: ModelLineReader.ActiveIntervalResult, interval: Interval) in
+      replacementIntervals) {
+      val activeRange: OpenEndRange<Instant> =
+        modelLineResult.activeInterval.startTime.toInstant()..<(modelLineResult.activeInterval
+              .endTimeOrNull ?: Timestamps.MAX_VALUE)
+            .toInstant()
+      val availabilityRange: OpenEndRange<Instant> =
+        interval.startTime.toInstant()..<interval.endTime.toInstant()
+      if (availabilityRange !in activeRange) {
+        throw ModelLineNotActiveException(modelLineResult.externalKey, activeRange)
+      }
+
+      if (existingIntervals.containsKey(modelLineResult)) {
         bufferUpdateMutation(TABLE) {
-          setAvailabilityInterval(dataProviderId, modelLineKey, interval)
+          setAvailabilityInterval(dataProviderId, modelLineResult.key, interval)
         }
       } else {
         bufferInsertMutation(TABLE) {
-          setAvailabilityInterval(dataProviderId, modelLineKey, interval)
+          setAvailabilityInterval(dataProviderId, modelLineResult.key, interval)
         }
       }
     }
-    for (modelLineKey: ModelLineInternalKey in existingIntervals.keys) {
-      if (!replacementIntervals.containsKey(modelLineKey)) {
+    for (modelLineResult: ModelLineReader.ActiveIntervalResult in existingIntervals.keys) {
+      if (!replacementIntervals.containsKey(modelLineResult)) {
+        val key: ModelLineInternalKey = modelLineResult.key
         buffer(
           Mutation.delete(
             TABLE,
             Key.of(
               dataProviderId.value,
-              modelLineKey.modelProviderId.value,
-              modelLineKey.modelSuiteId.value,
-              modelLineKey.modelLineId.value,
+              key.modelProviderId.value,
+              key.modelSuiteId.value,
+              key.modelLineId.value,
             ),
           )
         )
@@ -134,13 +154,13 @@ class ReplaceDataAvailabilityIntervals(
      * @throws ModelLineNotFoundException
      */
     private fun Iterable<DataProvider.DataAvailabilityMapEntry>.toMap(
-      keyMapping: Map<ModelLineKey, ModelLineInternalKey>
-    ): Map<ModelLineInternalKey, Interval> {
+      keyMapping: Map<ModelLineKey, ModelLineReader.ActiveIntervalResult>
+    ): Map<ModelLineReader.ActiveIntervalResult, Interval> {
       val source = this
       return buildMap {
         for (entry in source) {
           val externalKey: ModelLineKey = entry.key
-          val key: ModelLineInternalKey =
+          val key: ModelLineReader.ActiveIntervalResult =
             keyMapping[entry.key]
               ?: throw ModelLineNotFoundException(
                 ExternalId(externalKey.externalModelProviderId),
