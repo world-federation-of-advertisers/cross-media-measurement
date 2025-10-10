@@ -238,7 +238,8 @@ maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
-        "com.squareup.okhttp3:okhttp:4.12.0",
+        "com.squareup.okhttp3:okhttp",
+        "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
@@ -278,6 +279,7 @@ maven.install(
         "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
+        "com.squareup.okhttp3:okhttp-bom:4.12.0",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
     ],
