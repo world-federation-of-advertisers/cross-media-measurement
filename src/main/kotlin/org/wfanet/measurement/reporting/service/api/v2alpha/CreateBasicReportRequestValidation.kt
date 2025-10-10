@@ -17,12 +17,14 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import io.grpc.Status
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
@@ -83,6 +85,12 @@ fun validateCreateBasicReportRequest(
     validateReportingInterval(request.basicReport.reportingInterval)
   } else {
     throw RequiredFieldNotSetException("basic_report.reporting_interval")
+  }
+
+  if (request.basicReport.modelLine.isNotEmpty()) {
+    ModelLineKey.fromName(request.basicReport.modelLine)
+      ?: throw InvalidFieldValueException("basic_report.model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
   }
 
   validateReportingImpressionQualificationFilters(
