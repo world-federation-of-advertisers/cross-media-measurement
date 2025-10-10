@@ -61,7 +61,16 @@ message ReportPostProcessorLog {
 
     // The process crashed or terminated unexpectedly due to an internal error.
     INTERNAL_ERROR = 6;
+
+    // There are large corrections.
+    HAS_LARGE_CORRECTIONS = 7;
   }
 
   repeated ReportPostProcessorIssue issues = 4;
+
+  // True if the post-processing pipeline completed without fatal errors and the
+  // resulting corrected report is considered reliable. This will be false if
+  // the solver fails, or an internal error occurs, or there are some large
+  // corrections.
+  bool post_processing_successful = 5;
 }
