@@ -46,6 +46,12 @@ locals {
     is_binary_format  = false
   }
 
+  metadata_storage_root_ca = {
+      secret_id         = "edpaggregator-root-ca"
+      secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edp_aggregator_root.pem"),
+      is_binary_format  = false
+    }
+
   trusted_root_ca_collection = {
     secret_id         = "trusted-root-ca"
     secret_local_path = var.results_fulfiller_trusted_root_ca_collection_file_path
@@ -101,11 +107,18 @@ locals {
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                          "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                          "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+                                          "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+                                          "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
                                           "--trusted-cert-collection-secret-id", "trusted-root-ca",
+                                          "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
                                           "--kingdom-public-api-target", var.kingdom_public_api_target,
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                          "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
                                           "--model-line", "some-model-line",
@@ -213,6 +226,7 @@ module "edp_aggregator" {
   data_watcher_tls_key                          = local.data_watcher_tls_key
   data_watcher_tls_pem                          = local.data_watcher_tls_pem
   secure_computation_root_ca                    = local.secure_computation_root_ca
+  metadata_storage_root_ca                      = local.metadata_storage_root_ca
   trusted_root_ca_collection                    = local.trusted_root_ca_collection
   edps_certs                                    = local.edps_certs
   requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config

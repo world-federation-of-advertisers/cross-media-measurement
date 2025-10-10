@@ -81,6 +81,15 @@ variable "secure_computation_root_ca" {
   })
 }
 
+variable "metadata_storage_root_ca" {
+  description = "Secure Computation root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "trusted_root_ca_collection" {
   description = "Collection of certificates for each Duchy and the Kingdom"
   type = object({
