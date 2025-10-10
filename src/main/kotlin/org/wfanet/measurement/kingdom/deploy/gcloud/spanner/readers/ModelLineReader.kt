@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 import com.google.type.Interval
+import com.google.type.interval
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -44,6 +45,12 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
     val modelProviderId: InternalId,
+  )
+
+  data class ActiveIntervalResult(
+    val key: ModelLineInternalKey,
+    val externalKey: ModelLineKey,
+    val activeInterval: Interval,
   )
 
   override val baseSql: String =
@@ -141,10 +148,10 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       }
     }
 
-    suspend fun readInternalIds(
+    suspend fun readActiveIntervals(
       readContext: AsyncDatabaseClient.ReadContext,
       keys: Iterable<ModelLineKey>,
-    ): Map<ModelLineKey, ModelLineInternalKey> {
+    ): Map<ModelLineKey, ActiveIntervalResult> {
       val sql =
         """
         SELECT
@@ -154,6 +161,8 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
           ExternalModelProviderId,
           ExternalModelSuiteId,
           ExternalModelLineId,
+          ActiveStartTime,
+          ActiveEndTime,
         FROM
           ModelProviders
           JOIN ModelSuites USING (ModelProviderId)
@@ -180,22 +189,28 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       val results: Flow<Struct> =
         readContext.executeQuery(
           query,
-          Options.tag("reader=ModelLineReader,action=readInternalIds"),
+          Options.tag("reader=ModelLineReader,action=readActiveIntervals"),
         )
       return buildMap {
         results.collect { row ->
-          val key = modelLineKey {
+          val externalKey = modelLineKey {
             externalModelProviderId = row.getLong("ExternalModelProviderId")
             externalModelSuiteId = row.getLong("ExternalModelSuiteId")
             externalModelLineId = row.getLong("ExternalModelLineId")
           }
-          val value =
+          val key =
             ModelLineInternalKey(
               row.getInternalId("ModelProviderId"),
               row.getInternalId("ModelSuiteId"),
               row.getInternalId("ModelLineId"),
             )
-          put(key, value)
+          val activeInterval = interval {
+            startTime = row.getTimestamp("ActiveStartTime").toProto()
+            if (!row.isNull("ActiveEndTime")) {
+              endTime = row.getTimestamp("ActiveEndTime").toProto()
+            }
+          }
+          put(externalKey, ActiveIntervalResult(key, externalKey, activeInterval))
         }
       }
     }
