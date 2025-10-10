@@ -173,8 +173,8 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
  * This will check for existence prior to insertion. If an entity with the same create_request_id
  * already exists, it will be returned instead.
  *
- * For newly-created entities, the `create_time`, `update_time`, and "etag" fields will not be set in the
- * returned [ImpressionMetadata] protos. The caller is responsible for populating these from the
+ * For newly-created entities, the `create_time`, `update_time`, and "etag" fields will not be set
+ * in the returned [ImpressionMetadata]. The caller is responsible for populating these from the
  * commit timestamp.
  *
  * @return a list of [ImpressionMetadata], containing both the newly created and existing entities.
