@@ -326,12 +326,12 @@ private fun buildBasicReport(row: Struct): BasicReport {
       externalReportId = row.getString("ExternalReportId")
     }
     if (!row.isNull("CmmsModelProviderId")) {
-      modelLineKey = BasicReportKt.modelLineKey {
-        cmmsModelProviderId = row.getString("CmmsModelProviderId")
-        cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
-        cmmsModelLineId = row.getString("CmmsModelLineId")
-
-      }
+      modelLineKey =
+        BasicReportKt.modelLineKey {
+          cmmsModelProviderId = row.getString("CmmsModelProviderId")
+          cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
+          cmmsModelLineId = row.getString("CmmsModelLineId")
+        }
     }
   }
 }

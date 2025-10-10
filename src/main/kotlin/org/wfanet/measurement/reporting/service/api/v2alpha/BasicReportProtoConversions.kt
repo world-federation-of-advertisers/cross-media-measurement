@@ -124,11 +124,12 @@ fun BasicReport.toInternal(
     this.createReportRequestId = createReportRequestId
     if (modelLine.isNotEmpty()) {
       val modelLineKey = ModelLineKey.fromName(modelLine)
-      this.modelLineKey = InternalBasicReportKt.modelLineKey {
-        cmmsModelProviderId = modelLineKey!!.modelProviderId
-        cmmsModelSuiteId = modelLineKey.modelSuiteId
-        cmmsModelLineId = modelLineKey.modelLineId
-      }
+      this.modelLineKey =
+        InternalBasicReportKt.modelLineKey {
+          cmmsModelProviderId = modelLineKey!!.modelProviderId
+          cmmsModelSuiteId = modelLineKey.modelSuiteId
+          cmmsModelLineId = modelLineKey.modelLineId
+        }
     }
   }
 }
@@ -411,10 +412,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
     if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
       modelLine =
         ModelLineKey(
-          modelLineKey.cmmsModelProviderId,
-          modelLineKey.cmmsModelSuiteId,
-          modelLineKey.cmmsModelLineId,
-        ).toName()
+            modelLineKey.cmmsModelProviderId,
+            modelLineKey.cmmsModelSuiteId,
+            modelLineKey.cmmsModelLineId,
+          )
+          .toName()
     }
   }
 }

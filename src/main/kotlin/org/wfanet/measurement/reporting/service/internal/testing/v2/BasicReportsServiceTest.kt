@@ -551,11 +551,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = "1237"
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-      modelLineKey = BasicReportKt.modelLineKey {
-        cmmsModelProviderId = "1234"
-        cmmsModelSuiteId = "1235"
-        cmmsModelLineId = "1236"
-      }
+      modelLineKey =
+        BasicReportKt.modelLineKey {
+          cmmsModelProviderId = "1234"
+          cmmsModelSuiteId = "1235"
+          cmmsModelLineId = "1236"
+        }
       details = basicReportDetails {
         title = "title"
         resultGroupSpecs += resultGroupSpec {
@@ -601,9 +602,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     val createdBasicReport =
       service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
 
-    assertThat(createdBasicReport.modelLineKey.cmmsModelProviderId).isEqualTo(basicReport.modelLineKey.cmmsModelProviderId)
-    assertThat(createdBasicReport.modelLineKey.cmmsModelSuiteId).isEqualTo(basicReport.modelLineKey.cmmsModelSuiteId)
-    assertThat(createdBasicReport.modelLineKey.cmmsModelLineId).isEqualTo(basicReport.modelLineKey.cmmsModelLineId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelProviderId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelProviderId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelSuiteId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelSuiteId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelLineId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelLineId)
 
     val retrievedBasicReport =
       service.getBasicReport(
