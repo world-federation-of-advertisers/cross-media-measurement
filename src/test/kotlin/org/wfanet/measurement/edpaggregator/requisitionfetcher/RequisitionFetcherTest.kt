@@ -22,6 +22,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.timestamp
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -40,7 +41,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -50,11 +53,28 @@ class RequisitionFetcherTest {
       onBlocking { listRequisitions(any()) }.thenReturn(listRequisitionsResponse {})
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  private val requisitionMetadataServiceMock:
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { fetchLatestCmmsCreateTime(any()) }.thenReturn(timestamp {})
+      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(requisitionsServiceMock)
+    addService(requisitionMetadataServiceMock)
+  }
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
-
+  private val requisitionMetadataStub:
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
   private val requisitionGrouper: RequisitionGrouper = mock()
 
   @Rule @JvmField val tempFolder = TemporaryFolder()
@@ -64,7 +84,7 @@ class RequisitionFetcherTest {
     whenever(requisitionGrouper.groupRequisitions(any())).thenReturn(listOf(GROUPED_REQUISITIONS))
 
     val storageClient = FileSystemStorageClient(tempFolder.root)
-    val blobKey = "$STORAGE_PATH_PREFIX/${createDeterministicId(GROUPED_REQUISITIONS)}"
+    val blobKey = "$STORAGE_PATH_PREFIX/1234"
     val fetcher =
       RequisitionFetcher(
         requisitionsStub,
@@ -72,7 +92,6 @@ class RequisitionFetcherTest {
         DATA_PROVIDER_NAME,
         STORAGE_PATH_PREFIX,
         requisitionGrouper,
-        ::createDeterministicId,
       )
     val typeRegistry = TypeRegistry.newBuilder().add(Requisition.getDescriptor()).build()
 
@@ -102,19 +121,12 @@ class RequisitionFetcherTest {
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,
           requisitionGrouper,
-          ::createDeterministicId,
         )
 
       val expectedResult = groupedRequisitionsList.map { Any.pack(it) }
       fetcher.fetchAndStoreRequisitions()
       expectedResult.map {
-        assertThat(
-            storageClient.getBlob(
-              "$STORAGE_PATH_PREFIX/${createDeterministicId(
-          GROUPED_REQUISITIONS)}"
-            )
-          )
-          .isNotNull()
+        assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/1234")).isNotNull()
       }
     }
   }
@@ -125,10 +137,7 @@ class RequisitionFetcherTest {
     private val REQUISITION = requisition { name = "requisition-name" }
     private val GROUPED_REQUISITIONS = groupedRequisitions {
       requisitions.add(requisitionEntry { requisition = Any.pack(REQUISITION) })
-    }
-
-    fun createDeterministicId(groupedRequisition: GroupedRequisitions): String {
-      return "hash_value"
+      groupId = "1234"
     }
   }
 }
