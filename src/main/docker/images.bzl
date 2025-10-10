@@ -141,6 +141,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/edp-aggregator/update-schema",
     ),
+    struct(
+        name = "requisition_fetcher_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:requisition_fetcher_image",
+        repository = _PREFIX + "/edp-aggregator/requisition-fetcher",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
