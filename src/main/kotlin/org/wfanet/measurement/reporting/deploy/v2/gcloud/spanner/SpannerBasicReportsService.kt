@@ -42,11 +42,13 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
@@ -101,10 +103,10 @@ class SpannerBasicReportsService(
 
     return basicReportResult.basicReport.copy {
       campaignGroupDisplayName =
-        getCampaignGroupDisplayName(
+        getCampaignGroup(
           request.cmmsMeasurementConsumerId,
           basicReportResult.basicReport.externalCampaignGroupId,
-        )
+        ).displayName
     }
   }
 
@@ -275,11 +277,13 @@ class SpannerBasicReportsService(
         null
       }
 
-    val displayName =
-      getCampaignGroupDisplayName(
+    val campaignGroup =
+      getCampaignGroup(
         request.basicReport.cmmsMeasurementConsumerId,
         request.basicReport.externalCampaignGroupId,
       )
+
+    val displayName = campaignGroup.displayName
 
     if (existingBasicReport != null) {
       return existingBasicReport.copy { campaignGroupDisplayName = displayName }
@@ -332,12 +336,14 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
+    val campaignGroup =
+      getCampaignGroup(
+        request.cmmsMeasurementConsumerId,
+        basicReportResult.basicReport.externalCampaignGroupId,
+      )
+
     return basicReportResult.basicReport.copy {
-      campaignGroupDisplayName =
-        getCampaignGroupDisplayName(
-          request.cmmsMeasurementConsumerId,
-          basicReportResult.basicReport.externalCampaignGroupId,
-        )
+      campaignGroupDisplayName = campaignGroup.displayName
       externalReportId = request.externalReportId
       state = BasicReport.State.REPORT_CREATED
     }
@@ -370,12 +376,14 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
+    val campaignGroup =
+      getCampaignGroup(
+        request.cmmsMeasurementConsumerId,
+        basicReportResult.basicReport.externalCampaignGroupId,
+      )
+
     return basicReportResult.basicReport.copy {
-      campaignGroupDisplayName =
-        getCampaignGroupDisplayName(
-          request.cmmsMeasurementConsumerId,
-          basicReportResult.basicReport.externalCampaignGroupId,
-        )
+      campaignGroupDisplayName = campaignGroup.displayName
       state = BasicReport.State.FAILED
     }
   }
@@ -452,12 +460,13 @@ class SpannerBasicReportsService(
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
+    val campaignGroup = getCampaignGroup(
+      request.basicReport.cmmsMeasurementConsumerId,
+      request.basicReport.externalCampaignGroupId,
+    )
+
     return request.basicReport.copy {
-      campaignGroupDisplayName =
-        getCampaignGroupDisplayName(
-          request.basicReport.cmmsMeasurementConsumerId,
-          request.basicReport.externalCampaignGroupId,
-        )
+      campaignGroupDisplayName = campaignGroup.displayName
       createTime = commitTimestamp
       state = BasicReport.State.SUCCEEDED
     }
@@ -516,15 +525,15 @@ class SpannerBasicReportsService(
     )
   }
 
-  /** Reads display name for a CampaignGroup */
-  private suspend fun getCampaignGroupDisplayName(
+  /** Reads CampaignGroup */
+  private suspend fun getCampaignGroup(
     cmmsMeasurementConsumerId: String,
     externalCampaignGroupId: String,
-  ): String {
+  ): ReportingSet {
     val reportingSetResult: ReportingSetReader.Result =
       getReportingSets(cmmsMeasurementConsumerId, listOf(externalCampaignGroupId)).single()
 
-    return reportingSetResult.reportingSet.displayName
+    return reportingSetResult.reportingSet
   }
 
   /**
@@ -555,6 +564,31 @@ class SpannerBasicReportsService(
         .toList()
     } finally {
       postgresReadContext?.close()
+    }
+  }
+
+  private suspend fun listReportingSetsByCampaignGroup(
+    cmmsMeasurementConsumerId: String,
+    externalCampaignGroupId: String,
+  ): List<ReportingSet> {
+    var postgresReadContext: ReadContext? = null
+    return try {
+      postgresReadContext = postgresClient.singleUse()
+
+      ReportingSetReader(postgresReadContext)
+        .readReportingSets(streamReportingSetsRequest {
+          filter = StreamReportingSetsRequestKt.filter {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalCampaignGroupId = externalCampaignGroupId
+          }
+          limit = Int.MAX_VALUE
+        })
+        .withSerializableErrorRetries()
+        .map { it.reportingSet }
+        .toList()
+    } catch (e: Exception) {
+      postgresReadContext?.close()
+      throw e
     }
   }
 

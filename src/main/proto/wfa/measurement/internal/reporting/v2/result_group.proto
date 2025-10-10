@@ -183,7 +183,7 @@ message ResultGroup {
         component_intersections = 4;
   }
 
-  // The metadata and metrics for a impression qualification filter
+  // The metadata and metrics.
   message Result {
     // Metadata that describes the metric
     MetricMetadata metadata = 1;

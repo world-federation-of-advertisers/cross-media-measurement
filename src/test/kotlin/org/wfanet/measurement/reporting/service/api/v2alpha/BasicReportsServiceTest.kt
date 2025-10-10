@@ -682,6 +682,11 @@ class BasicReportsServiceTest {
                     }
                   eventGroupKeys +=
                     ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1236"
+                    }
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
                       cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
                       cmmsEventGroupId = "1235"
                     }
@@ -859,6 +864,11 @@ class BasicReportsServiceTest {
                   ReportingSetKt.PrimitiveKt.eventGroupKey {
                     cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
                     cmmsEventGroupId = "1235"
+                  }
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1236"
                   }
               }
           },

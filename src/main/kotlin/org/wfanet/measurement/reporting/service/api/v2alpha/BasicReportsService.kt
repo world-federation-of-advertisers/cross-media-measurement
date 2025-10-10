@@ -514,9 +514,10 @@ class BasicReportsService(
     val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
       for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
         val eventGroupKey = EventGroupKey.fromName(eventGroupName)
-        val eventGroupsList = getOrDefault(eventGroupKey!!.parentKey.toName(), mutableListOf())
+        val eventGroupsList = getOrPut(eventGroupKey!!.parentKey.toName()) {
+          mutableListOf()
+        }
         eventGroupsList.add(eventGroupName)
-        put(eventGroupKey.parentKey.toName(), eventGroupsList)
       }
     }
 
