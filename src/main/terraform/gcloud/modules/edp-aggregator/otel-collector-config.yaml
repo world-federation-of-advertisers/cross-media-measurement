@@ -1,0 +1,68 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# OpenTelemetry Collector configuration for Cloud Run
+# Accepts OTLP from Cloud Functions and Confidential MIGs
+# Exports metrics to Google Cloud Monitoring
+
+receivers:
+  otlp:
+    protocols:
+      # Using gRPC on port 8080 per Cloud Run requirements
+      # Rationale:
+      # - Cloud Run expects services to listen on the PORT environment variable (default: 8080)
+      # - Cloud Run terminates TLS and routes HTTPS:443 -> HTTP/2:8080 for gRPC
+      # - Clients connect to the service URL on port 443 (standard HTTPS)
+      # - Reference: https://cloud.google.com/run/docs/triggering/grpc
+      grpc:
+        endpoint: 0.0.0.0:8080
+
+processors:
+  # Protect serverless memory and smooth export bursts
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 20
+
+  batch:
+    send_batch_size: 2048
+    timeout: 5s
+
+exporters:
+  # Native export to Cloud Monitoring
+  googlecloud:
+    # Project is detected from the service account
+    user_agent: edpa-otel-collector
+    metric:
+      # Use default namespace explicitly
+      prefix: workload.googleapis.com
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [googlecloud]
+  telemetry:
+    logs:
+      level: info
