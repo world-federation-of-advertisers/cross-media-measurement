@@ -49,7 +49,6 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
     return try {
       val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
 
-      println("-------------------- MEASUREMENT SPEC: ${requisition.measurementSpec.unpack<MeasurementSpec>()}")
       if (
         requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()
       ) {
