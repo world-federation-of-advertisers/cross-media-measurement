@@ -85,6 +85,8 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { data_availability_tls_key                     = var.data_availability_tls_key },
+    { data_availability_tls_pem                     = var.data_availability_tls_pem },
     { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
     { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
