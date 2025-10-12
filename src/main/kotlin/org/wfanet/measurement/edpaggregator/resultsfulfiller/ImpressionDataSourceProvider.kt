@@ -21,6 +21,7 @@ import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.StatusException
+import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,15 +29,14 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import java.util.logging.Logger
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Describes an impression data source for a specific time interval.
@@ -78,7 +78,8 @@ class ImpressionDataSourceProvider(
     period: Interval,
   ): List<ImpressionDataSource> {
 
-    val impressionMetadata: Flow<ImpressionMetadata> = resolvePath(modelLine, eventGroupReferenceId, period)
+    val impressionMetadata: Flow<ImpressionMetadata> =
+      resolvePath(modelLine, eventGroupReferenceId, period)
     return impressionMetadata
       .map { metadata ->
         val blobDetails = readBlobDetails(metadata.blobUri)
@@ -101,7 +102,11 @@ class ImpressionDataSourceProvider(
    * @param egReferenceId referenced event group
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  fun resolvePath(reportModelLine: String, egReferenceId: String, period: Interval): Flow<ImpressionMetadata> {
+  fun resolvePath(
+    reportModelLine: String,
+    egReferenceId: String,
+    period: Interval,
+  ): Flow<ImpressionMetadata> {
 
     return impressionMetadataStub
       .listResources { pageToken: String ->
@@ -110,11 +115,12 @@ class ImpressionDataSourceProvider(
             impressionMetadataStub.listImpressionMetadata(
               listImpressionMetadataRequest {
                 parent = dataProvider
-                filter = ListImpressionMetadataRequestKt.filter {
-                  modelLine = reportModelLine
-                  eventGroupReferenceId = egReferenceId
-                  intervalOverlaps = period
-                }
+                filter =
+                  ListImpressionMetadataRequestKt.filter {
+                    modelLine = reportModelLine
+                    eventGroupReferenceId = egReferenceId
+                    intervalOverlaps = period
+                  }
                 this.pageToken = pageToken
               }
             )
