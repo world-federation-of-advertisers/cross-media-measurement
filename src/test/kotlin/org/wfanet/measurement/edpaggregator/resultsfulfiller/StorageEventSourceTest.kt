@@ -61,17 +61,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 
 @RunWith(JUnit4::class)
 class StorageEventSourceTest {
@@ -82,12 +82,11 @@ class StorageEventSourceTest {
   private val impressionsBlobDetailsUriPrefix = "file:///meta-bucket/"
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
 
-  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceCoroutineImplBase>()
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceCoroutineImplBase>()
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(impressionMetadataServiceMock)
-  }
+  val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
 
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
@@ -117,7 +116,9 @@ class StorageEventSourceTest {
     return Triple(kmsClient, kekUri, serializedEncryptionKey)
   }
 
-  private fun createImpressionDataSourceProvider(metadataTmpPath: File): ImpressionDataSourceProvider {
+  private fun createImpressionDataSourceProvider(
+    metadataTmpPath: File
+  ): ImpressionDataSourceProvider {
     return ImpressionDataSourceProvider(
       impressionMetadataStub = impressionMetadataStub,
       dataProvider = "dataProviders/123",
@@ -176,7 +177,8 @@ class StorageEventSourceTest {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
-        blobUri = "file:///meta-bucket/ds/$date/model-line/test-model-line/event-group-reference-id/$eventGroupRef/metadata"
+        blobUri =
+          "file:///meta-bucket/ds/$date/model-line/test-model-line/event-group-reference-id/$eventGroupRef/metadata"
       }
     }
   }
@@ -333,152 +335,149 @@ class StorageEventSourceTest {
     reset(impressionMetadataServiceMock)
   }
 
-//  @Test
-//  fun `generateEventBatches handles empty event group list`(): Unit = runBlocking {
-//
-//    whenever(
-//      impressionMetadataServiceMock.listImpressionMetadata(any())
-//    ).thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
-//
-//    val eventGroupDetailsList = emptyList<GroupedRequisitions.EventGroupDetails>()
-//
-//    val impressionService = createImpressionDataSourceProvider(tmp.root)
-//    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//    val eventSource =
-//      StorageEventSource(
-//        impressionDataSourceProvider = impressionService,
-//        eventGroupDetailsList = eventGroupDetailsList,
-//        modelLine = modelLine,
-//        kmsClient = kmsClient,
-//        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-//        descriptor = Empty.getDescriptor(),
-//        batchSize = 1000,
-//      )
-//
-//    val batches = eventSource.generateEventBatches().toList()
-//
-//    assertThat(batches).isEmpty()
-//  }
-//
-//  @Test
-//  fun `generateEventBatches fails when metadata is missing`(): Unit = runBlocking {
-//
-//    // Set up bucket but don't write any metadata files
-//    val bucketName = "meta-bucket"
-//    val bucketDir = File(tmp.root, bucketName)
-//    bucketDir.mkdirs()
-//
-//    whenever(
-//      impressionMetadataServiceMock.listImpressionMetadata(any())
-//    ).thenReturn(listImpressionMetadataResponse {
-//      impressionMetadata += impressionMetadata {
-//        state = ImpressionMetadata.State.ACTIVE
-//        blobUri = "file:///${bucketDir.path}"
-//      }
-//    })
-//
-//    val eventGroupDetailsList =
-//      listOf(
-//        createEventGroupDetails(
-//          "event-group-1",
-//          LocalDate.of(2025, 1, 1),
-//          LocalDate.of(2025, 1, 3),
-//          ZoneId.of("UTC"),
-//        )
-//      )
-//
-//    val impressionService = createImpressionDataSourceProvider(tmp.root)
-//    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//    val eventSource =
-//      StorageEventSource(
-//        impressionDataSourceProvider = impressionService,
-//        eventGroupDetailsList = eventGroupDetailsList,
-//        modelLine = modelLine,
-//        kmsClient = kmsClient,
-//        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
-//        descriptor = Empty.getDescriptor(),
-//        batchSize = 1000,
-//      )
-//
-//    // The entire operation should fail when metadata reading fails
-//    assertFailsWith<ImpressionReadException> { eventSource.generateEventBatches().toList() }
-//  }
-//
-//  @Test
-//  fun `generateEventBatches deduplicates EventReaders for overlapping intervals`(): Unit =
-//    runBlocking {
-//      // Set up separate directories for impressions and metadata
-//      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-//      val metadataTmpPath = tmp.root
-//      val eventGroupRef = "event-group-1"
-//
-//      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//
-//      val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-//      val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
-//
-//      whenever(
-//        impressionMetadataServiceMock.listImpressionMetadata(any())
-//      ).thenReturn(listImpressionMetadataResponse {
-//        impressionMetadata += impressionMetadataList
-//      })
-//
-//      // Create impression files and metadata for Jan 1, 2, and 3
-//      for (date in dates) {
-//        createImpressionFilesForDate(
-//          impressionsTmpPath,
-//          metadataTmpPath,
-//          date,
-//          eventGroupRef,
-//          kmsClient,
-//          kekUri,
-//          serializedEncryptionKey,
-//        )
-//      }
-//
-//      // Create an event group with overlapping intervals
-//      // Interval 1: Jan 1-3 (exclusive end: Jan 1, 2), Interval 2: Jan 2-4 (exclusive end: Jan 2,
-//      // 3)
-//      // Total dates without dedup: 4, unique dates with dedup: 3 (Jan 1, 2, 3)
-//      val eventGroupDetailsList =
-//        listOf(
-//          createEventGroupDetailsWithMultipleIntervals(
-//            eventGroupRef,
-//            listOf(
-//              Pair(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 3)), // Jan 1, 2 (exclusive end)
-//              Pair(
-//                LocalDate.of(2025, 1, 2),
-//                LocalDate.of(2025, 1, 4),
-//              ), // Jan 2, 3 (exclusive end, overlap on 2)
-//            ),
-//          )
-//        )
-//
-//      val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
-//      val eventSource =
-//        StorageEventSource(
-//          impressionDataSourceProvider = impressionService,
-//          eventGroupDetailsList = eventGroupDetailsList,
-//          modelLine = modelLine,
-//          kmsClient = kmsClient,
-//          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-//          descriptor = TestEvent.getDescriptor(),
-//          batchSize = 1000,
-//        )
-//
-//      val batches = eventSource.generateEventBatches().toList()
-//
-//      // Verify the total number of events emitted
-//      val totalEvents = batches.flatMap { it.events }.size
-//      // With deduplication: 3 unique dates × 5 events per date = 15 events
-//      assertThat(totalEvents).isEqualTo(15)
-//
-//      // Verify we have exactly 3 batches (one per unique date)
-//      assertThat(batches).hasSize(3)
-//
-//      // Verify each batch contains the expected number of events
-//      assertThat(batches.all { it.events.size == 5 }).isTrue()
-//    }
+  @Test
+  fun `generateEventBatches handles empty event group list`(): Unit = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+
+    val eventGroupDetailsList = emptyList<GroupedRequisitions.EventGroupDetails>()
+
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = Empty.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    assertThat(batches).isEmpty()
+  }
+
+  @Test
+  fun `generateEventBatches fails when metadata is missing`(): Unit = runBlocking {
+
+    // Set up bucket but don't write any metadata files
+    val bucketName = "meta-bucket"
+    val bucketDir = File(tmp.root, bucketName)
+    bucketDir.mkdirs()
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///${bucketDir.path}"
+          }
+        }
+      )
+
+    val eventGroupDetailsList =
+      listOf(
+        createEventGroupDetails(
+          "event-group-1",
+          LocalDate.of(2025, 1, 1),
+          LocalDate.of(2025, 1, 3),
+          ZoneId.of("UTC"),
+        )
+      )
+
+    val impressionService = createImpressionDataSourceProvider(tmp.root)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = eventGroupDetailsList,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = Empty.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    // The entire operation should fail when metadata reading fails
+    assertFailsWith<ImpressionReadException> { eventSource.generateEventBatches().toList() }
+  }
+
+  @Test
+  fun `generateEventBatches deduplicates EventReaders for overlapping intervals`(): Unit =
+    runBlocking {
+      // Set up separate directories for impressions and metadata
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = tmp.root
+      val eventGroupRef = "event-group-1"
+
+      val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+      val dates =
+        listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
+      val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+      // Create impression files and metadata for Jan 1, 2, and 3
+      for (date in dates) {
+        createImpressionFilesForDate(
+          impressionsTmpPath,
+          metadataTmpPath,
+          date,
+          eventGroupRef,
+          kmsClient,
+          kekUri,
+          serializedEncryptionKey,
+        )
+      }
+
+      // Create an event group with overlapping intervals
+      // Interval 1: Jan 1-3 (exclusive end: Jan 1, 2), Interval 2: Jan 2-4 (exclusive end: Jan 2,
+      // 3)
+      // Total dates without dedup: 4, unique dates with dedup: 3 (Jan 1, 2, 3)
+      val eventGroupDetailsList =
+        listOf(
+          createEventGroupDetailsWithMultipleIntervals(
+            eventGroupRef,
+            listOf(
+              Pair(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 3)), // Jan 1, 2 (exclusive end)
+              Pair(
+                LocalDate.of(2025, 1, 2),
+                LocalDate.of(2025, 1, 4),
+              ), // Jan 2, 3 (exclusive end, overlap on 2)
+            ),
+          )
+        )
+
+      val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = impressionService,
+          eventGroupDetailsList = eventGroupDetailsList,
+          modelLine = modelLine,
+          kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+        )
+
+      val batches = eventSource.generateEventBatches().toList()
+
+      // Verify the total number of events emitted
+      val totalEvents = batches.flatMap { it.events }.size
+      // With deduplication: 3 unique dates × 5 events per date = 15 events
+      assertThat(totalEvents).isEqualTo(15)
+
+      // Verify we have exactly 3 batches (one per unique date)
+      assertThat(batches).hasSize(3)
+
+      // Verify each batch contains the expected number of events
+      assertThat(batches.all { it.events.size == 5 }).isTrue()
+    }
 
   @Test
   fun `generateEventBatches deduplicates EventReaders for overlapping intervals using JSON format`():
@@ -510,11 +509,8 @@ class StorageEventSourceTest {
     val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
     val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
 
-    whenever(
-      impressionMetadataServiceMock.listImpressionMetadata(any())
-    ).thenReturn(listImpressionMetadataResponse {
-      impressionMetadata += impressionMetadataList
-    })
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
     // Create an event group with overlapping intervals
     // Interval 1: Jan 1-3 (exclusive end: Jan 1, 2), Interval 2: Jan 2-4 (exclusive end: Jan 2,
@@ -560,200 +556,189 @@ class StorageEventSourceTest {
     assertThat(batches.all { it.events.size == 5 }).isTrue()
   }
 
-//  @Test
-//  fun `generateEventBatches handles EventReader exception`(): Unit = runBlocking {
-//    // Set up separate directories but don't create impression files to cause failure
-//    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-//    val metadataTmpPath = tmp.root
-//    val eventGroupRef = "group-1"
-//
-//    // Create metadata but not impression files to trigger failure in StorageEventReader
-//    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
-//    metadataBucketDir.mkdirs()
-//    val metadataFs = FileSystemStorageClient(metadataBucketDir)
-//
-//    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
-//    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
-//
-//    whenever(
-//      impressionMetadataServiceMock.listImpressionMetadata(any())
-//    ).thenReturn(listImpressionMetadataResponse {
-//      impressionMetadata += impressionMetadataList
-//    })
-//
-//    // Create metadata for both dates (Jan 1 and Jan 2 are in the range)
-//    for (date in dates) {
-//      val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
-//      val blobDetailsBytes =
-//        blobDetails {
-//            blobUri = "file:///impressions/$date/$eventGroupRef"
-//            encryptedDek = EncryptedDek.getDefaultInstance()
-//          }
-//          .toByteString()
-//      metadataFs.writeBlob(key, blobDetailsBytes)
-//    }
-//
-//    // Missing impression files will cause failure and throw IllegalArgumentException
-//    val eventGroupDetails =
-//      createEventGroupDetails(
-//        eventGroupRef,
-//        LocalDate.of(2025, 1, 1),
-//        LocalDate.of(2025, 1, 3),
-//        ZoneId.of("UTC"),
-//      )
-//
-//    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
-//    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//    val eventSource =
-//      StorageEventSource(
-//        impressionDataSourceProvider = impressionService,
-//        eventGroupDetailsList = listOf(eventGroupDetails),
-//        modelLine = modelLine,
-//        kmsClient = kmsClient,
-//        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-//        descriptor = TestEvent.getDescriptor(),
-//        batchSize = 1000,
-//      )
-//
-//    assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
-//  }
-//
-//  @Test
-//  fun `generateEventBatches handles multiple event groups`(): Unit = runBlocking {
-//    // Set up separate directories for impressions and metadata
-//    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-//    val metadataTmpPath = tmp.root
-//
-//    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//
-//    val start = LocalDate.of(2025, 1, 1)
-//    val end = LocalDate.of(2025, 1, 2)
-//    val dates = start.datesUntil(end.plusDays(1)).toList()
-//
-//    val groups = listOf("group-1", "group-2")
-//
-//    val impressionMetadataList =
-//      groups.flatMap { group ->
-//        createImpressionMetadataList(dates, group)
-//      }
-//
-//    whenever(
-//      impressionMetadataServiceMock.listImpressionMetadata(any())
-//    ).thenReturn(listImpressionMetadataResponse {
-//      impressionMetadata += impressionMetadataList
-//    })
-//
-//    // Create impression files and metadata for both groups on both dates
-//    for (date in dates) {
-//      for (group in groups) {
-//        createImpressionFilesForDate(
-//          impressionsTmpPath,
-//          metadataTmpPath,
-//          date,
-//          group,
-//          kmsClient,
-//          kekUri,
-//          serializedEncryptionKey,
-//        )
-//      }
-//    }
-//
-//    val eventGroupDetails =
-//      listOf(
-//        createEventGroupDetails(
-//          "group-1",
-//          LocalDate.of(2025, 1, 1),
-//          LocalDate.of(2025, 1, 3),
-//          ZoneId.of("UTC"),
-//        ),
-//        createEventGroupDetails(
-//          "group-2",
-//          LocalDate.of(2025, 1, 1),
-//          LocalDate.of(2025, 1, 3),
-//          ZoneId.of("UTC"),
-//        ),
-//      )
-//
-//    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
-//    val eventSource =
-//      StorageEventSource(
-//        impressionDataSourceProvider = impressionService,
-//        eventGroupDetailsList = eventGroupDetails,
-//        modelLine = modelLine,
-//        kmsClient = kmsClient,
-//        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-//        descriptor = TestEvent.getDescriptor(),
-//        batchSize = 1000,
-//      )
-//
-//    val batches = eventSource.generateEventBatches().toList()
-//
-//    assertThat(batches).hasSize(4) // Two event groups × two dates
-//    // Verify total events: 4 files × 5 events per file = 20 events
-//    val totalEvents = batches.flatMap { it.events }.size
-//    assertThat(totalEvents).isEqualTo(20)
-//  }
-//
-//  @Test
-//  fun `generateEventBatches processes large date ranges`(): Unit = runBlocking {
-//    // Set up separate directories for impressions and metadata
-//    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-//    val metadataTmpPath = tmp.root
-//    val eventGroupRef = "group-1"
-//
-//    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
-//
-//    val start = LocalDate.of(2025, 1, 1)
-//    val end = LocalDate.of(2025, 3, 31)
-//
-//    val dates = start.datesUntil(end.plusDays(1)).toList()
-//
-//    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
-//
-//    whenever(
-//      impressionMetadataServiceMock.listImpressionMetadata(any())
-//    ).thenReturn(listImpressionMetadataResponse {
-//      impressionMetadata += impressionMetadataList
-//    })
-//
-//    for (date in dates) {
-//      createImpressionFilesForDate(
-//        impressionsTmpPath,
-//        metadataTmpPath,
-//        date,
-//        eventGroupRef,
-//        kmsClient,
-//        kekUri,
-//        serializedEncryptionKey,
-//      )
-//    }
-//
-//    // Test with a 90-day range (Jan 1 - Mar 31)
-//    val eventGroupDetails =
-//      createEventGroupDetails(
-//        eventGroupRef,
-//        LocalDate.of(2025, 1, 1),
-//        LocalDate.of(2025, 4, 1),
-//        ZoneId.of("UTC"),
-//      )
-//
-//    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
-//    val eventSource =
-//      StorageEventSource(
-//        impressionDataSourceProvider = impressionService,
-//        eventGroupDetailsList = listOf(eventGroupDetails),
-//        modelLine = modelLine,
-//        kmsClient = kmsClient,
-//        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-//        descriptor = TestEvent.getDescriptor(),
-//        batchSize = 1000,
-//      )
-//
-//    val batches = eventSource.generateEventBatches().toList()
-//
-//    assertThat(batches).hasSize(90) // Jan 1 - Mar 31 = 90 days = 90 batches
-//    assertThat(batches.all { it.events.size == 5 }).isTrue() // Each batch has 5 events
-//  }
+  @Test
+  fun `generateEventBatches handles EventReader exception`(): Unit = runBlocking {
+    // Set up separate directories but don't create impression files to cause failure
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "group-1"
+
+    // Create metadata but not impression files to trigger failure in StorageEventReader
+    val metadataBucketDir = File(metadataTmpPath, "meta-bucket")
+    metadataBucketDir.mkdirs()
+    val metadataFs = FileSystemStorageClient(metadataBucketDir)
+
+    val dates = listOf(LocalDate.of(2025, 1, 1), LocalDate.of(2025, 1, 2), LocalDate.of(2025, 1, 3))
+    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create metadata for both dates (Jan 1 and Jan 2 are in the range)
+    for (date in dates) {
+      val key = "ds/$date/model-line/$modelLine/event-group-reference-id/$eventGroupRef/metadata"
+      val blobDetailsBytes =
+        blobDetails {
+            blobUri = "file:///impressions/$date/$eventGroupRef"
+            encryptedDek = EncryptedDek.getDefaultInstance()
+          }
+          .toByteString()
+      metadataFs.writeBlob(key, blobDetailsBytes)
+    }
+
+    // Missing impression files will cause failure and throw IllegalArgumentException
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 1, 3),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    assertFailsWith<IllegalArgumentException> { eventSource.generateEventBatches().toList() }
+  }
+
+  @Test
+  fun `generateEventBatches handles multiple event groups`(): Unit = runBlocking {
+    // Set up separate directories for impressions and metadata
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = tmp.root
+
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+    val start = LocalDate.of(2025, 1, 1)
+    val end = LocalDate.of(2025, 1, 2)
+    val dates = start.datesUntil(end.plusDays(1)).toList()
+
+    val groups = listOf("group-1", "group-2")
+
+    val impressionMetadataList =
+      groups.flatMap { group -> createImpressionMetadataList(dates, group) }
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    // Create impression files and metadata for both groups on both dates
+    for (date in dates) {
+      for (group in groups) {
+        createImpressionFilesForDate(
+          impressionsTmpPath,
+          metadataTmpPath,
+          date,
+          group,
+          kmsClient,
+          kekUri,
+          serializedEncryptionKey,
+        )
+      }
+    }
+
+    val eventGroupDetails =
+      listOf(
+        createEventGroupDetails(
+          "group-1",
+          LocalDate.of(2025, 1, 1),
+          LocalDate.of(2025, 1, 3),
+          ZoneId.of("UTC"),
+        ),
+        createEventGroupDetails(
+          "group-2",
+          LocalDate.of(2025, 1, 1),
+          LocalDate.of(2025, 1, 3),
+          ZoneId.of("UTC"),
+        ),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = eventGroupDetails,
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    assertThat(batches).hasSize(4) // Two event groups × two dates
+    // Verify total events: 4 files × 5 events per file = 20 events
+    val totalEvents = batches.flatMap { it.events }.size
+    assertThat(totalEvents).isEqualTo(20)
+  }
+
+  @Test
+  fun `generateEventBatches processes large date ranges`(): Unit = runBlocking {
+    // Set up separate directories for impressions and metadata
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = tmp.root
+    val eventGroupRef = "group-1"
+
+    val (kmsClient, kekUri, serializedEncryptionKey) = createKmsSetup()
+
+    val start = LocalDate.of(2025, 1, 1)
+    val end = LocalDate.of(2025, 3, 31)
+
+    val dates = start.datesUntil(end.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, eventGroupRef)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    for (date in dates) {
+      createImpressionFilesForDate(
+        impressionsTmpPath,
+        metadataTmpPath,
+        date,
+        eventGroupRef,
+        kmsClient,
+        kekUri,
+        serializedEncryptionKey,
+      )
+    }
+
+    // Test with a 90-day range (Jan 1 - Mar 31)
+    val eventGroupDetails =
+      createEventGroupDetails(
+        eventGroupRef,
+        LocalDate.of(2025, 1, 1),
+        LocalDate.of(2025, 4, 1),
+        ZoneId.of("UTC"),
+      )
+
+    val impressionService = createImpressionDataSourceProvider(metadataTmpPath)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = impressionService,
+        eventGroupDetailsList = listOf(eventGroupDetails),
+        modelLine = modelLine,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+      )
+
+    val batches = eventSource.generateEventBatches().toList()
+
+    assertThat(batches).hasSize(90) // Jan 1 - Mar 31 = 90 days = 90 batches
+    assertThat(batches.all { it.events.size == 5 }).isTrue() // Each batch has 5 events
+  }
 
   companion object {
     private val TEST_EVENT = testEvent {

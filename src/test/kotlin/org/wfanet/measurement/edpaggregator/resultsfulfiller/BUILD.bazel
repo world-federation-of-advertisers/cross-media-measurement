@@ -205,9 +205,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ImpressionMetadataServiceTest",
-    srcs = ["ImpressionMetadataServiceTest.kt"],
-    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ImpressionMetadataServiceTest",
+    name = "ImpressionDataSourceProviderTest",
+    srcs = ["ImpressionDataSourceProviderTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ImpressionDataSourceProviderTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:impression_data_source_provider",
