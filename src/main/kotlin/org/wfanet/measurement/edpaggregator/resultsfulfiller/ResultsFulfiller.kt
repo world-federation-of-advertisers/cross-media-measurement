@@ -35,26 +35,26 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
+import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
@@ -205,13 +205,11 @@ class ResultsFulfiller(
     requisition: Requisition,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
-    requisitionsMetadata: List<RequisitionMetadata>
+    requisitionsMetadata: List<RequisitionMetadata>,
   ) {
 
     // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionMetadata = requisitionsMetadata.find {
-      it.cmmsRequisition == requisition.name
-    }
+    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
 
     require(requisitionMetadata != null) {
       "Requisition metadata not found for requisition: ${requisition.name}"
@@ -279,40 +277,48 @@ class ResultsFulfiller(
 
   // List requisitions metadata for the goup id being processed.
   private suspend fun listRequisitionMetadata(): List<RequisitionMetadata> {
-    val requisitionsMetadata: Flow<RequisitionMetadata> = requisitionMetadataStub
-      .listResources { pageToken: String ->
-        val request = listRequisitionMetadataRequest {
-          parent = dataProvider
-          filter = ListRequisitionMetadataRequestKt.filter { groupId = groupedRequisitions.groupId }
-          if (responsePageSize != null) {
-            pageSize = responsePageSize
+    val requisitionsMetadata: Flow<RequisitionMetadata> =
+      requisitionMetadataStub
+        .listResources { pageToken: String ->
+          val request = listRequisitionMetadataRequest {
+            parent = dataProvider
+            filter =
+              ListRequisitionMetadataRequestKt.filter { groupId = groupedRequisitions.groupId }
+            if (responsePageSize != null) {
+              pageSize = responsePageSize
+            }
+            this.pageToken = pageToken
           }
-          this.pageToken = pageToken
+          val response: ListRequisitionMetadataResponse =
+            try {
+              requisitionMetadataStub.listRequisitionMetadata(request)
+            } catch (e: StatusException) {
+              throw Exception(
+                "Error listing requisition metadata for group id: ${groupedRequisitions.groupId}",
+                e,
+              )
+            }
+          ResourceList(response.requisitionMetadataList, response.nextPageToken)
         }
-        val response: ListRequisitionMetadataResponse =
-          try {
-            requisitionMetadataStub.listRequisitionMetadata(request)
-          } catch (e: StatusException) {
-            throw Exception("Error listing requisition metadata for group id: ${groupedRequisitions.groupId}", e)
-          }
-        ResourceList(
-          response.requisitionMetadataList,
-          response.nextPageToken
-        )
-      }
-      .flattenConcat()
-      return requisitionsMetadata.toList()
+        .flattenConcat()
+    return requisitionsMetadata.toList()
   }
 
-  private suspend fun signalRequisitionStartProcessing(requisitionMetadata: RequisitionMetadata): RequisitionMetadata {
+  private suspend fun signalRequisitionStartProcessing(
+    requisitionMetadata: RequisitionMetadata
+  ): RequisitionMetadata {
     val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
     }
-    return requisitionMetadataStub.startProcessingRequisitionMetadata(startProcessingRequisitionMetadataRequest)
+    return requisitionMetadataStub.startProcessingRequisitionMetadata(
+      startProcessingRequisitionMetadataRequest
+    )
   }
 
-  private suspend fun signalRequisitionFulfilled(requisitionMetadata: RequisitionMetadata): RequisitionMetadata {
+  private suspend fun signalRequisitionFulfilled(
+    requisitionMetadata: RequisitionMetadata
+  ): RequisitionMetadata {
     val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
