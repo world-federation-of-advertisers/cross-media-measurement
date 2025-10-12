@@ -329,50 +329,6 @@ class RequisitionGrouperByReportId(
         val refusal = validationOutcome.refusal
         refuseRequisitionMetadata(requisitionMetadata, refusal.message)
       }
-      // Filter out groups whose single requisitions has already persisted to RequisitionMetadata storage.
-      val filteredGroups = groups.filter { group ->
-        val requisition = group.requisitionsList.single().requisition.unpack(Requisition::class.java)
-        requisition.name !in existingCmmsRequisitions
-      }
-
-      if (filteredGroups.isEmpty()) {
-        return@flatMap results
-      }
-
-      val requisitions = filteredGroups.flatMap { it.requisitionsList }
-
-      try {
-
-        requisitionValidator.validateModelLines(filteredGroups, reportId = reportId)
-
-        val entries = buildEventGroupEntries(filteredGroups)
-
-        // TODO(world-federation-of-advertisers/cross-media-measurement#2987): Use batch create once
-        // available
-        // Create requisition metadata for requisition that were not created already
-        for (requisition in requisitions) {
-          createRequisitionMetadata(
-            requisition.requisition.unpack(Requisition::class.java),
-            requisitionGroupId,
-          )
-        }
-
-        val newGroupedRequisitions = groupedRequisitions {
-          this.modelLine = filteredGroups.firstOrNull()?.modelLine ?: ""
-          this.eventGroupMap += entries
-          this.requisitions += requisitions
-          this.groupId = requisitionGroupId
-        }
-
-        results.add(newGroupedRequisitions)
-      } catch (e: InvalidRequisitionException) {
-        refuseAllRequisitions(requisitions, requisitionGroupId, existingCmmsRequisitions, e.refusal.justification, e.message ?: "Invalid requisition")
-      } catch (e: Exception) {
-        refuseAllRequisitions(requisitions, requisitionGroupId, existingCmmsRequisitions)
-      }
-
-      results
-
     }
   }
 

@@ -24,7 +24,6 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
-import com.google.protobuf.Any
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import kotlin.test.assertFailsWith
@@ -56,10 +55,10 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
@@ -85,24 +84,6 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
           val req = invocation.getArgument<RefuseRequisitionRequest>(0)
           refuseRequisitionRequests += req
           requisition {}
-        }
-    }
-
-  private val requisitionMetadataServiceMock:
-    RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase =
-    mockService {
-      onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
-      onBlocking { createRequisitionMetadata(any()) }
-        .thenAnswer { invocation ->
-          val req = invocation.getArgument<CreateRequisitionMetadataRequest>(0)
-          createRequisitionMetadataRequests += req
-          requisitionMetadata {}
-        }
-      onBlocking { refuseRequisitionMetadata(any()) }
-        .thenAnswer { invocation ->
-          val req = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
-          refuseRequisitionMetadataRequests += req
-          requisitionMetadata {}
         }
     }
 
