@@ -25,6 +25,7 @@ import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import com.google.type.interval
 import java.io.File
 import java.nio.file.Files
@@ -46,6 +47,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
@@ -123,8 +127,13 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequi
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
@@ -136,6 +145,12 @@ class ResultsFulfillerTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
+
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { startProcessingRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
 
   private class FakeRequisitionFulfillmentService : RequisitionFulfillmentCoroutineImplBase() {
     data class FulfillRequisitionInvocation(val requests: List<FulfillRequisitionRequest>)
@@ -173,6 +188,7 @@ class ResultsFulfillerTest {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionFulfillmentMock)
+    addService(requisitionMetadataServiceMock)
   }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
@@ -183,6 +199,10 @@ class ResultsFulfillerTest {
 
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub by lazy {
     RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -199,6 +219,21 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -235,7 +270,9 @@ class ResultsFulfillerTest {
 
     val resultsFulfiller =
       ResultsFulfiller(
+        dataProvider = EDP_NAME,
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -279,6 +316,11 @@ class ResultsFulfillerTest {
       .frequencyDistribution()
       .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
       .of(expectedFrequencyDistribution)
+
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
   @Test
@@ -293,6 +335,21 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
@@ -334,7 +391,9 @@ class ResultsFulfillerTest {
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
     val resultsFulfiller =
       ResultsFulfiller(
+        dataProvider = EDP_NAME,
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
@@ -363,6 +422,10 @@ class ResultsFulfillerTest {
     assertThat(fulfilledRequisitions[0].header.honestMajorityShareShuffle.dataProviderCertificate)
       .isEqualTo(DATA_PROVIDER_CERTIFICATE_NAME)
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
   private suspend fun createData(
