@@ -20,7 +20,10 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.crypto.parseJsonEncryptedKey
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek.ProtobufFormat
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -28,6 +31,12 @@ import org.wfanet.measurement.storage.StorageClient
 
 /** Useful functions for interacting with encrypted storage. */
 object EncryptedStorage {
+
+  private const val TYPE_URL_ENCRYPTION_KEY =
+    "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey"
+
+  private const val TYPE_URL_TINK_KEYSET = "type.googleapis.com/google.crypto.tink.Keyset"
+
   /** Generates a serialized encrypted keyset using a [KmsClient]. */
   fun generateSerializedEncryptionKey(
     kmsClient: KmsClient,
@@ -51,10 +60,31 @@ object EncryptedStorage {
     storageClient: StorageClient,
     kmsClient: KmsClient,
     kekUri: String,
-    serializedEncryptionKey: ByteString,
+    encryptedDek: EncryptedDek,
   ): MesosRecordIoStorageClient {
+
     val aeadStorageClient =
-      storageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
+      when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
+        TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY -> {
+          storageClient.withEnvelopeEncryption(
+            kmsClient = kmsClient,
+            kekUri = kekUri,
+            encryptedDek = encryptedDek.ciphertext,
+          )
+        }
+        TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON -> {
+          storageClient.withEnvelopeEncryption(
+            kmsClient = kmsClient,
+            kekUri = kekUri,
+            encryptedDek = encryptedDek.ciphertext,
+            parseEncryptedKeyset = ::parseJsonEncryptedKey,
+          )
+        }
+        else ->
+          throw IllegalArgumentException(
+            "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
+          )
+      }
 
     return MesosRecordIoStorageClient(aeadStorageClient)
   }
@@ -80,7 +110,9 @@ object EncryptedStorage {
   ): BlobDetails {
     val encryptedDek = encryptedDek {
       this.kekUri = kekUri
-      encryptedDek = serializedEncryptionKey
+      ciphertext = serializedEncryptionKey
+      protobufFormat = ProtobufFormat.BINARY
+      typeUrl = TYPE_URL_TINK_KEYSET
     }
 
     return blobDetails {

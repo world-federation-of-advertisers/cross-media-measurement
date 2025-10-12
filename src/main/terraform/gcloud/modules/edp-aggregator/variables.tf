@@ -314,3 +314,10 @@ variable "spanner_database_name" {
   default     = "edp-aggregator"
   nullable    = false
 }
+
+variable "edp_aggregator_api_server_ip_address" {
+  description = "IP address for edp aggregator public API server"
+  type        = string
+  nullable    = true
+  default     = null
+}

@@ -63,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -128,6 +129,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -1092,8 +1094,13 @@ class ResultsFulfillerAppTest {
     val impressionsMetadataStorageClient =
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(KEK_URI).setEncryptedDek(serializedEncryptionKey).build()
+    val encryptedDek = encryptedDek {
+      this.kekUri = KEK_URI
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
+
     val blobDetails = blobDetails {
       this.blobUri = IMPRESSIONS_FILE_URI
       this.encryptedDek = encryptedDek
@@ -1298,6 +1305,7 @@ class ResultsFulfillerAppTest {
       delta = 1E-12
     }
     private val MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
