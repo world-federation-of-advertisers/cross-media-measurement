@@ -257,11 +257,7 @@ class InProcessEdpAggregatorComponents(
     }
 
     dataWatcher =
-      DataWatcher(
-        workItemsClient,
-        watchedPaths,
-        idTokenProvider = TestIdTokenProvider(),
-      )
+      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
