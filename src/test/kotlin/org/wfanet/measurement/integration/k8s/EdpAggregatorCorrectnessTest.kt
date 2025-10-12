@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -65,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -289,6 +291,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun createMcSimulator(): MeasurementConsumerSimulator {
 
+      val reportName =
+        ReportKey(
+            MeasurementConsumerKey.fromName(measurementConsumerData.name)!!.measurementConsumerId,
+            "some-report-id",
+          )
+          .toName()
+
       return EdpAggregatorMeasurementConsumerSimulator(
         measurementConsumerData,
         OUTPUT_DP_PARAMS,
@@ -302,6 +311,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         syntheticPopulationSpec,
         syntheticEventGroupMap,
+        reportName,
+        "some-model-line",
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
