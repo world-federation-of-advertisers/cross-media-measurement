@@ -81,6 +81,8 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
+    { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
     { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
     local.edps_secrets
@@ -101,7 +103,12 @@ locals {
   ])
 
   requisition_fetcher_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "requisition_fetcher_tls_pem",
+      "requisition_fetcher_tls_key",
+      "metadata_storage_root_ca"
+    ],
     local.edp_tls_keys
   )
 
