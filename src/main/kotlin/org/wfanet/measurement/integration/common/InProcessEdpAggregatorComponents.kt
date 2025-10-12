@@ -259,7 +259,6 @@ class InProcessEdpAggregatorComponents(
     dataWatcher =
       DataWatcher(
         workItemsClient,
-        requisitionMetadataClient,
         watchedPaths,
         idTokenProvider = TestIdTokenProvider(),
       )
