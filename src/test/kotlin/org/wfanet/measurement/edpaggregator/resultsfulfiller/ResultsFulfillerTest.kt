@@ -35,6 +35,7 @@ import java.time.*
 import java.util.logging.Logger
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
@@ -49,13 +50,14 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -86,7 +88,6 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
-import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -101,13 +102,12 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.flatten
-import kotlin.test.assertTrue
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
@@ -187,100 +187,99 @@ class ResultsFulfillerTest {
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
 
-    @Test
-    fun `runWork processes direct requisition successfully`() = runBlocking {
-      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-      val metadataTmpPath = Files.createTempDirectory(null).toFile()
-      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-      val impressions =
-        List(130) {
-          LABELED_IMPRESSION.copy {
-            vid = it.toLong() + 1
-            eventTime = TIME_RANGE.start.toProtoTime()
-          }
+  @Test
+  fun `runWork processes direct requisition successfully`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
         }
-      // Set up KMS
-      val kmsClient = FakeKmsClient()
-      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-      createData(
-        kmsClient,
-        kekUri,
-        impressionsTmpPath,
-        metadataTmpPath,
-        requisitionsTmpPath,
-        impressions,
-        listOf(DIRECT_REQUISITION),
+      }
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_REQUISITION),
+    )
+    val impressionsMetadataService =
+      StorageImpressionMetadataService(
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
+        zoneIdForDates = ZoneOffset.UTC,
       )
-      val impressionsMetadataService =
-        StorageImpressionMetadataService(
-          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-          impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-          zoneIdForDates = ZoneOffset.UTC,
-        )
 
-      val fulfillerSelector =
-        DefaultFulfillerSelector(
-          requisitionsStub = requisitionsStub,
-          requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
-          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-          noiserSelector = ContinuousGaussianNoiseSelector(),
-          kAnonymityParams = null,
-        )
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+      )
 
-      // Load grouped requisitions from storage
-      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
 
-      val resultsFulfiller =
-        ResultsFulfiller(
-          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-          groupedRequisitions = groupedRequisitions,
-          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
-          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-          impressionMetadataService = impressionsMetadataService,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-          kmsClient = kmsClient,
-          fulfillerSelector = fulfillerSelector,
-        )
+    val resultsFulfiller =
+      ResultsFulfiller(
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionMetadataService = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+      )
 
-      resultsFulfiller.fulfillRequisitions()
+    resultsFulfiller.fulfillRequisitions()
 
-      val request: FulfillDirectRequisitionRequest =
-        verifyAndCapture(
-          requisitionsServiceMock,
-          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-        )
-      val result: Measurement.Result = decryptResult(request.encryptedResult,
-   MC_PRIVATE_KEY).unpack()
-      val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
-      val expectedFrequencyDistribution: Map<Long, Double> =
-        computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
+    val expectedFrequencyDistribution: Map<Long, Double> =
+      computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
 
-      assertThat(result.reach.noiseMechanism)
-        .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-      assertTrue(result.reach.hasDeterministicCountDistinct())
-      assertThat(result.frequency.noiseMechanism)
-        .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
-      assertTrue(result.frequency.hasDeterministicDistribution())
+    assertThat(result.reach.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.reach.hasDeterministicCountDistinct())
+    assertThat(result.frequency.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
+    assertTrue(result.frequency.hasDeterministicDistribution())
 
-      val reachTolerance =
-        getNoiseTolerance(
-          dpParams =
-            DifferentialPrivacyParams(
-              delta = OUTPUT_DP_PARAMS.delta,
-              epsilon = OUTPUT_DP_PARAMS.epsilon,
-            ),
-          l2Sensitivity = 1.0,
-        )
-      assertThat(result).reachValue().isWithin(reachTolerance.toDouble()).of(expectedReach)
+    val reachTolerance =
+      getNoiseTolerance(
+        dpParams =
+          DifferentialPrivacyParams(
+            delta = OUTPUT_DP_PARAMS.delta,
+            epsilon = OUTPUT_DP_PARAMS.epsilon,
+          ),
+        l2Sensitivity = 1.0,
+      )
+    assertThat(result).reachValue().isWithin(reachTolerance.toDouble()).of(expectedReach)
 
-      assertThat(result)
-        .frequencyDistribution()
-        .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
-        .of(expectedFrequencyDistribution)
-    }
+    assertThat(result)
+      .frequencyDistribution()
+      .isWithin(FREQUENCY_DISTRIBUTION_TOLERANCE)
+      .of(expectedFrequencyDistribution)
+  }
 
   @Test
   fun `runWork processes HM Shuffle requisitions successfully`() = runBlocking {
