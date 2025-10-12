@@ -130,7 +130,7 @@ class ImpressionWriterTest {
           .isEqualTo("file:///some-impression-bucket/ds/$date/some-event-group-path/impressions")
         val encryptedDek = blobDetails.encryptedDek
         assertThat(encryptedDek.kekUri).isEqualTo(kekUri)
-        val serializedEncryptionKey = encryptedDek.encryptedDek
+        val serializedEncryptionKey = encryptedDek.ciphertext
 
         val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
         val decryptionClient =
