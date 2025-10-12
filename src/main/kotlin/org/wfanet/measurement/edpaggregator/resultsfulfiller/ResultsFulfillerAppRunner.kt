@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
@@ -49,8 +50,6 @@ import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
@@ -343,8 +342,10 @@ class ResultsFulfillerAppRunner : Runnable {
         metadataStoragePublicApiCertHost,
       )
 
-    val requisitionMetadataClient = RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
-    val impressionMetadataClient = ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val requisitionMetadataClient =
+      RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val impressionMetadataClient =
+      ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
     val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
     val duchiesMap = buildDuchyMap()
 

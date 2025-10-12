@@ -134,6 +134,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -141,12 +143,6 @@ import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {
@@ -191,7 +187,8 @@ class ResultsFulfillerTest {
     }
   }
 
-  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -216,8 +213,11 @@ class ResultsFulfillerTest {
     RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val impressionMetadataStub: ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub by lazy {
-    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  private val impressionMetadataStub:
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -229,7 +229,8 @@ class ResultsFulfillerTest {
     return dates.map { date ->
       impressionMetadata {
         state = ImpressionMetadata.State.ACTIVE
-        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
+        blobUri =
+          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
       }
     }
   }
@@ -251,25 +252,23 @@ class ResultsFulfillerTest {
 
     val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
 
-    whenever(
-      impressionMetadataServiceMock.listImpressionMetadata(any())
-    ).thenReturn(listImpressionMetadataResponse {
-      impressionMetadata += impressionMetadataList
-    })
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
-      listRequisitionMetadataResponse {
-        requisitionMetadata += requisitionMetadata {
-          state = RequisitionMetadata.State.STORED
-          cmmsCreateTime = timestamp { seconds = 12345 }
-          cmmsRequisition = REQUISITION_NAME
-          blobUri = "some-prefix"
-          blobTypeUrl = "some-blob-type-url"
-          groupId = "an-existing-group-id"
-          report = "report-name"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      }
-    )
+      )
 
     // Set up KMS
     val kmsClient = FakeKmsClient()

@@ -21,7 +21,6 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.protobuf.timestamp
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -77,10 +76,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
@@ -122,15 +117,20 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
@@ -150,18 +150,16 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
-import kotlin.test.assertFailsWith
 
 class ResultsFulfillerAppTest {
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
-  private val requisitionMetadataServiceMock = mockService<RequisitionMetadataServiceCoroutineImplBase>()
-  private val impressionMetadataServiceMock = mockService<ImpressionMetadataServiceCoroutineImplBase>()
+  private val requisitionMetadataServiceMock =
+    mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -311,24 +309,25 @@ class ResultsFulfillerAppTest {
     val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
     val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
 
-    whenever(
-      impressionMetadataServiceMock.listImpressionMetadata(any())
-    ).thenReturn(listImpressionMetadataResponse {
-      impressionMetadata += impressionMetadata {
-        state = ImpressionMetadata.State.ACTIVE
-        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
-        interval = interval {
-          startTime = timestamp {
-            seconds = start.epochSecond
-            nanos = start.nano
-          }
-          endTime = timestamp {
-            seconds = end.epochSecond
-            nanos = end.nano
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
           }
         }
-      }
-    })
+      )
 
     val app =
       ResultsFulfillerApp(
@@ -912,24 +911,25 @@ class ResultsFulfillerAppTest {
     val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
     val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
 
-    whenever(
-      impressionMetadataServiceMock.listImpressionMetadata(any())
-    ).thenReturn(listImpressionMetadataResponse {
-      impressionMetadata += impressionMetadata {
-        state = ImpressionMetadata.State.ACTIVE
-        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
-        interval = interval {
-          startTime = timestamp {
-            seconds = start.epochSecond
-            nanos = start.nano
-          }
-          endTime = timestamp {
-            seconds = end.epochSecond
-            nanos = end.nano
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
           }
         }
-      }
-    })
+      )
 
     val app =
       ResultsFulfillerApp(
@@ -1045,24 +1045,25 @@ class ResultsFulfillerAppTest {
     val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
     val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
 
-    whenever(
-      impressionMetadataServiceMock.listImpressionMetadata(any())
-    ).thenReturn(listImpressionMetadataResponse {
-      impressionMetadata += impressionMetadata {
-        state = ImpressionMetadata.State.ACTIVE
-        blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
-        interval = interval {
-          startTime = timestamp {
-            seconds = start.epochSecond
-            nanos = start.nano
-          }
-          endTime = timestamp {
-            seconds = end.epochSecond
-            nanos = end.nano
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
           }
         }
-      }
-    })
+      )
 
     val app =
       ResultsFulfillerApp(
