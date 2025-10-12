@@ -88,7 +88,6 @@ class RequisitionFetcherTest {
     val fetcher =
       RequisitionFetcher(
         requisitionsStub,
-        requisitionMetadataStub,
         storageClient,
         DATA_PROVIDER_NAME,
         STORAGE_PATH_PREFIX,
@@ -118,7 +117,6 @@ class RequisitionFetcherTest {
       val fetcher =
         RequisitionFetcher(
           requisitionsStub,
-          requisitionMetadataStub,
           storageClient,
           DATA_PROVIDER_NAME,
           STORAGE_PATH_PREFIX,

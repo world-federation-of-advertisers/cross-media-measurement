@@ -40,7 +40,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -397,7 +397,7 @@ class ResultsFulfillerAppRunner : Runnable {
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
-          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          vidIndexMap = ParallelInMemoryVidIndexMap.build(populationSpec),
           eventDescriptor = eventDescriptor,
         )
     }

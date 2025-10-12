@@ -63,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -128,6 +129,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
@@ -343,7 +345,7 @@ class ResultsFulfillerTest {
         }
       }
     )
-
+    
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -382,7 +384,6 @@ class ResultsFulfillerTest {
 
     // Load grouped requisitions from storage
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
-
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
@@ -502,8 +503,13 @@ class ResultsFulfillerTest {
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, metadataTmpPath)
 
-      val encryptedDek =
-        EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+      val encryptedDek = encryptedDek {
+        this.kekUri = kekUri
+        typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+        protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+        ciphertext = serializedEncryptionKey
+      }
+
       val blobDetails =
         BlobDetails.newBuilder()
           .setBlobUri(IMPRESSIONS_FILE_URI)
@@ -699,6 +705,7 @@ class ResultsFulfillerTest {
       delta = 1E-12
     }
     private val MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS

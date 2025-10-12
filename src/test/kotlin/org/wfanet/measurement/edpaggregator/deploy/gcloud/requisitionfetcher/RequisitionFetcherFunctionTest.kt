@@ -42,6 +42,7 @@ import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
@@ -50,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -68,6 +70,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
@@ -303,8 +306,13 @@ class RequisitionFetcherFunctionTest {
         DATA_PROVIDER_PUBLIC_KEY,
       )
 
+    private val MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+    }
+
     private val REQUISITION = requisition {
       name = REQUISITION_NAME
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE.name
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()

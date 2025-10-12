@@ -31,14 +31,12 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Fetches requisitions from the Kingdom and persists them into GCS.
  *
  * @param requisitionsStub used to pull [Requisition]s from the kingdom
- * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param storageClient client used to store [Requisition]s
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
  * @param storagePathPrefix the blob key prefix to use when storing a [Requisition]
@@ -47,7 +45,6 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class RequisitionFetcher(
   private val requisitionsStub: RequisitionsCoroutineStub,
-  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
@@ -110,9 +107,7 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      if (
-        groupedRequisition.requisitionsList.isNotEmpty()
-      ) {
+      if (groupedRequisition.requisitionsList.isNotEmpty()) {
         val groupedRequisitionId = groupedRequisition.groupId
         val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")

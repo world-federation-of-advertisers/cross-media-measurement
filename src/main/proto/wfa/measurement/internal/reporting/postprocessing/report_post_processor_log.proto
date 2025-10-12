@@ -14,12 +14,12 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.postprocessing.v2alpha;
+package wfa.measurement.internal.reporting.postprocessing;
 
 import "google/protobuf/timestamp.proto";
-import "src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha/report_post_processor_result.proto";
+import "src/main/proto/wfa/measurement/internal/reporting/postprocessing/report_post_processor_result.proto";
 
-option java_package = "org.wfanet.measurement.reporting.postprocessing.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
 option java_outer_classname = "ReportPostProcessorLogProto";
 
@@ -61,7 +61,16 @@ message ReportPostProcessorLog {
 
     // The process crashed or terminated unexpectedly due to an internal error.
     INTERNAL_ERROR = 6;
+
+    // There are large corrections.
+    HAS_LARGE_CORRECTIONS = 7;
   }
 
   repeated ReportPostProcessorIssue issues = 4;
+
+  // True if the post-processing pipeline completed without fatal errors and the
+  // resulting corrected report is considered reliable. This will be false if
+  // the solver fails, or an internal error occurs, or there are some large
+  // corrections.
+  bool post_processing_successful = 5;
 }

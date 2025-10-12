@@ -141,7 +141,6 @@ class RequisitionFetcherFunction : HttpFunction {
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
-      requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
@@ -201,13 +200,14 @@ class RequisitionFetcherFunction : HttpFunction {
     private const val DEFAULT_GRCP_INTERVAL = "1s"
     private val grpcRequestInterval: Duration =
       (System.getenv("GRPC_REQUEST_INTERVAL") ?: DEFAULT_GRCP_INTERVAL).toDuration()
+    private const val DEFAULT_PAGE_SIZE = 50
 
     val pageSize = run {
       val envPageSize = System.getenv("PAGE_SIZE")
       if (!envPageSize.isNullOrEmpty()) {
         envPageSize.toInt()
       } else {
-        null
+        DEFAULT_PAGE_SIZE
       }
     }
 
