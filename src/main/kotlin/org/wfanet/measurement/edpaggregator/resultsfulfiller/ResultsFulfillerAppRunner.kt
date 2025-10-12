@@ -299,7 +299,7 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
-    
+
     // Get client certificates for EDP Aggregator API from server flags
     val metadataStorageCertFile = File(edpaCertFilePath)
     val metadataStoragePrivateKeyFile = File(edpaPrivateKeyFilePath)

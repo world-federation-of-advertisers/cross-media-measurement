@@ -81,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -150,6 +151,10 @@ class InProcessEdpAggregatorComponents(
     RequisitionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
+  private val impressionMetadataClient: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
+  }
+
   private lateinit var dataWatcher: DataWatcher
 
   private lateinit var eventGroupSync: EventGroupSync
@@ -180,6 +185,7 @@ class InProcessEdpAggregatorComponents(
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
       requisitionMetadataStub = requisitionMetadataClient,
+      impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
