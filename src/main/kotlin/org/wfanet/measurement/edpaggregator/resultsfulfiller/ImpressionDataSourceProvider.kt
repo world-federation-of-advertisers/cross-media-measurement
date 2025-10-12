@@ -79,7 +79,6 @@ class ImpressionDataSourceProvider(
   ): List<ImpressionDataSource> {
 
     val impressionMetadata: Flow<ImpressionMetadata> = resolvePath(modelLine, eventGroupReferenceId, period)
-
     return impressionMetadata
       .map { metadata ->
         val blobDetails = readBlobDetails(metadata.blobUri)

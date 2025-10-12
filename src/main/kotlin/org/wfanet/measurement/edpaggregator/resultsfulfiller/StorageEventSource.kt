@@ -141,12 +141,10 @@ class StorageEventSource(
 
     return channelFlow {
       val eventReaders: List<StorageEventReader> = createEventReaders()
-
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
           "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
         )
-
         // Launch one coroutine per EventReader
         coroutineScope {
           eventReaders.forEach { eventReader ->
