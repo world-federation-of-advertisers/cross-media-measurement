@@ -30,7 +30,7 @@ from report.testing.validate_report import are_overlap_constraints_consistent
 from report.testing.validate_report import get_sorted_list
 from report.testing.validate_report import ordered_sets_to_sorted_list
 
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_post_processor_result_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
@@ -3053,6 +3053,58 @@ class TestReport(unittest.TestCase):
             )
         ]
     )
+
+  def test_small_correction_for_unnoised_edp_does_not_log_large_correction(
+      self
+  ):
+      report = Report(
+          metric_reports={
+              "ami": MetricReport(
+                  weekly_cumulative_reaches={
+                      frozenset({EDP_ONE}): [
+                          Measurement(48, 0, "measurement_02")
+                      ],
+                  },
+                  whole_campaign_measurements=build_measurement_set(
+                      reach={
+                          frozenset({EDP_ONE}): Measurement(48.01, 0, "measurement_04"),
+                      },
+                      k_reach={},
+                      impression={}),
+                  weekly_non_cumulative_measurements={},
+              )
+          },
+          metric_subsets_by_parent={},
+          cumulative_inconsistency_allowed_edp_combinations={},
+      )
+
+      corrected, report_post_processor_result = report.get_corrected_report()
+
+      expected = Report(
+          metric_reports={
+              "ami": MetricReport(
+                  weekly_cumulative_reaches={
+                      frozenset({EDP_ONE}): [
+                          Measurement(48.0033325, 0, "measurement_02")
+                      ],
+                  },
+                  whole_campaign_measurements=build_measurement_set(
+                      reach={
+                          frozenset({EDP_ONE}): Measurement(48.00666747, 0, "measurement_04"),
+                      },
+                      k_reach={},
+                      impression={}),
+                  weekly_non_cumulative_measurements={},
+              )
+          },
+          metric_subsets_by_parent={},
+          cumulative_inconsistency_allowed_edp_combinations={},
+      )
+
+      self.assertEqual(report_post_processor_result.status.status_code,
+                       StatusCode.SOLUTION_FOUND_WITH_OSQP)
+      self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
+      self.assertEqual(len(report_post_processor_result.large_corrections), 0)
 
 
   def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
