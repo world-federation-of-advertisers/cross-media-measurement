@@ -299,30 +299,7 @@ class ResultsFulfillerAppRunner : Runnable {
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
     val workItemAttemptsClient =
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
-
-    // Get client certificates for EDP Aggregator API from server flags
-    val metadataStorageCertFile = File(edpaCertFilePath)
-    val metadataStoragePrivateKeyFile = File(edpaPrivateKeyFilePath)
-    val metadataStorageCertCollectionFile = File(metadataStorageCertCollectionFilePath)
-    val metadataStorageClientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = metadataStorageCertFile,
-        privateKeyFile = metadataStoragePrivateKeyFile,
-        trustedCertCollectionFile = metadataStorageCertCollectionFile,
-      )
-
-    // Build the mutual TLS channel for secure computation API
-    val metadataStoragePublicChannel =
-      buildMutualTlsChannel(
-        metadataStoragePublicApiTarget,
-        metadataStorageClientCerts,
-        metadataStoragePublicApiCertHost,
-      )
-
-    val requisitionMetadataClient =
-      RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
-    val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
-
+    
     // Get client certificates for EDP Aggregator API from server flags
     val metadataStorageCertFile = File(edpaCertFilePath)
     val metadataStoragePrivateKeyFile = File(edpaPrivateKeyFilePath)
