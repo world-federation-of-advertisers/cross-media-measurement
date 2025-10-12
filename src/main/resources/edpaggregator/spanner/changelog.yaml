@@ -22,5 +22,8 @@ databaseChangeLog:
   - include:
       file: drop-blob-uri-index.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-report-index.sql
+      relativeToChangeLogFile: true
 
 
