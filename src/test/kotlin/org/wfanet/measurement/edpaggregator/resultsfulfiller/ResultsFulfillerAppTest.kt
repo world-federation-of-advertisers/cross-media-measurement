@@ -41,6 +41,7 @@ import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -62,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -119,10 +121,13 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisi
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
@@ -149,7 +154,8 @@ class ResultsFulfillerAppTest {
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
-  private val requisitionMetadataServiceMock = mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val requisitionMetadataServiceMock =
+    mockService<RequisitionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -214,19 +220,20 @@ class ResultsFulfillerAppTest {
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
-      listRequisitionMetadataResponse {
-        requisitionMetadata += requisitionMetadata {
-          state = RequisitionMetadata.State.STORED
-          cmmsCreateTime = timestamp { seconds = 12345 }
-          cmmsRequisition = REQUISITION_NAME
-          blobUri = "some blob uri"
-          blobTypeUrl = "some-blob-type-url"
-          groupId = "an-existing-group-id"
-          report = "report-name"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      }
-    )
+      )
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -363,11 +370,11 @@ class ResultsFulfillerAppTest {
         RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
       val groupedRequisitions =
         SingleRequisitionGrouper(
-          requisitionsClient = requisitionsStub,
-          eventGroupsClient = eventGroupsStub,
-          requisitionValidator = requisitionValidator,
-          throttler = throttler,
-        )
+            requisitionsClient = requisitionsStub,
+            eventGroupsClient = eventGroupsStub,
+            requisitionValidator = requisitionValidator,
+            throttler = throttler,
+          )
           .groupRequisitions(listOf(REQUISITION))
       // Add requisitions to storage
       requisitionsStorageClient.writeBlob(
@@ -428,19 +435,20 @@ class ResultsFulfillerAppTest {
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
-      listRequisitionMetadataResponse {
-        requisitionMetadata += requisitionMetadata {
-          state = RequisitionMetadata.State.STORED
-          cmmsCreateTime = timestamp { seconds = 12345 }
-          cmmsRequisition = REQUISITION_NAME
-          blobUri = "some blob uri"
-          blobTypeUrl = "some-blob-type-url"
-          groupId = "an-existing-group-id"
-          report = "report-name"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      }
-    )
+      )
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -668,19 +676,20 @@ class ResultsFulfillerAppTest {
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
-      listRequisitionMetadataResponse {
-        requisitionMetadata += requisitionMetadata {
-          state = RequisitionMetadata.State.STORED
-          cmmsCreateTime = timestamp { seconds = 12345 }
-          cmmsRequisition = REQUISITION_NAME
-          blobUri = "some blob uri"
-          blobTypeUrl = "some-blob-type-url"
-          groupId = "an-existing-group-id"
-          report = "report-name"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      }
-    )
+      )
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -784,19 +793,20 @@ class ResultsFulfillerAppTest {
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenReturn(
-      listRequisitionMetadataResponse {
-        requisitionMetadata += requisitionMetadata {
-          state = RequisitionMetadata.State.STORED
-          cmmsCreateTime = timestamp { seconds = 12345 }
-          cmmsRequisition = REQUISITION_NAME
-          blobUri = "some blob uri"
-          blobTypeUrl = "some-blob-type-url"
-          groupId = "an-existing-group-id"
-          report = "report-name"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some blob uri"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      }
-    )
+      )
 
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
@@ -1008,8 +1018,13 @@ class ResultsFulfillerAppTest {
     val impressionsMetadataStorageClient =
       SelectedStorageClient(IMPRESSIONS_METADATA_FILE_URI, tmpPath)
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(KEK_URI).setEncryptedDek(serializedEncryptionKey).build()
+    val encryptedDek = encryptedDek {
+      this.kekUri = KEK_URI
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
+
     val blobDetails = blobDetails {
       this.blobUri = IMPRESSIONS_FILE_URI
       this.encryptedDek = encryptedDek
@@ -1214,6 +1229,7 @@ class ResultsFulfillerAppTest {
       delta = 1E-12
     }
     private val MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS

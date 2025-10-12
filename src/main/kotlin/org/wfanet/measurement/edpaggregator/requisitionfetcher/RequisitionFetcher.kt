@@ -110,9 +110,7 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      if (
-        groupedRequisition.requisitionsList.isNotEmpty()
-      ) {
+      if (groupedRequisition.requisitionsList.isNotEmpty()) {
         val groupedRequisitionId = groupedRequisition.groupId
         val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")

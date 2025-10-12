@@ -40,15 +40,15 @@ locals {
     is_binary_format  = false
   }
 
-  data_availability_tls_key = {
-      secret_id         = "edpa-data-availability-tls-key"
-      secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.key"),
-      is_binary_format  = false
-    }
+  requisition_fetcher_tls_key = {
+    secret_id         = "edpa-requisition-fetcher-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.key"),
+    is_binary_format  = false
+  }
 
-  data_availability_tls_pem = {
-    secret_id         = "edpa-data-availability-tls-pem"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.pem"),
+  requisition_fetcher_tls_pem = {
+    secret_id         = "edpa-requisition-fetcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.pem"),
     is_binary_format  = false
   }
 
@@ -238,8 +238,8 @@ module "edp_aggregator" {
   edpa_tee_app_tls_pem                          = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                          = local.data_watcher_tls_key
   data_watcher_tls_pem                          = local.data_watcher_tls_pem
-  data_availability_tls_key                     = local.data_availability_tls_key
-  data_availability_tls_pem                     = local.data_availability_tls_pem
+  requisition_fetcher_tls_key                   = local.requisition_fetcher_tls_key
+  requisition_fetcher_tls_pem                   = local.requisition_fetcher_tls_pem
   secure_computation_root_ca                    = local.secure_computation_root_ca
   metadata_storage_root_ca                      = local.metadata_storage_root_ca
   trusted_root_ca_collection                    = local.trusted_root_ca_collection

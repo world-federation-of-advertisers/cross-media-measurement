@@ -16,13 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.protobuf.Any
-import com.google.type.Interval
-import com.google.type.interval
-import io.grpc.StatusException
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import java.util.logging.Level
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -38,17 +34,18 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requis
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 
 /**
- * An interface to group a list of requisitions.
+ * Abstract base class for grouping and validating [Requisition]s before aggregation.
  *
- * This class provides functionality to categorize a collection of [Requisition] objects into
- * groups, facilitating efficient execution.
+ * This class defines the core workflow for transforming raw [Requisition] objects into grouped
+ * forms ([GroupedRequisitions]) ready for execution. Subclasses implement specific grouping logic
+ * (e.g., by report ID).
  *
- * @param requisitionValidator: The [RequisitionValidator] to use to validate the requisition.
- * @param requisitionsClient The gRPC client used to interact with requisitions.
- * @param throttler used to throttle gRPC requests
+ * @param requisitionValidator Validates requisitions and their measurement specs.
+ * @param requisitionsClient gRPC client for updating or refusing requisitions in the Kingdom.
+ * @param eventGroupsClient gRPC client for retrieving event group metadata.
+ * @param throttler Used to control concurrency for gRPC calls.
  */
 abstract class RequisitionGrouper(
   private val requisitionValidator: RequisitionsValidator,
@@ -58,92 +55,67 @@ abstract class RequisitionGrouper(
 ) {
 
   /**
-   * Groups a list of disparate [Requisition] objects for execution.
+   * Groups a list of [Requisition]s into [GroupedRequisitions]s suitable for execution.
    *
-   * This method takes in a list of [Requisition] objects, maps them to their respective groups, and
-   * then combines these groups into a single list of [GroupedRequisitions].
+   * ### High-Level Flow
+   * 1. Each requisition is validated via [mapRequisition].
+   * 2. Invalid requisitions are refused to the Cmms and excluded.
+   * 3. Valid requisitions are passed to [createGroupedRequisitions] for combination.
    *
-   * @param requisitions A list of [Requisition] objects to be grouped.
-   * @return A list of [GroupedRequisitions] containing the categorized [Requisition] objects.
+   * @param requisitions Input requisitions to group.
+   * @return A list of grouped requisitions, excluding any refused entries.
    */
   suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
-    return combineGroupedRequisitions(mappedRequisitions)
+    return createGroupedRequisitions(mappedRequisitions)
   }
 
-  /** Function to be implemented to combine [GroupedRequisition]s for optimal execution. */
-  protected suspend abstract fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>,
+  /**
+   * Abstract method for combining validated [Requisition]s into [GroupedRequisitions].
+   *
+   * Implementations define the grouping strategy (e.g., by report ID) and handle additional
+   * persistence of metadata logic.
+   */
+  protected suspend abstract fun createGroupedRequisitions(
+    requisitions: List<Requisition>
   ): List<GroupedRequisitions>
 
-/**
- * Maps a single [Requisition] into a [GroupedRequisitions] object suitable for aggregation.
- *
- * This method performs a series of validation and enrichment steps to ensure the requisition is
- * properly structured and associated with the correct event groups before being grouped.
- *
- * The process includes:
- * 1. **Validating the MeasurementSpec** — Ensures that the measurement specification attached to
- *    the requisition is valid and compatible with the expected data model.
- * 2. **Validating the RequisitionSpec** — Confirms that the requisition’s own specification is
- *    internally consistent and meets protocol expectations.
- * 3. **Fetching Event Group Details** — Uses the [EventGroupsCoroutineStub] to resolve event group
- *    references, attaching their reference IDs and collection intervals.
- *
- * If any of these steps fail due to an [InvalidRequisitionException] or gRPC error:
- * - The requisition is immediately **refused** via a gRPC call to the Kingdom.
- * - These refusal are not logged to the Requisition Metadata Storage and will be **instrumented**
- *   using telemetry.
- *
- * Requisitions that pass validation are returned as a [GroupedRequisitions] object containing:
- * - The validated model line (from the [MeasurementSpec]).
- * - A packed [Any] representation of the original [Requisition].
- * - A map of associated event groups, each containing its reference ID and collection intervals.
- *
- * @param requisition The [Requisition] to validate, enrich, and map into a grouped form.
- * @return A single [GroupedRequisitions] object if successful, or `null` if the requisition was
- *   invalid or could not be processed.
- *
- */
-  private suspend fun mapRequisition(requisition: Requisition): GroupedRequisitions? {
-    val measurementSpec: MeasurementSpec =
-      try {
-        requisitionValidator.validateMeasurementSpec(requisition)
-      } catch (e: InvalidRequisitionException) {
-        refuseRequisition(e.requisitions.single(), e.refusal)
-        return null
-      }
-    val requisitionSpec: RequisitionSpec =
-      try {
-        requisitionValidator.validateRequisitionSpec(requisition)
-      } catch (e: InvalidRequisitionException) {
-        refuseRequisition(e.requisitions.single(), e.refusal)
-        return null
-      }
-    val eventGroupMapEntries =
-      try {
-        getEventGroupMapEntries(requisitionSpec)
-      } catch (e: StatusException) {
-        logger.severe(
-          "Exception getting event group map for requisition ${requisition.name}: ${e.message}"
-        )
-        // For now, we skip this requisition. However, we could refuse it in the future.
-        return null
-      }
-    return groupedRequisitions {
-      modelLine = measurementSpec.modelLine
-      this.requisitions += requisitionEntry { this.requisition = Any.pack(requisition) }
-      this.eventGroupMap +=
-        eventGroupMapEntries.map {
-          eventGroupMapEntry {
-            this.eventGroup = it.key
-            details = it.value
-          }
-        }
+  /**
+   * Validates and maps a single [Requisition] into a form ready for grouping.
+   *
+   * ### High-Level Flow
+   * 1. Validate the requisition’s [MeasurementSpec].
+   * 2. On success, return the requisition for grouping.
+   * 3. On failure, refuse the requisition via [refuseRequisitionToCmms].
+   *
+   * Requisitions without a valid [MeasurementSpec] or `reportId` are **not persisted** in the
+   * metadata store, since a valid `reportId` is required for persistence.
+   *
+   * @param requisition The requisition to validate.
+   * @return The validated requisition, or `null` if refused.
+   */
+  private suspend fun mapRequisition(requisition: Requisition): Requisition? {
+    try {
+      requisitionValidator.validateMeasurementSpec(requisition)
+      return requisition
+    } catch (e: InvalidRequisitionException) {
+      refuseRequisitionToCmms(e.requisitions.single(), e.refusal)
+      return null
     }
   }
 
-  private suspend fun getEventGroupMapEntries(
+  /**
+   * Builds a map of event group details for a requisition.
+   *
+   * ### High-Level Flow
+   * 1. Iterates over all event group references in the [RequisitionSpec].
+   * 2. Fetches event group metadata from the Kingdom using [EventGroupsCoroutineStub].
+   * 3. Aggregates collection intervals per event group, merging and sorting by start time.
+   *
+   * @param requisitionSpec The requisition specification to resolve event groups from.
+   * @return A map from event group names to their [EventGroupDetails].
+   */
+  protected suspend fun getEventGroupMapEntries(
     requisitionSpec: RequisitionSpec
   ): Map<String, EventGroupDetails> {
     val eventGroupMap = mutableMapOf<String, EventGroupDetails>()
@@ -173,22 +145,43 @@ abstract class RequisitionGrouper(
     return eventGroupMap
   }
 
-  private suspend fun getEventGroup(name: String): EventGroup {
+  /**
+   * Retrieves an [CmmsEventGroup] resource from the Cmms using throttled gRPC access.
+   *
+   * @param name The full resource name of the event group.
+   * @return The resolved [CmmsEventGroup] object.
+   */
+  private suspend fun getEventGroup(name: String): CmmsEventGroup {
     return throttler.onReady {
       eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
     }
   }
 
-  protected suspend fun refuseRequisition(requisition: Requisition, refusal: Requisition.Refusal) {
+  /**
+   * Refuses a requisition to the Cmms.
+   *
+   * ### High-Level Flow
+   * 1. Logs the refusal locally.
+   * 2. Sends a [refuseRequisitionRequest] via [RequisitionsCoroutineStub].
+   * 3. Errors during refusal are caught and logged.
+   *
+   * @param requisition The requisition to refuse.
+   * @param refusal The reason and message for the refusal.
+   */
+  protected suspend fun refuseRequisitionToCmms(
+    requisition: Requisition,
+    refusal: Requisition.Refusal,
+  ) {
     try {
       throttler.onReady {
         logger.info("Requisition ${requisition.name} was refused. $refusal")
         val request = refuseRequisitionRequest {
           this.name = requisition.name
-          this.refusal = RequisitionKt.refusal {
-            justification = refusal.justification
-            message = refusal.message
-          }
+          this.refusal =
+            RequisitionKt.refusal {
+              justification = refusal.justification
+              message = refusal.message
+            }
         }
         requisitionsClient.refuseRequisition(request)
       }

@@ -39,8 +39,9 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -95,7 +96,8 @@ class ResultsFulfillerAppRunner : Runnable {
 
   @CommandLine.Option(
     names = ["--secure-computation-cert-collection-file-path"],
-    description = ["Local path where the --secure-computation-cert-collection-secret-id secret is stored."],
+    description =
+      ["Local path where the --secure-computation-cert-collection-secret-id secret is stored."],
     required = true,
   )
   lateinit var secureComputationCertCollectionFilePath: String
@@ -111,7 +113,8 @@ class ResultsFulfillerAppRunner : Runnable {
 
   @CommandLine.Option(
     names = ["--metadata-storage-cert-collection-file-path"],
-    description = ["Local path where the --metadata-storage-cert-collection-secret-id secret is stored."],
+    description =
+      ["Local path where the --metadata-storage-cert-collection-secret-id secret is stored."],
     required = true,
   )
   lateinit var metadataStorageCertCollectionFilePath: String
@@ -235,10 +238,10 @@ class ResultsFulfillerAppRunner : Runnable {
   @CommandLine.Option(
     names = ["--metadata-storage-public-api-cert-host"],
     description =
-    [
-      "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
-      "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
-    ],
+      [
+        "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
+      ],
     required = false,
   )
   private var metadataStoragePublicApiCertHost: String? = null
@@ -294,7 +297,8 @@ class ResultsFulfillerAppRunner : Runnable {
         secureComputationPublicApiCertHost,
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
-    val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
+    val workItemAttemptsClient =
+      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
     // Get client certificates for EDP Aggregator API from server flags
     val metadataStorageCertFile = File(edpaCertFilePath)
@@ -315,7 +319,8 @@ class ResultsFulfillerAppRunner : Runnable {
         metadataStoragePublicApiCertHost,
       )
 
-    val requisitionMetadataClient = RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val requisitionMetadataClient =
+      RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
     val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
 
     val duchiesMap = buildDuchyMap()
@@ -397,7 +402,7 @@ class ResultsFulfillerAppRunner : Runnable {
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
-          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          vidIndexMap = ParallelInMemoryVidIndexMap.build(populationSpec),
           eventDescriptor = eventDescriptor,
         )
     }

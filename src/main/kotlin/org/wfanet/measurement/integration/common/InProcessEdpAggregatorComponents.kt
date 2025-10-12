@@ -286,9 +286,12 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           requisitionMetadataClient,
+          subscribingStorageClient,
+          50,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          throttler,
           eventGroupsClient,
           requisitionsClient,
-          throttler,
         )
 
       val requisitionFetcher =

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,12 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.protobuf.Any
 import com.google.type.Interval
 import com.google.type.interval
-import io.grpc.StatusException
+import java.util.UUID
+import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
@@ -28,8 +29,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
-import com.google.protobuf.Any
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -39,6 +40,8 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -49,43 +52,46 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.storage.StorageClient
-import java.util.UUID
-import java.util.logging.Logger
-
-data class EventGroupWrapper(val eventGroupReferenceId: String, val intervals: MutableList<Interval>)
 
 /**
- * A [RequisitionGrouper] implementation that groups requisitions by **Report ID**.
+ * The result of a report validation.
  *
- * This class ensures that all [Requisition]s belonging to the same report are combined into a
- * single [GroupedRequisitions] message. It assumes that the collection intervals for a report are
- * not disparate and can therefore be merged safely.
+ * If a refusal is present, then the entire list of requisitions will be refused with the same
+ * refusal reason.
+ */
+private data class ReportValidationOutcome(
+  val requisitions: List<Requisition>,
+  val refusal: Refusal?,
+)
+
+/**
+ * Groups [Requisition]s by **Report ID** and manages their lifecycle in the Requisition Metadata
+ * Storage.
  *
- * ### Interaction with Requisition Metadata Storage
+ * This class aggregates all [Requisition]s associated with the same report into a single
+ * [GroupedRequisitions] message. It ensures each group is validated, persisted, and recoverable
+ * through its metadata records. Requisitions failing validation are refused both to Cmms and to the
+ * Requisition Metadata Storage.
  *
- * The grouping and persistence process heavily depends on the
- * [RequisitionMetadataServiceCoroutineStub] (`requisitionMetadataStub`), which is responsible for
- * creating, listing, and updating requisition metadata records in the persistent storage layer.
+ * ### High-Level Flow
+ * 1. **Group by Report ID** — Partition requisitions by their report field in
+ *    [MeasurementSpec.reportingMetadata.report].
+ * 2. **List Existing Metadata** — Retrieve existing [RequisitionMetadata] entries for the report
+ *    using the Requisition Metadata Storage (`requisitionMetadataStub.listRequisitionMetadata`).
+ * 3. **Recover Missing Groups** — For metadata entries whose blobs are missing in [StorageClient],
+ *    re-create the grouped requisitions.
+ * 4. **Validate New Requisitions** — Validate unregistered requisitions. On failure, record
+ *    refusals to Cmms and in metadata storage.
+ * 5. **Persist Metadata for New Groups** — For valid requisitions, create new [RequisitionMetadata]
+ *    entries via `requisitionMetadataStub.createRequisitionMetadata`, associating each requisition
+ *    with a generated group ID and blob URI.
  *
- * The general flow of operations is as follows:
- * 1. The grouper lists existing requisition metadata entries for the report using
- *    `listRequisitionMetadataByReportId()`.
- * 2. It filters out requisitions that have already been persisted.
- * 3. For newly encountered requisitions, it creates metadata entries via
- *    `createRequisitionMetadata()`, linking them to a generated requisition group ID.
- * 4. If any validation fails, it marks the affected requisitions as **refused** by calling
- *    `refuseRequisitionMetadata()`.
- * 5. When existing metadata references a missing blob in [StorageClient], it re-creates the
- *    missing grouped requisition blob using the metadata information.
- *
- * The final grouped requisitions, including both recovered and newly created entries, are returned
- * to the caller for further processing.
- *
- * @property requisitionValidator Validates that all grouped requisitions are consistent and compatible.
- * @property dataProviderName The name of the data provider resource, used as the parent in metadata requests.
+ * @property requisitionValidator Validates that all grouped requisitions are consistent and
+ *   compatible.
+ * @property dataProviderName The name of the data provider resource, used as the parent in metadata
+ *   requests.
  * @property blobUriPrefix Prefix URI used to construct blob paths for storing grouped requisitions.
  * @property requisitionMetadataStub Stub for communicating with the Requisition Metadata Service.
  * @property storageClient Client used to check for and read existing grouped requisition blobs.
@@ -101,80 +107,227 @@ class RequisitionGrouperByReportId(
   private val blobUriPrefix: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val storageClient: StorageClient,
-  private val responsePageSize: Int? = null,
+  private val responsePageSize: Int,
   private val storagePathPrefix: String,
   throttler: Throttler,
   eventGroupsClient: EventGroupsCoroutineStub,
   requisitionsClient: RequisitionsCoroutineStub,
 ) : RequisitionGrouper(requisitionValidator, requisitionsClient, eventGroupsClient, throttler) {
 
-/**
- * Groups a list of [GroupedRequisitions] by their associated report ID and merges them
- * into a single grouped requisition per report.
- *
- * Each input group is expected to contain exactly one requisition. The report ID is extracted
- * from the [MeasurementSpec] associated with the requisition. The method ensures that all
- * requisitions for the same report are combined under a single `groupId`.
- *
- * @param groupedRequisitions A list of [GroupedRequisitions] objects to combine.
- * @return A list of [GroupedRequisitions], each representing all requisitions for a single report.
- */
-  override suspend fun combineGroupedRequisitions(
-    groupedRequisitions: List<GroupedRequisitions>,
+  /**
+   * Groups validated [Requisition]s by report ID and persists their metadata.
+   *
+   * ### High-Level Flow
+   * 1. Partition requisitions by report ID.
+   * 2. Fetch existing [RequisitionMetadata] entries for each report.
+   * 3. Recover missing grouped requisitions from metadata when necessary.
+   * 4. Create new grouped requisitions for unregistered requisitions and persist their metadata.
+   *
+   * @return A list of [GroupedRequisitions] for all processed reports.
+   */
+  override suspend fun createGroupedRequisitions(
+    requisitions: List<Requisition>
   ): List<GroupedRequisitions> {
-    val groupedByReport: Map<String, List<GroupedRequisitions>> =
-      groupedRequisitions.groupBy {
-        val measurementSpec: MeasurementSpec =
-          it.requisitionsList
-            .single()
-            .requisition
-            .unpack(Requisition::class.java)
-            .measurementSpec
-            .unpack()
-        measurementSpec.reportingMetadata.report
-      }
-    val combinedByReportId: List<GroupedRequisitions> = combineByReportId(groupedByReport)
-    return combinedByReportId
+    val groupedRequisitions = mutableListOf<GroupedRequisitions>()
+    for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
+      val requisitionsMetadata: List<RequisitionMetadata> =
+        listStoredRequisitionMetadataByReportId(reportId)
+      val groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
+        requisitionsMetadata.groupBy { it.groupId }
+      groupedRequisitions.addAll(
+        recoverUnpersistedGroupedRequisitions(groupIdToRequisitionMetadata, requisitionsByReportId)
+      )
+      getNewGroupedRequisitions(groupIdToRequisitionMetadata, reportId, requisitionsByReportId)
+        ?.let { groupedRequisitions.add(it) }
+    }
+    return groupedRequisitions
   }
 
   /**
-   * Combines [GroupedRequisitions] by report ID and merges their collection intervals per event group.
+   * Validates requisitions. If any requisition is invalid, all requisitions with that reportId are
+   * marked as invalid, as well.
    *
-   * For each report ID, this method:
-   * 1. Lists existing [RequisitionMetadata] records using
-   *    [listRequisitionMetadataByReportId].
-   * 2. Checks which requisitions already exist in metadata storage and excludes them from further processing.
-   * 3. Recovers any missing grouped requisition blobs for existing metadata entries via
-   *    [getUnwrittenRequisitions].
-   * 4. Validates the model lines for all new groups using [requisitionValidator].
-   * 5. Creates metadata entries for new requisitions by calling [createRequisitionMetadata].
-   * 6. In case of validation errors, marks the affected requisitions as **refused** in metadata
-   *    using [refuseRequisitionMetadata].
-   *
-   * ### Interaction with Requisition Metadata Storage
-   *
-   * - Reads metadata through `listRequisitionMetadataByReportId()`.
-   * - Writes new entries with `createRequisitionMetadata()`.
-   * - Marks invalid or failed requisitions with `refuseRequisitionMetadata()`.
-   * - Recovers incomplete groups (metadata without corresponding blobs) through
-   *   [getUnwrittenRequisitions].
-   *
-   * @param groupedByReport A map of report IDs to lists of grouped requisitions belonging to that report.
-   * @return A list of combined [GroupedRequisitions] objects—some newly created, others recovered from metadata.
-   *
+   * @param reportId The unique identifier of the report whose requisitions are being validated.
+   * @param requisitions The list of all [Requisition] objects associated with the report.
+   * @return A [ReportValidationOutcome] indicating whether the requisitions are valid or refused.
    */
-  private suspend fun combineByReportId(
-    groupedByReport: Map<String, List<GroupedRequisitions>>
-  ): List<GroupedRequisitions> {
-    return groupedByReport.toList().flatMap { (reportId, groups) ->
-      val results = mutableListOf<GroupedRequisitions>()
-      val requisitionGroupId = UUID.randomUUID().toString()
+  private fun validateRequisitionsByReport(
+    reportId: String,
+    requisitions: List<Requisition>,
+  ): ReportValidationOutcome {
+    // Check for invalid requisition spec
+    requisitions.forEach { requisition ->
+      try {
+        requisitionValidator.validateRequisitionSpec(requisition)
+      } catch (e: InvalidRequisitionException) {
+        return ReportValidationOutcome(requisitions = requisitions, refusal = e.refusal)
+      }
+    }
+    // Check for inconsistent model lines
+    val modelLine = getModelLine(requisitions.first().measurementSpec)
+    val invalidModelLines =
+      requisitions.any { requisition -> modelLine != getModelLine(requisition.measurementSpec) }
+    if (invalidModelLines) {
+      return ReportValidationOutcome(
+        requisitions = requisitions,
+        refusal =
+          refusal {
+            justification = Requisition.Refusal.Justification.UNFULFILLABLE
+            message = "Report $reportId cannot contain multiple model lines"
+          },
+      )
+    }
+    return ReportValidationOutcome(requisitions, null)
+  }
 
-      // List existing requisition metadata for the current report
-      val existingRequisitionMetadata: List<RequisitionMetadata> = listRequisitionMetadataByReportId(reportId)
-      val existingCmmsRequisitions = existingRequisitionMetadata.map { it.cmmsRequisition }.toSet()
-      if (existingRequisitionMetadata.isNotEmpty()) {
-        results.addAll(getUnwrittenRequisitions(existingRequisitionMetadata, groups))
+  private fun getModelLine(measurementSpec: SignedMessage): String {
+    return measurementSpec.unpack<MeasurementSpec>().modelLine
+  }
+
+  /**
+   * Groups a non-empty list of valid [Requisition]s into a single [GroupedRequisitions] object.
+   *
+   * ### High-Level Flow
+   * 1. Unpacks each [Requisition]'s [MeasurementSpec].
+   * 2. Extracts event group mappings from the [RequisitionSpec].
+   * 3. Builds intermediate [GroupedRequisitions] entries for each requisition.
+   * 4. Merges all grouped entries into a single [GroupedRequisitions] identified by the provided
+   *    [groupId].
+   *
+   * If the [requisitions] list is empty, the function returns `null`.
+   *
+   * @param requisitions The list of validated [Requisition]s to group.
+   * @param groupId The unique identifier to assign to the resulting [GroupedRequisitions].
+   * @return A merged [GroupedRequisitions] containing all valid requisitions, or `null` if no
+   *   requisitions were provided.
+   */
+  suspend private fun groupValidRequisitions(
+    requisitions: List<Requisition>,
+    groupId: String,
+  ): GroupedRequisitions? {
+    if (requisitions.isEmpty()) return null
+    val requisitionsGroupedByReportId =
+      requisitions.map { req ->
+        val measurementSpec: MeasurementSpec = req.measurementSpec.unpack()
+        val eventGroupMapEntries =
+          getEventGroupMapEntries(requisitionValidator.getRequisitionSpec(req))
+        groupedRequisitions {
+          modelLine = measurementSpec.modelLine
+          this.requisitions +=
+            GroupedRequisitionsKt.requisitionEntry { requisition = Any.pack(req) }
+          this.eventGroupMap +=
+            eventGroupMapEntries.map {
+              eventGroupMapEntry {
+                eventGroup = it.key
+                details = it.value
+              }
+            }
+        }
+      }
+    return mergeGroupedRequisitions(requisitionsGroupedByReportId, groupId)
+  }
+
+  /**
+   * Merges multiple [GroupedRequisitions] belonging to the same group into one.
+   *
+   * This function assumes that the provided [groupedRequisitions] list has been **pre-validated** —
+   * meaning all entries belong to the same group and have consistent [modelLine] and related
+   * metadata.
+   *
+   * ### High-Level Flow
+   * 1. Combine requisitions and event group maps for the given group.
+   * 2. Merge overlapping collection intervals.
+   * 3. Produce a single [GroupedRequisitions] with the shared `groupId`.
+   *
+   * @param groupedRequisitions The list of [GroupedRequisitions] objects to merge. All entries must
+   *   belong to the same group.
+   * @param groupId The identifier assigned to the merged [GroupedRequisitions].
+   * @return A single [GroupedRequisitions] containing all requisitions and event group mappings
+   *   combined under the specified [groupId].
+   */
+  private fun mergeGroupedRequisitions(
+    groupedRequisitions: List<GroupedRequisitions>,
+    groupId: String,
+  ): GroupedRequisitions {
+    val modelLine = groupedRequisitions.first().modelLine
+    val mergedRequisitions = groupedRequisitions.flatMap { it.requisitionsList }
+    val eventGroupMapEntries = buildEventGroupEntries(groupedRequisitions)
+    return groupedRequisitions {
+      this.modelLine = modelLine
+      this.requisitions += mergedRequisitions
+      this.eventGroupMap += eventGroupMapEntries
+      this.groupId = groupId
+    }
+  }
+
+  /**
+   * Creates a new [GroupedRequisitions] for **new or unseen requisitions** not yet recorded in
+   * metadata.
+   *
+   * ### High-Level Flow
+   * 1. Identify requisitions missing from existing [RequisitionMetadata] entries.
+   * 2. Validate the new requisitions via [validateRequisitionsByReport].
+   * 3. If all requisitions are valid, group them using [groupValidRequisitions].
+   * 4. If any requisition is invalid, refuse all of them to the Cmms.
+   * 5. Update [RequisitionMetadata] to reflect the outcome of processing, persisting newly grouped
+   *    requisitions and marking refused ones accordingly via [syncRequisitionMetadata].
+   *
+   * @param groupIdToRequisitionMetadata A map of requisition group ID to the list of
+   *   [RequisitionMetadata] entries that belong to that group within a single report.
+   * @param requisitions The list of all [Requisition] objects for a single report,
+   * * potentially spanning multiple groups. This includes both previously seen and new
+   *   requisitions.
+   *
+   * @return A newly created [GroupedRequisitions] if all requisitions are valid, or `null`
+   *   otherwise.
+   */
+  suspend fun getNewGroupedRequisitions(
+    groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>>,
+    reportId: String,
+    requisitionsByReportId: List<Requisition>,
+  ): GroupedRequisitions? {
+    val existingCmmsRequisitionName: Set<String> =
+      groupIdToRequisitionMetadata.values.flatten().map { it.cmmsRequisition }.toSet()
+    val unregisteredRequisitionsByReportId: List<Requisition> =
+      requisitionsByReportId.filter { it.name !in existingCmmsRequisitionName }
+    if (unregisteredRequisitionsByReportId.isEmpty()) return null
+    val requisitionGroupId = UUID.randomUUID().toString()
+    val reportValidationOutcome =
+      validateRequisitionsByReport(reportId, unregisteredRequisitionsByReportId)
+    val groupedRequisitions =
+      if (reportValidationOutcome.refusal != null) {
+        reportValidationOutcome.requisitions.forEach { requisition ->
+          // Refuse to Cmms first, then update Requisition Metadata Storage
+          refuseRequisitionToCmms(requisition, reportValidationOutcome.refusal)
+        }
+        null
+      } else {
+        groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
+      }
+    syncRequisitionMetadata(reportValidationOutcome, requisitionGroupId)
+    return groupedRequisitions
+  }
+
+  /**
+   * Create metadata for successfully created and refuse the invalid ones.
+   *
+   * ### High-Level Flow
+   * 1. Create [RequisitionMetadata] entries for each successfully grouped requisition.
+   * 1. Create and Refuse [RequisitionMetadata] entries for each requisition that failed validation.
+   */
+  private suspend fun syncRequisitionMetadata(
+    validationOutcome: ReportValidationOutcome,
+    groupId: String,
+  ) {
+    if (validationOutcome.refusal == null) {
+      validationOutcome.requisitions.forEach { requisition ->
+        createRequisitionMetadata(requisition, groupId)
+      }
+    } else {
+      validationOutcome.requisitions.forEach { requisition ->
+        val requisitionMetadata = createRequisitionMetadata(requisition, groupId)
+        val refusal = validationOutcome.refusal
+        refuseRequisitionMetadata(requisitionMetadata, refusal.message)
       }
       // Filter out groups whose single requisitions has already persisted to RequisitionMetadata storage.
       val filteredGroups = groups.filter { group ->
@@ -224,67 +377,51 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Identifies and reconstructs [GroupedRequisitions] whose metadata already exists but
-   * whose blob representation has not been written to the [StorageClient].
+   * Reconstructs missing grouped requisitions based on stored metadata.
    *
-   * This situation can occur if a previous grouping operation successfully created
-   * [RequisitionMetadata] entries but failed before writing the corresponding
-   * [GroupedRequisitions] blob.
+   * ### High-Level Flow
+   * 1. For each metadata group, check if the corresponding blob exists in [StorageClient].
+   * 2. If missing, rebuild the grouped requisition via [validateAndGroupRequisitions].
+   * 3. Return successfully rebuilt groups.
    *
-   * This function:
-   * - Reads existing [RequisitionMetadata] entries for the report.
-   * - Groups them by `groupId`.
-   * - Checks for each `groupId` whether the corresponding blob exists in [StorageClient].
-   * - For groups missing a blob, reconstructs a minimal [GroupedRequisitions] object
-   *   containing all requisitions listed in metadata.
+   * This method does **not** perform validation on the provided [Requisition] objects, as they were
+   * already validated during a previous run of the Cloud Function.
    *
-   * @param existingRequisitionMetadata The list of metadata entries retrieved for the current report.
-   * @param groups The list of grouped requisitions to match against metadata.
-   * @return A list of [GroupedRequisitions] reconstructed for groups with missing blobs.
-   *
+   * @param groupIdToRequisitionMetadata All [RequisitionMetadata] entries for a single report,
+   *   organized by group ID.
+   * @param requisitions The list of all [Requisition] objects for the same report, potentially
+   *   spanning multiple groups.
    */
-  private suspend fun getUnwrittenRequisitions(
-    existingRequisitionMetadata: List<RequisitionMetadata>,
-    groups: List<GroupedRequisitions>
-  ): List<GroupedRequisitions> {
-    // Requisition metadata may already have stored multiple groups for the same report
-    val requisitionMetadataByGroupId = existingRequisitionMetadata.groupBy { it.groupId }
-    val fixedGroupedRequisitions = mutableListOf<GroupedRequisitions>()
-
-    for ((reqMetadataGroupId, metadataRequisitionssForGroup) in requisitionMetadataByGroupId) {
-      val storedGroupedRequisition: GroupedRequisitions? = readGroupedRequisitionBlob(reqMetadataGroupId)
-
-      if (storedGroupedRequisition != null) continue
-
-      val existingCmmsRequisitionNames: Set<String> = metadataRequisitionssForGroup.map { it.cmmsRequisition }.toSet()
-
-      val missingGroupedRequisitions: List<GroupedRequisitions> =
-        groups.filter { group ->
-          val entry = group.requisitionsList.single()
-          entry.requisition.unpack(Requisition::class.java).name in existingCmmsRequisitionNames
-        }
-
-      if (missingGroupedRequisitions.isEmpty()) {
-        logger.info("GroupedRequisitions blob not found. Unable to create it with existing unfulfilled requisitions.")
-        continue
-      }
-
-      val combinedRequisitions = missingGroupedRequisitions.flatMap { it.requisitionsList }
-      val combinedEventGroupMap = buildEventGroupEntries(missingGroupedRequisitions)
-
-      val existingModelLine = missingGroupedRequisitions.firstOrNull()?.modelLine.orEmpty()
-
-      fixedGroupedRequisitions += groupedRequisitions {
-        modelLine = existingModelLine
-        eventGroupMap += combinedEventGroupMap
-        requisitions += combinedRequisitions
-        groupId = reqMetadataGroupId
-      }
-
+  private suspend fun recoverUnpersistedGroupedRequisitions(
+    groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>>,
+    requisitions: List<Requisition>,
+  ): List<GroupedRequisitions> =
+    groupIdToRequisitionMetadata.mapNotNull { (groupId, requisitionsMetadata) ->
+      val blob = readGroupedRequisitionBlob(groupId)
+      if (blob != null) return@mapNotNull null
+      val filteredRequisitions = hasMetadata(requisitions, requisitionsMetadata)
+      val groupedRequisitions = groupValidRequisitions(filteredRequisitions, groupId)
+      groupedRequisitions
     }
-    return fixedGroupedRequisitions
+
+  /**
+   * Filters requisitions to those that correspond to metadata records.
+   *
+   * Used to match existing metadata entries to current requisitions during recovery.
+   */
+  private fun hasMetadata(
+    requisitions: List<Requisition>,
+    requisitionsMetadata: List<RequisitionMetadata>,
+  ): List<Requisition> {
+    val metadataRequisitionNames = requisitionsMetadata.map { it.cmmsRequisition }.toSet()
+    return requisitions.filter { it.name in metadataRequisitionNames }
   }
 
+  /**
+   * Builds event group map entries by merging overlapping collection intervals.
+   *
+   * Used internally when merging grouped requisitions belonging to the same report.
+   */
   private fun buildEventGroupEntries(groups: List<GroupedRequisitions>): List<EventGroupMapEntry> =
     groups
       .flatMap { it.eventGroupMapList }
@@ -292,7 +429,7 @@ class RequisitionGrouperByReportId(
       .map { (eventGroupName, entries) ->
         val refId = entries.first().details.eventGroupReferenceId
         val intervals = entries.flatMap { it.details.collectionIntervalsList }
-        val merged = unionIntervals(intervals) // same function you already have
+        val merged = unionIntervals(intervals)
         eventGroupMapEntry {
           eventGroup = eventGroupName
           details = eventGroupDetails {
@@ -303,7 +440,8 @@ class RequisitionGrouperByReportId(
       }
 
   /**
-   * Merges overlapping or contiguous time intervals into a minimal set of non-overlapping intervals.
+   * Merges overlapping or contiguous time intervals into a minimal set of non-overlapping
+   * intervals.
    *
    * @param intervals The list of [Interval] objects to be merged.
    * @return A list of merged, non-overlapping [Interval] objects, sorted by start time.
@@ -328,70 +466,60 @@ class RequisitionGrouperByReportId(
     return result
   }
 
-  private suspend fun readGroupedRequisitionBlob(groupId: String) : GroupedRequisitions? {
+  /**
+   * Reads a [GroupedRequisitions] blob from [StorageClient] by its `groupId`.
+   *
+   * Returns `null` if the blob is missing.
+   */
+  private suspend fun readGroupedRequisitionBlob(groupId: String): GroupedRequisitions? {
     val blobKey = "$storagePathPrefix/${groupId}"
     val blob = storageClient.getBlob(blobKey) ?: return null
     return Any.parseFrom(blob.read().flatten()).unpack(GroupedRequisitions::class.java)
   }
 
+  /**
+   * Lists [RequisitionMetadata] records for a specific report using the Requisition Metadata
+   * Storage.
+   */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listRequisitionMetadataByReportId(reportName: String): List<RequisitionMetadata> {
+  private suspend fun listStoredRequisitionMetadataByReportId(
+    reportName: String
+  ): List<RequisitionMetadata> {
     val requisitionMetadataList: Flow<RequisitionMetadata> =
       requisitionMetadataStub
         .listResources { pageToken: String ->
           val request = listRequisitionMetadataRequest {
             parent = dataProviderName
-            filter = ListRequisitionMetadataRequestKt.filter { report = reportName }
-            if (responsePageSize != null) {
-              pageSize = responsePageSize
-            }
+            filter =
+              ListRequisitionMetadataRequestKt.filter {
+                report = reportName
+                state = RequisitionMetadata.State.STORED
+              }
+            pageSize = responsePageSize
             this.pageToken = pageToken
           }
           val response: ListRequisitionMetadataResponse =
-            try {
-              requisitionMetadataStub.listRequisitionMetadata(request)
-            } catch (e: StatusException) {
-              throw Exception("Error listing requisitions", e)
-            }
+            requisitionMetadataStub.listRequisitionMetadata(request)
           ResourceList(response.requisitionMetadataList, response.nextPageToken)
         }
         .flattenConcat()
     return requisitionMetadataList.toList()
   }
 
-  private suspend fun refuseAllRequisitions(
-    requisitions: List<GroupedRequisitions.RequisitionEntry>,
-    requisitionGroupId: String,
-    existingCmmsRequisitions: Collection<String>,
-    refusalJustification: Refusal.Justification = Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
-    refusalMessage: String = ""
-  ) {
-
-    requisitions.forEach { entry ->
-      val requisition = entry.requisition.unpack(Requisition::class.java)
-
-      // Skip if requisition already exists in metadata storage
-      if (requisition.name in existingCmmsRequisitions) return@forEach
-
-      val refusal = refusal {
-        justification = refusalJustification
-        message = refusalMessage
-      }
-
-      refuseRequisition(requisition, refusal)
-      val requisitionMetadata = createRequisitionMetadata(requisition, requisitionGroupId)
-      refuseRequisitionMetadata(requisitionMetadata, refusalMessage)
-    }
-  }
-
+  /**
+   * Creates and persists a [RequisitionMetadata] entry in the Requisition Metadata Storage.
+   *
+   * ### High-Level Flow
+   * 1. Construct metadata with blob URI, group ID, and report reference.
+   * 2. Persist it via [requisitionMetadataStub.createRequisitionMetadata].
+   * 3. Return the created [RequisitionMetadata].
+   */
   private suspend fun createRequisitionMetadata(
     requisition: Requisition,
     requisitionGroupId: String,
   ): RequisitionMetadata {
-
     val requisitionBlobUri = "$blobUriPrefix/$storagePathPrefix/$requisitionGroupId"
     val reportId = getReportId(requisition)
-
     val metadata = requisitionMetadata {
       cmmsRequisition = requisition.name
       blobUri = requisitionBlobUri
@@ -400,7 +528,7 @@ class RequisitionGrouperByReportId(
       cmmsCreateTime = requisition.updateTime
       this.report = reportId
     }
-    val createRequisitionMetadataRequestId = "$requisitionGroupId:${requisition.name}"
+    val createRequisitionMetadataRequestId = UUID.randomUUID().toString()
     val request = createRequisitionMetadataRequest {
       parent = dataProviderName
       requisitionMetadata = metadata
@@ -409,6 +537,16 @@ class RequisitionGrouperByReportId(
     return requisitionMetadataStub.createRequisitionMetadata(request)
   }
 
+  /**
+   * Marks the given [RequisitionMetadata] as refused and updates its status in metadata storage.
+   *
+   * This function builds and sends a `RefuseRequisitionMetadataRequest` using the provided
+   * [requisitionMetadata] and refusal [message]. The operation is executed asynchronously via
+   * [requisitionMetadataStub].
+   *
+   * @param requisitionMetadata The [RequisitionMetadata] entry to be marked as refused.
+   * @param message The reason or explanatory message for refusing the requisition.
+   */
   private suspend fun refuseRequisitionMetadata(
     requisitionMetadata: RequisitionMetadata,
     message: String,
