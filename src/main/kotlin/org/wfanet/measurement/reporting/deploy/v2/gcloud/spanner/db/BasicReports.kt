@@ -261,9 +261,11 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("ExternalReportId").to(basicReport.externalReportId)
     }
     set("CreateRequestId").to(requestId)
-    set("CmmsModelProviderId").to(basicReport.modelLineKey.cmmsModelProviderId)
-    set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
-    set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
+    if (basicReport.hasModelLineKey()) {
+      set("CmmsModelProviderId").to(basicReport.modelLineKey.cmmsModelProviderId)
+      set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
+      set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
+    }
   }
 }
 
