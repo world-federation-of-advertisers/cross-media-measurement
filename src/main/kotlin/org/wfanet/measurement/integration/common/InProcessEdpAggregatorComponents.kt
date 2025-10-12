@@ -81,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
@@ -97,7 +98,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices as InternalSecureComputationApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
@@ -112,16 +113,6 @@ class InProcessEdpAggregatorComponents(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) : TestRule {
 
-  private val internalServicesRule: ProviderRule<InternalApiServices> =
-    SecureComputationServicesProviderRule(
-      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
-      queueMapping = QueueMapping(QUEUES_CONFIG),
-      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
-    )
-
-  private val internalServices: InternalApiServices
-    get() = internalServicesRule.value
-
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
   private lateinit var edpResourceNameMap: Map<String, String>
@@ -130,12 +121,33 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var duchyChannelMap: Map<String, Channel>
 
+  private val internalSecureComputationServicesRule:
+    ProviderRule<InternalSecureComputationApiServices> =
+    SecureComputationServicesProviderRule(
+      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
+      queueMapping = QueueMapping(QUEUES_CONFIG),
+      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+    )
+
+  private val internalSecureComputationServices: InternalSecureComputationApiServices
+    get() = internalSecureComputationServicesRule.value
+
   private val secureComputationPublicApi by lazy {
-    InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
+    InProcessSecureComputationPublicApi(
+      internalServicesProvider = { internalSecureComputationServices }
+    )
   }
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
+  }
+
+  private val edpAggregatorSystemApi by lazy {
+    InProcessEdpAggregatorSystemApi(secureComputationDatabaseAdmin)
+  }
+
+  private val requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
   private lateinit var dataWatcher: DataWatcher
@@ -176,7 +188,11 @@ class InProcessEdpAggregatorComponents(
   }
 
   val ruleChain: TestRule by lazy {
-    chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
+    chainRulesSequentially(
+      internalSecureComputationServicesRule,
+      secureComputationPublicApi,
+      edpAggregatorSystemApi,
+    )
   }
 
   private val loggingName = javaClass.simpleName
@@ -261,9 +277,15 @@ class InProcessEdpAggregatorComponents(
       val requisitionGrouper =
         RequisitionGrouperByReportId(
           requisitionsValidator,
+          edpResourceName,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          requisitionMetadataClient,
+          subscribingStorageClient,
+          50,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          throttler,
           eventGroupsClient,
           requisitionsClient,
-          throttler,
         )
 
       val requisitionFetcher =
@@ -273,7 +295,6 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           requisitionGrouper,
-          ::createGroupedRequisitionId,
         )
       backgroundScope.launch {
         while (true) {

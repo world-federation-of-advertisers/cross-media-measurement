@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -292,6 +293,7 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -330,7 +332,6 @@ class ResultsFulfillerTest {
 
     // Load grouped requisitions from storage
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
-
     val resultsFulfiller =
       ResultsFulfiller(
         privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
@@ -648,6 +649,7 @@ class ResultsFulfillerTest {
       delta = 1E-12
     }
     private val MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
