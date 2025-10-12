@@ -96,7 +96,6 @@ locals {
   )
 
   data_watcher_secrets_access = [
-    "metadata_storage_root_ca",
     "secure_computation_root_ca",
     "data_watcher_tls_key",
     "data_watcher_tls_pem",
