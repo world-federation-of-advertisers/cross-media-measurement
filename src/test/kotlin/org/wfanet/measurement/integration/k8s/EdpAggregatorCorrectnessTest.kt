@@ -245,14 +245,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           rootDirectory = null,
           projectId = googleProjectId,
         )
-        println("Reading DONE blob...")
+        logger.info("Reading DONE blob...")
         val blob = selectedStorageClient.getBlob(doneBlobUri.key)
 
         if (blob != null) {
           blob.delete()
         }
 
-        println("Creating a new DONE blob at path: $path...")
+        logger.info("Creating a new DONE blob at path: $path...")
         selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
       }
     }
@@ -313,7 +313,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
       blobs.iterateAll().forEach { blob ->
         storageClient.delete(bucket, blob.name)
-        println("Deleted: ${blob.name}")
+        logger.info("Deleted: ${blob.name}")
       }
 
       // Wait until requisitions for EDP have status == UNFULFILLED before triggering
