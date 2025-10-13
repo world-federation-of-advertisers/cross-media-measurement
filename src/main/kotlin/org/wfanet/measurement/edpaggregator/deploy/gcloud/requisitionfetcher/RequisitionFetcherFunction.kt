@@ -141,7 +141,6 @@ class RequisitionFetcherFunction : HttpFunction {
 
     return RequisitionFetcher(
       requisitionsStub = requisitionsStub,
-      requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
