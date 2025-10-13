@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorLog
+
 /**
  * A no-op implementation of [ReportProcessor] that takes a serialized [Report] in JSON format and
  * returns the same [Report] without any modifications.

@@ -101,30 +101,30 @@ message LookupRequisitionMetadataRequest {
   oneof lookup_key {
     // The resource name of the requisition in the CMMS (Kingdom).
     string cmms_requisition = 2;
-    // The blob storage URI.
-    string blob_uri = 3;
   }
 }
 
 message ListRequisitionMetadataPageToken {
-  message PreviousPageEnd {
+  message After {
     google.protobuf.Timestamp update_time = 1;
     string requisition_metadata_resource_id = 2;
   }
-  PreviousPageEnd previous_page_end = 1;
+  After after = 1;
 }
 
 message ListRequisitionMetadataRequest {
   message Filter {
-    string data_provider_resource_id = 1;
-    RequisitionMetadataState state = 2;
-    string group_id = 3;
+    RequisitionMetadataState state = 1;
+    string group_id = 2;
+    string report = 3;
   }
   Filter filter = 1;
 
   int32 page_size = 2;
 
   ListRequisitionMetadataPageToken page_token = 3;
+
+  string data_provider_resource_id = 4;
 }
 
 message ListRequisitionMetadataResponse {

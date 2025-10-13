@@ -23,7 +23,7 @@ from qpsolvers import solve_problem
 
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from src.main.proto.wfa.measurement.reporting.postprocessing.v2alpha import \
+from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
   report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus

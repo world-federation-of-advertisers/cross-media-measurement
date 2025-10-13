@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -59,6 +60,7 @@ class EventReaderTest {
   private lateinit var kmsClient: KmsClient
   private lateinit var kekUri: String
   private lateinit var serializedEncryptionKey: ByteString
+  private lateinit var encryptedDek: EncryptedDek
 
   init {
     AeadConfig.register()
@@ -82,6 +84,13 @@ class EventReaderTest {
         kekUri,
         tinkKeyTemplateType = "AES128_GCM_HKDF_1MB",
       )
+
+    encryptedDek = encryptedDek {
+      this.kekUri = this@EventReaderTest.kekUri
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
   }
 
   @Test
@@ -98,7 +107,7 @@ class EventReaderTest {
         impressionsStorageClient,
         kmsClient,
         kekUri,
-        serializedEncryptionKey,
+        encryptedDek,
       )
 
     // Create test impressions
@@ -118,9 +127,12 @@ class EventReaderTest {
 
     // Write impressions to storage
     mesosRecordIoStorageClient.writeBlob(DS.toString(), impressionsFlow)
-
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+    val encryptedDek = encryptedDek {
+      this.kekUri = this@EventReaderTest.kekUri
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
 
     val blobDetails = blobDetails {
       blobUri = "$IMPRESSIONS_FILE_URI/$DS"
@@ -206,8 +218,12 @@ class EventReaderTest {
     val impressionsBucketDir = impressionsTmpPath.resolve(IMPRESSIONS_BUCKET)
     Files.createDirectories(impressionsBucketDir.toPath())
 
-    val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
+    val encryptedDek = encryptedDek {
+      this.kekUri = this@EventReaderTest.kekUri
+      typeUrl = "type.googleapis.com/google.crypto.tink.Keyset"
+      protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+      ciphertext = serializedEncryptionKey
+    }
 
     val blobDetails = blobDetails {
       blobUri = "$IMPRESSIONS_FILE_URI/$DS" // Non-existent in this test

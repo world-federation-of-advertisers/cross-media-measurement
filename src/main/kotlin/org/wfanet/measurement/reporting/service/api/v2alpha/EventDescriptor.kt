@@ -41,19 +41,19 @@ class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
     val enumType: Descriptors.EnumDescriptor?,
   )
 
-  /** Map of EventTemplate field name with respect to Event message to info for the field. */
-  val eventTemplateFieldsMap: Map<String, EventTemplateFieldInfo> =
-    buildEventTemplateFieldsMap(eventDescriptor)
+  /** Map of EventTemplate field path with respect to Event message to info for the field. */
+  val eventTemplateFieldsByPath: Map<String, EventTemplateFieldInfo> =
+    buildEventTemplateFieldsByPath(eventDescriptor)
 
   companion object {
     /**
-     * Builds Map of EventTemplateField name with respect to Event message to object containing info
+     * Builds Map of EventTemplateField path with respect to Event message to object containing info
      * relevant to Reporting
      *
      * @param eventDescriptor [Descriptors.Descriptor] for Event message
      * @throws IllegalArgumentException when template is missing annotation
      */
-    private fun buildEventTemplateFieldsMap(
+    private fun buildEventTemplateFieldsByPath(
       eventDescriptor: Descriptors.Descriptor
     ): Map<String, EventTemplateFieldInfo> {
       return buildMap {

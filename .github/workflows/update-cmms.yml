@@ -141,6 +141,15 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
+  update-edp-aggregator-service:
+    uses: ./.github/workflows/configure-edp-aggregator.yml
+    needs: [publish-images, terraform]
+    secrets: inherit
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
   # Update the Reporting system.
   #
   # This isn't technically part of the CMMS, but we do it here for simplicity.

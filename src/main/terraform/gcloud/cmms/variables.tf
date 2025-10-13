@@ -142,6 +142,11 @@ variable "secure_computation_public_api_target" {
   type        = string
 }
 
+variable "metadata_storage_public_api_target" {
+  description = "Metadata storage public api target"
+  type        = string
+}
+
 variable "image_tag" {
   description = "Tag of container images"
   type        = string
@@ -224,6 +229,11 @@ variable "results_fulfiller_event_template_type_name" {
 
 variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
+  type = string
+}
+
+variable "edpa_model_line_map" {
+  description = "Mapping of available model line for the Results Fulfiller"
   type = string
 }
 

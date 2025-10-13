@@ -66,7 +66,7 @@ private data class MetricCalculationSpecInfo(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
  */
@@ -75,11 +75,11 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
     impressionQualificationFilterSpecsLists.map {
-      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsMap)
+      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsByPath)
     }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
@@ -93,7 +93,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         val groupings: List<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
             resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
-              eventTemplateFieldsMap
+              eventTemplateFieldsByPath
             )
           } else {
             emptyList()
@@ -105,7 +105,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           createMetricCalculationSpecFilters(
             impressionQualificationFilterSpecsFilters,
             resultGroupSpec.dimensionSpec.filtersList,
-            eventTemplateFieldsMap,
+            eventTemplateFieldsByPath,
           )
 
         // The Primitive ReportingSets for the ReportingUnit
@@ -136,12 +136,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  * Transforms [ImpressionQualificationFilterSpec]s into a single CEL string
  *
  * @param impressionQualificationFilterSpecs List of [ImpressionQualificationFilterSpec]
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  */
-private fun createImpressionQualificationFilterSpecsFilter(
+fun createImpressionQualificationFilterSpecsFilter(
   impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): String {
   return impressionQualificationFilterSpecs
     .map { impressionQualificationFilterSpec ->
@@ -155,7 +155,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
             when (term.value.selectorCase) {
               EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
               EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-                eventTemplateFieldsMap
+                eventTemplateFieldsByPath
                   .getValue(term.path)
                   .enumType
                   ?.findValueByName(term.value.enumValue)
@@ -178,26 +178,26 @@ private fun createImpressionQualificationFilterSpecsFilter(
 /**
  * Transforms a [DimensionSpec.Grouping] into a List of [MetricCalculationSpec.Grouping]
  *
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  * @return List of [MetricCalculationSpec.Grouping]
  */
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>
 ): List<MetricCalculationSpec.Grouping> {
   if (eventTemplateFieldsList.isEmpty()) {
     return emptyList()
   }
 
   for (field in eventTemplateFieldsList) {
-    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     if (fieldInfo.enumType == null) {
       return emptyList()
     }
   }
 
   return eventTemplateFieldsList.map { field ->
-    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
     val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
@@ -240,12 +240,12 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
  *   [ReportingImpressionQualificationFilter]s
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
- * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
+ * @param eventTemplateFieldsByPath for creating a CEL string from [EventTemplateField]
  */
-private fun createMetricCalculationSpecFilters(
+fun createMetricCalculationSpecFilters(
   impressionQualificationFilterSpecsFilters: List<String>,
   dimensionSpecFilters: List<EventFilter>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): List<String> {
   val dimensionSpecFilter =
     dimensionSpecFilters
@@ -258,7 +258,7 @@ private fun createMetricCalculationSpecFilters(
           when (term.value.selectorCase) {
             EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
             EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-              eventTemplateFieldsMap
+              eventTemplateFieldsByPath
                 .getValue(term.path)
                 .enumType
                 ?.findValueByName(term.value.enumValue)

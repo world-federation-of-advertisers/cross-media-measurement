@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.protobuf.ByteString
+import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import com.google.type.interval
 import java.time.LocalDate
@@ -131,7 +133,17 @@ class StorageImpressionMetadataService(
           ImpressionReadException.Code.BLOB_NOT_FOUND,
           "BlobDetails metadata not found",
         )
-    return BlobDetails.parseFrom(blob.read().flatten())
+
+    val bytes: ByteString = blob.read().flatten()
+    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing
+    // logic based on file extension
+    return try {
+      BlobDetails.parseFrom(bytes)
+    } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
+      val builder = BlobDetails.newBuilder()
+      JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(Charsets.UTF_8), builder)
+      builder.build()
+    }
   }
 
   companion object {

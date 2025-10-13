@@ -6,8 +6,19 @@ py_test(
     srcs = ["post_process_origin_report_test.py"],
     data = [":sample_reports"],
     deps = [
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
+        requirement("protobuf"),
+    ],
+)
+
+py_test(
+    name = "post_process_report_summary_v2_test",
+    srcs = ["post_process_report_summary_v2_test.py"],
+    data = [":sample_reports"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
         requirement("protobuf"),
     ],
 )
@@ -21,7 +32,7 @@ py_test(
         requirement("absl-py"),
         requirement("google-cloud-storage"),
         requirement("protobuf"),
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
     ],
 )

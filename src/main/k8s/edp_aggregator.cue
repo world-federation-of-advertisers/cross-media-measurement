@@ -133,14 +133,14 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	networkPolicies: {
 		"edp-aggregator-internal-api-server": {
-			_sourceMatchLabels: ["edp-aggregator-internal-api-server-app"]
+			_sourceMatchLabels: ["edp-aggregator-system-api-server-app"]
 			_egresses: {
 				// Needs to call out to Spanner.
 				any: {}
 			}
 		}
 		"edp-aggregator-system-api-server": {
-			_destinationMatchLabels: ["edp-aggregator-system-api-server-app"]
+			_destinationMatchLabels: ["edp-aggregator-internal-api-server-app"]
 			_ingresses: {
 				gRpc: {
 					ports: [{

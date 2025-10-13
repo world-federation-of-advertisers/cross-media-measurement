@@ -176,6 +176,7 @@ abstract class InProcessEventGroupsTest(
           TRUSTED_CERTIFICATES,
           kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
+          "",
           verboseGrpcLogging = false,
         )
       }

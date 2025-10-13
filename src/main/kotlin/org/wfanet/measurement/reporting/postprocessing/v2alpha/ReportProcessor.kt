@@ -31,7 +31,15 @@ import kotlin.io.path.name
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorStatus
 import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessor.Default.currentStorageFactory
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -331,7 +339,23 @@ interface ReportProcessor {
         ) {
           foundIssues.add(ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION)
         }
+
+        // Checks for large corrections.
+        if (result.largeCorrectionsList.isNotEmpty()) {
+          foundIssues.add(ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS)
+        }
       }
+
+      val isSuccessful =
+        foundIssues
+          .intersect(
+            listOf(
+              ReportPostProcessorIssue.INTERNAL_ERROR,
+              ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS,
+              ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND,
+            )
+          )
+          .isEmpty()
 
       val updatedReport: Report = updateReport(report, correctedMeasurementsMap)
 
@@ -340,6 +364,7 @@ interface ReportProcessor {
         createTime = report.createTime
         results.putAll(resultMap)
         issues.addAll(foundIssues)
+        postProcessingSuccessful = isSuccessful
       }
 
       return ReportProcessingOutput(
