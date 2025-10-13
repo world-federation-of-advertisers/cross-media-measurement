@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
@@ -58,6 +59,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param workItemsClient gRPC client stub for [WorkItemsGrpcKt.WorkItemsCoroutineStub].
  * @param workItemAttemptsClient gRPC client stub for
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
+ * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
  * @param requisitionStubFactory Factory for creating requisition stubs.
  * @param kmsClient The Tink [KmsClient] for key management.
  * @param getImpressionsMetadataStorageConfig Lambda to obtain [StorageConfig] for impressions
@@ -74,6 +76,7 @@ class ResultsFulfillerApp(
   parser: Parser<WorkItem>,
   workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
+  private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
   private val requisitionStubFactory: RequisitionStubFactory,
   private val kmsClients: MutableMap<String, KmsClient>,
   private val getImpressionsMetadataStorageConfig: (StorageParams) -> StorageConfig,
@@ -182,6 +185,8 @@ class ResultsFulfillerApp(
       )
 
     ResultsFulfiller(
+        dataProvider = fulfillerParams.dataProvider,
+        requisitionMetadataStub = requisitionMetadataStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,
