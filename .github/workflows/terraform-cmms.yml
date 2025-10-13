@@ -200,6 +200,7 @@ jobs:
         CONFIG_DIR: ${{ runner.temp }}/configs
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+        METADATA_STORAGE_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
         IMAGE_TAG: ${{ inputs.image-tag }}
         DATA_WATCHER_ENV_VAR: ${{ vars.DATA_WATCHER_ENV_VAR }}
         DATA_WATCHER_SECRET_MAPPING: ${{ vars.DATA_WATCHER_SECRET_MAPPING }}
@@ -212,6 +213,7 @@ jobs:
         RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI: ${{ vars.RESULTS_FULFILLER_EVENT_DESCRIPTOR_BLOB_URI }}
         RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME: ${{ vars.RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME }}
         RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI }}
+        EDPA_MODEL_LINE_MAP: ${{ vars.EDPA_MODEL_LINE_MAP }}
         DUCHY_WORKER1_ID: ${{ vars.WORKER1_DUCHY_ID }}
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
@@ -234,6 +236,7 @@ jobs:
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
         -var="data_watcher_env_var=$DATA_WATCHER_ENV_VAR"
         -var="data_watcher_secret_mapping=$DATA_WATCHER_SECRET_MAPPING"
         -var="requisition_fetcher_env_var=$REQUISITION_FETCHER_ENV_VAR"
@@ -252,6 +255,7 @@ jobs:
         -var="results_fulfiller_event_template_type_name=$RESULTS_FULFILLER_EVENT_TEMPLATE_TYPE_NAME"
         -var="results_fulfiller_population_spec_blob_uri=$RESULTS_FULFILLER_POPULATION_SPEC_BLOB_URI"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
+        -var="edpa_model_line_map=$EDPA_MODEL_LINE_MAP"
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
