@@ -120,7 +120,12 @@ locals {
   )
 
   requisition_fetcher_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "requisition_fetcher_tls_pem",
+      "requisition_fetcher_tls_key",
+      "metadata_storage_root_ca"
+    ],
     local.edp_tls_keys
   )
 
