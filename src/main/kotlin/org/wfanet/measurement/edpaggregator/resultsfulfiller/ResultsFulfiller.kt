@@ -68,12 +68,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * appropriate.
  *
  * @param dataProvider [DataProvider] resource name.
- * @param requisitionMetadataStub used to sync [Requisition]s with RequisitionMetadataStorage
+ * @param requisitionMetadataStub used to sync [Requisition]s with the RequisitionMetadataStorage
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
  * @param pipelineConfiguration Configuration for the event processing pipeline.
- * @param impressionMetadataService Service to resolve impression metadata and sources.
+ * @param impressionDataSourceProvider Service to resolve impression metadata and sources.
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
@@ -86,7 +86,7 @@ class ResultsFulfiller(
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration,
-  private val impressionMetadataService: ImpressionMetadataService,
+  private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
@@ -121,6 +121,7 @@ class ResultsFulfiller(
       groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
         entry.requisition.unpack(Requisition::class.java)
       }
+
     val eventGroupReferenceIdMap =
       groupedRequisitions.eventGroupMapList.associate {
         it.eventGroup to it.details.eventGroupReferenceId
@@ -139,7 +140,7 @@ class ResultsFulfiller(
 
     val eventSource =
       StorageEventSource(
-        impressionMetadataService = impressionMetadataService,
+        impressionDataSourceProvider = impressionDataSourceProvider,
         eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
         modelLine = modelLine,
         kmsClient = kmsClient,
