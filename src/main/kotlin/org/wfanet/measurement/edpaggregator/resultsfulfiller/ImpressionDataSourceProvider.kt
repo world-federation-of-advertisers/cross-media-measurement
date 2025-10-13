@@ -109,6 +109,7 @@ class ImpressionDataSourceProvider(
     period: Interval,
   ): Flow<ImpressionMetadata> {
 
+    logger.info("Resolving path for impression metadata: $reportModelLine, $egReferenceId, $period")
     return impressionMetadataStub
       .listResources { pageToken: String ->
         val response =
