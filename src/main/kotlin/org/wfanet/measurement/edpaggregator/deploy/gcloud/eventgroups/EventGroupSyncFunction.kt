@@ -25,17 +25,24 @@ import java.io.File
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroups
+import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -65,40 +72,21 @@ class EventGroupSyncFunction() : HttpFunction {
         .withShutdownTimeout(channelShutdownDuration)
 
     val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
-    val eventGroups = runBlocking {
+    val eventGroups: Flow<EventGroup> = runBlocking {
       val eventGroupsBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-      val storageClient =
-        MesosRecordIoStorageClient(
-          SelectedStorageClient(
-            blobUri = eventGroupsBlobUri,
-            rootDirectory =
-              if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
-                File(checkNotNull(fileSystemStorageRoot))
-              else null,
-            projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
-          )
-        )
-
-      val blob =
-        storageClient.getBlob(eventGroupsBlobUri.key)
-          ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
 
       when {
         eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
-          blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
+          getEventGroupsFromProtoFormat(eventGroupsBlobUri, eventGroupSyncConfig)
         }
         eventGroupsBlobUri.key.endsWith(JSON_FILE_SUFFIX) -> {
-          val parser = JsonFormat.parser()
-          blob.read().map { bytes ->
-            val builder = EventGroup.newBuilder()
-            parser.merge(bytes.toStringUtf8(), builder)
-            builder.build()
-          }
+          getEventGroupsFromJsonFormat(eventGroupsBlobUri, eventGroupSyncConfig)
         }
         else -> error("Unsupported EventGroup file format: ${eventGroupsBlobUri.key}")
       }
     }
+
     val eventGroupSync =
       EventGroupSync(
         edpName = eventGroupSyncConfig.dataProvider,
@@ -122,6 +110,60 @@ class EventGroupSyncFunction() : HttpFunction {
         )
         .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
     }
+  }
+
+  private suspend fun getEventGroupsFromProtoFormat(
+    eventGroupsBlobUri: BlobUri,
+    eventGroupSyncConfig: EventGroupSyncConfig,
+  ): Flow<EventGroup> {
+    val storageClient =
+      MesosRecordIoStorageClient(
+        SelectedStorageClient(
+          blobUri = eventGroupsBlobUri,
+          rootDirectory =
+            if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
+              File(checkNotNull(fileSystemStorageRoot))
+            else null,
+          projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
+        )
+      )
+
+    val blob =
+      storageClient.getBlob(eventGroupsBlobUri.key)
+        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
+    return blob.read().map { bytes -> EventGroup.parseFrom(bytes) }
+  }
+
+  private suspend fun getEventGroupsFromJsonFormat(
+    eventGroupsBlobUri: BlobUri,
+    eventGroupSyncConfig: EventGroupSyncConfig,
+  ): Flow<EventGroup> = flow {
+    val storageClient =
+      SelectedStorageClient(
+        blobUri = eventGroupsBlobUri,
+        rootDirectory =
+          if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
+            File(checkNotNull(fileSystemStorageRoot))
+          else null,
+        projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
+      )
+
+    val blob =
+      storageClient.getBlob(eventGroupsBlobUri.key)
+        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
+    val parser = JsonFormat.parser()
+    val eventGroups: EventGroups =
+      EventGroups.newBuilder()
+        .apply {
+          val bytes = blob.read().flatten()
+          parser.merge(bytes.toStringUtf8(), this)
+        }
+        .build()
+    val eventGroupsList = eventGroups.eventGroupsList
+    require(eventGroupsList.size > 0) {
+      "Uploads of zero event groups are not supported. Or unable to parse."
+    }
+    emitAll(eventGroupsList.asFlow())
   }
 
   companion object {

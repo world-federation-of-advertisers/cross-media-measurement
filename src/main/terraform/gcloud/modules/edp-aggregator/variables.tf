@@ -81,6 +81,15 @@ variable "secure_computation_root_ca" {
   })
 }
 
+variable "metadata_storage_root_ca" {
+  description = "Secure Computation root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "trusted_root_ca_collection" {
   description = "Collection of certificates for each Duchy and the Kingdom"
   type = object({
@@ -313,4 +322,29 @@ variable "spanner_database_name" {
   type        = string
   default     = "edp-aggregator"
   nullable    = false
+}
+
+variable "requisition_fetcher_tls_key" {
+  description = "Requisition Fetcher tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "requisition_fetcher_tls_pem" {
+  description = "Requisition Fetcher tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "edp_aggregator_api_server_ip_address" {
+  description = "IP address for edp aggregator public API server"
+  type        = string
+  nullable    = true
+  default     = null
 }

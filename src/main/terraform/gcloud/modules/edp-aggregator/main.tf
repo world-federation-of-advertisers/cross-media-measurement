@@ -38,6 +38,10 @@ locals {
       secret_id  = var.trusted_root_ca_collection.secret_id
       version    = "latest"
     },
+    {
+      secret_id  = var.metadata_storage_root_ca.secret_id
+      version    = "latest"
+    },
   ]
 
   edp_secrets_to_access = flatten([
@@ -81,12 +85,16 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
+    { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
+    { metadata_storage_root_ca                      = var.metadata_storage_root_ca },
     { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
     local.edps_secrets
   )
 
   data_watcher_secrets_access = [
+    "metadata_storage_root_ca",
     "secure_computation_root_ca",
     "data_watcher_tls_key",
     "data_watcher_tls_pem",
@@ -101,7 +109,12 @@ locals {
   ])
 
   requisition_fetcher_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "requisition_fetcher_tls_pem",
+      "requisition_fetcher_tls_key",
+      "metadata_storage_root_ca"
+    ],
     local.edp_tls_keys
   )
 
@@ -457,4 +470,9 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   lifecycle {
     replace_triggered_by = [google_spanner_database.edp_aggregator.id]
   }
+}
+
+resource "google_compute_address" "edp_aggregator_api_server" {
+  name    = "edp-aggregator-system"
+  address = var.edp_aggregator_api_server_ip_address
 }
