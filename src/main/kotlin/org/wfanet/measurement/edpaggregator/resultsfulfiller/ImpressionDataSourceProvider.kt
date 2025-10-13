@@ -82,6 +82,7 @@ class ImpressionDataSourceProvider(
       resolvePath(modelLine, eventGroupReferenceId, period)
     return impressionMetadata
       .map { metadata ->
+        logger.info("Processing impression metadata: $metadata")
         val blobDetails = readBlobDetails(metadata.blobUri)
 
         ImpressionDataSource(
