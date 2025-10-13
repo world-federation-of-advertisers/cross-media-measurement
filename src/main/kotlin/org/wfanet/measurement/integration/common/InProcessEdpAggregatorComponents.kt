@@ -339,7 +339,7 @@ class InProcessEdpAggregatorComponents(
         val eventGroupPath =
           "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
         val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
-        val modelLine = "model-line/${modelLineInfoMap.keys.first()}"
+        val modelLine = modelLineInfoMap.keys.first()
 
 
         val impressionsMetadata: List<ImpressionMetadata> = buildImpressionMetadataForDateRange(
