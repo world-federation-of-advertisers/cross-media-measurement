@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
-import com.google.type.interval
 import io.grpc.StatusException
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -79,7 +78,7 @@ class ImpressionDataSourceProvider(
   ): List<ImpressionDataSource> {
     logger.info("Listing impression Data Sources...")
     val impressionMetadata: Flow<ImpressionMetadata> =
-      resolvePath(modelLine, eventGroupReferenceId, period)
+      getImpressionsMetadata(modelLine, eventGroupReferenceId, period)
     return impressionMetadata
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
@@ -103,7 +102,7 @@ class ImpressionDataSourceProvider(
    * @param egReferenceId referenced event group
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  fun resolvePath(
+  fun getImpressionsMetadata(
     reportModelLine: String,
     egReferenceId: String,
     period: Interval,
