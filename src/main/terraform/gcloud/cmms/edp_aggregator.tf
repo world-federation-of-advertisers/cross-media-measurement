@@ -58,9 +58,9 @@ locals {
     is_binary_format  = false
   }
 
-  data_availability_tls_pem = {
-    secret_id         = "edpa-data-availability-tls-pem"
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.pem"),
+  requisition_fetcher_tls_pem = {
+    secret_id         = "edpa-requisition-fetcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.pem"),
     is_binary_format  = false
   }
 
