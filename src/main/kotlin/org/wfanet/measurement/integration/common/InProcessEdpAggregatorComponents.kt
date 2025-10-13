@@ -33,6 +33,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -110,7 +111,6 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdToke
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import java.util.*
 
 class InProcessEdpAggregatorComponents(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
@@ -324,12 +324,12 @@ class InProcessEdpAggregatorComponents(
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
       mappedEventGroups.forEach { mappedEventGroup ->
-
-        val events = SyntheticDataGeneration.generateEvents(
-          TestEvent.getDefaultInstance(),
-          syntheticPopulationSpec,
-          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
-        )
+        val events =
+          SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            syntheticPopulationSpec,
+            syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+          )
 
         val allDates: List<LocalDate> = events.map { it.localDate }.toList()
         val startDate = allDates.min()
@@ -341,19 +341,18 @@ class InProcessEdpAggregatorComponents(
         val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
         val modelLine = modelLineInfoMap.keys.first()
 
-
-        val impressionsMetadata: List<ImpressionMetadata> = buildImpressionMetadataForDateRange(
-          startInclusive = startDate,
-          endExclusive = endExclusive,
-          eventGroupPath = eventGroupPath,
-          modelLine = modelLine,
-          eventGroupReferenceId = eventGroupReferenceId,
-          impressionsMetadataBucket = impressionsMetadataBucket,
-        )
+        val impressionsMetadata: List<ImpressionMetadata> =
+          buildImpressionMetadataForDateRange(
+            startInclusive = startDate,
+            endExclusive = endExclusive,
+            eventGroupPath = eventGroupPath,
+            modelLine = modelLine,
+            eventGroupReferenceId = eventGroupReferenceId,
+            impressionsMetadataBucket = impressionsMetadataBucket,
+          )
         logger.info("Storing impression metadata for edp: $edpResourceName")
         saveImpressionMetadata(impressionsMetadata, edpResourceName)
       }
-
     }
     backgroundScope.launch { resultFulfillerApp.run() }
   }
@@ -385,13 +384,12 @@ class InProcessEdpAggregatorComponents(
     zoneId: ZoneId = ZONE_ID,
   ): List<ImpressionMetadata> {
 
-    fun dailyInterval(day: LocalDate): Interval =
-      interval {
-        val start = day.atStartOfDay(zoneId).toInstant()
-        val end = day.atTime(23, 59, 59).atZone(zoneId).toInstant()
-        startTime = timestamp { seconds = start.epochSecond }
-        endTime   = timestamp { seconds = end.epochSecond }
-      }
+    fun dailyInterval(day: LocalDate): Interval = interval {
+      val start = day.atStartOfDay(zoneId).toInstant()
+      val end = day.atTime(23, 59, 59).atZone(zoneId).toInstant()
+      startTime = timestamp { seconds = start.epochSecond }
+      endTime = timestamp { seconds = end.epochSecond }
+    }
 
     val out = mutableListOf<ImpressionMetadata>()
     var day = startInclusive
@@ -417,7 +415,10 @@ class InProcessEdpAggregatorComponents(
     return out
   }
 
-  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>, dataProviderName: String) {
+  private suspend fun saveImpressionMetadata(
+    impressionMetadataList: List<ImpressionMetadata>,
+    dataProviderName: String,
+  ) {
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
