@@ -403,15 +403,6 @@ class InProcessEdpAggregatorComponents(
       val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
 
       val impressionsFileUri = "file:///$impressionsBucket/$impressionsBlobKey"
-
-      val impressionsBlob = storageClient.getBlob(impressionsBlobKey)
-      if (impressionsBlob == null) {
-        // Skip if the impressions file for this day wasn't written
-        day = day.plusDays(1)
-        logger.info("Impression blob not found for dat: $day")
-        continue
-      }
-
       val perDayInterval = dailyInterval(day)
 
       val impressionMetadata = impressionMetadata {
