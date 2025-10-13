@@ -77,7 +77,7 @@ class ImpressionDataSourceProvider(
     eventGroupReferenceId: String,
     period: Interval,
   ): List<ImpressionDataSource> {
-
+    logger.info("Listing impression Data Sources...")
     val impressionMetadata: Flow<ImpressionMetadata> =
       resolvePath(modelLine, eventGroupReferenceId, period)
     return impressionMetadata

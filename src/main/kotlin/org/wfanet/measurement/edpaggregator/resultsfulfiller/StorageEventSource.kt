@@ -161,9 +161,12 @@ class StorageEventSource(
 
   /** Creates EventReader instances for all data sources provided by the metadata service. */
   private suspend fun createEventReaders(): List<StorageEventReader> {
+    logger.info("Creating event readers... ")
     val allSources =
       eventGroupDetailsList.flatMap { details ->
+        logger.info("EventGroup details: $details")
         details.collectionIntervalsList.flatMap { interval ->
+          logger.info("EventGroup collection interval: $interval")
           impressionDataSourceProvider.listImpressionDataSources(
             modelLine,
             details.eventGroupReferenceId,
