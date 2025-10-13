@@ -239,7 +239,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val modelLineName = "some-model-line"
+    private val modelLineName = "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78"
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
     // integration test. Check sample values in CompositionTest.kt.

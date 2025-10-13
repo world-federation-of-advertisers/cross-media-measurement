@@ -323,37 +323,37 @@ class InProcessEdpAggregatorComponents(
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
-//      mappedEventGroups.forEach { mappedEventGroup ->
-//
-//        val events = SyntheticDataGeneration.generateEvents(
-//          TestEvent.getDefaultInstance(),
-//          syntheticPopulationSpec,
-//          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
-//        )
-//
-//        val allDates: List<LocalDate> = events.map { it.localDate }.toList()
-//        val startDate = allDates.min()
-//        val endExclusive = allDates.max().plusDays(1)
-//
-//        val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
-//        val eventGroupPath =
-//          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
-//        val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
-//        val modelLine = "model-line/${modelLineInfoMap.keys.first()}"
-//
-//
-//        val impressionsMetadata: List<ImpressionMetadata> = buildImpressionMetadataForDateRange(
-//          startInclusive = startDate,
-//          endExclusive = endExclusive,
-//          eventGroupPath = eventGroupPath,
-//          modelLine = modelLine,
-//          eventGroupReferenceId = eventGroupReferenceId,
-//          impressionsBucket = impressionsBucket,
-//          storageClient = storageClient
-//        )
-//        logger.info("Storing impression metadata for edp: $edpResourceName")
-//        saveImpressionMetadata(impressionsMetadata, edpResourceName)
-//      }
+      mappedEventGroups.forEach { mappedEventGroup ->
+
+        val events = SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          syntheticPopulationSpec,
+          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+        )
+
+        val allDates: List<LocalDate> = events.map { it.localDate }.toList()
+        val startDate = allDates.min()
+        val endExclusive = allDates.max().plusDays(1)
+
+        val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
+        val eventGroupPath =
+          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+        val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
+        val modelLine = "model-line/${modelLineInfoMap.keys.first()}"
+
+
+        val impressionsMetadata: List<ImpressionMetadata> = buildImpressionMetadataForDateRange(
+          startInclusive = startDate,
+          endExclusive = endExclusive,
+          eventGroupPath = eventGroupPath,
+          modelLine = modelLine,
+          eventGroupReferenceId = eventGroupReferenceId,
+          impressionsBucket = impressionsBucket,
+          storageClient = storageClient
+        )
+        logger.info("Storing impression metadata for edp: $edpResourceName")
+        saveImpressionMetadata(impressionsMetadata, edpResourceName)
+      }
 
     }
     backgroundScope.launch { resultFulfillerApp.run() }
