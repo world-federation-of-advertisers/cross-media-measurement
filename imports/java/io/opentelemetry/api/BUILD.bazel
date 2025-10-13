@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "api",
+    actual = "@wfa_common_jvm//imports/java/io/opentelemetry/api:api",
+)
+
+alias(
+    name = "context",
+    actual = "@wfa_common_jvm//imports/java/io/opentelemetry/context:context",
+)
+
+alias(
+    name = "semconv",
+    actual = "@maven//:io_opentelemetry_semconv_opentelemetry_semconv",
+)
