@@ -29,6 +29,7 @@ import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
@@ -70,7 +71,6 @@ import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSi
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import java.time.format.DateTimeFormatter
 
 class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measurementSystem) {
 
@@ -227,7 +227,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       return object : Statement() {
         override fun evaluate() {
           runBlocking {
-            logger.info("Creating DONE blobs to trigger the DataAvailabilitySync if not exists already...")
+            logger.info(
+              "Creating DONE blobs to trigger the DataAvailabilitySync if not exists already..."
+            )
             createDoneBlobs()
 
             logger.info("Event Group Sync completed.")
@@ -240,11 +242,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private suspend fun createDoneBlobs() {
       buildPaths().forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
-        val selectedStorageClient = SelectedStorageClient(
-          blobUri = doneBlobUri,
-          rootDirectory = null,
-          projectId = googleProjectId,
-        )
+        val selectedStorageClient =
+          SelectedStorageClient(
+            blobUri = doneBlobUri,
+            rootDirectory = null,
+            projectId = googleProjectId,
+          )
         logger.info("Reading DONE blob...")
         val blob = selectedStorageClient.getBlob(doneBlobUri.key)
 
@@ -264,17 +267,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       private val END_DATE: LocalDate = LocalDate.parse("2021-03-21", DATE_FORMATTER)
 
       fun buildPaths(): List<String> {
-        val basePaths = listOf(
-          "gs://$bucket/edp/edp7/{date}/done",
-          "gs://$bucket/edp/edpa_meta/{date}/done"
-        )
+        val basePaths =
+          listOf("gs://$bucket/edp/edp7/{date}/done", "gs://$bucket/edp/edpa_meta/{date}/done")
 
         return generateSequence(START_DATE) { it.plusDays(1) }
           .takeWhile { !it.isAfter(END_DATE) }
           .flatMap { date ->
-            basePaths.map { basePath ->
-              basePath.replace("{date}", date.format(DATE_FORMATTER))
-            }
+            basePaths.map { basePath -> basePath.replace("{date}", date.format(DATE_FORMATTER)) }
           }
           .toList()
       }
