@@ -338,7 +338,7 @@ class InProcessEdpAggregatorComponents(
         val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
         val eventGroupPath =
           "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
-        val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
+        val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
         val modelLine = modelLineInfoMap.keys.first()
 
 
@@ -348,7 +348,7 @@ class InProcessEdpAggregatorComponents(
           eventGroupPath = eventGroupPath,
           modelLine = modelLine,
           eventGroupReferenceId = eventGroupReferenceId,
-          impressionsBucket = impressionsBucket,
+          impressionsMetadataBucket = impressionsMetadataBucket,
         )
         logger.info("Storing impression metadata for edp: $edpResourceName")
         saveImpressionMetadata(impressionsMetadata, edpResourceName)
@@ -381,7 +381,7 @@ class InProcessEdpAggregatorComponents(
     eventGroupPath: String,
     modelLine: String,
     eventGroupReferenceId: String,
-    impressionsBucket: String,
+    impressionsMetadataBucket: String,
     zoneId: ZoneId = ZONE_ID,
   ): List<ImpressionMetadata> {
 
@@ -400,7 +400,7 @@ class InProcessEdpAggregatorComponents(
 
       val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata"
 
-      val impressionsFileUri = "file:///$impressionsBucket/$impressionMetadataBlobKey"
+      val impressionsFileUri = "file:///$impressionsMetadataBucket/$impressionMetadataBlobKey"
       val perDayInterval = dailyInterval(day)
 
       val impressionMetadata = impressionMetadata {
