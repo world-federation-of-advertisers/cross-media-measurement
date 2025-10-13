@@ -257,12 +257,7 @@ class InProcessEdpAggregatorComponents(
     }
 
     dataWatcher =
-      DataWatcher(
-        workItemsClient,
-        requisitionMetadataClient,
-        watchedPaths,
-        idTokenProvider = TestIdTokenProvider(),
-      )
+      DataWatcher(workItemsClient, watchedPaths, idTokenProvider = TestIdTokenProvider())
 
     val subscribingStorageClient = DataWatcherSubscribingStorageClient(storageClient, "file:///")
     subscribingStorageClient.subscribe(dataWatcher)
@@ -297,7 +292,6 @@ class InProcessEdpAggregatorComponents(
       val requisitionFetcher =
         RequisitionFetcher(
           requisitionsClient,
-          requisitionMetadataClient,
           subscribingStorageClient,
           edpResourceName,
           "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
