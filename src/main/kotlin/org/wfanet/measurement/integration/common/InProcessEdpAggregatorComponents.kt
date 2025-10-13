@@ -49,7 +49,6 @@ import kotlinx.coroutines.withContext
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
-import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -91,7 +90,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
-import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -110,7 +108,6 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWo
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices as InternalSecureComputationApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import java.util.*
@@ -326,25 +323,25 @@ class InProcessEdpAggregatorComponents(
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
 
-      val events = SyntheticDataGeneration.generateEvents(
-        TestEvent.getDefaultInstance(),
-        syntheticPopulationSpec,
-        syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
-      )
+      mappedEventGroups.forEach { mappedEventGroup ->
 
-      val allDates: List<LocalDate> = events.map { it.localDate }.toList()
-      val startDate = allDates.min()
-      val endExclusive = allDates.max().plusDays(1)
+        val events = SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          syntheticPopulationSpec,
+          syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+        )
 
-      val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
-      val eventGroupPath =
-        "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
-      val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
-      val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
-      val modelLine = "model-line/${modelLineInfoMap.keys.first()}"
+        val allDates: List<LocalDate> = events.map { it.localDate }.toList()
+        val startDate = allDates.min()
+        val endExclusive = allDates.max().plusDays(1)
+
+        val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
+        val eventGroupPath =
+          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+        val impressionsBucket = "$IMPRESSIONS_BUCKET-$edpAggregatorShortName"
+        val modelLine = "model-line/${modelLineInfoMap.keys.first()}"
 
 
-      for (value in edpResourceNameMap.values) {
         val impressionsMetadata: List<ImpressionMetadata> = buildImpressionMetadataForDateRange(
           startInclusive = startDate,
           endExclusive = endExclusive,
@@ -354,9 +351,8 @@ class InProcessEdpAggregatorComponents(
           impressionsBucket = impressionsBucket,
           storageClient = storageClient
         )
-        impressionsMetadata.forEach {
-          saveImpressionMetadata(it)
-        }
+        logger.info("Storing impression metadata for edp: $edpResourceName")
+        saveImpressionMetadata(impressionsMetadata, edpResourceName)
       }
 
     }
@@ -418,14 +414,15 @@ class InProcessEdpAggregatorComponents(
 
       val perDayInterval = dailyInterval(day)
 
-      val meta = impressionMetadata {
+      val impressionMetadata = impressionMetadata {
         blobUri = impressionsFileUri
         blobTypeUrl = BLOB_TYPE_URL
         this.eventGroupReferenceId = eventGroupReferenceId
         this.modelLine = modelLine
         interval = perDayInterval
       }
-      out += meta
+      logger.info("Impression metadata object: $impressionMetadata")
+      out += impressionMetadata
       day = day.plusDays(1)
     }
     return out
