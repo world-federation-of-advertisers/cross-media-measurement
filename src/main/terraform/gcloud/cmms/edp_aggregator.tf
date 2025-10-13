@@ -153,6 +153,7 @@ locals {
                                           "--duchy-target", var.duchy_worker1_target,
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
+                                          "--metadata-storage-public-api-cert-host", "localhost"
                                         ]
     }
   }
