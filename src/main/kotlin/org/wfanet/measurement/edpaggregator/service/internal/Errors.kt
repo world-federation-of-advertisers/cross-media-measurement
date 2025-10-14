@@ -89,10 +89,10 @@ object Errors {
 }
 
 sealed class ServiceException(
-  private val reason: Errors.Reason,
-  message: String,
-  private val metadata: Map<Errors.Metadata, String>,
-  cause: Throwable?,
+    private val reason: Errors.Reason,
+    message: String,
+    private val metadata: Map<Errors.Metadata, String>,
+    cause: Throwable?,
 ) : Exception(message, cause) {
   override val message: String
     get() = super.message!!
@@ -109,111 +109,111 @@ sealed class ServiceException(
 }
 
 class ImpressionMetadataNotFoundException(
-  dataProviderResourceId: String,
-  impressionMetadataResourceId: String,
-  cause: Throwable? = null,
+    dataProviderResourceId: String,
+    impressionMetadataResourceId: String,
+    cause: Throwable? = null,
 ) :
-  ServiceException(
-    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-    "ImpressionMetadata with resource ID $impressionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
-    ),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+        "ImpressionMetadata with resource ID $impressionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+        mapOf(
+            Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+            Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
+        ),
+        cause,
+    )
 
-class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-    "ImpressionMetadata already exists",
-    emptyMap(),
-    cause,
-  )
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
+    ServiceException(
+        Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+        "ImpressionMetadata already exists",
+        mapOf(Errors.Metadata.BLOB_URI to blobUri),
+        cause,
+    )
 
 class ImpressionMetadataStateInvalidException(
-  dataProviderResourceId: String,
-  impressionMetadataResourceId: String,
-  actualState: ImpressionMetadataState,
-  expectedStates: Set<ImpressionMetadataState>,
-  cause: Throwable? = null,
+    dataProviderResourceId: String,
+    impressionMetadataResourceId: String,
+    actualState: ImpressionMetadataState,
+    expectedStates: Set<ImpressionMetadataState>,
+    cause: Throwable? = null,
 ) :
-  ServiceException(
-    Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-    "ImpressionMetadata is in state $actualState, expected one of $expectedStates",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
-      Errors.Metadata.IMPRESSION_METADATA_STATE to actualState.name,
-    ),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+        "ImpressionMetadata is in state $actualState, expected one of $expectedStates",
+        mapOf(
+            Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+            Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID to impressionMetadataResourceId,
+            Errors.Metadata.IMPRESSION_METADATA_STATE to actualState.name,
+        ),
+        cause,
+    )
 
 class RequisitionMetadataNotFoundException(
-  dataProviderResourceId: String,
-  requisitionMetadataResourceId: String,
-  cause: Throwable? = null,
+    dataProviderResourceId: String,
+    requisitionMetadataResourceId: String,
+    cause: Throwable? = null,
 ) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
-    "RequisitionMetadata with Requisition Metadata Resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
-    ),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
+        "RequisitionMetadata with Requisition Metadata Resource ID $requisitionMetadataResourceId for DataProvider with resource ID $dataProviderResourceId not found",
+        mapOf(
+            Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+            Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
+        ),
+        cause,
+    )
 
 class RequisitionMetadataNotFoundByCmmsRequisitionException(
-  dataProviderResourceId: String,
-  cmmsRequisition: String,
-  cause: Throwable? = null,
+    dataProviderResourceId: String,
+    cmmsRequisition: String,
+    cause: Throwable? = null,
 ) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId not found",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
-    ),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+        "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId not found",
+        mapOf(
+            Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+            Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
+        ),
+        cause,
+    )
 
 class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-    "RequisitionMetadata already exists",
-    emptyMap(),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+        "RequisitionMetadata already exists",
+        emptyMap(),
+        cause,
+    )
 
 class RequisitionMetadataInvalidStateException(
-  dataProviderResourceId: String,
-  requisitionMetadataResourceId: String,
-  actualState: RequisitionMetadataState,
-  expectedStates: Set<RequisitionMetadataState>,
-  cause: Throwable? = null,
+    dataProviderResourceId: String,
+    requisitionMetadataResourceId: String,
+    actualState: RequisitionMetadataState,
+    expectedStates: Set<RequisitionMetadataState>,
+    cause: Throwable? = null,
 ) :
-  ServiceException(
-    Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
-    "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
-    mapOf(
-      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
-      Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
-      Errors.Metadata.REQUISITION_METADATA_STATE to actualState.name,
-      Errors.Metadata.EXPECTED_REQUISITION_METADATA_STATES to
-        expectedStates.joinToString(",") { it.name },
-    ),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
+        "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
+        mapOf(
+            Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+            Errors.Metadata.REQUISITION_METADATA_RESOURCE_ID to requisitionMetadataResourceId,
+            Errors.Metadata.REQUISITION_METADATA_STATE to actualState.name,
+            Errors.Metadata.EXPECTED_REQUISITION_METADATA_STATES to
+                expectedStates.joinToString(",") { it.name },
+        ),
+        cause,
+    )
 
 class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.ETAG_MISMATCH,
-    "Request etag $requestEtag does not match actual etag $etag",
-    mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
-    cause,
-  ) {
+    ServiceException(
+        Errors.Reason.ETAG_MISMATCH,
+        "Request etag $requestEtag does not match actual etag $etag",
+        mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
+        cause,
+    ) {
   companion object {
     /**
      * Checks whether [requestEtag] matches [etag].
@@ -229,21 +229,21 @@ class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable?
 }
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
-  ServiceException(
-    Errors.Reason.REQUIRED_FIELD_NOT_SET,
-    "$fieldName not set",
-    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.REQUIRED_FIELD_NOT_SET,
+        "$fieldName not set",
+        mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+        cause,
+    )
 
 class InvalidFieldValueException(
-  fieldName: String,
-  cause: Throwable? = null,
-  buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
+    fieldName: String,
+    cause: Throwable? = null,
+    buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
 ) :
-  ServiceException(
-    Errors.Reason.INVALID_FIELD_VALUE,
-    buildMessage(fieldName),
-    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
-    cause,
-  )
+    ServiceException(
+        Errors.Reason.INVALID_FIELD_VALUE,
+        buildMessage(fieldName),
+        mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+        cause,
+    )
