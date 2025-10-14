@@ -4,30 +4,6 @@ Shared OpenTelemetry infrastructure for EDPA components. Components own their me
 
 ## Usage
 
-### Initialize Once
-
-**Cloud Functions (global scope):**
-```kotlin
-val TELEMETRY = EdpaTelemetry.apply { initialize(serviceName = "data-watcher") }
-
-// Function handler - flush metrics before exit
-fun handleEvent(event: CloudEvent) {
-  try {
-    // Process event
-  } finally {
-    EdpaTelemetry.flush()  // Critical: ensures metrics are exported
-  }
-}
-```
-
-**MIG (main method):**
-```kotlin
-fun main() {
-  EdpaTelemetry.initialize(serviceName = "results-fulfiller")
-  // ... (shutdown hook handles flush automatically)
-}
-```
-
 ### Create Component Metrics
 
 Each component creates its own metrics file:
