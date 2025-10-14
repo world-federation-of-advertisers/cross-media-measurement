@@ -56,10 +56,10 @@ object Errors {
 }
 
 sealed class ServiceException(
-    private val reason: Errors.Reason,
-    message: String,
-    private val metadata: Map<Errors.Metadata, String>,
-    cause: Throwable?,
+  private val reason: Errors.Reason,
+  message: String,
+  private val metadata: Map<Errors.Metadata, String>,
+  cause: Throwable?,
 ) : Exception(message, cause) {
   override val message: String
     get() = super.message!!
@@ -78,8 +78,8 @@ sealed class ServiceException(
     protected abstract val reason: Errors.Reason
 
     protected abstract fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): T
 
     fun fromInternal(cause: StatusException): T {
@@ -92,198 +92,198 @@ sealed class ServiceException(
 }
 
 class RequisitionMetadataNotFoundException(
-    dataProviderResourceName: String,
-    requisitionMetadataResourceName: String,
-    cause: Throwable? = null,
+  dataProviderResourceName: String,
+  requisitionMetadataResourceName: String,
+  cause: Throwable? = null,
 ) :
-    ServiceException(
-        Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
-        "RequisitionMetadata with Requisition Metadata Resource Name $requisitionMetadataResourceName for DataProvider with resource Name $dataProviderResourceName not found",
-        mapOf(
-            Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
-            Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
-        ),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_NOT_FOUND,
+    "RequisitionMetadata with Requisition Metadata Resource Name $requisitionMetadataResourceName for DataProvider with resource Name $dataProviderResourceName not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
+    ),
+    cause,
+  ) {
   companion object : Factory<RequisitionMetadataNotFoundException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.REQUISITION_METADATA_NOT_FOUND
 
     override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): RequisitionMetadataNotFoundException {
       return RequisitionMetadataNotFoundException(
-          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
-          internalMetadata.getValue(InternalErrors.Metadata.REQUISITION_METADATA_RESOURCE_ID),
-          cause,
+        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.REQUISITION_METADATA_RESOURCE_ID),
+        cause,
       )
     }
   }
 }
 
 class RequisitionMetadataNotFoundByCmmsRequisitionException(
-    dataProviderResourceName: String,
-    cmmsRequisition: String,
-    cause: Throwable? = null,
+  dataProviderResourceName: String,
+  cmmsRequisition: String,
+  cause: Throwable? = null,
 ) :
-    ServiceException(
-        Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-        "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName not found",
-        mapOf(
-            Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
-            Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
-        ),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
+    ),
+    cause,
+  ) {
   companion object : Factory<RequisitionMetadataNotFoundByCmmsRequisitionException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION
 
     override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): RequisitionMetadataNotFoundByCmmsRequisitionException {
       return RequisitionMetadataNotFoundByCmmsRequisitionException(
-          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
-          internalMetadata.getValue(InternalErrors.Metadata.CMMS_REQUISITION),
-          cause,
+        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.CMMS_REQUISITION),
+        cause,
       )
     }
   }
 }
 
 class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
-    ServiceException(
-        Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-        "RequisitionMetadata already exists",
-        emptyMap(),
-        cause,
-    )
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+    "RequisitionMetadata already exists",
+    emptyMap(),
+    cause,
+  )
 
 class RequisitionMetadataInvalidStateException(
-    dataProviderResourceName: String,
-    requisitionMetadataResourceName: String,
-    actualState: State,
-    expectedStates: Set<State>,
-    cause: Throwable? = null,
+  dataProviderResourceName: String,
+  requisitionMetadataResourceName: String,
+  actualState: State,
+  expectedStates: Set<State>,
+  cause: Throwable? = null,
 ) :
-    ServiceException(
-        Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
-        "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
-        mapOf(
-            Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
-            Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
-            Errors.Metadata.REQUISITION_METADATA_STATE to actualState.name,
-            Errors.Metadata.EXPECTED_REQUISITION_METADATA_STATES to
-                expectedStates.joinToString(",") { it.name },
-        ),
-        cause,
-    )
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_STATE_INVALID,
+    "RequisitionMetadata is in state $actualState, expected one of $expectedStates",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.REQUISITION_METADATA to requisitionMetadataResourceName,
+      Errors.Metadata.REQUISITION_METADATA_STATE to actualState.name,
+      Errors.Metadata.EXPECTED_REQUISITION_METADATA_STATES to
+        expectedStates.joinToString(",") { it.name },
+    ),
+    cause,
+  )
 
 class DataProviderMismatchException(
-    expectedDataProviderResourceName: String,
-    actualDataProviderResourceName: String,
-    cause: Throwable? = null,
+  expectedDataProviderResourceName: String,
+  actualDataProviderResourceName: String,
+  cause: Throwable? = null,
 ) :
-    ServiceException(
-        Errors.Reason.DATA_PROVIDER_MISMATCH,
-        "DataProvider from parent $actualDataProviderResourceName does not match DataProvider $actualDataProviderResourceName",
-        mapOf(
-            Errors.Metadata.PARENT to expectedDataProviderResourceName,
-            Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
-        ),
-        cause,
-    )
+  ServiceException(
+    Errors.Reason.DATA_PROVIDER_MISMATCH,
+    "DataProvider from parent $actualDataProviderResourceName does not match DataProvider $actualDataProviderResourceName",
+    mapOf(
+      Errors.Metadata.PARENT to expectedDataProviderResourceName,
+      Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
+    ),
+    cause,
+  )
 
 class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
-    ServiceException(
-        Errors.Reason.ETAG_MISMATCH,
-        "Request etag $requestEtag does not match actual etag $etag",
-        mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.ETAG_MISMATCH,
+    "Request etag $requestEtag does not match actual etag $etag",
+    mapOf(Errors.Metadata.REQUEST_ETAG to requestEtag, Errors.Metadata.ETAG to etag),
+    cause,
+  ) {
   companion object : Factory<EtagMismatchException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.ETAG_MISMATCH
 
     override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): EtagMismatchException {
       return EtagMismatchException(
-          internalMetadata.getValue(InternalErrors.Metadata.REQUEST_ETAG),
-          internalMetadata.getValue(InternalErrors.Metadata.ETAG),
-          cause,
+        internalMetadata.getValue(InternalErrors.Metadata.REQUEST_ETAG),
+        internalMetadata.getValue(InternalErrors.Metadata.ETAG),
+        cause,
       )
     }
   }
 }
 
 class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
-    ServiceException(
-        Errors.Reason.REQUIRED_FIELD_NOT_SET,
-        "$fieldName not set",
-        mapOf(Errors.Metadata.FIELD_NAME to fieldName),
-        cause,
-    )
+  ServiceException(
+    Errors.Reason.REQUIRED_FIELD_NOT_SET,
+    "$fieldName not set",
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  )
 
 class InvalidFieldValueException(
-    fieldName: String,
-    cause: Throwable? = null,
-    buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
+  fieldName: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldName: String) -> String = { "Invalid value for field $fieldName" },
 ) :
-    ServiceException(
-        Errors.Reason.INVALID_FIELD_VALUE,
-        buildMessage(fieldName),
-        mapOf(Errors.Metadata.FIELD_NAME to fieldName),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.INVALID_FIELD_VALUE,
+    buildMessage(fieldName),
+    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    cause,
+  ) {
   companion object : Factory<InvalidFieldValueException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.INVALID_FIELD_VALUE
 
     override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): InvalidFieldValueException {
       return InvalidFieldValueException(
-          internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
-          cause,
+        internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
+        cause,
       )
     }
   }
 }
 
 class ImpressionMetadataNotFoundException(
-    impressionMetadataResourceName: String,
-    cause: Throwable? = null,
+  impressionMetadataResourceName: String,
+  cause: Throwable? = null,
 ) :
-    ServiceException(
-        Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
-        "ImpressionMetadata $impressionMetadataResourceName not found",
-        mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
-        cause,
-    )
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+    "ImpressionMetadata $impressionMetadataResourceName not found",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
+    cause,
+  )
 
 class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
-    ServiceException(
-        Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-        "ImpressionMetadata with blobUri $blobUri already exists",
-        mapOf(Errors.Metadata.BLOB_URI to blobUri),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata with blobUri $blobUri already exists",
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
+    cause,
+  ) {
   companion object : Factory<ImpressionMetadataAlreadyExistsException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS
 
     override fun fromInternal(
-        internalMetadata: Map<InternalErrors.Metadata, String>,
-        cause: Throwable,
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
     ): ImpressionMetadataAlreadyExistsException {
       return ImpressionMetadataAlreadyExistsException(
-          internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
-          cause,
+        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
+        cause,
       )
     }
   }
