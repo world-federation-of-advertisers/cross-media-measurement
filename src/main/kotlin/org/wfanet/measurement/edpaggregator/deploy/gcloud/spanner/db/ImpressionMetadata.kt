@@ -313,8 +313,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
             "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
           }
 
-        // check that new request id + existing blob uri
-
         val created =
           request.impressionMetadata.copy {
             this.impressionMetadataResourceId = impressionMetadataResourceId
