@@ -53,6 +53,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -96,17 +98,17 @@ class ImpressionMetadataServiceTest {
 
   @Test
   fun `createImpressionMetadata with requestId returns an ImpressionMetadata successfully`() =
-    runBlocking {
-      val startTime = Instant.now()
-      val request = createImpressionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata = IMPRESSION_METADATA
-        requestId = REQUEST_ID
-      }
+      runBlocking {
+        val startTime = Instant.now()
+        val request = createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
 
-      val impressionMetadata = service.createImpressionMetadata(request)
+        val impressionMetadata = service.createImpressionMetadata(request)
 
-      assertThat(impressionMetadata).comparingExpectedFieldsOnly().isEqualTo(IMPRESSION_METADATA)
+        assertThat(impressionMetadata).comparingExpectedFieldsOnly().isEqualTo(IMPRESSION_METADATA)
 
       val impressionMetadataKey =
         assertNotNull(ImpressionMetadataKey.fromName(impressionMetadata.name))
@@ -118,39 +120,39 @@ class ImpressionMetadataServiceTest {
 
   @Test
   fun `createImpressionMetadata without requestId returns an ImpressionMetadata successfully`() =
-    runBlocking {
-      val startTime = Instant.now()
-      val request = createImpressionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata = IMPRESSION_METADATA
-        // no request_id
+      runBlocking {
+        val startTime = Instant.now()
+        val request = createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          // no request_id
+        }
+
+        val impressionMetadata = service.createImpressionMetadata(request)
+
+        assertThat(impressionMetadata).comparingExpectedFieldsOnly().isEqualTo(IMPRESSION_METADATA)
+        val impressionMetadataKey =
+            assertNotNull(ImpressionMetadataKey.fromName(impressionMetadata.name))
+        assertThat(impressionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
+        assertThat(impressionMetadataKey.impressionMetadataId).isNotEmpty()
+        assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
+        assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
       }
-
-      val impressionMetadata = service.createImpressionMetadata(request)
-
-      assertThat(impressionMetadata).comparingExpectedFieldsOnly().isEqualTo(IMPRESSION_METADATA)
-      val impressionMetadataKey =
-        assertNotNull(ImpressionMetadataKey.fromName(impressionMetadata.name))
-      assertThat(impressionMetadataKey.dataProviderId).isEqualTo(DATA_PROVIDER_ID)
-      assertThat(impressionMetadataKey.impressionMetadataId).isNotEmpty()
-      assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
-      assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
-    }
 
   @Test
   fun `createImpressionMetadata with existing requestId returns the existing ImpressionMetadata`() =
-    runBlocking {
-      val request = createImpressionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata = IMPRESSION_METADATA
-        requestId = REQUEST_ID
+      runBlocking {
+        val request = createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+        val existingRequisitionMetadata = service.createImpressionMetadata(request)
+
+        val requisitionMetadata = service.createImpressionMetadata(request)
+
+        assertThat(requisitionMetadata).isEqualTo(existingRequisitionMetadata)
       }
-      val existingImpressionMetadata = service.createImpressionMetadata(request)
-
-      val impressionMetadata = service.createImpressionMetadata(request)
-
-      assertThat(impressionMetadata).isEqualTo(existingImpressionMetadata)
-    }
 
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
@@ -161,16 +163,16 @@ class ImpressionMetadataServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-        }
-      )
+        .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+            }
+        )
   }
 
   @Test
@@ -182,17 +184,39 @@ class ImpressionMetadataServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
-        }
-      )
+        .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.INVALID_FIELD_VALUE.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+            }
+        )
   }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT when impressionMetadata is missing`() =
+      runBlocking {
+        val request = createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          // missing impressionMetadata
+          requestId = REQUEST_ID
+        }
+
+        val exception =
+            assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+            .isEqualTo(
+                errorInfo {
+                  domain = Errors.DOMAIN
+                  reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+                  metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.impression_metadata"
+                }
+            )
+      }
 
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT for invalid model_line`() = runBlocking {
@@ -203,7 +227,7 @@ class ImpressionMetadataServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
       .isEqualTo(
@@ -233,16 +257,211 @@ class ImpressionMetadataServiceTest {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
-            metadata[Errors.Metadata.BLOB_URI.key] = request.impressionMetadata.blobUri
-          }
-        )
+        assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+        assertThat(exception.errorInfo)
+            .isEqualTo(
+                errorInfo {
+                  domain = Errors.DOMAIN
+                  reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+                  metadata[Errors.Metadata.BLOB_URI.key] = IMPRESSION_METADATA.blobUri
+                }
+            )
+      }
+
+  @Test
+  fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
+    val request1 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA
+      requestId = UUID.randomUUID().toString()
     }
+    val request2 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val startTime = Instant.now()
+
+    val response =
+        service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += request1
+              requests += request2
+            }
+        )
+
+    assertThat(response)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+            batchCreateImpressionMetadataResponse {
+              impressionMetadata += request1.impressionMetadata
+              impressionMetadata += request2.impressionMetadata
+            }
+        )
+
+    assertThat(response.impressionMetadataList.all { it.name.isNotEmpty() }).isTrue()
+    assertThat(response.impressionMetadataList.all { it.createTime.toInstant() >= startTime })
+        .isTrue()
+    assertThat(
+            response.impressionMetadataList.all {
+              it.updateTime.toInstant() == it.createTime.toInstant()
+            }
+        )
+        .isTrue()
+    assertThat(response.impressionMetadataList.all { it.state == ImpressionMetadata.State.ACTIVE })
+        .isTrue()
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata is idempotent`() = runBlocking {
+    val idempotentRequest = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val initialResponse =
+        service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += idempotentRequest
+            }
+        )
+    val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
+
+    val newRequest = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+    val secondResponse =
+        service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += idempotentRequest
+              requests += newRequest
+            }
+        )
+
+    assertThat(secondResponse.impressionMetadataList.first()).isEqualTo(existingImpressionMetadata)
+
+    val newImpressionMetadata = secondResponse.impressionMetadataList.last()
+    assertThat(newImpressionMetadata.name).isNotEqualTo(existingImpressionMetadata.name)
+    assertThat(newImpressionMetadata.createTime.toInstant())
+        .isGreaterThan(existingImpressionMetadata.createTime.toInstant())
+    assertThat(newImpressionMetadata.updateTime.toInstant())
+        .isGreaterThan(existingImpressionMetadata.updateTime.toInstant())
+    assertThat(newImpressionMetadata.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
+    val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+              batchCreateImpressionMetadataRequest {
+                requests += createImpressionMetadataRequest {
+                  impressionMetadata = IMPRESSION_METADATA
+                  requestId = REQUEST_ID
+                }
+              }
+          )
+        }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+        .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+            }
+        )
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
+    val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+              batchCreateImpressionMetadataRequest {
+                parent = "invalid-parent"
+                requests += createImpressionMetadataRequest {
+                  impressionMetadata = IMPRESSION_METADATA
+                  requestId = REQUEST_ID
+                }
+              }
+          )
+        }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+        .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.INVALID_FIELD_VALUE.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+            }
+        )
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for malformed request id`() =
+      runBlocking {
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              service.batchCreateImpressionMetadata(
+                  batchCreateImpressionMetadataRequest {
+                    parent = DATA_PROVIDER_KEY.toName()
+                    requests += createImpressionMetadataRequest {
+                      impressionMetadata = IMPRESSION_METADATA
+                      requestId = "invalid-request-id"
+                    }
+                  }
+              )
+            }
+
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+            .isEqualTo(
+                errorInfo {
+                  domain = Errors.DOMAIN
+                  reason = Errors.Reason.INVALID_FIELD_VALUE.name
+                  metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+                }
+            )
+      }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for duplicate blobUri`() = runBlocking {
+    val duplicateBlobUri = "duplicate-blob-uri"
+    val request1 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+              batchCreateImpressionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requests += request1
+                requests += request2
+              }
+          )
+        }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+        .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = Errors.Reason.INVALID_FIELD_VALUE.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.impression_metadata.blob_uri"
+            }
+        )
+  }
 
   @Test
   fun `getImpressionMetadata returns an ImpressionMetadata successfully`() = runBlocking {

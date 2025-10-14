@@ -40,7 +40,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
-import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
@@ -78,7 +77,7 @@ class SpannerImpressionMetadataService(
   ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.impressionMetadataResourceId.isEmpty()) {
@@ -88,12 +87,11 @@ class SpannerImpressionMetadataService(
 
     return try {
       databaseClient.singleUse().use { txn ->
-        txn
-          .getImpressionMetadataByResourceId(
-            request.dataProviderResourceId,
-            request.impressionMetadataResourceId,
-          )
-          .impressionMetadata
+        txn.getImpressionMetadataByResourceId(
+                request.dataProviderResourceId,
+                request.impressionMetadataResourceId,
+            )
+            .impressionMetadata
       }
     } catch (e: ImpressionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -101,7 +99,7 @@ class SpannerImpressionMetadataService(
   }
 
   override suspend fun createImpressionMetadata(
-    request: CreateImpressionMetadataRequest
+      request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
     try {
       validateImpressionMetadataRequest(request)
@@ -110,17 +108,17 @@ class SpannerImpressionMetadataService(
     }
 
     return batchCreateImpressionMetadata(
-        batchCreateImpressionMetadataRequest {
-          dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
-          requests += request
-        }
-      )
-      .impressionMetadataList
-      .single()
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
+              requests += request
+            }
+        )
+        .impressionMetadataList
+        .single()
   }
 
   override suspend fun batchCreateImpressionMetadata(
-    request: BatchCreateImpressionMetadataRequest
+      request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
     val dataProviderResourceId = request.dataProviderResourceId
     if (request.requestsList.isEmpty()) {
@@ -132,19 +130,19 @@ class SpannerImpressionMetadataService(
     request.requestsList.forEachIndexed { index, it ->
       if (it.impressionMetadata.dataProviderResourceId != dataProviderResourceId) {
         throw InvalidFieldValueException(
-            "requests.$index.impression_metadata.data_provider_resource_id"
-          ) {
-            "All requests must be for the same DataProvider"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                "requests.$index.impression_metadata.data_provider_resource_id"
+            ) {
+              "All requests must be for the same DataProvider"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (!blobUriSet.add(it.impressionMetadata.blobUri)) {
         val blobUri = it.impressionMetadata.blobUri
         throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
-            "blob uri $blobUri is duplicate in the batch of requests"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+              "blob uri $blobUri is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       val requestId = it.requestId
@@ -153,14 +151,14 @@ class SpannerImpressionMetadataService(
           UUID.fromString(requestId)
         } catch (e: IllegalArgumentException) {
           throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         if (!requestIdSet.add(it.requestId)) {
           throw InvalidFieldValueException("requests.$index.request_id") {
-              "request id $requestId is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                "request id $requestId is duplicate in the batch of requests"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
@@ -168,42 +166,38 @@ class SpannerImpressionMetadataService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
+        databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
 
     val results =
-      try {
-        transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
-      } catch (e: SpannerException) {
-        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-          throw ImpressionMetadataAlreadyExistsException(e)
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        try {
+          transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
+        } catch (e: SpannerException) {
+          throw e
         }
-        throw e
-      }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchCreateImpressionMetadataResponse {
       impressionMetadata +=
-        results.map { result ->
-          if (result.hasCreateTime()) {
-            result
-          } else {
-            result.copy {
-              createTime = commitTimestamp
-              updateTime = commitTimestamp
-              etag = ETags.computeETag(commitTimestamp.toInstant())
+          results.map { result ->
+            if (result.hasCreateTime()) {
+              result
+            } else {
+              result.copy {
+                createTime = commitTimestamp
+                updateTime = commitTimestamp
+                etag = ETags.computeETag(commitTimestamp.toInstant())
+              }
             }
           }
-        }
     }
   }
 
   override suspend fun listImpressionMetadata(
-    request: ListImpressionMetadataRequest
+      request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.pageSize < 0) {
