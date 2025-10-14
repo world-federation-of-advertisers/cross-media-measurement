@@ -82,7 +82,7 @@ class ImpressionMetadataServiceTest {
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val idGenerator = IdGenerator.Default
     internalService =
-      SpannerImpressionMetadataService(spannerDatabaseClient, EmptyCoroutineContext, idGenerator)
+      SpannerImpressionMetadataService(spannerDatabaseClient, EmptyCoroutineContext)
     addService(internalService)
   }
 
