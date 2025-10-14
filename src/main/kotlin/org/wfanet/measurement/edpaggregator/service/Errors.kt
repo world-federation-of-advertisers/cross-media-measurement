@@ -238,7 +238,22 @@ class InvalidFieldValueException(
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
-  )
+  ) {
+  companion object : Factory<InvalidFieldValueException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.INVALID_FIELD_VALUE
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): InvalidFieldValueException {
+      return InvalidFieldValueException(
+        internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
+        cause,
+      )
+    }
+  }
+}
 
 class ImpressionMetadataNotFoundException(
   impressionMetadataResourceName: String,
@@ -257,4 +272,19 @@ class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable
     "ImpressionMetadata with blobUri $blobUri already exists",
     mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
-  )
+  ) {
+  companion object : Factory<ImpressionMetadataAlreadyExistsException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): ImpressionMetadataAlreadyExistsException {
+      return ImpressionMetadataAlreadyExistsException(
+        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
+        cause,
+      )
+    }
+  }
+}

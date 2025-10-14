@@ -322,6 +322,7 @@ abstract class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.BLOB_URI.key] = IMPRESSION_METADATA.blobUri
         }
       )
   }
@@ -510,15 +511,16 @@ abstract class ImpressionMetadataServiceTest {
 
   @Test
   fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
+    val duplicateBlobUri = "duplicate-blob-uri"
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
-        impressionMetadata = IMPRESSION_METADATA.copy { blobUri = "duplicate-blob-uri" }
+        impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
         requestId = UUID.randomUUID().toString()
       }
     )
 
     val conflictingRequest = createImpressionMetadataRequest {
-      impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = "duplicate-blob-uri" }
+      impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
     }
 
@@ -538,6 +540,7 @@ abstract class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.BLOB_URI.key] = duplicateBlobUri
         }
       )
   }
@@ -574,7 +577,7 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch reqeusts`() =
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch requests`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
         impressionMetadata = IMPRESSION_METADATA
@@ -605,7 +608,7 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch reqeusts`() =
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch requests`() =
     runBlocking {
       val requestId = UUID.randomUUID().toString()
       val request1 = createImpressionMetadataRequest {
@@ -819,7 +822,7 @@ abstract class ImpressionMetadataServiceTest {
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[2] })
   }
 
-  // @Test
+  @Test
   fun `listImpressionMetadata returns empty when filter matches nothing`() = runBlocking {
     createImpressionMetadata(IMPRESSION_METADATA_2)
 

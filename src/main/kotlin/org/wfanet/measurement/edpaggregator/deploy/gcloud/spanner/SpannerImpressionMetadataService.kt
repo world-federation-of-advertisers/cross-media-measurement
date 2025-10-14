@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
@@ -35,7 +34,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
-import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -167,10 +165,6 @@ class SpannerImpressionMetadataService(
       try {
         transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
       } catch (e: SpannerException) {
-        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
-          throw ImpressionMetadataAlreadyExistsException(e)
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-        }
         throw e
       }
 

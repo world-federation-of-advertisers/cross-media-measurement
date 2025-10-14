@@ -123,11 +123,11 @@ class ImpressionMetadataNotFoundException(
     cause,
   )
 
-class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
     "ImpressionMetadata already exists",
-    emptyMap(),
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )
 

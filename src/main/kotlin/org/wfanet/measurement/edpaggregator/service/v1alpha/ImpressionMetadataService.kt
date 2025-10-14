@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -29,6 +30,8 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundEx
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -39,10 +42,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse as InternalBatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
+import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -50,6 +57,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest as internalBatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
@@ -69,7 +77,7 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val impressionMetadatakey =
+    val impressionMetadataKey =
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -78,8 +86,8 @@ class ImpressionMetadataService(
       try {
         internalImpressionMetadataStub.getImpressionMetadata(
           internalGetImpressionMetadataRequest {
-            dataProviderResourceId = impressionMetadatakey.dataProviderId
-            impressionMetadataResourceId = impressionMetadatakey.impressionMetadataId
+            dataProviderResourceId = impressionMetadataKey.dataProviderId
+            impressionMetadataResourceId = impressionMetadataKey.impressionMetadataId
           }
         )
       } catch (e: StatusException) {
@@ -106,6 +114,19 @@ class ImpressionMetadataService(
   override suspend fun createImpressionMetadata(
     request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
+    return batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          parent = request.parent
+          requests += request
+        }
+      )
+      .impressionMetadataList
+      .single()
+  }
+
+  override suspend fun batchCreateImpressionMetadata(
+    request: BatchCreateImpressionMetadataRequest
+  ): BatchCreateImpressionMetadataResponse {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -116,28 +137,48 @@ class ImpressionMetadataService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    if (!request.hasImpressionMetadata()) {
-      throw RequiredFieldNotSetException("impression_metadata")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    val internalRequests: List<InternalCreateImpressionMetadataRequest> =
+      request.requestsList.mapIndexed { index, it ->
+        if (it.requestId.isNotEmpty()) {
+          try {
+            UUID.fromString(it.requestId)
+          } catch (e: IllegalArgumentException) {
+            throw InvalidFieldValueException("requests.$index.request_id", e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+        }
 
-    ModelLineKey.fromName(request.impressionMetadata.modelLine)
-      ?: throw InvalidFieldValueException("impression_metadata.model_line")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        if (!it.hasImpressionMetadata()) {
+          throw RequiredFieldNotSetException("requests.$index.impression_metadata")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
 
-    val internalCreateRequest = internalCreateImpressionMetadataRequest {
-      impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
-      requestId = request.requestId
-    }
+        ModelLineKey.fromName(it.impressionMetadata.modelLine)
+          ?: throw InvalidFieldValueException("requests.$index.impression_metadata.model_line")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    val internalResponse: InternalImpressionMetadata =
+        internalCreateImpressionMetadataRequest {
+          requestId = it.requestId
+          impressionMetadata = it.impressionMetadata.toInternal(dataProviderKey, null)
+        }
+      }
+
+    val internalResponse: InternalBatchCreateImpressionMetadataResponse =
       try {
-        internalImpressionMetadataStub.createImpressionMetadata(internalCreateRequest)
+        internalImpressionMetadataStub.batchCreateImpressionMetadata(
+          internalBatchCreateImpressionMetadataRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            requests += internalRequests
+          }
+        )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-            ImpressionMetadataAlreadyExistsException(request.impressionMetadata.blobUri, e)
-              .asStatusRuntimeException(e.status.code)
+            ImpressionMetadataAlreadyExistsException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.INVALID_FIELD_VALUE ->
+            InvalidFieldValueException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -145,13 +186,15 @@ class ImpressionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.ETAG_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
 
-    return internalResponse.toImpressionMetadata()
+    return batchCreateImpressionMetadataResponse {
+      impressionMetadata +=
+        internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
+    }
   }
 
   override suspend fun deleteImpressionMetadata(
