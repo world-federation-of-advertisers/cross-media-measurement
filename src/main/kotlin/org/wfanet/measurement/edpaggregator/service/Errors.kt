@@ -284,12 +284,12 @@ class ImpressionMetadataNotFoundException(
 }
 
 class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
-    ServiceException(
-        Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
-        "ImpressionMetadata with blobUri $blobUri already exists",
-        mapOf(Errors.Metadata.BLOB_URI to blobUri),
-        cause,
-    ) {
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata with blobUri $blobUri already exists",
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
+    cause,
+  ) {
   companion object : Factory<ImpressionMetadataAlreadyExistsException>() {
     override val reason: Errors.Reason
       get() = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS

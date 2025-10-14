@@ -324,6 +324,7 @@ abstract class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.BLOB_URI.key] = IMPRESSION_METADATA.blobUri
         }
       )
   }
@@ -514,10 +515,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
     val duplicateBlobUri = "duplicate-blob-uri"
     service.createImpressionMetadata(
-        createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
-          requestId = UUID.randomUUID().toString()
-        }
+      createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
+        requestId = UUID.randomUUID().toString()
+      }
     )
 
     val conflictingRequest = createImpressionMetadataRequest {
@@ -537,22 +538,22 @@ abstract class ImpressionMetadataServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     assertThat(exception.errorInfo)
-        .isEqualTo(
-            errorInfo {
-              domain = Errors.DOMAIN
-              reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
-              metadata[Errors.Metadata.BLOB_URI.key] = duplicateBlobUri
-            }
-        )
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.BLOB_URI.key] = duplicateBlobUri
+        }
+      )
   }
 
   @Test
   fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
-      runBlocking {
-        val request = createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { dataProviderResourceId = "different-dp" }
-          requestId = UUID.randomUUID().toString()
-        }
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { dataProviderResourceId = "different-dp" }
+        requestId = UUID.randomUUID().toString()
+      }
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -579,111 +580,114 @@ abstract class ImpressionMetadataServiceTest {
 
   @Test
   fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch requests`() =
-      runBlocking {
-        val request = createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA
-          requestId = UUID.randomUUID().toString()
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request
+              requests += request.copy { requestId = UUID.randomUUID().toString() }
+            }
+          )
         }
 
-        val exception =
-            assertFailsWith<StatusRuntimeException> {
-              service.batchCreateImpressionMetadata(
-                  batchCreateImpressionMetadataRequest {
-                    dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                    requests += request
-                    requests += request.copy { requestId = UUID.randomUUID().toString() }
-                  }
-              )
-            }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
 
-        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-
-        assertThat(exception.errorInfo)
-            .isEqualTo(
-                errorInfo {
-                  domain = Errors.DOMAIN
-                  reason = Errors.Reason.INVALID_FIELD_VALUE.name
-                  metadata[Errors.Metadata.FIELD_NAME.key] =
-                      "requests.1.impression_metadata.blob_uri"
-                }
-            )
-      }
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.impression_metadata.blob_uri"
+          }
+        )
+    }
 
   @Test
   fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch requests`() =
-      runBlocking {
-        val requestId = UUID.randomUUID().toString()
-        val request1 = createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA
-          this.requestId = requestId
-        }
-
-        val request2 = createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA_2
-          this.requestId = requestId
-        }
-
-        val exception =
-            assertFailsWith<StatusRuntimeException> {
-              service.batchCreateImpressionMetadata(
-                  batchCreateImpressionMetadataRequest {
-                    dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                    requests += request1
-                    requests += request2
-                  }
-              )
-            }
-
-        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-
-        assertThat(exception.errorInfo)
-            .isEqualTo(
-                errorInfo {
-                  domain = Errors.DOMAIN
-                  reason = Errors.Reason.INVALID_FIELD_VALUE.name
-                  metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
-                }
-            )
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val request1 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        this.requestId = requestId
       }
+
+      val request2 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA_2
+        this.requestId = requestId
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request1
+              requests += request2
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
 
   @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
-      runBlocking {
-        val created =
-            service.createImpressionMetadata(
-                createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
-            )
+    runBlocking {
+      val created =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        )
 
-        val deleted =
-            service.deleteImpressionMetadata(
-                deleteImpressionMetadataRequest {
-                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                  impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-                }
-            )
+      val deleted =
+        service.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
 
-        assertThat(deleted.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
-        assertThat(deleted)
-            .comparingExpectedFieldsOnly()
-            .isEqualTo(
-                created.copy {
-                  state = State.IMPRESSION_METADATA_STATE_DELETED
-                  clearUpdateTime()
-                  clearEtag()
-                }
-            )
+      assertThat(deleted.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
+      assertThat(deleted)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          created.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+            clearEtag()
+          }
+        )
 
-        val got =
-            service.getImpressionMetadata(
-                getImpressionMetadataRequest {
-                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-                  impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-                }
-            )
-        assertThat(got).isEqualTo(deleted)
-      }
+      val got =
+        service.getImpressionMetadata(
+          getImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
+      assertThat(got).isEqualTo(deleted)
+    }
 
   @Test
+  fun `deleteImpressionMetadata throws INVALID_ARGUMENT when already deleted`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
   fun `deleteImpressionMetadata throws INVALID_ARGUMENT when dataProviderResourceId is missing`() =
     runBlocking {
       val request = deleteImpressionMetadataRequest { impressionMetadataResourceId = "not-found" }
@@ -755,6 +759,13 @@ abstract class ImpressionMetadataServiceTest {
           createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
         )
 
+    val deleted =
+      service.deleteImpressionMetadata(
+        deleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
       val deleteRequest = deleteImpressionMetadataRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
@@ -1128,7 +1139,7 @@ abstract class ImpressionMetadataServiceTest {
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[2] })
   }
 
-  // @Test
+  @Test
   fun `listImpressionMetadata returns empty when filter matches nothing`() = runBlocking {
     createImpressionMetadata(IMPRESSION_METADATA_2)
 
