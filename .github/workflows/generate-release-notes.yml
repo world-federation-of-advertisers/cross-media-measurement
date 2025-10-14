@@ -41,7 +41,7 @@ on:
       notes-end-commitish:
         description: Full commit SHA or tag (inclusive)
         type: string
-        required: true  
+        required: true
     outputs:
       summary:
         description: "Release notes"
@@ -93,7 +93,7 @@ jobs:
           git rev-parse --verify "${NOTES_END_COMMITISH}"
 
       - uses: actions/setup-python@v6
-        with: 
+        with:
           python-version: '3.13'
 
       - name: Fetch PRs data
@@ -278,7 +278,7 @@ jobs:
           HIGHLIGHTS: ${{ steps.generate-highlights.outputs.json }}
           ISSUES_ADDRESSED: ${{ steps.generate-issues-addressed.outputs.json }}
           POTENTIALLY_REQUIRING_ACTION: ${{ steps.generate-potentially-requiring-action.outputs.json }}
-          MILESTONE_URL: ${{ steps.generate-milestone-url.outputs.url}}
+          MILESTONE_URL: ${{ steps.generate-milestone-url.outputs.url }}
         run: |
           print_section() {
             local title=$1
