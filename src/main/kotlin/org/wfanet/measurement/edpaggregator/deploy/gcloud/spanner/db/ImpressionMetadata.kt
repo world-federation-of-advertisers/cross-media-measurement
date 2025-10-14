@@ -106,7 +106,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
 }
 
 /**
- * Finds existing [ImpressionMetadata] for a list of create requests.
+ * Finds existing [ImpressionMetadata] by request Ids.
  *
  * @param createImpressionMetadataRequests the list of [CreateImpressionMetadataRequest]
  * @param dataProviderResourceId the resource ID of the parent DataProvider
@@ -251,8 +251,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
           request.impressionMetadata.impressionMetadataResourceId.ifBlank {
             "$IMPRESSION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
           }
-
-        // check that new request id + existing blob uri
 
         val created =
           request.impressionMetadata.copy {
