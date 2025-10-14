@@ -35,7 +35,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -78,9 +77,7 @@ class ImpressionMetadataServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
-    val idGenerator = IdGenerator.Default
-    internalService =
-      SpannerImpressionMetadataService(spannerDatabaseClient, EmptyCoroutineContext)
+    internalService = SpannerImpressionMetadataService(spannerDatabaseClient, EmptyCoroutineContext)
     addService(internalService)
   }
 
