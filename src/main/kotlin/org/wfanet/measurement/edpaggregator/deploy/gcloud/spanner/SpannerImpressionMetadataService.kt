@@ -60,30 +60,31 @@ import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse
 
 class SpannerImpressionMetadataService(
-    private val databaseClient: AsyncDatabaseClient,
-    coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val databaseClient: AsyncDatabaseClient,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ImpressionMetadataServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun getImpressionMetadata(
-      request: GetImpressionMetadataRequest
+    request: GetImpressionMetadataRequest
   ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.impressionMetadataResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("impression_metadata_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     return try {
       databaseClient.singleUse().use { txn ->
-        txn.getImpressionMetadataByResourceId(
-                request.dataProviderResourceId,
-                request.impressionMetadataResourceId,
-            )
-            .impressionMetadata
+        txn
+          .getImpressionMetadataByResourceId(
+            request.dataProviderResourceId,
+            request.impressionMetadataResourceId,
+          )
+          .impressionMetadata
       }
     } catch (e: ImpressionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -91,7 +92,7 @@ class SpannerImpressionMetadataService(
   }
 
   override suspend fun createImpressionMetadata(
-      request: CreateImpressionMetadataRequest
+    request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
     try {
       validateImpressionMetadataRequest(request)
@@ -100,17 +101,17 @@ class SpannerImpressionMetadataService(
     }
 
     return batchCreateImpressionMetadata(
-            batchCreateImpressionMetadataRequest {
-              dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
-              requests += request
-            }
-        )
-        .impressionMetadataList
-        .single()
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
+          requests += request
+        }
+      )
+      .impressionMetadataList
+      .single()
   }
 
   override suspend fun batchCreateImpressionMetadata(
-      request: BatchCreateImpressionMetadataRequest
+    request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
     val dataProviderResourceId = request.dataProviderResourceId
     if (request.requestsList.isEmpty()) {
@@ -122,19 +123,19 @@ class SpannerImpressionMetadataService(
     request.requestsList.forEachIndexed { index, it ->
       if (it.impressionMetadata.dataProviderResourceId != dataProviderResourceId) {
         throw InvalidFieldValueException(
-                "requests.$index.impression_metadata.data_provider_resource_id"
-            ) {
-              "All requests must be for the same DataProvider"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            "requests.$index.impression_metadata.data_provider_resource_id"
+          ) {
+            "All requests must be for the same DataProvider"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       if (!blobUriSet.add(it.impressionMetadata.blobUri)) {
         val blobUri = it.impressionMetadata.blobUri
         throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
-              "blob uri $blobUri is duplicate in the batch of requests"
-            }
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            "blob uri $blobUri is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
       val requestId = it.requestId
@@ -143,14 +144,14 @@ class SpannerImpressionMetadataService(
           UUID.fromString(requestId)
         } catch (e: IllegalArgumentException) {
           throw InvalidFieldValueException("requests.$index.request_id", e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
         if (!requestIdSet.add(it.requestId)) {
           throw InvalidFieldValueException("requests.$index.request_id") {
-                "request id $requestId is duplicate in the batch of requests"
-              }
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+              "request id $requestId is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
@@ -158,76 +159,77 @@ class SpannerImpressionMetadataService(
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-        databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
+      databaseClient.readWriteTransaction(Options.tag("action=batchCreateImpressionMetadata"))
 
     val results =
-        try {
-          transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
-        } catch (e: SpannerException) {
-          throw e
-        }
+      try {
+        transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
+      } catch (e: SpannerException) {
+        throw e
+      }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchCreateImpressionMetadataResponse {
       impressionMetadata +=
-          results.map { result ->
-            if (result.hasCreateTime()) {
-              result
-            } else {
-              result.copy {
-                createTime = commitTimestamp
-                updateTime = commitTimestamp
-                etag = ETags.computeETag(commitTimestamp.toInstant())
-              }
+        results.map { result ->
+          if (result.hasCreateTime()) {
+            result
+          } else {
+            result.copy {
+              createTime = commitTimestamp
+              updateTime = commitTimestamp
+              etag = ETags.computeETag(commitTimestamp.toInstant())
             }
           }
+        }
     }
   }
 
   override suspend fun listImpressionMetadata(
-      request: ListImpressionMetadataRequest
+    request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName ->
-            "$fieldName must be non-negative"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val pageSize =
-        if (request.pageSize == 0) {
-          DEFAULT_PAGE_SIZE
-        } else {
-          request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
-        }
+      if (request.pageSize == 0) {
+        DEFAULT_PAGE_SIZE
+      } else {
+        request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+      }
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
     databaseClient.singleUse().use { txn ->
       val impressionMetadataList: Flow<ImpressionMetadata> =
-          txn.readImpressionMetadata(
-                  request.dataProviderResourceId,
-                  request.filter,
-                  pageSize + 1,
-                  after,
-              )
-              .map { it.impressionMetadata }
+        txn
+          .readImpressionMetadata(
+            request.dataProviderResourceId,
+            request.filter,
+            pageSize + 1,
+            after,
+          )
+          .map { it.impressionMetadata }
       return listImpressionMetadataResponse {
         impressionMetadataList.collectIndexed { index, impressionMetadata ->
           if (index == pageSize) {
             nextPageToken = listImpressionMetadataPageToken {
               this.after =
-                  ListImpressionMetadataPageTokenKt.after {
-                    impressionMetadataResourceId =
-                        this@listImpressionMetadataResponse.impressionMetadata
-                            .last()
-                            .impressionMetadataResourceId
-                  }
+                ListImpressionMetadataPageTokenKt.after {
+                  impressionMetadataResourceId =
+                    this@listImpressionMetadataResponse.impressionMetadata
+                      .last()
+                      .impressionMetadataResourceId
+                }
             }
           } else {
             this.impressionMetadata += impressionMetadata
@@ -238,53 +240,53 @@ class SpannerImpressionMetadataService(
   }
 
   override suspend fun deleteImpressionMetadata(
-      request: DeleteImpressionMetadataRequest
+    request: DeleteImpressionMetadataRequest
   ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.impressionMetadataResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("impression_metadata_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-        databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata"))
+      databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata"))
 
     val deletedImpressionMetadata =
-        try {
-          transactionRunner.run { txn ->
-            val result =
-                txn.getImpressionMetadataByResourceId(
-                    request.dataProviderResourceId,
-                    request.impressionMetadataResourceId,
-                )
-            if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-              throw ImpressionMetadataStateInvalidException(
-                  request.dataProviderResourceId,
-                  request.impressionMetadataResourceId,
-                  result.impressionMetadata.state,
-                  setOf(State.IMPRESSION_METADATA_STATE_ACTIVE),
-              )
-            }
-            txn.updateImpressionMetadataState(
-                result.impressionMetadata.dataProviderResourceId,
-                result.impressionMetadataId,
-                State.IMPRESSION_METADATA_STATE_DELETED,
+      try {
+        transactionRunner.run { txn ->
+          val result =
+            txn.getImpressionMetadataByResourceId(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
             )
-            result.impressionMetadata.copy {
-              state = State.IMPRESSION_METADATA_STATE_DELETED
-              clearUpdateTime()
-              clearEtag()
-            }
+          if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
+            throw ImpressionMetadataStateInvalidException(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+              result.impressionMetadata.state,
+              setOf(State.IMPRESSION_METADATA_STATE_ACTIVE),
+            )
           }
-        } catch (e: ImpressionMetadataNotFoundException) {
-          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-        } catch (e: ImpressionMetadataStateInvalidException) {
-          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          txn.updateImpressionMetadataState(
+            result.impressionMetadata.dataProviderResourceId,
+            result.impressionMetadataId,
+            State.IMPRESSION_METADATA_STATE_DELETED,
+          )
+          result.impressionMetadata.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+            clearEtag()
+          }
         }
+      } catch (e: ImpressionMetadataNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ImpressionMetadataStateInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return deletedImpressionMetadata.copy {
@@ -294,21 +296,21 @@ class SpannerImpressionMetadataService(
   }
 
   override suspend fun computeModelLineBounds(
-      request: ComputeModelLineBoundsRequest
+    request: ComputeModelLineBoundsRequest
   ): ComputeModelLineBoundsResponse {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     if (request.cmmsModelLineList.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_model_line")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val results: List<ModelLineBoundResult> =
-        databaseClient
-            .singleUse()
-            .readModelLinesBounds(request.dataProviderResourceId, request.cmmsModelLineList)
+      databaseClient
+        .singleUse()
+        .readModelLinesBounds(request.dataProviderResourceId, request.cmmsModelLineList)
 
     return computeModelLineBoundsResponse {
       modelLineBounds.putAll(results.associate { it.cmmsModelLine to it.bound })
