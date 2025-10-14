@@ -45,12 +45,12 @@ on:
       notes-start-commitish:
         type: string
         description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
-        
+
 jobs:
   compute-notes-start-commitish:
     runs-on: ubuntu-22.04
     outputs:
-      commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}    
+      commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}
     steps:
       - name: compute notes start commitish
         id: compute-notes-start-commitish
@@ -88,7 +88,7 @@ jobs:
   compute-milestone-name:
     runs-on: ubuntu-22.04
     outputs:
-      name: ${{ steps.compute-milestone-name.outputs.name }}    
+      name: ${{ steps.compute-milestone-name.outputs.name }}
     steps:
       - name: Compute milestone name
         id: compute-milestone-name
