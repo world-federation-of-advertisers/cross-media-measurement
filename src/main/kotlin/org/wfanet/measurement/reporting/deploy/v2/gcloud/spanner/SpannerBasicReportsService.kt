@@ -40,14 +40,19 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
@@ -590,6 +595,61 @@ class SpannerBasicReportsService(
       postgresReadContext?.close()
       throw e
     }
+  }
+
+  private suspend fun transformReportResultIntoResultGroups(
+    basicReport: BasicReport,
+    reportResult: ReportResult,
+    campaignGroup: ReportingSet,
+  ): List<ResultGroup> {
+    val campaignGroupReportingSetIdByReportingSet: Map<ReportingSet, String> =
+      listReportingSetsByCampaignGroup(
+        basicReport.cmmsMeasurementConsumerId,
+        basicReport.externalCampaignGroupId,
+      ).associate {
+        it.copy {
+          clearCmmsMeasurementConsumerId()
+          clearExternalReportingSetId()
+          clearExternalCampaignGroupId()
+          weightedSubsetUnions.clear()
+        } to it.externalReportingSetId
+      }
+
+    val eventGroupKeysByDataProviderId: Map<String, MutableList<ReportingSet.Primitive.EventGroupKey>> = buildMap {
+      for (eventGroupKey in campaignGroup.primitive.eventGroupKeysList) {
+        val eventGroupsList = getOrPut(eventGroupKey.cmmsDataProviderId) {
+          mutableListOf()
+        }
+        eventGroupsList.add(eventGroupKey)
+      }
+    }
+
+    val primitiveReportingSetByDataProviderId: Map<String, ReportingSet> = buildMap {
+      for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
+        val reportingSet = reportingSet {
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys += eventGroupKeysByDataProviderId.getValue(dataProviderId)
+            }
+        }
+
+        if (campaignGroupReportingSetIdByReportingSet.containsKey(reportingSet)) {
+          put(dataProviderId, reportingSet.copy {
+            externalReportingSetId = campaignGroupReportingSetIdByReportingSet.getValue(reportingSet)
+          })
+        }
+      }
+    }
+
+    val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
+      campaignGroupReportingSetIdByReportingSet
+        .filter { it.key.hasComposite() }
+        .forEach {
+          put(it.key.composite, it.value)
+        }
+    }
+
+    return buildResultGroups(basicReport, reportResult, primitiveReportingSetByDataProviderId, compositeReportingSetIdBySetExpression)
   }
 
   companion object {

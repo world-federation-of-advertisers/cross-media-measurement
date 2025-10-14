@@ -594,10 +594,11 @@ class BasicReportsService(
 
     // Map of ReportingSet Composite to ReportingSet resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
-      campaignGroupReportingSetMap.filter { it.key.hasComposite() }
-      for (entry in campaignGroupReportingSetMap) {
-        put(entry.key.composite, entry.value.name)
-      }
+      campaignGroupReportingSetMap
+        .filter { it.key.hasComposite() }
+        .forEach {
+          put(it.key.composite, it.value.name)
+        }
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)

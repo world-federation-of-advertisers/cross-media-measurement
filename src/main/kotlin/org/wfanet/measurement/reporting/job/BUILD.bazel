@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = ["ReportSchedulingJob.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_info_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedules_service",

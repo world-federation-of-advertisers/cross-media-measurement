@@ -9,11 +9,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
-import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
@@ -24,14 +21,12 @@ import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
-import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 
 @RunWith(JUnit4::class)
 class BasicReportNoiseCorrectedResultsTransformationTest {
@@ -344,7 +339,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
           }
       }
 
-      val resultGroups = buildResultGroups(basicReport, reportResult)
+      val resultGroups = buildResultGroups(basicReport, reportResult, mapOf(), mapOf())
       Truth.assertThat(resultGroups)
         .containsExactly(
           resultGroup {
@@ -357,8 +352,6 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     }
 
   companion object {
-    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
-
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "A123"
     private const val MEASUREMENT_CONSUMER_NAME =
       "measurementConsumers/${CMMS_MEASUREMENT_CONSUMER_ID}"
@@ -366,10 +359,6 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     private const val COMPOSITE_REPORTING_SET_ID = "c124"
     private const val COMPOSITE_REPORTING_SET_NAME =
       "${MEASUREMENT_CONSUMER_NAME}/reportingSets/${COMPOSITE_REPORTING_SET_ID}"
-
-    private const val METRIC_CALCULATION_SPEC_ID = "m123"
-    private const val METRIC_CALCULATION_SPEC_NAME =
-      "${MEASUREMENT_CONSUMER_NAME}/metricCalculationSpecs/${METRIC_CALCULATION_SPEC_ID}"
 
     private val CAMPAIGN_GROUP = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
@@ -472,49 +461,6 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2.externalReportingSetId
             }
         }
-    }
-
-    private val NON_CUMULATIVE_METRIC_CALCULATION_SPEC = metricCalculationSpec {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricCalculationSpecId = "noncumulative"
-      externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
-      details =
-        MetricCalculationSpecKt.details {
-          metricFrequencySpec =
-            MetricCalculationSpecKt.metricFrequencySpec {
-              weekly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
-                }
-            }
-          trailingWindow =
-            MetricCalculationSpecKt.trailingWindow {
-              count = 1
-              increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-            }
-        }
-    }
-
-    private val CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC = metricCalculationSpec {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricCalculationSpecId = "cumulative-weekly"
-      externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
-      details =
-        MetricCalculationSpecKt.details {
-          metricFrequencySpec =
-            MetricCalculationSpecKt.metricFrequencySpec {
-              weekly =
-                MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                  dayOfWeek = DayOfWeek.MONDAY
-                }
-            }
-        }
-    }
-
-    private val TOTAL_METRIC_CALCULATION_SPEC = metricCalculationSpec {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalMetricCalculationSpecId = "total"
-      externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
     }
   }
 }

@@ -19,7 +19,6 @@ package org.wfanet.measurement.reporting.job
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
-import com.google.type.DateTime
 import com.google.type.TimeZone
 import com.google.type.copy
 import com.google.type.date
@@ -50,7 +49,7 @@ import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportSchedulesResponse
@@ -494,39 +493,6 @@ class ReportSchedulingJob(
             .asRuntimeException()
         }
       }.toTimestamp()
-    }
-
-    private fun DateTime.toTimestamp(): Timestamp {
-      val source = this
-      return if (source.hasUtcOffset()) {
-        val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-        val offsetDateTime =
-          OffsetDateTime.of(
-            source.year,
-            source.month,
-            source.day,
-            source.hours,
-            source.minutes,
-            source.seconds,
-            source.nanos,
-            offset,
-          )
-        offsetDateTime.toInstant().toProtoTime()
-      } else {
-        val id = ZoneId.of(source.timeZone.id)
-        val zonedDateTime =
-          ZonedDateTime.of(
-            source.year,
-            source.month,
-            source.day,
-            source.hours,
-            source.minutes,
-            source.seconds,
-            source.nanos,
-            id,
-          )
-        zonedDateTime.toInstant().toProtoTime()
-      }
     }
   }
 }
