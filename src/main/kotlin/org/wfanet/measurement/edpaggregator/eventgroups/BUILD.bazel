@@ -24,3 +24,19 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
+
+kt_jvm_library(
+    name = "generate_event_groups_json",
+    srcs = ["GenerateEventGroupsJson.kt"],
+    deps = [
+        ":event_group_sync",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
+
+java_binary(
+    name = "LoadTest",
+    main_class = "org.wfanet.measurement.edpaggregator.eventgroups.GenerateEventGroupsJson",
+    runtime_deps = [":generate_event_groups_json"],
+)

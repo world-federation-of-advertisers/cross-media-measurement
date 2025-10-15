@@ -57,22 +57,29 @@ class EventGroupSync(
 ) {
 
   suspend fun sync(): Flow<MappedEventGroup> = flow {
+    logger.info("-----------> sync()")
     val syncedEventGroups: Map<String, CmmsEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
     eventGroups.collect { eventGroup: EventGroup ->
+      logger.info("-----------> sync() collecting")
       try {
         validateEventGroup(eventGroup)
+        logger.info("-----------> validated")
         val syncedEventGroup: CmmsEventGroup =
           if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
+            logger.info("-----------> if1")
             val existingEventGroup: CmmsEventGroup =
               syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
             val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
             if (updatedEventGroup != existingEventGroup) {
+              logger.info("-----------> if2")
               updateCmmsEventGroup(updatedEventGroup)
             } else {
+              logger.info("-----------> if3")
               existingEventGroup
             }
           } else {
+            logger.info("-----------> else")
             createCmmsEventGroup(edpName, eventGroup)
           }
         emit(

@@ -78,9 +78,11 @@ class EventGroupSyncFunction() : HttpFunction {
 
       when {
         eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
+          logger.info("-----------------> Received PROTO file")
           getEventGroupsFromProtoFormat(eventGroupsBlobUri, eventGroupSyncConfig)
         }
         eventGroupsBlobUri.key.endsWith(JSON_FILE_SUFFIX) -> {
+          logger.info("-----------------> Received JSON file")
           getEventGroupsFromJsonFormat(eventGroupsBlobUri, eventGroupSyncConfig)
         }
         else -> error("Unsupported EventGroup file format: ${eventGroupsBlobUri.key}")
@@ -137,33 +139,40 @@ class EventGroupSyncFunction() : HttpFunction {
   private suspend fun getEventGroupsFromJsonFormat(
     eventGroupsBlobUri: BlobUri,
     eventGroupSyncConfig: EventGroupSyncConfig,
-  ): Flow<EventGroup> = flow {
-    val storageClient =
-      SelectedStorageClient(
-        blobUri = eventGroupsBlobUri,
-        rootDirectory =
+  ): Flow<EventGroup> {
+    return flow {
+      val storageClient =
+        SelectedStorageClient(
+          blobUri = eventGroupsBlobUri,
+          rootDirectory =
           if (eventGroupSyncConfig.eventGroupStorage.hasFileSystem())
             File(checkNotNull(fileSystemStorageRoot))
           else null,
-        projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
-      )
-
-    val blob =
-      storageClient.getBlob(eventGroupsBlobUri.key)
-        ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
-    val parser = JsonFormat.parser()
-    val eventGroups: EventGroups =
-      EventGroups.newBuilder()
-        .apply {
-          val bytes = blob.read().flatten()
-          parser.merge(bytes.toStringUtf8(), this)
-        }
-        .build()
-    val eventGroupsList = eventGroups.eventGroupsList
-    require(eventGroupsList.size > 0) {
-      "Uploads of zero event groups are not supported. Or unable to parse."
+          projectId = eventGroupSyncConfig.eventGroupStorage.gcs.projectId,
+        )
+      logger.info("-----> fetching blob")
+      val blob =
+        storageClient.getBlob(eventGroupsBlobUri.key)
+          ?: throw IllegalStateException("Blob not found for key: ${eventGroupsBlobUri.key}")
+      logger.info("-----> blob found")
+      val parser = JsonFormat.parser()
+      val eventGroups: EventGroups =
+        EventGroups.newBuilder()
+          .apply {
+            val bytes = blob.read().flatten()
+            parser.merge(bytes.toStringUtf8(), this)
+          }
+          .build()
+      logger.info("-----> EventGroups parsed")
+      val eventGroupsList = eventGroups.eventGroupsList
+      logger.info("-----> event group list size: ${eventGroupsList.size}")
+      require(eventGroupsList.size > 0) {
+        "Uploads of zero event groups are not supported. Or unable to parse."
+      }
+      logger.info("-----> Emitting elements")
+      emitAll(eventGroupsList.asFlow())
     }
-    emitAll(eventGroupsList.asFlow())
+
   }
 
   companion object {
