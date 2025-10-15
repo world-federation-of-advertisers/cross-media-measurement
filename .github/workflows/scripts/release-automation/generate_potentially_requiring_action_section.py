@@ -1,3 +1,17 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os, json
 
 
@@ -15,11 +29,8 @@ def main():
 
   for pr in pr_data:
     note_refs = _compute_note_refs(pr)
-    for line in pr.get("relnotes", []):
+    for line in pr.get("relnotes", []) + pr.get("breaking_change", []):
       items.append(f"{line.rstrip('.')}. See {note_refs}")
-    # DO_NOT_SUBMIT: remove the "breaking-change" tag used for debugging?
-    for line in pr.get("breaking_change", []):
-      items.append(f"(breaking-change) {line.rstrip('.')}. See {note_refs}")
 
   json_output = json.dumps(items)
   print(json_output)
