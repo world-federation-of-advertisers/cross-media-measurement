@@ -665,9 +665,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
     }
 
@@ -716,9 +716,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
     }
 
@@ -869,9 +869,9 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 2
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
@@ -952,9 +952,9 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 4
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
@@ -1007,9 +1007,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2

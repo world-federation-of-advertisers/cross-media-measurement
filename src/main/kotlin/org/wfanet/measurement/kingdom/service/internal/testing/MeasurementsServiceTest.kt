@@ -97,6 +97,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -145,6 +146,17 @@ private val HMSS_MEASUREMENT = measurement {
     protocolConfig = protocolConfig {
       honestMajorityShareShuffle = ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance()
     }
+  }
+}
+
+private val TRUS_TEE_MEASUREMENT = measurement {
+  providedMeasurementId = PROVIDED_MEASUREMENT_ID
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+    measurementSpecSignatureAlgorithmOid = "2.9999"
+    protocolConfig = protocolConfig { trusTee = ProtocolConfig.TrusTee.getDefaultInstance() }
   }
 }
 
@@ -571,6 +583,57 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     // check the externalFulfillingDuchyId of either "worker1" or "worker2"
     assertThat(requisitions[0].externalFulfillingDuchyId)
       .isEqualTo("worker${fulfillingDuchyIndex + 1}")
+  }
+
+  @Test
+  fun `createMeasurement for TrusTEE measurement succeeds`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      TRUS_TEE_MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
+
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest { this.measurement = measurement }
+      )
+    assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
+    assertThat(createdMeasurement)
+      .ignoringFields(
+        Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+        Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+        Measurement.CREATE_TIME_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.ETAG_FIELD_NUMBER,
+      )
+      .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+                externalMeasurementId = createdMeasurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions.size).isEqualTo(createdMeasurement.dataProvidersCount)
+    // check the externalFulfillingDuchyId of either "worker1" or "worker2"
+    assertThat(requisitions[0].externalFulfillingDuchyId)
+      .isEqualTo(Population.AGGREGATOR_DUCHY.externalDuchyId)
   }
 
   @Test
@@ -3164,6 +3227,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
         Population.WORKER1_DUCHY.externalDuchyId,
         Population.WORKER2_DUCHY.externalDuchyId,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
+      )
+      TrusTeeProtocolConfig.setForTest(
+        ProtocolConfig.TrusTee.getDefaultInstance(),
         Population.AGGREGATOR_DUCHY.externalDuchyId,
       )
     }

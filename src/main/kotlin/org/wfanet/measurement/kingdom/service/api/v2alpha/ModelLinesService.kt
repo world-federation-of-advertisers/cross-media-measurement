@@ -408,7 +408,7 @@ class ModelLinesService(
           }
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
-        this.types += source.filter.typesList
+        this.types += source.filter.typeInList
       }
     }
   }
