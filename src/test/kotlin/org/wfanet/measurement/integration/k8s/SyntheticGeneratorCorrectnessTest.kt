@@ -312,6 +312,9 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
               ),
           )
 
+      println("gateway endpoint: ${TEST_CONFIG.reportingServiceEndpoint}")
+      println("gateway host: ${TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host}")
+
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
