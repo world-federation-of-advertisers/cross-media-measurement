@@ -292,14 +292,14 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
         )
 
-      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+      val getAccessToken = {
         OpenIdProvider(
-            principal.user.issuer,
-            TinkProtoKeysetFormat.parseKeyset(
-              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-              InsecureSecretKeyAccess.get(),
-            ),
-          )
+          principal.user.issuer,
+          TinkProtoKeysetFormat.parseKeyset(
+            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+            InsecureSecretKeyAccess.get(),
+          ),
+        )
           .generateCredentials(
             audience = TEST_CONFIG.reportingPublicApiTarget,
             subject = principal.user.subject,
@@ -310,7 +310,8 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
-          )
+          ).token
+      }
 
       println("gateway endpoint: ${TEST_CONFIG.reportingServiceEndpoint}")
       println("gateway host: ${TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host}")
@@ -329,7 +330,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host,
         reportingGatewayPort = 443,
-        reportingAccessToken = bearerTokenCallCredentials.token,
+        getReportingAccessToken = getAccessToken,
       )
     }
 

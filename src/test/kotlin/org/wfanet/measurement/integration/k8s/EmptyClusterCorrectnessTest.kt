@@ -460,14 +460,14 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
         )
 
-      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+      val getAccessToken = {
         OpenIdProvider(
-            principal.user.issuer,
-            TinkProtoKeysetFormat.parseKeyset(
-              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-              InsecureSecretKeyAccess.get(),
-            ),
-          )
+          principal.user.issuer,
+          TinkProtoKeysetFormat.parseKeyset(
+            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+            InsecureSecretKeyAccess.get(),
+          ),
+        )
           .generateCredentials(
             audience = openIdProvidersConfig.audience,
             subject = principal.user.subject,
@@ -478,7 +478,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
-          )
+          ).token
+      }
 
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,
@@ -494,7 +495,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = gatewayAddress.hostName,
         reportingGatewayPort = gatewayAddress.port,
-        reportingAccessToken = bearerTokenCallCredentials.token,
+        getReportingAccessToken = getAccessToken,
       )
     }
 

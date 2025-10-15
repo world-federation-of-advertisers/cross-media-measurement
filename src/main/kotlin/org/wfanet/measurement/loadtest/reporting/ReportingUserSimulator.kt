@@ -98,7 +98,7 @@ class ReportingUserSimulator(
   private val okHttpReportingClient: OkHttpClient,
   private val reportingGatewayHost: String,
   private val reportingGatewayPort: Int,
-  private val reportingAccessToken: String,
+  private val getReportingAccessToken: () -> String,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
@@ -261,6 +261,8 @@ class ReportingUserSimulator(
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
         .build()
 
+    val accessToken = getReportingAccessToken()
+
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
@@ -275,7 +277,7 @@ class ReportingUserSimulator(
             .toRequestBody()
         )
         .header("Content-Type", "application/json; charset=utf-8")
-        .header("Authorization", "Bearer $reportingAccessToken")
+        .header("Authorization", "Bearer $accessToken")
         .build()
 
     println("create basic report url: ${createBasicReportRequest.url}")
@@ -307,7 +309,7 @@ class ReportingUserSimulator(
       Request.Builder()
         .url(getBasicReportUrl)
         .get()
-        .header("Authorization", "Bearer $reportingAccessToken")
+        .header("Authorization", "Bearer $accessToken")
         .build()
 
     val retrievedBasicReportJson: String =
