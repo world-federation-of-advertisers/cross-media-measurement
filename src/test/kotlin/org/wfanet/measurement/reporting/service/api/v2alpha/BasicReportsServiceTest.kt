@@ -1349,22 +1349,26 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(firstCreateBasicReportRequest) }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.createBasicReport(firstCreateBasicReportRequest)
+      }
 
       val primitiveReportingSetsOnly =
         internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
 
       assertThat(primitiveReportingSetsOnly).hasSize(3)
-      assertThat(primitiveReportingSetsOnly.map {
-        if (it.externalReportingSetId == campaignGroup.externalReportingSetId) {
-          it
-        } else {
-          it.copy {
-            clearExternalReportingSetId()
-            weightedSubsetUnions.clear()
+      assertThat(
+          primitiveReportingSetsOnly.map {
+            if (it.externalReportingSetId == campaignGroup.externalReportingSetId) {
+              it
+            } else {
+              it.copy {
+                clearExternalReportingSetId()
+                weightedSubsetUnions.clear()
+              }
+            }
           }
-        }
-      })
+        )
         .ignoringRepeatedFieldOrder()
         .containsExactly(
           campaignGroup,
@@ -1410,24 +1414,25 @@ class BasicReportsServiceTest {
               filter = "filter"
               cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
               externalCampaignGroupId = campaignGroupKey.reportingSetId
-              composite =  ReportingSetKt.setExpression {
-                operation = ReportingSet.SetExpression.Operation.UNION
-                lhs =
-                  ReportingSetKt.SetExpressionKt.operand {
-                    externalReportingSetId = componentPrimitiveReportingSets[1]
-                  }
-                rhs =
-                  ReportingSetKt.SetExpressionKt.operand {
-                    expression =
-                      ReportingSetKt.setExpression {
-                        operation = ReportingSet.SetExpression.Operation.UNION
-                        lhs =
-                          ReportingSetKt.SetExpressionKt.operand {
-                            externalReportingSetId = componentPrimitiveReportingSets[0]
-                          }
-                      }
-                  }
-              }
+              composite =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.UNION
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      externalReportingSetId = componentPrimitiveReportingSets[1]
+                    }
+                  rhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      expression =
+                        ReportingSetKt.setExpression {
+                          operation = ReportingSet.SetExpression.Operation.UNION
+                          lhs =
+                            ReportingSetKt.SetExpressionKt.operand {
+                              externalReportingSetId = componentPrimitiveReportingSets[0]
+                            }
+                        }
+                    }
+                }
               weightedSubsetUnions += weightedSubsetUnion {
                 primitiveReportingSetBases += primitiveReportingSetBasis {
                   externalReportingSetId = componentPrimitiveReportingSets[0]
@@ -1442,7 +1447,10 @@ class BasicReportsServiceTest {
           }
         )
 
-      assertThat(internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()).hasSize(4)
+      assertThat(
+          internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
+        )
+        .hasSize(4)
 
       val basicReportThatNeedsComposite = basicReport {
         this.campaignGroup = campaignGroupKey.toName()
@@ -1522,7 +1530,9 @@ class BasicReportsServiceTest {
         basicReportId = "b1234"
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(secondCreateBasicReportRequest) }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.createBasicReport(secondCreateBasicReportRequest)
+      }
 
       val updatedReportingSets =
         internalReportingSetsService.streamReportingSets(streamReportingSetsRequest).toList()
@@ -1530,15 +1540,15 @@ class BasicReportsServiceTest {
       assertThat(updatedReportingSets).hasSize(5)
 
       assertThat(
-        updatedReportingSets
-          .filter { it.hasComposite() }
-          .map {
-            it.copy {
-              clearExternalReportingSetId()
-              weightedSubsetUnions.clear()
+          updatedReportingSets
+            .filter { it.hasComposite() }
+            .map {
+              it.copy {
+                clearExternalReportingSetId()
+                weightedSubsetUnions.clear()
+              }
             }
-          }
-      )
+        )
         .ignoringRepeatedFieldOrder()
         .containsExactly(
           unusedCompositeReportingSet.copy {
