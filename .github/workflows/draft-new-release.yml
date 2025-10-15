@@ -12,25 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# DO_NOT_SUBMIT: Remove "Test" token
-name: Test Draft new release
+name: Draft new release
 
 on:
-  # DO_NOT_SUBMIT: remove workflow_call (just for testing)
-  workflow_call:
-    inputs:
-      new-release-tag:
-        type: string
-        required: true
-      milestone-name:
-        type: string
-        description: "Milestone name. Default: stable version of the new-release-tag"
-      target-commitish:
-        type: string
-        description: "Target tag / full commit SHA. Default: latest nightly build."
-      notes-start-commitish:
-        type: string
-        description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
   workflow_dispatch:
     inputs:
       new-release-tag:

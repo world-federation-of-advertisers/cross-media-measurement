@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# DO_NOT_SUBMIT: Remove "Test" token
-name: Test Generate release notes
+name: Generate release notes
 
 on:
   workflow_dispatch:
