@@ -274,6 +274,7 @@ class ReportingUserSimulator(
             )
             .toRequestBody()
         )
+        .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
@@ -282,7 +283,7 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error creating Basic Report: ${response.code} ${response.message}")
+          throw Exception("Error creating Basic Report: ${response.code} ${response.message} ${response.body ?: ""}")
         }
 
         response.body!!.bytes().decodeToString()
