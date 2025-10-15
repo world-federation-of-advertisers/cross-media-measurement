@@ -96,8 +96,9 @@ class ReportingUserSimulator(
     MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
   private val okHttpReportingClient: OkHttpClient,
+  private val reportingGatewayScheme: String = "https",
   private val reportingGatewayHost: String,
-  private val reportingGatewayPort: Int,
+  private val reportingGatewayPort: Int = 443,
   private val getReportingAccessToken: () -> String,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
@@ -255,7 +256,7 @@ class ReportingUserSimulator(
 
     val createBasicReportUrl =
       HttpUrl.Builder()
-        .scheme("https")
+        .scheme(reportingGatewayScheme)
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
