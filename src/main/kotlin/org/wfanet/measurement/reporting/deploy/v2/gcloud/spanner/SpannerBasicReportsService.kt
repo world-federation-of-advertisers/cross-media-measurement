@@ -655,7 +655,7 @@ class SpannerBasicReportsService(
 
     val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
       campaignGroupReportingSetIdByReportingSet
-        .filter { it.key.hasComposite() }
+        .filter { it.key.hasComposite() && it.key.filter.isEmpty() }
         .forEach { put(it.key.composite, it.value) }
     }
 
