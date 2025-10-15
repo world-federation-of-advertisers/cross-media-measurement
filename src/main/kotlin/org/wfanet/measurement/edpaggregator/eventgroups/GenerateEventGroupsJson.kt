@@ -27,7 +27,7 @@ class GenerateEventGroupsJson : Runnable {
         repeat(totalGroups) { i ->
             val eventGroup = eventGroup {
                 eventGroupReferenceId = "test-eg-$i"
-                measurementConsumer = "measurementConsumers/test-consumer"
+                measurementConsumer = "measurementConsumers/Rcn7fKd25C8"
                 dataAvailabilityInterval = interval {
                     startTime = timestamp { seconds = start.epochSecond }
                     endTime = timestamp { seconds = end.epochSecond }
@@ -46,7 +46,7 @@ class GenerateEventGroupsJson : Runnable {
         }
 
         val json = JsonFormat.printer().includingDefaultValueFields().print(eventGroupsBuilder)
-        val file = File(System.getProperty("user.dir"), "event_groups_10000.json")
+        val file = File(System.getProperty("user.dir"), "event_groups_2_10000.json")
         println("----- path: ${file.path}")
         file.writeText(json)
 
