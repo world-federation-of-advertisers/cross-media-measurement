@@ -278,6 +278,8 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $reportingAccessToken")
         .build()
 
+    println("create basic report url: ${createBasicReportRequest.url}")
+
     val createdBasicReportJson: String =
       try {
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
