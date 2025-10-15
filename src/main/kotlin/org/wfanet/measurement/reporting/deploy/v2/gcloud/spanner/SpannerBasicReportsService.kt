@@ -105,6 +105,7 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
+    // TODO(@tristanvuong2021): Transform ReportResult into ResultGroups
     return basicReportResult.basicReport.copy {
       campaignGroupDisplayName =
         getCampaignGroup(
@@ -164,6 +165,7 @@ class SpannerBasicReportsService(
 
     return listBasicReportsResponse {
       if (basicReports.size == pageSize + 1) {
+        // TODO(@tristanvuong2021): Transform ReportResult into ResultGroups
         this.basicReports +=
           basicReports.subList(0, basicReports.lastIndex).map {
             it.copy {
@@ -190,6 +192,7 @@ class SpannerBasicReportsService(
             }
         }
       } else {
+        // TODO(@tristanvuong2021): Transform ReportResult into ResultGroups
         this.basicReports +=
           basicReports.map {
             it.copy {
