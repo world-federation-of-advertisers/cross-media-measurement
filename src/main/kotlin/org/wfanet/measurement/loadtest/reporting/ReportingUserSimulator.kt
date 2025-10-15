@@ -313,7 +313,7 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message}")
+          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message} ${response.body ?: ""}")
         }
 
         response.body!!.bytes().decodeToString()
