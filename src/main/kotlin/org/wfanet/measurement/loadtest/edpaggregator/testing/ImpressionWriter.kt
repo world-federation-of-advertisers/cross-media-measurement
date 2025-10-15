@@ -34,6 +34,7 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import java.time.ZoneOffset
 import com.google.type.interval
+import java.util.*
 
 /**
  * A class responsible for writing labeled impression data to storage with encryption.
@@ -96,12 +97,18 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
+      val randomId = UUID.randomUUID()
+      logger.info("impressionsBasePath: $impressionsBasePath")
       val impressionsBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/$ds/impressions"
+        logger.info("impressionsBasePath IS NOT null")
+        "$impressionsBasePath/2022-01-01/impressions-${randomId}"
       } else {
+        logger.info("impressionsBasePath IS NULL")
         "ds/$ds/$eventGroupPath/impressions"
       }
+      logger.info("Impressions blob key: $impressionsBlobKey")
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
+      logger.info("Impressions file uri: $impressionsFileUri")
       val encryptedStorage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
 
@@ -117,10 +124,13 @@ class ImpressionsWriter(
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
       val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/$ds/metadata.binpb"
+        logger.info("Metadata single day")
+        "$impressionsBasePath/2022-01-01/metadata-$randomId.binpb"
       } else {
+        logger.info("Metadata wrong")
         "ds/$ds/$eventGroupPath/metadata.binpb"
       }
+      logger.info("Impressions MetaDataBlobKey: $impressionsMetaDataBlobKey")
 
       val impressionsMetadataFileUri =
         "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
