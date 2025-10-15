@@ -283,10 +283,10 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error creating Basic Report: ${response.code} ${response.message} ${response.body ?: ""}")
+          throw Exception("Error creating Basic Report: ${response.code} ${response.message} ${response.body?.string() ?: ""}")
         }
 
-        response.body!!.bytes().decodeToString()
+        response.body!!.string()
       } catch (e: StatusException) {
         throw Exception("Error creating Basic Report", e)
       }
@@ -313,10 +313,10 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message} ${response.body ?: ""}")
+          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message} ${response.body?.string() ?: ""}")
         }
 
-        response.body!!.bytes().decodeToString()
+        response.body!!.string()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }
