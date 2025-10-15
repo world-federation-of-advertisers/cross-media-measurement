@@ -94,7 +94,9 @@ fun buildResultGroups(
 
       // If the value is blank, it wouldn't be used
       val reportingUnitReportingSetId =
-        if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
+        if (reportingUnitDataProviderIds.size == 1) {
+          primitiveReportingSetByDataProviderId.getValue(reportingUnitDataProviderIds.first()).externalReportingSetId
+        } else if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
           (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasNonCumulative() ||
           resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasCumulative())) {
           compositeReportingSetIdBySetExpression.getValue(
@@ -141,21 +143,28 @@ fun buildResultGroups(
               resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique())
 
         val allComponentsReportingSetId =
-          if (hasUniqueMetricSet) {
+          if (reportingUnitDataProviderIds.size == 1) {
+            null
+          } else if (hasUniqueMetricSet) {
             compositeReportingSetIdBySetExpression.getValue(
               buildUnionSetExpression(
                 reportingUnitDataProviderIds
                   .map { primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId  }))
           } else {
-            ""
+            null
           }
 
         for (dataProviderId in reportingUnitDataProviderIds) {
           val primitiveReportingSet = primitiveReportingSetByDataProviderId.getValue(dataProviderId)
           val componentReportingSetId = primitiveReportingSet.externalReportingSetId
           val allComponentsWithoutCurrentComponentReportingSetId =
-            // If there is no UniqueMetricSet requested, the externalReportingSetId may not exist
-            if (hasUniqueMetricSet) {
+            if (reportingUnitDataProviderIds.size == 2) {
+              primitiveReportingSetByDataProviderId.getValue(
+                reportingUnitDataProviderIds.first { it != dataProviderId }).externalReportingSetId
+              // If there is no UniqueMetricSet requested, the externalReportingSetId may not exist
+            } else if (reportingUnitDataProviderIds.size == 1) {
+              null
+            } else if (hasUniqueMetricSet) {
               compositeReportingSetIdBySetExpression.getValue(
                 buildUnionSetExpression(
                   reportingUnitDataProviderIds
@@ -163,7 +172,7 @@ fun buildResultGroups(
                     .map { primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId }
                 ))
             } else {
-              ""
+              null
             }
           put(dataProviderId, ComponentReportingSetIds(
             componentReportingSetId = componentReportingSetId,
@@ -220,6 +229,10 @@ fun buildResultGroups(
             }
 
             metricSet = ResultGroupKt.metricSet {
+              if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
+                populationSize = reportingWindowResults.value.populationSize
+              }
+
               if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
                 reportingUnit = buildReportingUnitMetricSet(
                   resultGroupSpec.resultGroupMetricSpec.reportingUnit,
@@ -363,7 +376,7 @@ private fun buildReportingUnitMetricSet(
 
     if (reportingUnitMetricSetSpec.hasCumulative()) {
       cumulative = buildBasicMetricSet(
-        reportingUnitMetricSetSpec.nonCumulative,
+        reportingUnitMetricSetSpec.cumulative,
         reportingUnitDenoisedResultValues.cumulativeResults,
       )
     }
@@ -403,14 +416,14 @@ private fun buildComponentMetricSet(
       )
     }
 
-    if (componentMetricSetSpec.hasNonCumulativeUnique()) {
+    if (componentMetricSetSpec.hasNonCumulativeUnique() && componentReportingSetIds.reportingUnitReportingSetId != null && componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null) {
       nonCumulativeUnique = ResultGroupKt.MetricSetKt.uniqueMetricSet {
         reach = reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitReportingSetId).nonCumulativeResults.reach -
           reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId).nonCumulativeResults.reach
       }
     }
 
-    if (componentMetricSetSpec.hasCumulativeUnique()) {
+    if (componentMetricSetSpec.hasCumulativeUnique() && componentReportingSetIds.reportingUnitReportingSetId != null && componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null) {
       cumulativeUnique = ResultGroupKt.MetricSetKt.uniqueMetricSet {
         reach = reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitReportingSetId).cumulativeResults.reach -
           reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId).cumulativeResults.reach
@@ -503,6 +516,6 @@ private data class ReportingWindowResultValues(
 
 private data class ComponentReportingSetIds(
   val componentReportingSetId: String,
-  val reportingUnitReportingSetId: String,
-  val reportingUnitWithoutComponentReportingSetId: String,
+  val reportingUnitReportingSetId: String?,
+  val reportingUnitWithoutComponentReportingSetId: String?,
 )
