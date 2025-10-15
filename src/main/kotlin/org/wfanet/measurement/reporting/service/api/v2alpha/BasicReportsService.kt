@@ -514,9 +514,7 @@ class BasicReportsService(
     val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
       for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
         val eventGroupKey = EventGroupKey.fromName(eventGroupName)
-        val eventGroupsList = getOrPut(eventGroupKey!!.parentKey.toName()) {
-          mutableListOf()
-        }
+        val eventGroupsList = getOrPut(eventGroupKey!!.parentKey.toName()) { mutableListOf() }
         eventGroupsList.add(eventGroupName)
       }
     }
@@ -596,9 +594,7 @@ class BasicReportsService(
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
       campaignGroupReportingSetMap
         .filter { it.key.hasComposite() }
-        .forEach {
-          put(it.key.composite, it.value.name)
-        }
+        .forEach { put(it.key.composite, it.value.name) }
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)

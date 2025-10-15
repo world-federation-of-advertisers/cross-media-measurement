@@ -48,7 +48,6 @@ import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
-import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
@@ -109,9 +108,10 @@ class SpannerBasicReportsService(
     return basicReportResult.basicReport.copy {
       campaignGroupDisplayName =
         getCampaignGroup(
-          request.cmmsMeasurementConsumerId,
-          basicReportResult.basicReport.externalCampaignGroupId,
-        ).displayName
+            request.cmmsMeasurementConsumerId,
+            basicReportResult.basicReport.externalCampaignGroupId,
+          )
+          .displayName
     }
   }
 
@@ -465,10 +465,11 @@ class SpannerBasicReportsService(
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
-    val campaignGroup = getCampaignGroup(
-      request.basicReport.cmmsMeasurementConsumerId,
-      request.basicReport.externalCampaignGroupId,
-    )
+    val campaignGroup =
+      getCampaignGroup(
+        request.basicReport.cmmsMeasurementConsumerId,
+        request.basicReport.externalCampaignGroupId,
+      )
 
     return request.basicReport.copy {
       campaignGroupDisplayName = campaignGroup.displayName
@@ -581,13 +582,16 @@ class SpannerBasicReportsService(
       postgresReadContext = postgresClient.singleUse()
 
       ReportingSetReader(postgresReadContext)
-        .readReportingSets(streamReportingSetsRequest {
-          filter = StreamReportingSetsRequestKt.filter {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalCampaignGroupId = externalCampaignGroupId
+        .readReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                this.externalCampaignGroupId = externalCampaignGroupId
+              }
+            limit = Int.MAX_VALUE
           }
-          limit = Int.MAX_VALUE
-        })
+        )
         .withSerializableErrorRetries()
         .map { it.reportingSet }
         .toList()
@@ -604,25 +608,26 @@ class SpannerBasicReportsService(
   ): List<ResultGroup> {
     val campaignGroupReportingSetIdByReportingSet: Map<ReportingSet, String> =
       listReportingSetsByCampaignGroup(
-        basicReport.cmmsMeasurementConsumerId,
-        basicReport.externalCampaignGroupId,
-      ).associate {
-        it.copy {
-          clearCmmsMeasurementConsumerId()
-          clearExternalReportingSetId()
-          clearExternalCampaignGroupId()
-          weightedSubsetUnions.clear()
-        } to it.externalReportingSetId
-      }
-
-    val eventGroupKeysByDataProviderId: Map<String, MutableList<ReportingSet.Primitive.EventGroupKey>> = buildMap {
-      for (eventGroupKey in campaignGroup.primitive.eventGroupKeysList) {
-        val eventGroupsList = getOrPut(eventGroupKey.cmmsDataProviderId) {
-          mutableListOf()
+          basicReport.cmmsMeasurementConsumerId,
+          basicReport.externalCampaignGroupId,
+        )
+        .associate {
+          it.copy {
+            clearCmmsMeasurementConsumerId()
+            clearExternalReportingSetId()
+            clearExternalCampaignGroupId()
+            weightedSubsetUnions.clear()
+          } to it.externalReportingSetId
         }
-        eventGroupsList.add(eventGroupKey)
+
+    val eventGroupKeysByDataProviderId:
+      Map<String, MutableList<ReportingSet.Primitive.EventGroupKey>> =
+      buildMap {
+        for (eventGroupKey in campaignGroup.primitive.eventGroupKeysList) {
+          val eventGroupsList = getOrPut(eventGroupKey.cmmsDataProviderId) { mutableListOf() }
+          eventGroupsList.add(eventGroupKey)
+        }
       }
-    }
 
     val primitiveReportingSetByDataProviderId: Map<String, ReportingSet> = buildMap {
       for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
@@ -634,9 +639,13 @@ class SpannerBasicReportsService(
         }
 
         if (campaignGroupReportingSetIdByReportingSet.containsKey(reportingSet)) {
-          put(dataProviderId, reportingSet.copy {
-            externalReportingSetId = campaignGroupReportingSetIdByReportingSet.getValue(reportingSet)
-          })
+          put(
+            dataProviderId,
+            reportingSet.copy {
+              externalReportingSetId =
+                campaignGroupReportingSetIdByReportingSet.getValue(reportingSet)
+            },
+          )
         }
       }
     }
@@ -644,12 +653,15 @@ class SpannerBasicReportsService(
     val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
       campaignGroupReportingSetIdByReportingSet
         .filter { it.key.hasComposite() }
-        .forEach {
-          put(it.key.composite, it.value)
-        }
+        .forEach { put(it.key.composite, it.value) }
     }
 
-    return buildResultGroups(basicReport, reportResult, primitiveReportingSetByDataProviderId, compositeReportingSetIdBySetExpression)
+    return buildResultGroups(
+      basicReport,
+      reportResult,
+      primitiveReportingSetByDataProviderId,
+      compositeReportingSetIdBySetExpression,
+    )
   }
 
   companion object {

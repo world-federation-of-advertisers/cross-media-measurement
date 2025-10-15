@@ -52,83 +52,103 @@ fun buildResultGroups(
   primitiveReportingSetByDataProviderId: Map<String, ReportingSet>,
   compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
 ): List<ResultGroup> {
-  val reportingWindowResultValuesByResultGroupSpecKey: Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> =
+  val reportingWindowResultValuesByResultGroupSpecKey:
+    Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> =
     buildReportingWindowResultValuesByResultGroupSpecKey(basicReport, reportResult)
 
   // If there is no custom ReportingImpressionQualificationFilter, this will be unused so the value
   // doesn't matter.
   var customReportingImpressionQualificationFilter: ReportingImpressionQualificationFilter =
-    reportingImpressionQualificationFilter {  }
+    reportingImpressionQualificationFilter {}
 
-  val reportingImpressionQualificationFilterByExternalId: Map<String, ReportingImpressionQualificationFilter> = buildMap {
-    for (impressionQualificationFilter in basicReport.details.impressionQualificationFiltersList) {
-      if (impressionQualificationFilter.externalImpressionQualificationFilterId.isEmpty()) {
-        customReportingImpressionQualificationFilter = impressionQualificationFilter
-      } else {
-        put(impressionQualificationFilter.externalImpressionQualificationFilterId, impressionQualificationFilter)
+  val reportingImpressionQualificationFilterByExternalId:
+    Map<String, ReportingImpressionQualificationFilter> =
+    buildMap {
+      for (impressionQualificationFilter in
+        basicReport.details.impressionQualificationFiltersList) {
+        if (impressionQualificationFilter.externalImpressionQualificationFilterId.isEmpty()) {
+          customReportingImpressionQualificationFilter = impressionQualificationFilter
+        } else {
+          put(
+            impressionQualificationFilter.externalImpressionQualificationFilterId,
+            impressionQualificationFilter,
+          )
+        }
       }
     }
-  }
 
-  val reportStartTimestamp: Timestamp = basicReport.details.reportingInterval.reportStart.toTimestamp()
+  val reportStartTimestamp: Timestamp =
+    basicReport.details.reportingInterval.reportStart.toTimestamp()
 
   return buildList {
     for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
-      val reportingUnitDataProviderIds = resultGroupSpec.reportingUnit.dataProviderKeys.dataProviderKeysList.map { it.cmmsDataProviderId }
+      val reportingUnitDataProviderIds =
+        resultGroupSpec.reportingUnit.dataProviderKeys.dataProviderKeysList.map {
+          it.cmmsDataProviderId
+        }
 
       // ReportingUnitSummary will be the same for every Result in the ResultGroup.
-      val reportingUnitSummary = ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
-        for (dataProviderId in reportingUnitDataProviderIds) {
-          reportingUnitComponentSummary += ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
-            cmmsDataProviderId = dataProviderId
-            val primitiveReportingSet = primitiveReportingSetByDataProviderId.getValue(dataProviderId)
-            for (eventGroupKey in primitiveReportingSet.primitive.eventGroupKeysList) {
-              eventGroupSummaries += ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt.eventGroupSummary {
-                cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-                cmmsEventGroupId = eventGroupKey.cmmsEventGroupId
+      val reportingUnitSummary =
+        ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+          for (dataProviderId in reportingUnitDataProviderIds) {
+            reportingUnitComponentSummary +=
+              ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                cmmsDataProviderId = dataProviderId
+                val primitiveReportingSet =
+                  primitiveReportingSetByDataProviderId.getValue(dataProviderId)
+                for (eventGroupKey in primitiveReportingSet.primitive.eventGroupKeysList) {
+                  eventGroupSummaries +=
+                    ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                      .eventGroupSummary {
+                        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+                        cmmsEventGroupId = eventGroupKey.cmmsEventGroupId
+                      }
+                }
               }
-            }
           }
         }
-      }
 
       // If the value is blank, it wouldn't be used
       val reportingUnitReportingSetId =
         if (reportingUnitDataProviderIds.size == 1) {
-          primitiveReportingSetByDataProviderId.getValue(reportingUnitDataProviderIds.first()).externalReportingSetId
-        } else if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
-          (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasNonCumulative() ||
-          resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasCumulative())) {
+          primitiveReportingSetByDataProviderId
+            .getValue(reportingUnitDataProviderIds.first())
+            .externalReportingSetId
+        } else if (
+          resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
+            (resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasNonCumulative() ||
+              resultGroupSpec.resultGroupMetricSpec.reportingUnit.hasCumulative())
+        ) {
           compositeReportingSetIdBySetExpression.getValue(
-          buildUnionSetExpression(
-          reportingUnitDataProviderIds
-            .map { primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId  }))
+            buildUnionSetExpression(
+              reportingUnitDataProviderIds.map {
+                primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId
+              }
+            )
+          )
         } else {
           ""
         }
 
-
       // ExternalReportingSetIDs for StackedIncrementalReach.
       val incrementalReportingSetIds: List<String> = buildList {
-        if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
-          resultGroupSpec.resultGroupMetricSpec.reportingUnit.stackedIncrementalReach
+        if (
+          resultGroupSpec.resultGroupMetricSpec.hasReportingUnit() &&
+            resultGroupSpec.resultGroupMetricSpec.reportingUnit.stackedIncrementalReach
         ) {
-          val firstReportingSetId = primitiveReportingSetByDataProviderId
-            .getValue(reportingUnitDataProviderIds.first())
-            .externalReportingSetId
+          val firstReportingSetId =
+            primitiveReportingSetByDataProviderId
+              .getValue(reportingUnitDataProviderIds.first())
+              .externalReportingSetId
 
           add(firstReportingSetId)
 
           val primitiveReportingSetIds = mutableListOf<String>()
           primitiveReportingSetIds.add(firstReportingSetId)
-          for (dataProviderId in reportingUnitDataProviderIds.subList(
-            1,
-            reportingUnitDataProviderIds.size
-          )) {
+          for (dataProviderId in
+            reportingUnitDataProviderIds.subList(1, reportingUnitDataProviderIds.size)) {
             primitiveReportingSetIds.add(
-              primitiveReportingSetByDataProviderId
-                .getValue(dataProviderId)
-                .externalReportingSetId
+              primitiveReportingSetByDataProviderId.getValue(dataProviderId).externalReportingSetId
             )
             val setExpression = buildUnionSetExpression(primitiveReportingSetIds)
             add(compositeReportingSetIdBySetExpression.getValue(setExpression))
@@ -136,126 +156,162 @@ fun buildResultGroups(
         }
       }
 
-      val componentReportingSetIdsByDataProviderId: Map<String, ComponentReportingSetIds> = buildMap {
-        val hasUniqueMetricSet =
-          resultGroupSpec.resultGroupMetricSpec.hasComponent() &&
-            (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique() ||
-              resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique())
+      val componentReportingSetIdsByDataProviderId: Map<String, ComponentReportingSetIds> =
+        buildMap {
+          val hasUniqueMetricSet =
+            resultGroupSpec.resultGroupMetricSpec.hasComponent() &&
+              (resultGroupSpec.resultGroupMetricSpec.component.hasNonCumulativeUnique() ||
+                resultGroupSpec.resultGroupMetricSpec.component.hasCumulativeUnique())
 
-        val allComponentsReportingSetId =
-          if (reportingUnitDataProviderIds.size == 1) {
-            null
-          } else if (hasUniqueMetricSet) {
-            compositeReportingSetIdBySetExpression.getValue(
-              buildUnionSetExpression(
-                reportingUnitDataProviderIds
-                  .map { primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId  }))
-          } else {
-            null
-          }
-
-        for (dataProviderId in reportingUnitDataProviderIds) {
-          val primitiveReportingSet = primitiveReportingSetByDataProviderId.getValue(dataProviderId)
-          val componentReportingSetId = primitiveReportingSet.externalReportingSetId
-          val allComponentsWithoutCurrentComponentReportingSetId =
-            if (reportingUnitDataProviderIds.size == 2) {
-              primitiveReportingSetByDataProviderId.getValue(
-                reportingUnitDataProviderIds.first { it != dataProviderId }).externalReportingSetId
-              // If there is no UniqueMetricSet requested, the externalReportingSetId may not exist
-            } else if (reportingUnitDataProviderIds.size == 1) {
+          val allComponentsReportingSetId =
+            if (reportingUnitDataProviderIds.size == 1) {
               null
             } else if (hasUniqueMetricSet) {
               compositeReportingSetIdBySetExpression.getValue(
                 buildUnionSetExpression(
-                  reportingUnitDataProviderIds
-                    .filter { it != dataProviderId }
-                    .map { primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId }
-                ))
+                  reportingUnitDataProviderIds.map {
+                    primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId
+                  }
+                )
+              )
             } else {
               null
             }
-          put(dataProviderId, ComponentReportingSetIds(
-            componentReportingSetId = componentReportingSetId,
-            reportingUnitReportingSetId = allComponentsReportingSetId,
-            reportingUnitWithoutComponentReportingSetId = allComponentsWithoutCurrentComponentReportingSetId,
-          ))
+
+          for (dataProviderId in reportingUnitDataProviderIds) {
+            val primitiveReportingSet =
+              primitiveReportingSetByDataProviderId.getValue(dataProviderId)
+            val componentReportingSetId = primitiveReportingSet.externalReportingSetId
+            val allComponentsWithoutCurrentComponentReportingSetId =
+              if (reportingUnitDataProviderIds.size == 2) {
+                primitiveReportingSetByDataProviderId
+                  .getValue(reportingUnitDataProviderIds.first { it != dataProviderId })
+                  .externalReportingSetId
+                // If there is no UniqueMetricSet requested, the externalReportingSetId may not
+                // exist
+              } else if (reportingUnitDataProviderIds.size == 1) {
+                null
+              } else if (hasUniqueMetricSet) {
+                compositeReportingSetIdBySetExpression.getValue(
+                  buildUnionSetExpression(
+                    reportingUnitDataProviderIds
+                      .filter { it != dataProviderId }
+                      .map {
+                        primitiveReportingSetByDataProviderId.getValue(it).externalReportingSetId
+                      }
+                  )
+                )
+              } else {
+                null
+              }
+            put(
+              dataProviderId,
+              ComponentReportingSetIds(
+                componentReportingSetId = componentReportingSetId,
+                reportingUnitReportingSetId = allComponentsReportingSetId,
+                reportingUnitWithoutComponentReportingSetId =
+                  allComponentsWithoutCurrentComponentReportingSetId,
+              ),
+            )
+          }
         }
-      }
 
       val resultGroup = resultGroup {
         title = resultGroupSpec.title
 
-        val reportingWindowResultValuesMap: Map<ReportingWindowResultKey, ReportingWindowResultValues> =
-          reportingWindowResultValuesByResultGroupSpecKey.getValue(ResultGroupSpecKey(
-            metricFrequencySpec = resultGroupSpec.metricFrequency,
-            groupingFields = resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList,
-            eventFilters = resultGroupSpec.dimensionSpec.filtersList,
-          ))
+        val reportingWindowResultValuesMap:
+          Map<ReportingWindowResultKey, ReportingWindowResultValues> =
+          reportingWindowResultValuesByResultGroupSpecKey.getValue(
+            ResultGroupSpecKey(
+              metricFrequencySpec = resultGroupSpec.metricFrequency,
+              groupingFields = resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList,
+              eventFilters = resultGroupSpec.dimensionSpec.filtersList,
+            )
+          )
 
         for (reportingWindowResults in reportingWindowResultValuesMap.entries) {
-          results += ResultGroupKt.result {
-            metadata = ResultGroupKt.metricMetadata {
-              this.reportingUnitSummary = reportingUnitSummary
+          results +=
+            ResultGroupKt.result {
+              metadata =
+                ResultGroupKt.metricMetadata {
+                  this.reportingUnitSummary = reportingUnitSummary
 
-              // If the windowStartDate is empty, then there are no non-cumulative metrics.
-              if (reportingWindowResults.key.windowStartDate.day != 0) {
-                nonCumulativeMetricStartTime = basicReport.details.reportingInterval.reportStart.copy {
-                  day = reportingWindowResults.key.windowStartDate.day
-                  month = reportingWindowResults.key.windowStartDate.month
-                  year = reportingWindowResults.key.windowStartDate.year
-                }.toTimestamp()
-              }
+                  // If the windowStartDate is empty, then there are no non-cumulative metrics.
+                  if (reportingWindowResults.key.windowStartDate.day != 0) {
+                    nonCumulativeMetricStartTime =
+                      basicReport.details.reportingInterval.reportStart
+                        .copy {
+                          day = reportingWindowResults.key.windowStartDate.day
+                          month = reportingWindowResults.key.windowStartDate.month
+                          year = reportingWindowResults.key.windowStartDate.year
+                        }
+                        .toTimestamp()
+                  }
 
-              cumulativeMetricStartTime = reportStartTimestamp
+                  cumulativeMetricStartTime = reportStartTimestamp
 
-              metricEndTime = basicReport.details.reportingInterval.reportStart.copy {
-                day = reportingWindowResults.key.windowEndDate.day
-                month = reportingWindowResults.key.windowEndDate.month
-                year = reportingWindowResults.key.windowEndDate.year
-              }.toTimestamp()
+                  metricEndTime =
+                    basicReport.details.reportingInterval.reportStart
+                      .copy {
+                        day = reportingWindowResults.key.windowEndDate.day
+                        month = reportingWindowResults.key.windowEndDate.month
+                        year = reportingWindowResults.key.windowEndDate.year
+                      }
+                      .toTimestamp()
 
-              metricFrequencySpec = resultGroupSpec.metricFrequency
+                  metricFrequencySpec = resultGroupSpec.metricFrequency
 
-              dimensionSpecSummary = ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                groupings += reportingWindowResults.key.groupings
-                filters += resultGroupSpec.dimensionSpec.filtersList
-              }
+                  dimensionSpecSummary =
+                    ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                      groupings += reportingWindowResults.key.groupings
+                      filters += resultGroupSpec.dimensionSpec.filtersList
+                    }
 
-              filter = if (reportingWindowResults.key.externalImpressionQualificationFilterId != null) {
-                reportingImpressionQualificationFilterByExternalId.getValue(reportingWindowResults.key.externalImpressionQualificationFilterId!!)
-              } else {
-                customReportingImpressionQualificationFilter
-              }
-            }
+                  filter =
+                    if (
+                      reportingWindowResults.key.externalImpressionQualificationFilterId != null
+                    ) {
+                      reportingImpressionQualificationFilterByExternalId.getValue(
+                        reportingWindowResults.key.externalImpressionQualificationFilterId!!
+                      )
+                    } else {
+                      customReportingImpressionQualificationFilter
+                    }
+                }
 
-            metricSet = ResultGroupKt.metricSet {
-              if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
-                populationSize = reportingWindowResults.value.populationSize
-              }
+              metricSet =
+                ResultGroupKt.metricSet {
+                  if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
+                    populationSize = reportingWindowResults.value.populationSize
+                  }
 
-              if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
-                reportingUnit = buildReportingUnitMetricSet(
-                  resultGroupSpec.resultGroupMetricSpec.reportingUnit,
-                  reportingUnitReportingSetId,
-                  incrementalReportingSetIds,
-                  reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                )
-              }
+                  if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
+                    reportingUnit =
+                      buildReportingUnitMetricSet(
+                        resultGroupSpec.resultGroupMetricSpec.reportingUnit,
+                        reportingUnitReportingSetId,
+                        incrementalReportingSetIds,
+                        reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
+                      )
+                  }
 
-              if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
-                for (dataProviderId in reportingUnitDataProviderIds) {
-                  components += ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
-                    key = dataProviderId
-                    value = buildComponentMetricSet(
-                      resultGroupSpec.resultGroupMetricSpec.component,
-                      componentReportingSetIdsByDataProviderId.getValue(dataProviderId),
-                      reportingWindowResults.value.reportResultValuesByExternalReportingSetId,
-                    )
+                  if (resultGroupSpec.resultGroupMetricSpec.hasComponent()) {
+                    for (dataProviderId in reportingUnitDataProviderIds) {
+                      components +=
+                        ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                          key = dataProviderId
+                          value =
+                            buildComponentMetricSet(
+                              resultGroupSpec.resultGroupMetricSpec.component,
+                              componentReportingSetIdsByDataProviderId.getValue(dataProviderId),
+                              reportingWindowResults.value
+                                .reportResultValuesByExternalReportingSetId,
+                            )
+                        }
+                    }
                   }
                 }
-              }
             }
-          }
         }
       }
 
@@ -274,20 +330,21 @@ private fun buildReportingWindowResultValuesByResultGroupSpecKey(
   basicReport: BasicReport,
   reportResult: ReportResult,
 ): Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> {
-  val totalMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec {
-    total = true
-  }
+  val totalMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec { total = true }
 
   // ReportResult only has a weekly enum and not the DayOfWeek. Without that information, the
   // assumption is that the DayOfWeek is the same for all weekly frequencies.
-  var weeklyMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec {  }
+  var weeklyMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec {}
   for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
     if (resultGroupSpec.metricFrequency.hasWeekly()) {
       weeklyMetricFrequencySpec = resultGroupSpec.metricFrequency
     }
   }
 
-  return buildMap<ResultGroupSpecKey, MutableMap<ReportingWindowResultKey, ReportingWindowResultValues>> {
+  return buildMap<
+    ResultGroupSpecKey,
+    MutableMap<ReportingWindowResultKey, ReportingWindowResultValues>,
+  > {
     for (reportingSetResult in reportResult.reportingSetResultsList) {
       for (reportingWindowResult in reportingSetResult.reportingWindowResultsList) {
         val externalImpressionQualificationFilterId: String? =
@@ -298,7 +355,7 @@ private fun buildReportingWindowResultValuesByResultGroupSpecKey(
           }
 
         val metricFrequencySpec: MetricFrequencySpec =
-          when(reportingSetResult.metricFrequencyType) {
+          when (reportingSetResult.metricFrequencyType) {
             ReportResult.MetricFrequencyType.TOTAL -> {
               totalMetricFrequencySpec
             }
@@ -306,39 +363,50 @@ private fun buildReportingWindowResultValuesByResultGroupSpecKey(
               weeklyMetricFrequencySpec
             }
             else -> {
-              throw IllegalStateException("Unknown metric frequency type: ${reportingSetResult.metricFrequencyType}")
+              throw IllegalStateException(
+                "Unknown metric frequency type: ${reportingSetResult.metricFrequencyType}"
+              )
             }
           }
 
         // This isn't unique to a ResultGroupSpec because it doesn't include the ReportingUnit,
         // but it is unique enough to get the results for every ResultGroupSpec that matches this.
-        val resultGroupSpecKey = ResultGroupSpecKey(
-          metricFrequencySpec = metricFrequencySpec,
-          groupingFields = reportingSetResult.groupingsList.map { it.path },
-          eventFilters = reportingSetResult.eventFiltersList,
-        )
+        val resultGroupSpecKey =
+          ResultGroupSpecKey(
+            metricFrequencySpec = metricFrequencySpec,
+            groupingFields = reportingSetResult.groupingsList.map { it.path },
+            eventFilters = reportingSetResult.eventFiltersList,
+          )
 
-        val reportingWindowResultMap: MutableMap<ReportingWindowResultKey, ReportingWindowResultValues> = getOrPut(resultGroupSpecKey) { mutableMapOf() }
+        val reportingWindowResultMap:
+          MutableMap<ReportingWindowResultKey, ReportingWindowResultValues> =
+          getOrPut(resultGroupSpecKey) { mutableMapOf() }
 
-        val key = ReportingWindowResultKey(
-          groupings = reportingSetResult.groupingsList,
-          windowStartDate = reportingWindowResult.windowStartDate,
-          windowEndDate = reportingWindowResult.windowEndDate,
-          externalImpressionQualificationFilterId = externalImpressionQualificationFilterId,
-        )
+        val key =
+          ReportingWindowResultKey(
+            groupings = reportingSetResult.groupingsList,
+            windowStartDate = reportingWindowResult.windowStartDate,
+            windowEndDate = reportingWindowResult.windowEndDate,
+            externalImpressionQualificationFilterId = externalImpressionQualificationFilterId,
+          )
 
-        val value = ReportingWindowResultValues(
-          populationSize = reportingSetResult.populationSize,
-          reportResultValuesByExternalReportingSetId = mutableMapOf(),
-        )
+        val value =
+          ReportingWindowResultValues(
+            populationSize = reportingSetResult.populationSize,
+            reportResultValuesByExternalReportingSetId = mutableMapOf(),
+          )
 
-        val reportingWindowResultValues: ReportingWindowResultValues = reportingWindowResultMap.getOrPut(key) { value }
+        val reportingWindowResultValues: ReportingWindowResultValues =
+          reportingWindowResultMap.getOrPut(key) { value }
 
-        if (reportingWindowResultValues.populationSize == 0 && reportingSetResult.populationSize > 0) {
+        if (
+          reportingWindowResultValues.populationSize == 0 && reportingSetResult.populationSize > 0
+        ) {
           reportingWindowResultValues.populationSize = reportingSetResult.populationSize
         }
 
-        reportingWindowResultValues.reportResultValuesByExternalReportingSetId[reportingSetResult.externalReportingSetId] =
+        reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
+            reportingSetResult.externalReportingSetId] =
           reportingWindowResult.denoisedReportResultValues
       }
     }
@@ -349,36 +417,42 @@ private fun buildReportingWindowResultValuesByResultGroupSpecKey(
  * Builds a [ResultGroup.MetricSet.ReportingUnitMetricSet] from a
  * [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] and denoised values
  *
- * @param reportingUnitMetricSetSpec [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] specifies which fields to set.
- * @param reportingUnitReportingSetId String representing ExternalReportingSetID for the ReportingUnit. Is empty if it isn't used.
+ * @param reportingUnitMetricSetSpec [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] specifies
+ *   which fields to set.
+ * @param reportingUnitReportingSetId String representing ExternalReportingSetID for the
+ *   ReportingUnit. Is empty if it isn't used.
  * @param incrementalReportingSetIds List of Strings representing ExternalReportingSetIDs starting
  *   with the ID of the Primitive ReportingSet for the first component of the ReportingUnit, then
  *   the ID of the Composite ReportingSet for the first two components of the ReportingUnit, etc.,
- *   until the ID of the Composite ReportingSet for the entire ReportingUnit. Is empty if it isn't used.
+ *   until the ID of the Composite ReportingSet for the entire ReportingUnit. Is empty if it isn't
+ *   used.
  * @param reportResultValuesByExternalReportingSetId Map containing denoised values.
  */
 private fun buildReportingUnitMetricSet(
   reportingUnitMetricSetSpec: ResultGroupMetricSpec.ReportingUnitMetricSetSpec,
   reportingUnitReportingSetId: String,
   incrementalReportingSetIds: List<String>,
-  reportResultValuesByExternalReportingSetId: Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
-  ): ResultGroup.MetricSet.ReportingUnitMetricSet {
+  reportResultValuesByExternalReportingSetId:
+    Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+): ResultGroup.MetricSet.ReportingUnitMetricSet {
   return ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
     val reportingUnitDenoisedResultValues =
       reportResultValuesByExternalReportingSetId.getValue(reportingUnitReportingSetId)
 
     if (reportingUnitMetricSetSpec.hasNonCumulative()) {
-      nonCumulative = buildBasicMetricSet(
-        reportingUnitMetricSetSpec.nonCumulative,
-        reportingUnitDenoisedResultValues.nonCumulativeResults,
-      )
+      nonCumulative =
+        buildBasicMetricSet(
+          reportingUnitMetricSetSpec.nonCumulative,
+          reportingUnitDenoisedResultValues.nonCumulativeResults,
+        )
     }
 
     if (reportingUnitMetricSetSpec.hasCumulative()) {
-      cumulative = buildBasicMetricSet(
-        reportingUnitMetricSetSpec.cumulative,
-        reportingUnitDenoisedResultValues.cumulativeResults,
-      )
+      cumulative =
+        buildBasicMetricSet(
+          reportingUnitMetricSetSpec.cumulative,
+          reportingUnitDenoisedResultValues.cumulativeResults,
+        )
     }
 
     if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
@@ -396,38 +470,67 @@ private fun buildReportingUnitMetricSet(
 private fun buildComponentMetricSet(
   componentMetricSetSpec: ResultGroupMetricSpec.ComponentMetricSetSpec,
   componentReportingSetIds: ComponentReportingSetIds,
-  reportResultValuesByExternalReportingSetId: Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
-  ): ResultGroup.MetricSet.ComponentMetricSet {
+  reportResultValuesByExternalReportingSetId:
+    Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+): ResultGroup.MetricSet.ComponentMetricSet {
   val componentDenoisedResultValues =
-    reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.componentReportingSetId)
+    reportResultValuesByExternalReportingSetId.getValue(
+      componentReportingSetIds.componentReportingSetId
+    )
 
   return ResultGroupKt.MetricSetKt.componentMetricSet {
     if (componentMetricSetSpec.hasNonCumulative()) {
-      nonCumulative = buildBasicMetricSet(
-        componentMetricSetSpec.nonCumulative,
-        componentDenoisedResultValues.nonCumulativeResults,
-      )
+      nonCumulative =
+        buildBasicMetricSet(
+          componentMetricSetSpec.nonCumulative,
+          componentDenoisedResultValues.nonCumulativeResults,
+        )
     }
 
     if (componentMetricSetSpec.hasCumulative()) {
-      cumulative = buildBasicMetricSet(
-        componentMetricSetSpec.cumulative,
-        componentDenoisedResultValues.cumulativeResults,
-      )
+      cumulative =
+        buildBasicMetricSet(
+          componentMetricSetSpec.cumulative,
+          componentDenoisedResultValues.cumulativeResults,
+        )
     }
 
-    if (componentMetricSetSpec.hasNonCumulativeUnique() && componentReportingSetIds.reportingUnitReportingSetId != null && componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null) {
-      nonCumulativeUnique = ResultGroupKt.MetricSetKt.uniqueMetricSet {
-        reach = reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitReportingSetId).nonCumulativeResults.reach -
-          reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId).nonCumulativeResults.reach
-      }
+    if (
+      componentMetricSetSpec.hasNonCumulativeUnique() &&
+        componentReportingSetIds.reportingUnitReportingSetId != null &&
+        componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null
+    ) {
+      nonCumulativeUnique =
+        ResultGroupKt.MetricSetKt.uniqueMetricSet {
+          reach =
+            reportResultValuesByExternalReportingSetId
+              .getValue(componentReportingSetIds.reportingUnitReportingSetId)
+              .nonCumulativeResults
+              .reach -
+              reportResultValuesByExternalReportingSetId
+                .getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId)
+                .nonCumulativeResults
+                .reach
+        }
     }
 
-    if (componentMetricSetSpec.hasCumulativeUnique() && componentReportingSetIds.reportingUnitReportingSetId != null && componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null) {
-      cumulativeUnique = ResultGroupKt.MetricSetKt.uniqueMetricSet {
-        reach = reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitReportingSetId).cumulativeResults.reach -
-          reportResultValuesByExternalReportingSetId.getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId).cumulativeResults.reach
-      }
+    if (
+      componentMetricSetSpec.hasCumulativeUnique() &&
+        componentReportingSetIds.reportingUnitReportingSetId != null &&
+        componentReportingSetIds.reportingUnitWithoutComponentReportingSetId != null
+    ) {
+      cumulativeUnique =
+        ResultGroupKt.MetricSetKt.uniqueMetricSet {
+          reach =
+            reportResultValuesByExternalReportingSetId
+              .getValue(componentReportingSetIds.reportingUnitReportingSetId)
+              .cumulativeResults
+              .reach -
+              reportResultValuesByExternalReportingSetId
+                .getValue(componentReportingSetIds.reportingUnitWithoutComponentReportingSetId)
+                .cumulativeResults
+                .reach
+        }
     }
   }
 }
@@ -436,7 +539,8 @@ private fun buildComponentMetricSet(
  * Builds a [ResultGroup.MetricSet.BasicMetricSet] from an existing one and a
  * [ResultGroupMetricSpec.BasicMetricSetSpec] detailing which fields to set.
  *
- * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] specifies which fields to set.
+ * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] specifies which fields to
+ *   set.
  * @param denoisedValues [ResultGroup.MetricSet.BasicMetricSet] contains all the denoised values,
  *   which may have fields set that the basicMetricSetSpec doesn't ask for.
  */
@@ -476,19 +580,25 @@ private fun buildBasicMetricSet(
  * @return [ReportingSet.SetExpression]
  */
 private fun buildUnionSetExpression(
-  externalReportingSetIds: List<String>,
+  externalReportingSetIds: List<String>
 ): ReportingSet.SetExpression {
   var setExpression =
     ReportingSetKt.setExpression {
       operation = ReportingSet.SetExpression.Operation.UNION
-      lhs = ReportingSetKt.SetExpressionKt.operand {externalReportingSetId = externalReportingSetIds.first() }
+      lhs =
+        ReportingSetKt.SetExpressionKt.operand {
+          externalReportingSetId = externalReportingSetIds.first()
+        }
     }
 
   for (externalReportingSetId in externalReportingSetIds.subList(1, externalReportingSetIds.size)) {
     setExpression =
       ReportingSetKt.setExpression {
         operation = ReportingSet.SetExpression.Operation.UNION
-        lhs = ReportingSetKt.SetExpressionKt.operand { this.externalReportingSetId = externalReportingSetId }
+        lhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            this.externalReportingSetId = externalReportingSetId
+          }
         rhs = ReportingSetKt.SetExpressionKt.operand { expression = setExpression }
       }
   }
@@ -511,7 +621,8 @@ private data class ReportingWindowResultKey(
 
 private data class ReportingWindowResultValues(
   var populationSize: Int,
-  val reportResultValuesByExternalReportingSetId: MutableMap<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+  val reportResultValuesByExternalReportingSetId:
+    MutableMap<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
 )
 
 private data class ComponentReportingSetIds(
