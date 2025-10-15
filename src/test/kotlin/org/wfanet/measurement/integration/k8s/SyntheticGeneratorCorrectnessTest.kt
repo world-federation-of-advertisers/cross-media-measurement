@@ -328,7 +328,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host,
-        reportingGatewayPort = 8443,
+        reportingGatewayPort = 443,
         reportingAccessToken = bearerTokenCallCredentials.token,
       )
     }
