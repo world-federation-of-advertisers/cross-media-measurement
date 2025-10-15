@@ -34,7 +34,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
   ]
 
   triggers_replace = [
-    var.uber_jar_path
+    var.uber_jar_path,
     timestamp()
   ]
 
