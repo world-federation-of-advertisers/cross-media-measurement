@@ -66,6 +66,9 @@ message CorrectnessTestConfig {
   // gRPC target of Access public API server.
   string access_public_api_target = 11;
 
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 13;
+
   // Expected hostname (DNS-ID) in the access public API server's TLS
   // certificate.
   //

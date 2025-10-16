@@ -55,6 +55,7 @@ jobs:
         REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
         REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
         ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+        REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
 
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP2_NAME: ${{ vars.EDP2_NAME }}
@@ -73,6 +74,7 @@ jobs:
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
         build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+        build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
         build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
         build --define "edp1_name=$EDP1_NAME"

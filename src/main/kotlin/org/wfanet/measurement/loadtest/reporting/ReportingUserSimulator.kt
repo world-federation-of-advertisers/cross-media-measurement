@@ -96,9 +96,10 @@ class ReportingUserSimulator(
     MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
   private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
   private val okHttpReportingClient: OkHttpClient,
+  private val reportingGatewayScheme: String = "https",
   private val reportingGatewayHost: String,
-  private val reportingGatewayPort: Int,
-  private val reportingAccessToken: String,
+  private val reportingGatewayPort: Int = 443,
+  private val getReportingAccessToken: () -> String,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
@@ -255,11 +256,13 @@ class ReportingUserSimulator(
 
     val createBasicReportUrl =
       HttpUrl.Builder()
-        .scheme("https")
+        .scheme(reportingGatewayScheme)
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
         .build()
+
+    val accessToken = getReportingAccessToken()
 
     val createBasicReportRequest =
       Request.Builder()
@@ -274,7 +277,8 @@ class ReportingUserSimulator(
             )
             .toRequestBody()
         )
-        .header("Authorization", "Bearer $reportingAccessToken")
+        .header("Content-Type", "application/json; charset=utf-8")
+        .header("Authorization", "Bearer $accessToken")
         .build()
 
     val createdBasicReportJson: String =
@@ -282,10 +286,10 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error creating Basic Report: ${response.code} ${response.message}")
+          throw Exception("Error creating Basic Report: ${response.code} ${response.message} ${response.body?.string() ?: ""}")
         }
 
-        response.body!!.bytes().decodeToString()
+        response.body!!.string()
       } catch (e: StatusException) {
         throw Exception("Error creating Basic Report", e)
       }
@@ -304,7 +308,7 @@ class ReportingUserSimulator(
       Request.Builder()
         .url(getBasicReportUrl)
         .get()
-        .header("Authorization", "Bearer $reportingAccessToken")
+        .header("Authorization", "Bearer $accessToken")
         .build()
 
     val retrievedBasicReportJson: String =
@@ -312,10 +316,10 @@ class ReportingUserSimulator(
         val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
-          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message}")
+          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message} ${response.body?.string() ?: ""}")
         }
 
-        response.body!!.bytes().decodeToString()
+        response.body!!.string()
       } catch (e: StatusException) {
         throw Exception("Error retrieving Basic Report", e)
       }

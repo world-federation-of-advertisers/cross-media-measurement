@@ -27,6 +27,7 @@ import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
@@ -292,16 +293,16 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
         )
 
-      val bearerTokenCallCredentials: BearerTokenCallCredentials =
+      val getAccessToken = {
         OpenIdProvider(
-            principal.user.issuer,
-            TinkProtoKeysetFormat.parseKeyset(
-              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-              InsecureSecretKeyAccess.get(),
-            ),
-          )
+          principal.user.issuer,
+          TinkProtoKeysetFormat.parseKeyset(
+            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+            InsecureSecretKeyAccess.get(),
+          ),
+        )
           .generateCredentials(
-            audience = TEST_CONFIG.reportingPublicApiTarget,
+            audience = TEST_CONFIG.reportingTokenAudience,
             subject = principal.user.subject,
             scopes =
               setOf(
@@ -310,7 +311,11 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
-          )
+          ).token
+      }
+
+      val reportingServiceUrl: HttpUrl = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
+        ?: throw IllegalArgumentException("Invalid reporting service endpoint")
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
@@ -324,9 +329,10 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
-        reportingGatewayHost = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host,
-        reportingGatewayPort = 8443,
-        reportingAccessToken = bearerTokenCallCredentials.token,
+        reportingGatewayScheme = reportingServiceUrl.scheme,
+        reportingGatewayHost = reportingServiceUrl.host,
+        reportingGatewayPort = reportingServiceUrl.port,
+        getReportingAccessToken = getAccessToken,
       )
     }
 
