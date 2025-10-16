@@ -235,7 +235,7 @@ module "data_watcher_cloud_function" {
   extra_env_vars                                = var.cloud_function_configs.data_watcher.extra_env_vars
   secret_mappings                               = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                                 = var.cloud_function_configs.data_watcher.uber_jar_path
-  local_path                                    = var.data_watcher_config.local_path
+  config_path                                   = var.data_watcher_config.local_path
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -248,7 +248,7 @@ module "requisition_fetcher_cloud_function" {
   extra_env_vars                            = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                           = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                             = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  local_path                                = var.requisition_fetcher_config.local_path
+  config_path                               = var.requisition_fetcher_config.local_path
 }
 
 module "requisition_fetcher_cloud_scheduler" {

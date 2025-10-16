@@ -37,7 +37,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     var.uber_jar_path,
     var.extra_env_vars,
     var.secret_mappings,
-    var.config_path != null ? filesha256(var.data_watcher_config.local_path) : "",
+    var.config_path != null ? filesha256(var.config_path) : "",
   ]
 
   provisioner "local-exec" {
