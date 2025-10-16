@@ -64,6 +64,8 @@ suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
  *
  * @return the [ImpressionMetadataResult]
  * @throws ImpressionMetadataNotFoundException
+ *
+ * TODO: Delete this one?
  */
 suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
   dataProviderResourceId: String,
@@ -94,6 +96,40 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
       )
 
   return ImpressionMetadataEntity.buildImpressionMetadataResult(row)
+}
+
+/**
+ * Reads multiple [ImpressionMetadata] entities by their public resource IDs.
+ *
+ * @returns a list of [ImpressionMetadataResult]s for the found entities
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceIds(
+  dataProviderResourceId: String,
+  impressionMetadataResourceIds: List<String>,
+): Map<String, ImpressionMetadataResult> {
+  val sql = buildString {
+    appendLine(ImpressionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+      AND ImpressionMetadataResourceId IN UNNEST(@impressionMetadataResourceIds)
+      """
+        .trimIndent()
+    )
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("impressionMetadataResourceIds").toStringArray(impressionMetadataResourceIds)
+    }
+
+  return buildMap {
+    executeQuery(query, Options.tag("action=getImpressionMetadataByResourceIds")).collect { row ->
+      val result = ImpressionMetadataEntity.buildImpressionMetadataResult(row)
+      put(row.getString("ImpressionMetadataResourceId"), result)
+    }
+  }
 }
 
 suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByCreateRequestId(
@@ -264,20 +300,20 @@ suspend fun AsyncDatabaseClient.ReadContext.readModelLinesBounds(
 ): List<ModelLineBoundResult> {
   val sql =
     """
-      SELECT
-        DataProviderResourceId,
-        CmmsModelLine,
-        MIN(IntervalStartTime) AS StartTime,
-        MAX(IntervalEndTime) AS EndTime
-      FROM
-        ImpressionMetadata
-      WHERE
-        DataProviderResourceId = @dataProviderResourceId
-        AND CmmsModelLine IN UNNEST(@cmmsModelLines)
-      GROUP BY
-        DataProviderResourceId,
-        CmmsModelLine
-      """
+    SELECT
+      DataProviderResourceId,
+      CmmsModelLine,
+      MIN(IntervalStartTime) AS StartTime,
+      MAX(IntervalEndTime) AS EndTime
+    FROM
+      ImpressionMetadata
+    WHERE
+      DataProviderResourceId = @dataProviderResourceId
+      AND CmmsModelLine IN UNNEST(@cmmsModelLines)
+    GROUP BY
+      DataProviderResourceId,
+      CmmsModelLine
+    """
       .trimIndent()
   val query =
     statement(sql) {

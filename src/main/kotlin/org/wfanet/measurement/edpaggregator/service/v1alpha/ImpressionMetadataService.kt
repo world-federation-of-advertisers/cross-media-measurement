@@ -29,6 +29,8 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundEx
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -39,10 +41,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse as InternalBatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
+import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -50,6 +55,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
@@ -167,12 +173,16 @@ class ImpressionMetadataService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     return try {
       internalImpressionMetadataStub
-        .deleteImpressionMetadata(
-          internalDeleteImpressionMetadataRequest {
-            dataProviderResourceId = key.dataProviderId
-            impressionMetadataResourceId = key.impressionMetadataId
+        .batchDeleteImpressionMetadata(
+          internalBatchDeleteImpressionMetadataRequest {
+            requests += internalDeleteImpressionMetadataRequest {
+              dataProviderResourceId = key.dataProviderId
+              impressionMetadataResourceId = key.impressionMetadataId
+            }
           }
         )
+        .impressionMetadataList
+        .single()
         .toImpressionMetadata()
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
@@ -190,6 +200,84 @@ class ImpressionMetadataService(
         InternalErrors.Reason.ETAG_MISMATCH,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
+    }
+  }
+
+  override suspend fun batchDeleteImpressionMetadata(
+    request: BatchDeleteImpressionMetadataRequest
+  ): BatchDeleteImpressionMetadataResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    if (request.namesList.isEmpty()) {
+      throw RequiredFieldNotSetException("names")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val nameSet = HashSet<String>()
+    val internalDeleteRequests = mutableListOf<InternalDeleteImpressionMetadataRequest>()
+    request.namesList.forEachIndexed { index, it ->
+      if (it.isEmpty()) {
+        throw RequiredFieldNotSetException("names.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val impressionMetadataKey =
+        ImpressionMetadataKey.fromName(it)
+          ?: throw InvalidFieldValueException("names.$index")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+      if (dataProviderKey.dataProviderId != impressionMetadataKey.dataProviderId) {
+        throw InvalidFieldValueException("names.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (!nameSet.add(it)) {
+        throw InvalidFieldValueException("names.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      internalDeleteRequests.add(
+        internalDeleteImpressionMetadataRequest {
+          dataProviderResourceId = dataProviderKey.dataProviderId
+          impressionMetadataResourceId = impressionMetadataKey.impressionMetadataId
+        }
+      )
+    }
+
+    val internalResponse: InternalBatchDeleteImpressionMetadataResponse =
+      try {
+        internalImpressionMetadataStub.batchDeleteImpressionMetadata(
+          internalBatchDeleteImpressionMetadataRequest { requests += internalDeleteRequests }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
+            ImpressionMetadataNotFoundException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return batchDeleteImpressionMetadataResponse {
+      impressionMetadata +=
+        internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
     }
   }
 
