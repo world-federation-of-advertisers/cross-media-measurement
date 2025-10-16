@@ -20,8 +20,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.util.JsonFormat
 import com.google.type.DayOfWeek
-import com.google.type.Date
-import com.google.type.DateTime
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -264,26 +262,21 @@ class ReportingUserSimulator(
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
         .build()
 
-    // The default printer serializes Date and DateTime as objects. The gRPC gateway expects
-    // RFC 3339 strings. This custom printer ensures the correct format.
-    val jsonPrinter =
-      JsonFormat.printer()
-        .usingTypeRegistry(
-          JsonFormat.TypeRegistry.newBuilder()
-            .add(Date.getDescriptor())
-            .add(DateTime.getDescriptor())
-            .build()
-        )
-
     val accessToken = getReportingAccessToken()
 
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(jsonPrinter.print(createBasicReportRequest {
-          this.basicReport = basicReport
-          basicReportId = basicReportKey.basicReportId
-        }).toRequestBody())
+        .post(
+          JsonFormat.printer()
+            .print(
+              createBasicReportRequest {
+                this.basicReport = basicReport
+                basicReportId = basicReportKey.basicReportId
+              }
+            )
+            .toRequestBody()
+        )
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer $accessToken")
         .build()
@@ -291,7 +284,7 @@ class ReportingUserSimulator(
     println("basic report: $basicReport")
     println("campaign group: $campaignGroup")
     println("create basic report url: ${createBasicReportRequest.url}")
-    println("create basic report request: ${jsonPrinter.print(createBasicReportRequest {
+    println("create basic report request: ${JsonFormat.printer().print(createBasicReportRequest {
       this.basicReport = basicReport
       basicReportId = basicReportKey.basicReportId
     })}")
