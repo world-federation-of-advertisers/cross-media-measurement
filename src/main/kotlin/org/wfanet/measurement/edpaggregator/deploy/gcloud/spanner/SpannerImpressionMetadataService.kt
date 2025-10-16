@@ -35,6 +35,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionM
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
@@ -42,14 +43,14 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
-import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -57,6 +58,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
@@ -227,59 +229,102 @@ class SpannerImpressionMetadataService(
     }
   }
 
-  override suspend fun deleteImpressionMetadata(
-    request: DeleteImpressionMetadataRequest
-  ): ImpressionMetadata {
-    if (request.dataProviderResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+  override suspend fun batchDeleteImpressionMetadata(
+    request: BatchDeleteImpressionMetadataRequest
+  ): BatchDeleteImpressionMetadataResponse {
+    if (request.requestsList.isEmpty()) {
+      return BatchDeleteImpressionMetadataResponse.getDefaultInstance()
     }
 
-    if (request.impressionMetadataResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata_resource_id")
+    val dataProviderResourceId = request.requestsList.first().dataProviderResourceId
+    if (dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("requests.0.data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val impressionMetadataResourceIdSet = HashSet<String>()
+
+    request.requestsList.forEachIndexed { index, it ->
+      if (it.dataProviderResourceId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.data_provider_resource_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (it.dataProviderResourceId != dataProviderResourceId) {
+        throw InvalidFieldValueException("requests.$index.data_provider_resource_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (it.impressionMetadataResourceId.isEmpty()) {
+        throw RequiredFieldNotSetException("requests.$index.impression_metadata_resource_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (!impressionMetadataResourceIdSet.add(it.impressionMetadataResourceId)) {
+        throw InvalidFieldValueException("requests.$index.impression_metadata_resource_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata"))
+      databaseClient.readWriteTransaction(Options.tag("action=batchDeleteImpressionMetadata"))
 
-    val deletedImpressionMetadata =
-      try {
-        transactionRunner.run { txn ->
-          val result =
-            txn.getImpressionMetadataByResourceId(
-              request.dataProviderResourceId,
-              request.impressionMetadataResourceId,
-            )
-          if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-            throw ImpressionMetadataStateInvalidException(
-              request.dataProviderResourceId,
-              request.impressionMetadataResourceId,
-              result.impressionMetadata.state,
-              setOf(State.IMPRESSION_METADATA_STATE_ACTIVE),
-            )
-          }
-          txn.updateImpressionMetadataState(
-            result.impressionMetadata.dataProviderResourceId,
-            result.impressionMetadataId,
-            State.IMPRESSION_METADATA_STATE_DELETED,
+    val previousDeletedList = mutableListOf<ImpressionMetadata>()
+    val deletedList: List<ImpressionMetadata> = buildList {
+      transactionRunner.run { txn ->
+        val existingImpressionMetadataByResourceId =
+          txn.getImpressionMetadataByResourceIds(
+            dataProviderResourceId,
+            request.requestsList.map { it.impressionMetadataResourceId },
           )
-          result.impressionMetadata.copy {
-            state = State.IMPRESSION_METADATA_STATE_DELETED
-            clearUpdateTime()
-            clearEtag()
+
+        request.requestsList.forEach {
+          if (
+            !existingImpressionMetadataByResourceId.containsKey(it.impressionMetadataResourceId)
+          ) {
+            throw ImpressionMetadataNotFoundException(
+                dataProviderResourceId,
+                it.impressionMetadataResourceId,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           }
         }
-      } catch (e: ImpressionMetadataNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      } catch (e: ImpressionMetadataStateInvalidException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+        request.requestsList.forEach {
+          val impressionMetadata =
+            existingImpressionMetadataByResourceId[it.impressionMetadataResourceId]!!
+          if (
+            impressionMetadata.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED
+          ) {
+            previousDeletedList.add(impressionMetadata.impressionMetadata)
+            return@forEach
+          }
+
+          txn.updateImpressionMetadataState(
+            dataProviderResourceId,
+            existingImpressionMetadataByResourceId[it.impressionMetadataResourceId]!!
+              .impressionMetadataId,
+            State.IMPRESSION_METADATA_STATE_DELETED,
+          )
+          add(
+            existingImpressionMetadataByResourceId[it.impressionMetadataResourceId]!!
+              .impressionMetadata
+          )
+        }
       }
+    }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-    return deletedImpressionMetadata.copy {
-      updateTime = commitTimestamp
-      etag = ETags.computeETag(commitTimestamp.toInstant())
+
+    return batchDeleteImpressionMetadataResponse {
+      impressionMetadata += previousDeletedList
+      impressionMetadata +=
+        deletedList.map {
+          it.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            updateTime = commitTimestamp
+            etag = ETags.computeETag(commitTimestamp.toInstant())
+          }
+        }
     }
   }
 
