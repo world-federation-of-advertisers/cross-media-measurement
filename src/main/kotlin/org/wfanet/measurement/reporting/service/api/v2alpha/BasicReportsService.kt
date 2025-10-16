@@ -110,6 +110,7 @@ class BasicReportsService(
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
+    println("basic report request: $request")
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
