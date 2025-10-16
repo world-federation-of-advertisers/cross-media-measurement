@@ -314,6 +314,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           ).token
       }
 
+      println("gateway token audience: ${TEST_CONFIG.reportingTokenAudience}")
       println("gateway endpoint: ${TEST_CONFIG.reportingServiceEndpoint}")
       println("gateway host: ${TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()!!.host}")
 
