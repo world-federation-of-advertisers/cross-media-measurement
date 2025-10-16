@@ -291,7 +291,12 @@ class ReportingUserSimulator(
 
     val createdBasicReportJson: String =
       try {
-        val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
+        val response =
+          okHttpReportingClient
+            .newBuilder()
+            .followRedirects(false)
+            .build()
+            .newCall(createBasicReportRequest).execute()
 
         if (!response.isSuccessful) {
           throw Exception("Error creating Basic Report: ${response.code} ${response.message} ${response.body?.string() ?: ""}")
