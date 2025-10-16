@@ -52,6 +52,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -425,6 +427,281 @@ class ImpressionMetadataServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
             metadata[Errors.Metadata.IMPRESSION_METADATA.key] = request.name
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteImpressionMetadata returns ImpressionMetadata`() = runBlocking {
+    val created1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+    val created2 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA_2
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val beforeDelete = Instant.now()
+    val response =
+      service.batchDeleteImpressionMetadata(
+        batchDeleteImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          names += created1.name
+          names += created2.name
+        }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchDeleteImpressionMetadataResponse {
+          impressionMetadata +=
+            created1.copy {
+              state = ImpressionMetadata.State.DELETED
+              clearUpdateTime()
+            }
+          impressionMetadata +=
+            created2.copy {
+              state = ImpressionMetadata.State.DELETED
+              clearUpdateTime()
+            }
+        }
+      )
+    assertThat(response.impressionMetadataList.first().updateTime.toInstant())
+      .isGreaterThan(beforeDelete)
+    assertThat(response.impressionMetadataList.last().updateTime.toInstant())
+      .isGreaterThan(beforeDelete)
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
+    val created1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            // missing parent
+            names += created1.name
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for malformed parent`() = runBlocking {
+    val created1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = "invalid-parent"
+            names += created1.name
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for missing names`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            // missing names
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "names"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for empty name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += ""
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "names.0"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for malformed name`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += "invalid-name"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "names.0"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for ImpressionMetadata that doesn't belong to parent`() =
+    runBlocking {
+      val created1 =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata = IMPRESSION_METADATA
+            requestId = REQUEST_ID
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchDeleteImpressionMetadata(
+            batchDeleteImpressionMetadataRequest {
+              parent = DataProviderKey(externalIdToApiId(222L)).toName()
+              names += created1.name
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "names.0"
+          }
+        )
+    }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws INVALID_ARGUMENT for duplicate names`() = runBlocking {
+    val created1 =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata = IMPRESSION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchDeleteImpressionMetadata(
+          batchDeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += created1.name
+            names += created1.name
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "names.1"
+        }
+      )
+  }
+
+  @Test
+  fun `batchDeleteImpressionMetadata throws NOT_FOUND for non-existent ImpressionMetadata`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchDeleteImpressionMetadata(
+            batchDeleteImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              names += DATA_PROVIDER_KEY.toName() + "/impressionMetadata/impression-metadata-999"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
+            metadata[Errors.Metadata.IMPRESSION_METADATA.key] =
+              DATA_PROVIDER_KEY.toName() + "/impressionMetadata/impression-metadata-999"
           }
         )
     }
