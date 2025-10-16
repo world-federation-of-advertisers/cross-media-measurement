@@ -74,7 +74,12 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     google_project_iam_member.trigger_run_invoker,
   ]
 
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = [
+    var.uber_jar_path,
+    var.extra_env_vars,
+    var.secret_mappings,
+    var.config_path != null ? filesha256(var.data_watcher_config.local_path) : "",
+  ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]

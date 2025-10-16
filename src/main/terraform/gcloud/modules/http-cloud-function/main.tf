@@ -33,7 +33,12 @@ resource "terraform_data" "deploy_http_cloud_function" {
     google_service_account_iam_member.allow_terraform_to_use_cloud_function_service_account,
   ]
 
-  triggers_replace = [var.uber_jar_path]
+  triggers_replace = [
+    var.uber_jar_path,
+    var.extra_env_vars,
+    var.secret_mappings,
+    var.config_path != null ? filesha256(var.data_watcher_config.local_path) : "",
+  ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]

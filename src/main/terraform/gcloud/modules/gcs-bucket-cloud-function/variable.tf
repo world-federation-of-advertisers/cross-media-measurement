@@ -65,3 +65,10 @@ variable "uber_jar_path" {
   type        = string
   nullable    = false
 }
+
+variable "config_path" {
+  description = "The path to the config file the Cloud Function uses."
+  type        = string
+  nullable    = true
+  default     = null
+}
