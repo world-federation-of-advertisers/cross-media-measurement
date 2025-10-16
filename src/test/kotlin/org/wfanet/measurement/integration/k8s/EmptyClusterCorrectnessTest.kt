@@ -75,7 +75,6 @@ import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.k8s.KubernetesClient
@@ -462,12 +461,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val getAccessToken = {
         OpenIdProvider(
-          principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(
-            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-            InsecureSecretKeyAccess.get(),
-          ),
-        )
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
           .generateCredentials(
             audience = openIdProvidersConfig.audience,
             subject = principal.user.subject,
@@ -478,7 +477,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
-          ).token
+          )
+          .token
       }
 
       return ReportingUserSimulator(

@@ -70,7 +70,6 @@ import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.grpc.BearerTokenCallCredentials
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto
@@ -295,12 +294,12 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
 
       val getAccessToken = {
         OpenIdProvider(
-          principal.user.issuer,
-          TinkProtoKeysetFormat.parseKeyset(
-            OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-            InsecureSecretKeyAccess.get(),
-          ),
-        )
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
           .generateCredentials(
             audience = TEST_CONFIG.reportingTokenAudience,
             subject = principal.user.subject,
@@ -311,11 +310,13 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
-          ).token
+          )
+          .token
       }
 
-      val reportingServiceUrl: HttpUrl = TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
-        ?: throw IllegalArgumentException("Invalid reporting service endpoint")
+      val reportingServiceUrl: HttpUrl =
+        TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
+          ?: throw IllegalArgumentException("Invalid reporting service endpoint")
 
       return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
