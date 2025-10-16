@@ -281,7 +281,13 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $accessToken")
         .build()
 
+    println("basic report: $basicReport")
+    println("campaign group: $campaignGroup")
     println("create basic report url: ${createBasicReportRequest.url}")
+    println("create basic report request: ${JsonFormat.printer().print(createBasicReportRequest {
+      this.basicReport = basicReport
+      basicReportId = basicReportKey.basicReportId
+    })}")
 
     val createdBasicReportJson: String =
       try {
