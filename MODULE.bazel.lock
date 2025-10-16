@@ -362,6 +362,8 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.11.0/MODULE.bazel": "22f7e06ac78cd614d2143fcd0e7028eb595d9902dbfa94f777531439c616f13f",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/MODULE.bazel": "ad9f152e8f710943b2d9aa4ea19e06b47911abd8a5fb63d9e69e66636475794d",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.124.1.bzlmod.1/MODULE.bazel": "f0c94d6a1243df1072ca9d27454b8b3a6989c9ad183188ac3d45b1de5c1ba42c",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.124.1.bzlmod.1/source.json": "db59001bd3e2a80e73f9fc3c024c83efa86e55bb4c3b5021b41d617a9d2a0f20",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.124.2/MODULE.bazel": "b14c12819f97a0eaddd1f6b2ec4ccf1a825b72f4958895a454410260b52e1a0e",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.124.2/source.json": "2c0d26b3b05fde5f4dc9e7bf5c2cc2b4ca2080643b9837dd98320369ce9ac2b9",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
@@ -1332,7 +1334,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "R+oKPToJy5pjlpXuN6LkhlOZ0PtXjtvDLGNadJgQnf8=",
-        "usagesDigest": "n6Dt13tyv2Dxth+8a36b0vlahdZS1W7FbwR0ocqwMx4=",
+        "usagesDigest": "6r5NJiwICfLjE8n0WXyVGNmMv8JviKl+y0hMHsjHXzg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
