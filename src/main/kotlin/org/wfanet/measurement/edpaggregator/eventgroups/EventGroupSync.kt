@@ -21,12 +21,13 @@ import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as CmmsAdMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -56,76 +57,76 @@ class EventGroupSync(
   private val throttler: Throttler,
 ) {
 
+  /**
+   * Synchronizes EventGroups between the EDP and the CMMS public API.
+   *
+   * This function:
+   * 1. Fetches all existing [CmmsEventGroup]s from the CMMS API for the given [edpName].
+   * 2. Validates and categorizes incoming [EventGroup]s from the [eventGroups] flow:
+   *    - Creates new CMMS EventGroups for any that don't yet exist.
+   *    - Updates existing CMMS EventGroups when metadata has changed.
+   *    - Keeps existing CMMS EventGroups unchanged otherwise.
+   * 3. Performs batched create and update operations (up to 50 per batch).
+   * 4. Emits a [MappedEventGroup] for every input event group (created, updated, or unchanged).
+   *
+   * @return A [Flow] emitting one [MappedEventGroup].
+   * @throws Exception if there is a failure when listing, creating, or updating event groups via gRPC.
+   */
   suspend fun sync(): Flow<MappedEventGroup> = flow {
-    val syncedEventGroups: Map<String, CmmsEventGroup> =
+    val existingEventGroups: Map<String, CmmsEventGroup> =
       fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
-    eventGroups.collect { eventGroup: EventGroup ->
+
+    val eventGroupsToCreate = mutableListOf<EventGroup>()
+    val eventGroupsToUpdate = mutableListOf<CmmsEventGroup>()
+    val eventGroupsUnchanged = mutableListOf<CmmsEventGroup>()
+
+    val allEventGroups = eventGroups.toList()
+    allEventGroups.forEach { eventGroup ->
       try {
         validateEventGroup(eventGroup)
-        val syncedEventGroup: CmmsEventGroup =
-          if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
-            val existingEventGroup: CmmsEventGroup =
-              syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
-            val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
-            if (updatedEventGroup != existingEventGroup) {
-              updateCmmsEventGroup(updatedEventGroup)
-            } else {
-              existingEventGroup
-            }
-          } else {
-            createCmmsEventGroup(edpName, eventGroup)
+        val existing = existingEventGroups[eventGroup.eventGroupReferenceId]
+        if (existing == null) {
+          eventGroupsToCreate += eventGroup
+        } else {
+          val updatedEventGroup = updateEventGroup(existing, eventGroup)
+          if (updatedEventGroup != existing) {
+            eventGroupsToUpdate += updatedEventGroup
+          }else {
+            eventGroupsUnchanged += existing
           }
-        emit(
-          mappedEventGroup {
-            eventGroupReferenceId = syncedEventGroup.eventGroupReferenceId
-            eventGroupResource = syncedEventGroup.name
-          }
-        )
+        }
       } catch (e: Exception) {
         logger.severe(
           "Unable to process Event Group ${eventGroup.eventGroupReferenceId}: ${e.message}"
         )
       }
-      eventGroup.eventGroupReferenceId
     }
-  }
 
-  /*
-   * Updates the Cmms Public API with a [CmmsEventGroup].
-   */
-  private suspend fun updateCmmsEventGroup(eventGroup: CmmsEventGroup): CmmsEventGroup {
-    return throttler.onReady {
-      eventGroupsStub.updateEventGroup(updateEventGroupRequest { this.eventGroup = eventGroup })
-    }
-  }
+    // Perform batched create/update
+    val createdGroups = batchCreateEventGroups(edpName, eventGroupsToCreate)
+    val updatedGroups = batchUpdateEventGroups(edpName, eventGroupsToUpdate)
 
-  /*
-   * Calls the Cmms Public API to create a [CmmsEventGroup] from an [EventGroup].
-   */
-  private suspend fun createCmmsEventGroup(
-    edpName: String,
-    eventGroup: EventGroup,
-  ): CmmsEventGroup {
-    val request = createEventGroupRequest {
-      parent = edpName
-      this.eventGroup = cmmsEventGroup {
-        measurementConsumer = eventGroup.measurementConsumer
-        eventGroupReferenceId = eventGroup.eventGroupReferenceId
-        this.eventGroupMetadata = cmmsEventGroupMetadata {
-          this.adMetadata =
-            CmmsEventGroupMetadataKt.adMetadata {
-              this.campaignMetadata =
-                CmmsAdMetadataKt.campaignMetadata {
-                  brandName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.brand
-                  campaignName = eventGroup.eventGroupMetadata.adMetadata.campaignMetadata.campaign
-                }
-            }
-        }
-        mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
-        dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+    val syncedByRefId =
+      (existingEventGroups.values + createdGroups + updatedGroups)
+        .associateBy { it.eventGroupReferenceId }
+
+
+    allEventGroups.forEach { eventGroup ->
+      val synced = syncedByRefId[eventGroup.eventGroupReferenceId]
+      if (synced != null) {
+        emit(
+          mappedEventGroup {
+            eventGroupReferenceId = synced.eventGroupReferenceId
+            eventGroupResource = synced.name
+          }
+        )
+      } else {
+        logger.warning(
+          "No CMMS EventGroup found for ${eventGroup.eventGroupReferenceId}"
+        )
       }
     }
-    return throttler.onReady { eventGroupsStub.createEventGroup(request) }
+
   }
 
   /*
@@ -152,6 +153,97 @@ class EventGroupSync(
       mediaTypes.clear()
       mediaTypes += eventGroup.mediaTypesList.map { it.toCmmsMediaType() }
       dataAvailabilityInterval = eventGroup.dataAvailabilityInterval
+    }
+  }
+
+  /**
+   * Creates multiple [CmmsEventGroup]s in the CMMS API in batches of up to 50 items.
+   *
+   * For each [EventGroup] in [eventGroups], this function builds a corresponding
+   * [CreateEventGroupRequest] and groups them into a [BatchCreateEventGroupsRequest].
+   * The gRPC `BatchCreateEventGroups` method is then invoked for each batch, using the provided [throttler]
+   * to control request concurrency.
+   *
+   * If [eventGroups] is empty, the function returns an empty list without making any gRPC calls.
+   *
+   * @param edpName The full resource name of the parent DataProvider (e.g. `"dataProviders/123"`).
+   * @param eventGroups The list of event groups to be created in CMMS.
+   * @return A list of successfully created [CmmsEventGroup]s returned by the CMMS API.
+   * @throws io.grpc.StatusException If any of the batch create operations fail at the gRPC level.
+   */
+  private suspend fun batchCreateEventGroups(
+    edpName: String,
+    eventGroups: List<EventGroup>
+  ): List<CmmsEventGroup> {
+    if (eventGroups.isEmpty()) return emptyList()
+
+    return eventGroups.chunked(50).flatMap { chunk ->
+      val requests = chunk.map { eg: EventGroup ->
+        createEventGroupRequest {
+          parent = edpName
+          this.eventGroup = cmmsEventGroup {
+            measurementConsumer = eg.measurementConsumer
+            eventGroupReferenceId = eg.eventGroupReferenceId
+            this.eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata =
+                CmmsEventGroupMetadataKt.adMetadata {
+                  this.campaignMetadata =
+                    CmmsAdMetadataKt.campaignMetadata {
+                      brandName = eg.eventGroupMetadata.adMetadata.campaignMetadata.brand
+                      campaignName = eg.eventGroupMetadata.adMetadata.campaignMetadata.campaign
+                    }
+                }
+            }
+            mediaTypes += eg.mediaTypesList.map { it.toCmmsMediaType() }
+            dataAvailabilityInterval = eg.dataAvailabilityInterval
+          }
+        }
+      }
+
+      val batchRequest = batchCreateEventGroupsRequest {
+        this.parent = parent
+        this.requests += requests
+      }
+
+      throttler.onReady {
+        eventGroupsStub.batchCreateEventGroups(batchRequest).eventGroupsList
+      }
+    }
+  }
+
+  /**
+   * Updates multiple [CmmsEventGroup]s in the CMMS API in batches of up to 50 items.
+   *
+   * For each [CmmsEventGroup] in [eventGroups], this function builds an [UpdateEventGroupRequest]
+   * and groups them into a [BatchUpdateEventGroupsRequest]. Each batch is sent via the CMMS gRPC
+   * `BatchUpdateEventGroups` method, and throttled by [throttler] to limit request rate.
+   *
+   * If [eventGroups] is empty, the function returns an empty list without making any gRPC calls.
+   *
+   * @param parent The full resource name of the parent DataProvider (e.g. `"dataProviders/123"`).
+   * @param eventGroups The list of CMMS event groups to update.
+   * @return A list of updated [CmmsEventGroup]s as returned by the CMMS API.
+   * @throws io.grpc.StatusException If any of the batch update operations fail at the gRPC level.
+   */
+  private suspend fun batchUpdateEventGroups(
+    parent: String,
+    eventGroups: List<CmmsEventGroup>
+  ): List<CmmsEventGroup> {
+    if (eventGroups.isEmpty()) return emptyList()
+
+    return eventGroups.chunked(50).flatMap { chunk ->
+      val requests = chunk.map { eg ->
+        updateEventGroupRequest { this.eventGroup = eg }
+      }
+
+      val batchRequest = batchUpdateEventGroupsRequest {
+        this.parent = parent
+        this.requests += requests
+      }
+
+      throttler.onReady {
+        eventGroupsStub.batchUpdateEventGroups(batchRequest).eventGroupsList
+      }
     }
   }
 

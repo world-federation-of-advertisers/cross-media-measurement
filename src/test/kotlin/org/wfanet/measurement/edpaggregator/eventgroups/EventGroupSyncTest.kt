@@ -33,14 +33,16 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MediaType as CmmsMediaType
-import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata as cmmsEventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
@@ -57,10 +59,20 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 class EventGroupSyncTest {
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
-    onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
-    onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<CreateEventGroupRequest>(0).eventGroup }
+    onBlocking { batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchUpdateEventGroupsRequest>(0)
+        batchUpdateEventGroupsResponse {
+          eventGroups += request.requestsList.map { it.eventGroup }
+        }
+      }
+    onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchCreateEventGroupsRequest>(0)
+        batchCreateEventGroupsResponse {
+          eventGroups += request.requestsList.map { it.eventGroup }
+        }
+      }
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
       .thenAnswer {
         listEventGroupsResponse {
@@ -160,7 +172,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
   }
 
   @Test
@@ -173,7 +185,7 @@ class EventGroupSyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
     runBlocking { eventGroupSync.sync().collect() }
-    verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
   }
 
   @Test
@@ -197,7 +209,6 @@ class EventGroupSyncTest {
         )
     }
   }
-
   @Test
   fun `throws exception if no media types`() {
     val eventGroup = eventGroup {
