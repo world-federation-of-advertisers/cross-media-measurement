@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -156,6 +157,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       measurementConsumerName,
       MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(kingdomPublicApiChannel),
       CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel),
+      ModelLinesGrpcKt.ModelLinesCoroutineStub(kingdomPublicApiChannel),
       DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomPublicApiChannel),
       EventGroupsGrpcKt.EventGroupsCoroutineStub(kingdomPublicApiChannel),
       EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub(

@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
@@ -132,6 +133,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       edpDisplayName,
       measurementConsumerName,
       CertificatesGrpcKt.CertificatesCoroutineStub(kingdomPublicApiChannel),
+      ModelLinesGrpcKt.ModelLinesCoroutineStub(kingdomPublicApiChannel),
       DataProvidersGrpcKt.DataProvidersCoroutineStub(kingdomPublicApiChannel),
       EventGroupsGrpcKt.EventGroupsCoroutineStub(kingdomPublicApiChannel),
       RequisitionsGrpcKt.RequisitionsCoroutineStub(kingdomPublicApiChannel),

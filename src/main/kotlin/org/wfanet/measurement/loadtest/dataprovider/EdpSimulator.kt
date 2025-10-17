@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.common.SettableHealth
@@ -44,6 +45,7 @@ class EdpSimulator(
   edpDisplayName: String,
   measurementConsumerName: String,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -68,6 +70,7 @@ class EdpSimulator(
     edpDisplayName,
     measurementConsumerName,
     certificatesStub,
+    modelLinesStub,
     dataProvidersStub,
     eventGroupsStub,
     requisitionsStub,

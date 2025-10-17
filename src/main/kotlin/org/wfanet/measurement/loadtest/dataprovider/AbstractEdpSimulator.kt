@@ -17,7 +17,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.duration
-import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
@@ -25,7 +25,6 @@ import io.grpc.StatusException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Level
@@ -69,6 +68,8 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesRequestKt
+import org.wfanet.measurement.api.v2alpha.ListModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -79,6 +80,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -95,7 +98,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
@@ -112,7 +116,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
@@ -147,6 +150,7 @@ abstract class AbstractEdpSimulator(
   edpDisplayName: String,
   protected val measurementConsumerName: String,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -217,19 +221,14 @@ abstract class AbstractEdpSimulator(
 
   /** A sequence of operations done in the simulator. */
   override suspend fun run() {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2333): Set and respect
-    // per-ModelLine data availability.
-    dataProvidersStub.replaceDataAvailabilityInterval(
-      replaceDataAvailabilityIntervalRequest {
-        name = dataProviderData.name
-        dataAvailabilityInterval = interval {
-          startTime = timestamp {
-            seconds = 1577865600 // January 1, 2020 12:00:00 AM, America/Los_Angeles
-          }
-          endTime = Instant.now().toProtoTime()
-        }
-      }
-    )
+    updateDataProvider()
+
+    withContext(blockingCoroutineContext) { health.setHealthy(true) }
+    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+  }
+
+  private suspend fun updateDataProvider() {
+    replaceDataAvailabilityIntervals()
 
     dataProvidersStub.replaceDataProviderCapabilities(
       replaceDataProviderCapabilitiesRequest {
@@ -240,9 +239,58 @@ abstract class AbstractEdpSimulator(
           }
       }
     )
+  }
 
-    withContext(blockingCoroutineContext) { health.setHealthy(true) }
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+  private suspend fun replaceDataAvailabilityIntervals() {
+    val dataAvailabilityInterval = computeDataAvailabilityInterval()
+    @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+    val modelLines: Flow<ModelLine> =
+      modelLinesStub
+        .listResources { pageToken: String ->
+          val response: ListModelLinesResponse =
+            listModelLines(
+              listModelLinesRequest {
+                parent = "modelProviders/-/modelSuites/-"
+                filter =
+                  ListModelLinesRequestKt.filter {
+                    activeIntervalContains = dataAvailabilityInterval
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          ResourceList(response.modelLinesList, response.nextPageToken)
+        }
+        .flattenConcat()
+
+    dataProvidersStub.replaceDataAvailabilityIntervals(
+      replaceDataAvailabilityIntervalsRequest {
+        name = edpData.name
+        modelLines.collect { modelLine ->
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = modelLine.name
+              value = dataAvailabilityInterval
+            }
+        }
+      }
+    )
+  }
+
+  private fun computeDataAvailabilityInterval(): Interval {
+    check(eventGroupsOptions.isNotEmpty())
+    var start = Timestamps.MAX_VALUE
+    var endExclusive = Timestamps.MIN_VALUE
+
+    for (eventGroupOptions in eventGroupsOptions) {
+      val interval = eventGroupOptions.getDataAvailabilityInterval(syntheticDataTimeZone)
+      start = minOf(start, interval.startTime, Timestamps.comparator())
+      endExclusive = maxOf(endExclusive, interval.endTime, Timestamps.comparator())
+    }
+
+    return interval {
+      startTime = start
+      endTime = endExclusive
+    }
   }
 
   /** Ensures that appropriate [EventGroup]s exist for [eventGroupsOptions]. */
