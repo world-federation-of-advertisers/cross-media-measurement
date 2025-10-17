@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 import com.google.type.Interval
+import com.google.type.interval
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -31,6 +32,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.struct
+import org.wfanet.measurement.gcloud.spanner.to
 import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLineKey
@@ -44,6 +46,12 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
     val modelLineId: InternalId,
     val modelSuiteId: InternalId,
     val modelProviderId: InternalId,
+  )
+
+  data class ActiveIntervalResult(
+    val key: ModelLineInternalKey,
+    val externalKey: ModelLineKey,
+    val activeInterval: Interval,
   )
 
   override val baseSql: String =
@@ -102,6 +110,54 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
   }
 
   companion object {
+    private val VALID_MODEL_LINES_BASE_SQL =
+      """
+      WITH InRangeModelLineKeys AS (
+        SELECT
+          ModelProviderId,
+          ModelSuiteId,
+          ModelLineId,
+        FROM
+          DataProviders
+          JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
+        WHERE
+          ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
+        GROUP BY 1, 2, 3
+        HAVING
+          COUNT(DISTINCT DataProviderId) = ARRAY_LENGTH(@externalDataProviderIds)
+          AND @intervalStartTime >= MAX(StartTime)
+          AND @intervalEndTime <= MIN(EndTime)
+      )
+      SELECT
+        ModelLines.ModelProviderId,
+        ModelLines.ModelSuiteId,
+        ModelLines.ModelLineId,
+        ModelLines.ExternalModelLineId,
+        ModelLines.DisplayName,
+        ModelLines.Description,
+        ModelLines.ActiveStartTime,
+        ModelLines.ActiveEndTime,
+        ModelLines.Type,
+        ModelLines.CreateTime,
+        ModelLines.UpdateTime,
+        HoldbackModelLine.ExternalModelLineId AS ExternalHoldbackModelLineId,
+        ModelSuites.ExternalModelSuiteId,
+        ModelProviders.ExternalModelProviderId,
+      FROM
+        InRangeModelLineKeys
+        JOIN ModelLines USING (ModelProviderId, ModelSuiteId, ModelLineId)
+        JOIN ModelSuites USING (ModelProviderId, ModelSuiteId)
+        JOIN ModelProviders USING (ModelProviderId)
+        LEFT JOIN ModelLines AS HoldbackModelLine ON (
+          ModelLines.ModelProviderId = HoldbackModelLine.ModelProviderId
+          AND ModelLines.ModelSuiteId = HoldbackModelLine.ModelSuiteId
+          AND ModelLines.HoldbackModelLineId = HoldbackModelLine.ModelLineId
+        )
+      WHERE
+        ModelLines.Type IN UNNEST(@types)
+      """
+        .trimIndent()
+
     private val MODEL_LINE_KEY_STRUCT =
       Type.struct(
         Type.StructField.of("ExternalModelProviderId", Type.int64()),
@@ -141,10 +197,10 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       }
     }
 
-    suspend fun readInternalIds(
+    suspend fun readActiveIntervals(
       readContext: AsyncDatabaseClient.ReadContext,
       keys: Iterable<ModelLineKey>,
-    ): Map<ModelLineKey, ModelLineInternalKey> {
+    ): Map<ModelLineKey, ActiveIntervalResult> {
       val sql =
         """
         SELECT
@@ -154,6 +210,8 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
           ExternalModelProviderId,
           ExternalModelSuiteId,
           ExternalModelLineId,
+          ActiveStartTime,
+          ActiveEndTime,
         FROM
           ModelProviders
           JOIN ModelSuites USING (ModelProviderId)
@@ -180,22 +238,28 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       val results: Flow<Struct> =
         readContext.executeQuery(
           query,
-          Options.tag("reader=ModelLineReader,action=readInternalIds"),
+          Options.tag("reader=ModelLineReader,action=readActiveIntervals"),
         )
       return buildMap {
         results.collect { row ->
-          val key = modelLineKey {
+          val externalKey = modelLineKey {
             externalModelProviderId = row.getLong("ExternalModelProviderId")
             externalModelSuiteId = row.getLong("ExternalModelSuiteId")
             externalModelLineId = row.getLong("ExternalModelLineId")
           }
-          val value =
+          val key =
             ModelLineInternalKey(
               row.getInternalId("ModelProviderId"),
               row.getInternalId("ModelSuiteId"),
               row.getInternalId("ModelLineId"),
             )
-          put(key, value)
+          val activeInterval = interval {
+            startTime = row.getTimestamp("ActiveStartTime").toProto()
+            if (!row.isNull("ActiveEndTime")) {
+              endTime = row.getTimestamp("ActiveEndTime").toProto()
+            }
+          }
+          put(externalKey, ActiveIntervalResult(key, externalKey, activeInterval))
         }
       }
     }
@@ -244,100 +308,34 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
 
     fun readValidModelLines(
       readContext: AsyncDatabaseClient.ReadContext,
-      externalModelProviderId: ExternalId,
-      externalModelSuiteId: ExternalId,
+      externalModelProviderId: ExternalId?,
+      externalModelSuiteId: ExternalId?,
       timeInterval: Interval,
       types: List<ModelLine.Type>,
       externalDataProviderIds: List<ExternalId>,
     ): Flow<Result> {
-      val validModelLinesStatement =
-        statement(
-          """
-          SELECT DISTINCT
-            ModelLines.ModelProviderId,
-            ModelLines.ModelSuiteId,
-            ModelLines.ModelLineId,
-            ModelLines.ExternalModelLineId,
-            ModelLines.DisplayName,
-            ModelLines.Description,
-            ModelLines.ActiveStartTime,
-            ModelLines.ActiveEndTime,
-            ModelLines.Type,
-            ModelLines.CreateTime,
-            ModelLines.UpdateTime,
-            ModelSuites.ExternalModelSuiteId,
-            ModelProviders.ExternalModelProviderId,
-            -- Prevents buildModelLine function from throwing error
-            NULL AS ExternalHoldbackModelLineId
-          FROM
-            ModelProviders
-            JOIN ModelSuites USING (ModelProviderId)
-            JOIN ModelLines USING (ModelProviderId, ModelSuiteId)
-            JOIN ModelRollouts USING (ModelProviderId, ModelSuiteId, ModelLineId)
-            JOIN
-              (
-                SELECT
-                  ModelProviderId,
-                  ModelSuiteId,
-                  ModelLineId,
-                  DataProviderId,
-                  StartTime,
-                  EndTime
-                FROM
-                  DataProviders
-                  JOIN DataProviderAvailabilityIntervals USING (DataProviderId)
-                WHERE
-                  ExternalDataProviderId IN UNNEST(@externalDataProviderIds)
-              ) AS DataProviderAvailabilityIntervals
-              USING (ModelProviderId, ModelSuiteId, ModelLineId)
-          WHERE
-            ExternalModelProviderId = @externalModelProviderId
-            AND ExternalModelSuiteId = @externalModelSuiteId
-            AND ModelLines.Type IN UNNEST(@types)
-            AND TIMESTAMP_DIFF(@intervalStartTime, ModelLines.ActiveStartTime, NANOSECOND) >= 0
-            AND
-              CASE
-                WHEN ModelLines.ActiveEndTime IS NULL THEN TRUE
-                ELSE TIMESTAMP_DIFF(@intervalEndTime, ModelLines.ActiveEndTime, NANOSECOND) <= 0
-                END
-            AND TIMESTAMP_DIFF(@intervalStartTime, DataProviderAvailabilityIntervals.StartTime, NANOSECOND) >= 0
-            AND TIMESTAMP_DIFF(@intervalEndTime, DataProviderAvailabilityIntervals.EndTime, NANOSECOND) <= 0
-          GROUP BY
-            ModelLines.ModelProviderId,
-            ModelLines.ModelSuiteId,
-            ModelLines.ModelLineId,
-            ModelLines.ExternalModelLineId,
-            ModelLines.DisplayName,
-            ModelLines.Description,
-            ModelLines.ActiveStartTime,
-            ModelLines.ActiveEndTime,
-            ModelLines.Type,
-            ModelLines.CreateTime,
-            ModelLines.UpdateTime,
-            ModelSuites.ExternalModelSuiteId,
-            ModelProviders.ExternalModelProviderId
-          HAVING
-            -- ModelLine must have exactly 1 ModelRollout
-            COUNT(DISTINCT ModelRolloutId) = 1
-            -- DataProviderAvailabilityIntervals row must exist for every specified DataProvider
-            AND COUNT(DISTINCT DataProviderId) = @numDataProviders
-          """
-            .trimIndent()
-        ) {
-          bind("externalModelProviderId").to(externalModelProviderId.value)
-          bind("externalModelSuiteId").to(externalModelSuiteId.value)
-          bind("numDataProviders").to(externalDataProviderIds.size.toLong())
+      require(types.isNotEmpty()) { "types is required" }
+      require(externalDataProviderIds.isNotEmpty()) { "externalDataProviderIds is required" }
+
+      val statement =
+        statement(VALID_MODEL_LINES_BASE_SQL) {
           bind("externalDataProviderIds").toInt64Array(externalDataProviderIds.map { it.value })
-          bind("types").toInt64Array(types)
           bind("intervalStartTime").to(timeInterval.startTime.toGcloudTimestamp())
           bind("intervalEndTime").to(timeInterval.endTime.toGcloudTimestamp())
+          bind("types").toInt64Array(types)
+
+          if (externalModelProviderId != null) {
+            appendClause("AND ExternalModelProviderId = @externalModelProviderId")
+            bind("externalModelProviderId").to(externalModelProviderId)
+          }
+          if (externalModelSuiteId != null) {
+            appendClause("AND ExternalModelSuiteId = @externalModelSuiteId")
+            bind("externalModelSuiteId").to(externalModelSuiteId)
+          }
         }
 
       return readContext
-        .executeQuery(
-          validModelLinesStatement,
-          Options.tag("reader=ModelLineReader,action=readValidModelLines"),
-        )
+        .executeQuery(statement, Options.tag("reader=ModelLineReader,action=readValidModelLines"))
         .map(::buildResult)
     }
   }
