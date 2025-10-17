@@ -134,6 +134,14 @@ class GenerateSyntheticData : Runnable {
   lateinit var dataSpecResourcePath: String
     private set
 
+  @Option(
+    names = ["--impression-metadata-base-path"],
+    description = ["Base path where to store the Impressions files"],
+    required = false,
+  )
+  lateinit var impressionMetadataBasePath: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
@@ -168,7 +176,7 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
-    val eventGroupPath = "model-line/$modelLine/event-group-reference-id/$eventGroupReferenceId"
+    val eventGroupPath = "model-line/${modelLine.getModelLineName()}/event-group-reference-id/$eventGroupReferenceId"
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
@@ -181,9 +189,12 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events)
+      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
     }
   }
+
+  fun String.getModelLineName(): String =
+    this.substringAfterLast("/")
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
