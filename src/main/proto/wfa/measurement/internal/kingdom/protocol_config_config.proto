@@ -44,3 +44,12 @@ message HmssProtocolConfigConfig {
   // The duchy id of the aggregator.
   string aggregator_duchy_id = 4;
 }
+
+// The kingdom local config proto used to initialize the `ProtocolConfig` for
+// the TrusTEE protocol.
+message TrusTeeProtocolConfigConfig {
+  // The TrusTee protocol Config.
+  ProtocolConfig.TrusTee protocol_config = 1;
+  // The id of the duchy executing the computation.
+  string duchy_id = 2;
+}

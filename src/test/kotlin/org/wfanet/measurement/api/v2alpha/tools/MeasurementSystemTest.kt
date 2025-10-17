@@ -1637,7 +1637,7 @@ class MeasurementSystemTest {
           parent = MODEL_SUITE_NAME
           pageSize = LIST_PAGE_SIZE
           pageToken = LIST_PAGE_TOKEN
-          filter = filter { types += ModelLine.Type.PROD }
+          filter = filter { typeIn += ModelLine.Type.PROD }
         }
       )
   }

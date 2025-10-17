@@ -644,7 +644,7 @@ class ListModelLines : Runnable {
           pageSize = pageParams.pageSize
           pageToken = pageParams.pageToken
           if (typeList.isNotEmpty()) {
-            filter = ListModelLinesRequestKt.filter { types += typeList }
+            filter = ListModelLinesRequestKt.filter { typeIn += typeList }
           }
         }
       )

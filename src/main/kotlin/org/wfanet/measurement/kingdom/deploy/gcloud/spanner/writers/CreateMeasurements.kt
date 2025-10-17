@@ -38,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
@@ -130,7 +131,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         when (it.measurement.details.protocolConfig.protocolCase) {
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
-          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+          ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+          ProtocolConfig.ProtocolCase.TRUS_TEE -> {
             createComputedMeasurement(
               createMeasurementRequest = it,
               measurementConsumerId = measurementConsumerId,
@@ -171,6 +173,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
             HmssProtocolConfig.secondNonAggregatorDuchyId,
             HmssProtocolConfig.aggregatorDuchyId,
           )
+        ProtocolConfig.ProtocolCase.TRUS_TEE -> setOf(TrusTeeProtocolConfig.duchyId)
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -194,6 +197,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HmssProtocolConfig.DUCHY_COUNT
+        ProtocolConfig.ProtocolCase.TRUS_TEE -> 1
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -257,6 +261,18 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           dataProvideReaderResultsMap = dataProvideReaderResultsMap,
           initialRequisitionState = Requisition.State.PENDING_PARAMS,
           fulfillingDuchies = fulfillingDuchies,
+        )
+      }
+      ProtocolConfig.ProtocolCase.TRUS_TEE -> {
+        val fulfillingDuchy =
+          includedDuchyEntries.first { it.externalDuchyId == TrusTeeProtocolConfig.duchyId }
+        insertRequisitions(
+          measurementConsumerId = measurementConsumerId,
+          measurementId = measurementId,
+          dataProvidersMap = createMeasurementRequest.measurement.dataProvidersMap,
+          dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+          initialRequisitionState = Requisition.State.PENDING_PARAMS,
+          fulfillingDuchies = listOf(fulfillingDuchy),
         )
       }
       ProtocolConfig.ProtocolCase.DIRECT,

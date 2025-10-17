@@ -263,6 +263,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:hmss_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:llv2_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:ro_llv2_protocol_config",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:trus_tee_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:internal_status_conversion",
         "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
         "//src/main/proto/google/rpc:status_kt_jvm_proto",

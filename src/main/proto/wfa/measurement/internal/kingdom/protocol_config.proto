@@ -147,6 +147,12 @@ message ProtocolConfig {
     int32 reach_ring_modulus = 4;
   }
 
+  // Configuration for TrusTEE protocol.
+  message TrusTee {
+    // The mechanism to generate noise from computation.
+    NoiseMechanism noise_mechanism = 1;
+  }
+
   // Configuration for the specific protocol.
   oneof protocol {
     // Liquid Legions v2 config.
@@ -164,6 +170,9 @@ message ProtocolConfig {
 
     // Honest Majority Share Shuffle protocol.
     HonestMajorityShareShuffle honest_majority_share_shuffle = 6;
+
+    // TresTEE protocol
+    TrusTee trus_tee = 7;
   }
 }
 
