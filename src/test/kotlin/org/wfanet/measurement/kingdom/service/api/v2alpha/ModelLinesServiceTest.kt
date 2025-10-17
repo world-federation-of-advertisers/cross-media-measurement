@@ -74,7 +74,6 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
-import org.wfanet.measurement.internal.kingdom.ModelLine.Type as InternalType
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
@@ -85,7 +84,7 @@ import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest a
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse as internalEnumerateValidModelLinesResponse
 import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
-import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalsetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
@@ -95,8 +94,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 private const val DEFAULT_LIMIT = 50
-private val TYPES: Set<InternalType> =
-  setOf(InternalType.PROD, InternalType.DEV, InternalType.HOLDBACK)
+private val TYPES: Set<InternalModelLine.Type> =
+  setOf(InternalModelLine.Type.PROD, InternalModelLine.Type.DEV, InternalModelLine.Type.HOLDBACK)
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
@@ -160,13 +159,16 @@ class ModelLinesServiceTest {
           failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
         } else {
           when (request.type) {
-            InternalType.DEV -> INTERNAL_MODEL_LINE.copy { type = InternalType.DEV }
-            InternalType.PROD -> INTERNAL_MODEL_LINE.copy { type = InternalType.PROD }
-            InternalType.HOLDBACK -> INTERNAL_MODEL_LINE.copy { type = InternalType.HOLDBACK }
-            InternalType.TYPE_UNSPECIFIED,
-            InternalType.UNRECOGNIZED ->
-              INTERNAL_MODEL_LINE.copy { type = InternalType.TYPE_UNSPECIFIED }
-            else -> INTERNAL_MODEL_LINE.copy { type = InternalType.TYPE_UNSPECIFIED }
+            InternalModelLine.Type.DEV ->
+              INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.DEV }
+            InternalModelLine.Type.PROD ->
+              INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.PROD }
+            InternalModelLine.Type.HOLDBACK ->
+              INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.HOLDBACK }
+            InternalModelLine.Type.TYPE_UNSPECIFIED,
+            InternalModelLine.Type.UNRECOGNIZED ->
+              INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.TYPE_UNSPECIFIED }
+            else -> INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.TYPE_UNSPECIFIED }
           }
         }
       }
@@ -179,14 +181,14 @@ class ModelLinesServiceTest {
     onBlocking { streamModelLines(any()) }
       .thenReturn(
         flowOf(
-          INTERNAL_MODEL_LINE.copy { type = InternalType.PROD },
+          INTERNAL_MODEL_LINE.copy { type = InternalModelLine.Type.PROD },
           INTERNAL_MODEL_LINE.copy {
             externalModelLineId = EXTERNAL_MODEL_LINE_ID_2
-            type = InternalType.DEV
+            type = InternalModelLine.Type.DEV
           },
           INTERNAL_MODEL_LINE.copy {
             externalModelLineId = EXTERNAL_MODEL_LINE_ID_3
-            type = InternalType.HOLDBACK
+            type = InternalModelLine.Type.HOLDBACK
           },
         )
       )
@@ -221,7 +223,7 @@ class ModelLinesServiceTest {
           clearCreateTime()
           clearUpdateTime()
           clearExternalModelLineId()
-          type = InternalType.PROD
+          type = InternalModelLine.Type.PROD
         }
       )
 
@@ -416,7 +418,7 @@ class ModelLinesServiceTest {
 
     verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::setActiveEndTime)
       .isEqualTo(
-        internalsetActiveEndTimeRequest {
+        internalSetActiveEndTimeRequest {
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
           externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
@@ -665,9 +667,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
     }
 
@@ -716,9 +718,9 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
     }
 
@@ -760,6 +762,31 @@ class ModelLinesServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listModelLines requests ModelLines filtered by active interval`() {
+    val request = listModelLinesRequest {
+      parent = "modelProviders/-/modelSuites/-"
+      filter = filter {
+        activeIntervalContains = interval {
+          startTime = ACTIVE_START_TIME
+          endTime = ACTIVE_END_TIME
+        }
+      }
+    }
+
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+      runBlocking { service.listModelLines(request) }
+    }
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::streamModelLines)
+      .isEqualTo(
+        internalStreamModelLinesRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter = internalFilter { activeIntervalContains = request.filter.activeIntervalContains }
+        }
+      )
   }
 
   @Test
@@ -869,17 +896,17 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 2
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -906,9 +933,9 @@ class ModelLinesServiceTest {
         pageSize = request.pageSize
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -952,17 +979,17 @@ class ModelLinesServiceTest {
       parent = MODEL_SUITE_NAME
       pageSize = 4
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -1007,17 +1034,17 @@ class ModelLinesServiceTest {
     val request = listModelLinesRequest {
       parent = MODEL_SUITE_NAME
       filter = filter {
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
       }
       val listModelLinesPageToken = listModelLinesPageToken {
         pageSize = 2
         externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
         externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-        types += Type.PROD
-        types += Type.DEV
-        types += Type.HOLDBACK
+        typeIn += Type.PROD
+        typeIn += Type.DEV
+        typeIn += Type.HOLDBACK
         lastModelLine = previousPageEnd {
           createTime = CREATE_TIME
           externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
@@ -1412,7 +1439,7 @@ class ModelLinesServiceTest {
           externalDataProviderIds +=
             apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
           timeInterval = request.timeInterval
-          types += InternalType.PROD
+          types += InternalModelLine.Type.PROD
         }
       )
   }
