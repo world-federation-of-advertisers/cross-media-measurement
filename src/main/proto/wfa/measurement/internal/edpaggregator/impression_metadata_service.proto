@@ -41,10 +41,6 @@ service ImpressionMetadataService {
   rpc ListImpressionMetadata(ListImpressionMetadataRequest)
       returns (ListImpressionMetadataResponse);
 
-  // Marks an ImpressionMetadata entry as deleted.
-  rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata);
-
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse);
