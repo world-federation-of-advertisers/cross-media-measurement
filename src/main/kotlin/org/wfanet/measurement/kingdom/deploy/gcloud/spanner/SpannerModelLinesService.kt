@@ -156,6 +156,21 @@ class SpannerModelLinesService(
     ) {
       failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
+    if (request.filter.hasActiveIntervalContains()) {
+      val activeIntervalContainsPath = "filter.active_interval_contains"
+      if (!request.filter.activeIntervalContains.hasStartTime()) {
+        throw RequiredFieldNotSetException("$activeIntervalContainsPath.start_time") { fieldName ->
+            "$fieldName is required when $activeIntervalContainsPath is specified"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!request.filter.activeIntervalContains.hasEndTime()) {
+        throw RequiredFieldNotSetException("$activeIntervalContainsPath.end_time") { fieldName ->
+            "$fieldName is required when $activeIntervalContainsPath is specified"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
     return StreamModelLines(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelLine
     }
