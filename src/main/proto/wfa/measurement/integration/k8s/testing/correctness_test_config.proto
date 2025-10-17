@@ -67,11 +67,11 @@ message CorrectnessTestConfig {
   string access_public_api_target = 11;
 
   // jwt audience for Reporting Server.
-  string reporting_token_audience = 13;
+  string reporting_token_audience = 12;
 
   // Expected hostname (DNS-ID) in the access public API server's TLS
   // certificate.
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
-  string access_public_api_cert_host = 12;
+  string access_public_api_cert_host = 13;
 }
