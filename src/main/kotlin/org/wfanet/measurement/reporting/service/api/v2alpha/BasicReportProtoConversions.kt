@@ -18,7 +18,9 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt as InternalBasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpec as InternalDimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
@@ -120,6 +122,15 @@ fun BasicReport.toInternal(
     }
 
     this.createReportRequestId = createReportRequestId
+    if (modelLine.isNotEmpty()) {
+      val modelLineKey = ModelLineKey.fromName(modelLine)
+      this.modelLineKey =
+        InternalBasicReportKt.modelLineKey {
+          cmmsModelProviderId = modelLineKey!!.modelProviderId
+          cmmsModelSuiteId = modelLineKey.modelSuiteId
+          cmmsModelLineId = modelLineKey.modelLineId
+        }
+    }
   }
 }
 
@@ -397,6 +408,16 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
         InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
         InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
       }
+
+    if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
+      modelLine =
+        ModelLineKey(
+            modelLineKey.cmmsModelProviderId,
+            modelLineKey.cmmsModelSuiteId,
+            modelLineKey.cmmsModelLineId,
+          )
+          .toName()
+    }
   }
 }
 

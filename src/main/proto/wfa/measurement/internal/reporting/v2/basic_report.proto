@@ -82,4 +82,11 @@ message BasicReport {
   //
   // Only set when `Report` is associated with `BasicReport`.
   string external_report_id = 11;
+
+  message ModelLineKey {
+    string cmms_model_provider_id = 1;
+    string cmms_model_suite_id = 2;
+    string cmms_model_line_id = 3;
+  }
+  ModelLineKey model_line_key = 12;
 }
