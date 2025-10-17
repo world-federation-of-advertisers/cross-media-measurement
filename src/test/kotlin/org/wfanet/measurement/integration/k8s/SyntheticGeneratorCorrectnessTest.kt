@@ -27,6 +27,7 @@ import java.security.cert.X509Certificate
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
+import java.time.Duration
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -277,6 +278,9 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       val okHttpReportingClient =
         OkHttpClient.Builder()
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .connectTimeout(Duration.ofSeconds(30))
+          .readTimeout(Duration.ofSeconds(30))
+          .writeTimeout(Duration.ofSeconds(30))
           .build()
 
       val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
