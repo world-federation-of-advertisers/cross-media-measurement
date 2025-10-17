@@ -287,7 +287,9 @@ class ReportingUserSimulator(
 
         val responseBody = response.body!!.string()
         if (!response.isSuccessful) {
-          throw Exception("Error creating Basic Report: ${response.code} ${response.message} $responseBody")
+          throw Exception(
+            "Error creating Basic Report: ${response.code} ${response.message} $responseBody"
+          )
         }
 
         responseBody
@@ -318,7 +320,9 @@ class ReportingUserSimulator(
 
         val responseBody = response.body!!.string()
         if (!response.isSuccessful) {
-          throw Exception("Error retrieving Basic Report: ${response.code} ${response.message} $responseBody")
+          throw Exception(
+            "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
+          )
         }
 
         responseBody

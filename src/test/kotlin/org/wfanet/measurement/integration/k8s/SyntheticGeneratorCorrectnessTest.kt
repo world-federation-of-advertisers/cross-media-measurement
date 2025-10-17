@@ -24,10 +24,10 @@ import io.grpc.ManagedChannel
 import java.nio.file.Paths
 import java.security.KeyPair
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
-import java.time.Duration
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
