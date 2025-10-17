@@ -88,9 +88,10 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-
+    logger.info("Fetched ${requisitions.toList().size} requisitions...")
     val groupedRequisition: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(requisitions.toList())
+    logger.info("GroupedRequisitions: $groupedRequisition")
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
