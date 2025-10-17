@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchie
 import org.wfanet.measurement.internal.kingdom.batchGetDataProvidersResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -66,6 +67,8 @@ class SpannerDataProvidersService(
     return try {
       CreateDataProvider(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelLineNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }
@@ -128,6 +131,8 @@ class SpannerDataProvidersService(
     } catch (e: DataProviderNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelLineNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }

@@ -200,17 +200,44 @@ class SpannerModelLinesService(
   override suspend fun enumerateValidModelLines(
     request: EnumerateValidModelLinesRequest
   ): EnumerateValidModelLinesResponse {
+    if (request.timeInterval.startTime.seconds == 0L) {
+      throw RequiredFieldNotSetException("time_interval.start_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.timeInterval.endTime.seconds == 0L) {
+      throw RequiredFieldNotSetException("time_interval.end_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val externalModelProviderId: ExternalId? =
+      if (request.externalModelProviderId == 0L) {
+        null
+      } else {
+        ExternalId(request.externalModelProviderId)
+      }
+    val externalModelSuiteId: ExternalId? =
+      if (request.externalModelSuiteId == 0L) {
+        null
+      } else {
+        ExternalId(request.externalModelSuiteId)
+      }
+    if (externalModelProviderId == null && externalModelSuiteId != null) {
+      throw RequiredFieldNotSetException("external_model_provider_id") { fieldName ->
+          "$fieldName is required when external_model_suite_id is specified"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val types: List<ModelLine.Type> =
       if (request.typesList.isEmpty()) {
         listOf(ModelLine.Type.PROD)
       } else {
         request.typesList
       }
+
     val modelLineResults =
       ModelLineReader.readValidModelLines(
         client.singleUseReadOnlyTransaction(),
-        externalModelProviderId = ExternalId(request.externalModelProviderId),
-        externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+        externalModelProviderId,
+        externalModelSuiteId,
         request.timeInterval,
         types,
         request.externalDataProviderIdsList.map { ExternalId(it) },

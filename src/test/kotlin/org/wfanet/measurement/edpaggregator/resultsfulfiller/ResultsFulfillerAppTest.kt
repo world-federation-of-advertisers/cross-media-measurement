@@ -117,6 +117,9 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
@@ -126,6 +129,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
@@ -153,6 +158,8 @@ class ResultsFulfillerAppTest {
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
   private val requisitionMetadataServiceMock =
     mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
@@ -176,6 +183,7 @@ class ResultsFulfillerAppTest {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionMetadataServiceMock)
+    addService(impressionMetadataServiceMock)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -186,6 +194,9 @@ class ResultsFulfillerAppTest {
   }
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub by lazy {
     RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
@@ -295,6 +306,29 @@ class ResultsFulfillerAppTest {
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
 
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
@@ -303,6 +337,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -412,6 +447,7 @@ class ResultsFulfillerAppTest {
           workItemsStub,
           workItemAttemptsStub,
           requisitionMetadataStub,
+          impressionMetadataStub,
           TestRequisitionStubFactory(
             grpcTestServerRule.channel,
             mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -535,6 +571,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -652,6 +689,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -760,6 +798,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -869,6 +908,29 @@ class ResultsFulfillerAppTest {
 
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
 
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
@@ -877,6 +939,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),
@@ -979,6 +1042,29 @@ class ResultsFulfillerAppTest {
     writeImpressionMetadata(tmpPath, serializedEncryptionKey)
     val typeRegistry = TypeRegistry.newBuilder().add(TestEvent.getDescriptor()).build()
 
+    val start = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC)
+    val end = FIRST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = "file:///$IMPRESSIONS_METADATA_BUCKET/$IMPRESSION_METADATA_BLOB_KEY"
+            interval = interval {
+              startTime = timestamp {
+                seconds = start.epochSecond
+                nanos = start.nano
+              }
+              endTime = timestamp {
+                seconds = end.epochSecond
+                nanos = end.nano
+              }
+            }
+          }
+        }
+      )
+
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
@@ -987,6 +1073,7 @@ class ResultsFulfillerAppTest {
         workItemsStub,
         workItemAttemptsStub,
         requisitionMetadataStub,
+        impressionMetadataStub,
         TestRequisitionStubFactory(
           grpcTestServerRule.channel,
           mapOf("some-duchy" to grpcTestServerRule.channel),

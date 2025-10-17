@@ -418,7 +418,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_initContainers: {
 		for dep in _dependencies {
 			"wait-for-\(dep)": {
-				image: "gcr.io/google-containers/busybox:1.27"
+				image: "registry.k8s.io/busybox:1.27"
 				command: ["sh", "-c",
 					"until nslookup \(dep); do echo waiting for \(dep); sleep 2; done",
 				]

@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
@@ -481,6 +482,28 @@ fun Status.toExternalStatusRuntimeException(
             .toName()
         put("modelLine", modelLineName)
         errorMessage = "ModelLine $modelLineName not found."
+      }
+      ErrorCode.MODEL_LINE_NOT_ACTIVE -> {
+        val externalModelProviderId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_provider_id").toLong())
+        val externalModelSuiteId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_suite_id").toLong())
+        val externalModelLineId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_line_id").toLong())
+        val modelLineKey =
+          ModelLineKey(
+            externalModelProviderId.apiId.value,
+            externalModelSuiteId.apiId.value,
+            externalModelLineId.apiId.value,
+          )
+        val modelLineName = modelLineKey.toName()
+        put("modelLine", modelLineName)
+        val activeStartTime = errorInfo.metadataMap.getValue("active_start_time")
+        put("activeStartTime", activeStartTime)
+        val activeEndTime = errorInfo.metadataMap.getValue("active_start_time")
+        put("activeEndTime", activeEndTime)
+        errorMessage =
+          "ModelLine $modelLineName not active outside of range [$activeStartTime, $activeEndTime)"
       }
       ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
         val modelLineName =

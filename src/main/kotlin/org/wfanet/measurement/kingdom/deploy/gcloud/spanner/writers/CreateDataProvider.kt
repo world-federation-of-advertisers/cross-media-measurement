@@ -14,8 +14,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
+import com.google.type.endTimeOrNull
+import java.time.Instant
+import org.wfanet.measurement.common.contains
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
@@ -26,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineInternalKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
@@ -35,6 +42,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineRea
  *
  * Throws one of the following on [execute]:
  * * [ModelLineNotFoundException]
+ * * [ModelLineNotActiveException]
  */
 class CreateDataProvider(private val dataProvider: DataProvider) :
   SpannerWriter<DataProvider, DataProvider>() {
@@ -88,21 +96,36 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     }
   }
 
+  /**
+   * Buffers insert mutations for DataProviderAvailabilityIntervals.
+   *
+   * @throws ModelLineNotFoundException
+   * @throws ModelLineNotActiveException
+   */
   private suspend fun TransactionScope.insertDataAvailabilityIntervals(dataProviderId: InternalId) {
-    val modelLineInternalKeys: Map<ModelLineKey, ModelLineInternalKey> =
-      ModelLineReader.readInternalIds(
+    val activeIntervalsByExternalKey: Map<ModelLineKey, ModelLineReader.ActiveIntervalResult> =
+      ModelLineReader.readActiveIntervals(
         transactionContext,
         dataProvider.dataAvailabilityIntervalsList.map { it.key },
       )
     for (entry: DataProvider.DataAvailabilityMapEntry in
       dataProvider.dataAvailabilityIntervalsList) {
-      val internalKey: ModelLineInternalKey =
-        modelLineInternalKeys[entry.key]
+      val (internalKey: ModelLineInternalKey, _, activeInterval: Interval) =
+        activeIntervalsByExternalKey[entry.key]
           ?: throw ModelLineNotFoundException(
             ExternalId(entry.key.externalModelProviderId),
             ExternalId(entry.key.externalModelSuiteId),
             ExternalId(entry.key.externalModelLineId),
           )
+      val activeRange: OpenEndRange<Instant> =
+        activeInterval.startTime.toInstant()..<(activeInterval.endTimeOrNull
+              ?: Timestamps.MAX_VALUE)
+            .toInstant()
+      val availabilityRange: OpenEndRange<Instant> =
+        entry.value.startTime.toInstant()..<entry.value.endTime.toInstant()
+      if (availabilityRange !in activeRange) {
+        throw ModelLineNotActiveException(entry.key, activeRange)
+      }
       transactionContext.bufferInsertMutation("DataProviderAvailabilityIntervals") {
         set("DataProviderId").to(dataProviderId)
         set("ModelProviderId").to(internalKey.modelProviderId)

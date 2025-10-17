@@ -103,7 +103,7 @@ import "list"
 			}
 			_containers: {
 				"probe-sidecar": {
-					image: "registry.k8s.io/busybox"
+					image: "registry.k8s.io/busybox:1.27"
 					args: ["/bin/sh", "-c", "while true; do sleep 30; done"]
 					startupProbe: {
 						exec: command: ["cat", HealthFile]

@@ -91,7 +91,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * - Parallelism: one coroutine per resolved data source
  * - Memory: bounded by batch size and number of concurrent readers
  *
- * @property impressionMetadataService facade providing data sources for intervals.
+ * @property impressionDataSourceProvider facade providing data sources for intervals.
  * @property eventGroupDetailsList event groups with their collection intervals.
  * @property modelLine model line to use for fetching impressions
  * @property kmsClient KMS client for decryption operations
@@ -100,7 +100,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * @property batchSize batch size for event reading
  */
 class StorageEventSource(
-  private val impressionMetadataService: ImpressionMetadataService,
+  private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val eventGroupDetailsList: List<EventGroupDetails>,
   private val modelLine: String,
   private val kmsClient: KmsClient?,
@@ -141,12 +141,10 @@ class StorageEventSource(
 
     return channelFlow {
       val eventReaders: List<StorageEventReader> = createEventReaders()
-
       ProgressTracker(eventReaders.size).use { progressTracker ->
         logger.info(
           "Processing ${eventReaders.size} EventReaders across ${eventGroupDetailsList.size} event groups"
         )
-
         // Launch one coroutine per EventReader
         coroutineScope {
           eventReaders.forEach { eventReader ->
@@ -163,10 +161,13 @@ class StorageEventSource(
 
   /** Creates EventReader instances for all data sources provided by the metadata service. */
   private suspend fun createEventReaders(): List<StorageEventReader> {
+    logger.info("Creating event readers... ")
     val allSources =
       eventGroupDetailsList.flatMap { details ->
+        logger.info("EventGroup details: $details")
         details.collectionIntervalsList.flatMap { interval ->
-          impressionMetadataService.listImpressionDataSources(
+          logger.info("EventGroup collection interval: $interval")
+          impressionDataSourceProvider.listImpressionDataSources(
             modelLine,
             details.eventGroupReferenceId,
             interval,
