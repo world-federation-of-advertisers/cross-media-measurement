@@ -496,7 +496,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         reportingGatewayHost = gatewayAddress.hostName,
         reportingGatewayPort = gatewayAddress.port,
         getReportingAccessToken = getAccessToken,
-        modelLine = modelLine.name,
+        modelLineName = modelLine.name,
       )
     }
 
