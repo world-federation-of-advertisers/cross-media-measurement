@@ -338,6 +338,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         reportingGatewayHost = reportingServiceUrl.host,
         reportingGatewayPort = reportingServiceUrl.port,
         getReportingAccessToken = getAccessToken,
+        modelLine = modelLine.name,
       )
     }
 
