@@ -26,6 +26,14 @@ option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 message ReportResult {
+  // The CMMS Measurement Consumer ID. Required. Immutable.
+  string cmms_measurement_consumer_id = 1;
+  // The external ID of this result. Required. Immutable.
+  fixed64 external_report_result_id = 2;
+  // The report start time. The end dates below are aligned with the time
+  // in this field. Required. Immutable.
+  google.type.DateTime report_start = 3;
+
   enum MetricFrequencyType {
     METRIC_FREQUENCY_TYPE_UNSPECIFIED = 0;
     TOTAL = 1;
@@ -42,46 +50,46 @@ message ReportResult {
     PRIMITIVE = 2;
   }
 
-  // The CMMS Measurement Consumer ID
-  string cmms_measurement_consumer_id = 1;
-  // The external ID of this result.
-  fixed64 external_report_result_id = 2;
-  // The report start time. The end dates below are aligned with the time
-  // in this field.
-  google.type.DateTime report_start = 3;
-
-  message ReportingSetResult {
+  // Unique key of a `ReportingSetResult` within a `ReportResult`. Immutable.
+  message ReportingSetResultKey {
+    // External ID of the `ReportingSet`. Required.
     string external_reporting_set_id = 1;
+    // Type of the Venn diagram region. Required.
     VennDiagramRegionType venn_diagram_region_type = 2;
-    // Selects how to specify the IQF.
+    // Impression qualification filter. Required.
     oneof impression_qualification_filter {
-      // The external ID of the IQF
+      // The external ID of the IQF.
       string external_impression_qualification_filter_id = 3;
-      // Set if the filter is custom.
+      // Whether the filter is custom.
       bool custom = 4;
     }
+    // Type of frequency of metric. Required.
     MetricFrequencyType metric_frequency_type = 5;
-    // The event template dimensions the result is grouped by
-    // Each event template field path may exist at most once in this list.
+    // The event template dimensions from the `DimensionSpec`, ordered by `path`
+    // and `value` following the natural order of the value type. Each event
+    // template field path may exist at most once in this list.
     repeated EventTemplateField groupings = 6;
-    // The filters, sans the IQF criteria, that were applied to these results.
+    // The event filters from the `DimensionSpec`, ordered by `terms`
+    // lexicographically. The terms themselves are ordered as described in
+    // `groupings`.
     repeated EventFilter event_filters = 7;
-    int32 population_size = 8;
+  }
+  message ReportingSetResult {
+    // Size of the population. Required. Immutable.
+    int32 population_size = 1;
+
+    message ReportingWindow {
+      // Start of the window range, inclusive.
+      google.type.Date start = 1;
+      // End of the window range, inclusive.
+      google.type.Date end = 2;
+    }
     // Represents the results for a reporting window with respect to a
     // ReportingSetResult.
     message ReportingWindowResult {
-      google.type.Date window_start_date = 1;
-      google.type.Date window_end_date = 2;
-
       // Represents noisy result values with respect to a ReportingWindowResult.
-      //
-      // The combination of (cmms_measurement_consumer_id,
-      //                     external_report_result_id,
-      //                     external_noisy_report_result_value_id)
-      // is unique.
+      // Immutable.
       message NoisyReportResultValues {
-        fixed64 external_noisy_report_result_value_id = 1;
-
         message NoisyMetricSet {
           // Statistics of a scalar value
           message UnivariateStatistics {
@@ -101,7 +109,8 @@ message ReportResult {
               double value = 1;
               UnivariateStatistics univariate_statistics = 2;
             }
-            repeated BinResult bins = 1;
+            // Map of bin label to `BinResult`.
+            map<string, BinResult> bin_results = 1;
           }
 
           message ImpressionCountResult {
@@ -110,32 +119,49 @@ message ReportResult {
           }
 
           ReachResult reach = 1;
-          HistogramResult frequencyHistogram = 2;
+          HistogramResult frequency_histogram = 2;
           ImpressionCountResult impression_count = 3;
         }
 
-        NoisyMetricSet cumulative_results = 2;
-        NoisyMetricSet non_cumulative_results = 3;
+        NoisyMetricSet cumulative_results = 1;
+        NoisyMetricSet non_cumulative_results = 2;
       }
 
       // Represents result values with respect to a ReportingWindowResult.
-      //
-      // The combination of (cmms_measurement_consumer_id,
-      //                     external_report_result_id,
-      //                     external_report_result_value_id)
-      // is unique.
+      // Immutable.
       message ReportResultValues {
-        fixed64 external_report_result_value_id = 1;
-        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 3;
-        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 4;
+        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 1;
+        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 2;
       }
 
-      oneof report_result_values {
-        NoisyReportResultValues noisy_report_result_values = 3;
-        ReportResultValues denoised_report_result_values = 4;
-      }
+      // Noisy report result values. Required. Immutable.
+      NoisyReportResultValues noisy_report_result_values = 3;
+      // Denoised report result values. Output-only.
+      //
+      // In responses, only set when view is `REPORT_RESULT_VIEW_FULL`.
+      ReportResultValues denoised_report_result_values = 4;
     }
-    repeated ReportingWindowResult reporting_window_results = 9;
+    message ReportingWindowEntry {
+      ReportingWindow key = 1;
+      ReportingWindowResult value = 2;
+    }
+    // Map of `ReportingWindow` to `ReportingWindowResult`.
+    repeated ReportingWindowEntry reporting_window_results = 2;
   }
-  repeated ReportingSetResult reporting_set_results = 4;
+  message ReportingSetResultEntry {
+    ReportingSetResultKey key = 1;
+    ReportingSetResult value = 2;
+  }
+
+  // Map of `ReportingSetResultKey` to `ReportingSetResult`.
+  repeated ReportingSetResultEntry reporting_set_results = 4;
+}
+
+enum ReportResultView {
+  // Default value. The API will default to the NOISY view.
+  REPORT_RESULT_VIEW_UNSPECIFIED = 0;
+  // View which includes noisy values only.
+  REPORT_RESULT_VIEW_NOISY = 1;
+  // View which includes all values (noisy and de-noised).
+  REPORT_RESULT_VIEW_FULL = 2;
 }
