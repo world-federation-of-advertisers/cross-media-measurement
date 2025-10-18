@@ -49,7 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.addNoisyResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
@@ -64,6 +64,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.createImpressionQual
 import org.wfanet.measurement.reporting.service.api.v2alpha.createMetricCalculationSpecFilters
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.toImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -163,8 +164,8 @@ class BasicReportsReportsJob(
                     eventTemplateFieldsByPath,
                     eventTemplateFieldByPredicate,
                   )
-                reportResultsStub.addNoisyResultValues(
-                  addNoisyResultValuesRequest { this.reportResult = reportResult }
+                reportResultsStub.createReportResult(
+                  createReportResultRequest { this.reportResult = reportResult }
                 )
               }
               Report.State.FAILED -> {
@@ -226,11 +227,10 @@ class BasicReportsReportsJob(
       for (reportingSetResultInfoEntry:
         Map.Entry<ReportingSetResultInfoKey, ReportingSetResultInfo> in
         reportingSetResultInfoByReportingSetResultInfoKey.entries) {
-        reportingSetResults +=
-          ReportResultKt.reportingSetResult {
+        val key =
+          ReportResultKt.reportingSetResultKey {
             externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId
             vennDiagramRegionType = reportingSetResultInfoEntry.value.vennDiagramRegionType
-
             val filterInfo = filterInfoByFilter.getValue(reportingSetResultInfoEntry.key.filter)
             if (filterInfo.externalImpressionQualificationFilterId != null) {
               externalImpressionQualificationFilterId =
@@ -238,82 +238,94 @@ class BasicReportsReportsJob(
             } else {
               custom = true
             }
-
             metricFrequencyType = reportingSetResultInfoEntry.value.metricFrequencyType
-
             groupings +=
-              reportingSetResultInfoEntry.key.groupingPredicates.map {
-                eventTemplateFieldByPredicate.getValue(it)
-              }
-
-            eventFilters += filterInfo.dimensionSpecFilters
-
-            populationSize = reportingSetResultInfoEntry.value.populationSize
-            for (reportingWindowResultInfoEntry:
-              MutableMap.MutableEntry<Date, ReportingWindowResultInfo> in
-              reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                  if (reportingWindowResultInfoEntry.value.startDate != null) {
-                    windowStartDate = reportingWindowResultInfoEntry.value.startDate!!
-                  }
-                  windowEndDate = reportingWindowResultInfoEntry.key
-                  noisyReportResultValues =
-                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                      .noisyReportResultValues {
-                        val cumulativeResults: MetricResults? =
-                          reportingWindowResultInfoEntry.value.cumulativeResults
-                        if (cumulativeResults != null) {
-                          this.cumulativeResults =
-                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                              .NoisyReportResultValuesKt
-                              .noisyMetricSet {
-                                val reach: MetricResult.ReachResult? = cumulativeResults.reach
-                                if (reach != null) {
-                                  this.reach = reach.toNoisyMetricSetReachResult()
-                                }
-                                val frequencyHistogram: MetricResult.HistogramResult? =
-                                  cumulativeResults.frequencyHistogram
-                                if (frequencyHistogram != null) {
-                                  this.frequencyHistogram =
-                                    frequencyHistogram.toNoisyMetricSetHistogramResult()
-                                }
-                                val impressionCount: MetricResult.ImpressionCountResult? =
-                                  cumulativeResults.impressionCount
-                                if (impressionCount != null) {
-                                  this.impressionCount =
-                                    impressionCount.toNoisyMetricSetImpressionCountResult()
-                                }
-                              }
-                        }
-                        val nonCumulativeResults: MetricResults? =
-                          reportingWindowResultInfoEntry.value.nonCumulativeResults
-                        if (nonCumulativeResults != null) {
-                          this.nonCumulativeResults =
-                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                              .NoisyReportResultValuesKt
-                              .noisyMetricSet {
-                                val reach: MetricResult.ReachResult? = nonCumulativeResults.reach
-                                if (reach != null) {
-                                  this.reach = reach.toNoisyMetricSetReachResult()
-                                }
-                                val frequencyHistogram: MetricResult.HistogramResult? =
-                                  nonCumulativeResults.frequencyHistogram
-                                if (frequencyHistogram != null) {
-                                  this.frequencyHistogram =
-                                    frequencyHistogram.toNoisyMetricSetHistogramResult()
-                                }
-                                val impressionCount: MetricResult.ImpressionCountResult? =
-                                  nonCumulativeResults.impressionCount
-                                if (impressionCount != null) {
-                                  this.impressionCount =
-                                    impressionCount.toNoisyMetricSetImpressionCountResult()
-                                }
-                              }
-                        }
+              reportingSetResultInfoEntry.key.groupingPredicates
+                .map { eventTemplateFieldByPredicate.getValue(it) }
+                .sortedWith(Normalization.eventTemplateFieldComparator)
+            eventFilters +=
+              filterInfo.dimensionSpecFilters.sortedWith(Normalization.eventFilterComparator)
+          }
+        reportingSetResults +=
+          ReportResultKt.reportingSetResultEntry {
+            this.key = key
+            value =
+              ReportResultKt.reportingSetResult {
+                populationSize = reportingSetResultInfoEntry.value.populationSize
+                for (reportingWindowResultInfoEntry: Map.Entry<Date, ReportingWindowResultInfo> in
+                  reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
+                  val window =
+                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                      if (reportingWindowResultInfoEntry.value.startDate != null) {
+                        start = reportingWindowResultInfoEntry.value.startDate!!
                       }
+                      end = reportingWindowResultInfoEntry.key
+                    }
+                  reportingWindowResults +=
+                    ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                      this.key = window
+                      value =
+                        ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                          noisyReportResultValues =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .noisyReportResultValues {
+                                val cumulativeResults: MetricResults? =
+                                  reportingWindowResultInfoEntry.value.cumulativeResults
+                                if (cumulativeResults != null) {
+                                  this.cumulativeResults =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .noisyMetricSet {
+                                        val reach: MetricResult.ReachResult? =
+                                          cumulativeResults.reach
+                                        if (reach != null) {
+                                          this.reach = reach.toNoisyMetricSetReachResult()
+                                        }
+                                        val frequencyHistogram: MetricResult.HistogramResult? =
+                                          cumulativeResults.frequencyHistogram
+                                        if (frequencyHistogram != null) {
+                                          this.frequencyHistogram =
+                                            frequencyHistogram.toNoisyMetricSetHistogramResult()
+                                        }
+                                        val impressionCount: MetricResult.ImpressionCountResult? =
+                                          cumulativeResults.impressionCount
+                                        if (impressionCount != null) {
+                                          this.impressionCount =
+                                            impressionCount.toNoisyMetricSetImpressionCountResult()
+                                        }
+                                      }
+                                }
+                                val nonCumulativeResults: MetricResults? =
+                                  reportingWindowResultInfoEntry.value.nonCumulativeResults
+                                if (nonCumulativeResults != null) {
+                                  this.nonCumulativeResults =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .noisyMetricSet {
+                                        val reach: MetricResult.ReachResult? =
+                                          nonCumulativeResults.reach
+                                        if (reach != null) {
+                                          this.reach = reach.toNoisyMetricSetReachResult()
+                                        }
+                                        val frequencyHistogram: MetricResult.HistogramResult? =
+                                          nonCumulativeResults.frequencyHistogram
+                                        if (frequencyHistogram != null) {
+                                          this.frequencyHistogram =
+                                            frequencyHistogram.toNoisyMetricSetHistogramResult()
+                                        }
+                                        val impressionCount: MetricResult.ImpressionCountResult? =
+                                          nonCumulativeResults.impressionCount
+                                        if (impressionCount != null) {
+                                          this.impressionCount =
+                                            impressionCount.toNoisyMetricSetImpressionCountResult()
+                                        }
+                                      }
+                                }
+                              }
+                        }
+                    }
                 }
-            }
+              }
           }
       }
     }
@@ -649,19 +661,19 @@ class BasicReportsReportsJob(
     return ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
       .NoisyMetricSetKt
       .histogramResult {
-        bins +=
-          source.binsList.map {
+        for (bin: MetricResult.HistogramResult.Bin in source.binsList) {
+          binResults[bin.label] =
             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
               .NoisyMetricSetKt
               .HistogramResultKt
               .binResult {
-                value = it.binResult.value
-                if (it.hasResultUnivariateStatistics()) {
+                value = bin.binResult.value
+                if (bin.hasResultUnivariateStatistics()) {
                   univariateStatistics =
-                    it.resultUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
+                    bin.resultUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
                 }
               }
-          }
+        }
       }
   }
 
