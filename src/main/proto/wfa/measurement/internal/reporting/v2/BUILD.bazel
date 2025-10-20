@@ -333,6 +333,7 @@ proto_library(
         ":result_group_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
         "@com_google_protobuf//:empty_proto",
     ],
 )
