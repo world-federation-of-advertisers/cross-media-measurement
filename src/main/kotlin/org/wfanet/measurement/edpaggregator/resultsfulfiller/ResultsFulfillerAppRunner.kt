@@ -24,11 +24,16 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
+import io.grpc.ClientInterceptors
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -39,6 +44,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
@@ -51,9 +57,14 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import picocli.CommandLine
+import kotlin.time.TimeSource
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.measured
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
+  private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
+
   @CommandLine.Option(
     names = ["--edpa-tls-cert-secret-id"],
     description = ["Secret ID of EDPA TLS cert file."],
@@ -268,7 +279,6 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   override fun run() {
-
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
@@ -291,10 +301,13 @@ class ResultsFulfillerAppRunner : Runnable {
 
     // Build the mutual TLS channel for secure computation API
     val secureComputationPublicChannel =
-      buildMutualTlsChannel(
-        secureComputationPublicApiTarget,
-        secureComputationClientCerts,
-        secureComputationPublicApiCertHost,
+      ClientInterceptors.intercept(
+        buildMutualTlsChannel(
+          secureComputationPublicApiTarget,
+          secureComputationClientCerts,
+          secureComputationPublicApiCertHost,
+        ),
+        grpcTelemetry.newClientInterceptor(),
       )
     val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
     val workItemAttemptsClient =
@@ -313,10 +326,13 @@ class ResultsFulfillerAppRunner : Runnable {
 
     // Build the mutual TLS channel for secure computation API
     val metadataStoragePublicChannel =
-      buildMutualTlsChannel(
-        metadataStoragePublicApiTarget,
-        metadataStorageClientCerts,
-        metadataStoragePublicApiCertHost,
+      ClientInterceptors.intercept(
+        buildMutualTlsChannel(
+          metadataStoragePublicApiTarget,
+          metadataStorageClientCerts,
+          metadataStoragePublicApiCertHost,
+        ),
+        grpcTelemetry.newClientInterceptor(),
       )
 
     val requisitionMetadataClient =
@@ -332,9 +348,10 @@ class ResultsFulfillerAppRunner : Runnable {
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = trustedRootCaCollectionFile,
         duchies = duchiesMap,
+        grpcTelemetry = grpcTelemetry,
       )
 
-    val modelLinesMap = runBlocking { buildModelLineMap() }
+    val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -353,7 +370,7 @@ class ResultsFulfillerAppRunner : Runnable {
         modelLineInfoMap = modelLinesMap,
       )
 
-    runBlocking { resultsFulfillerApp.run() }
+    runBlockingWithTelemetry { resultsFulfillerApp.run() }
   }
 
   fun createKmsClients() {
@@ -401,10 +418,13 @@ class ResultsFulfillerAppRunner : Runnable {
       val eventDescriptor =
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
+      val vidIndexMap = ResultsFulfillerMetrics.vidIndexBuildDuration.measured {
+        ParallelInMemoryVidIndexMap.build(populationSpec)
+      }
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
-          vidIndexMap = ParallelInMemoryVidIndexMap.build(populationSpec),
+          vidIndexMap = vidIndexMap,
           eventDescriptor = eventDescriptor,
         )
     }
@@ -512,7 +532,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
     private val edpsConfig by lazy {
-      runBlocking {
+      runBlockingWithTelemetry {
         getConfigAsProtoMessage(
           EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY,
           EventDataProviderConfigs.getDefaultInstance(),
@@ -520,6 +540,14 @@ class ResultsFulfillerAppRunner : Runnable {
       }
     }
 
+    init {
+      EdpaTelemetry.ensureInitialized()
+    }
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
+}
+
+private fun <T> runBlockingWithTelemetry(block: suspend () -> T): T {
+  return runBlocking(Context.current().asContextElement()) { block() }
 }
