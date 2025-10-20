@@ -28,7 +28,7 @@ package k8s
 		"--polling-interval=10s",
 		"--preprocessing-max-byte-size=1000000", // 1 MB
 		"--preprocessing-file-count=1000",
-		"--max-parallel-claimed-exchange-steps=1",
+		"--max-concurrent-tasks=1",
 	]
 }
 

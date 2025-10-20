@@ -89,7 +89,7 @@ spanner_emulator_test(
 
 spanner_emulator_test(
     name = "FullWithPreprocessingTest",
-    size = "medium",
+    size = "large",
     srcs = ["FullWithPreprocessingTest.kt"],
     # TODO(world-federation-of-advertisers/cross-media-measurement#2096): Remove when flakiness has been addressed.
     flaky = True,

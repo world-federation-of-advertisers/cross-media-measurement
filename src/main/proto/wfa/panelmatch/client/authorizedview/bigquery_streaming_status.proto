@@ -1,0 +1,74 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.authorizedview;
+
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.panelmatch.client.authorizedview";
+option java_multiple_files = true;
+option java_outer_classname = "BigQueryStreamingStatusProto";
+
+// Status information for BigQuery streaming operations in the authorized view
+// workflow.
+message BigQueryStreamingStatus {
+  // BigQuery table information
+  message TableInfo {
+    string project_id = 1;
+    string dataset_id = 2;
+    string table_id = 3;
+  }
+  TableInfo table_info = 1;
+
+  // Date of the exchange this streaming operation is for
+  google.type.Date exchange_date = 2;
+
+  // Type of data being streamed
+  enum DataType {
+    DATA_TYPE_UNSPECIFIED = 0;
+    // JoinKeyAndId data (keys only)
+    JOIN_KEYS = 1;
+    // EncryptedMatchedEvent data (keys and encrypted events)
+    ENCRYPTED_EVENTS = 2;
+  }
+  DataType data_type = 3;
+
+  // Statistics from the streaming operation
+  message StreamingStatistics {
+    // Number of rows successfully written to BigQuery
+    int64 rows_written = 1;
+    // Number of rows that failed to write
+    int64 rows_failed = 2;
+    // Number of batches sent to BigQuery streaming API
+    int32 batches_sent = 3;
+  }
+  StreamingStatistics statistics = 4;
+
+  // Overall status of the streaming operation
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    // All rows were successfully written
+    SUCCESS = 1;
+    // Some rows were written but some failed
+    PARTIAL_SUCCESS = 2;
+    // No rows were written (complete failure)
+    FAILURE = 3;
+  }
+  Status status = 5;
+
+  // Optional error message if status is not SUCCESS
+  string error_message = 6;
+}

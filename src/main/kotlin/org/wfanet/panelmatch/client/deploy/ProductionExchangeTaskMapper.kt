@@ -20,6 +20,7 @@ import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.panelmatch.client.authorizedview.BigQueryServiceFactory
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.TaskParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
@@ -33,6 +34,7 @@ import org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.exchangetasks.DecryptAndMatchEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
@@ -43,7 +45,10 @@ import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
 import org.wfanet.panelmatch.client.exchangetasks.InputTask
 import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.PreprocessSourceEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
+import org.wfanet.panelmatch.client.exchangetasks.ReadEncryptedEventsFromBigQueryTask
+import org.wfanet.panelmatch.client.exchangetasks.WriteToBigQueryTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
@@ -52,6 +57,7 @@ import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQuerie
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.PreprocessEventsStep
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -78,6 +84,10 @@ open class ProductionExchangeTaskMapper(
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
 ) : ExchangeTaskMapper() {
+
+  /** Shared BigQuery service factory for all BigQuery tasks. */
+  private val bigQueryServiceFactory = BigQueryServiceFactory()
+
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
   }
@@ -98,24 +108,36 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.preprocessEvents(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.PREPROCESS_EVENTS_STEP)
-    val eventPreprocessor = JniEventPreprocessor()
-    val deterministicCommutativeCipherKeyProvider =
-      ::HardCodedDeterministicCommutativeCipherKeyProvider
-    val hkdfPepperProvider = ::HardCodedHkdfPepperProvider
-    val identifierHashPepperProvider = ::HardCodedIdentifierHashPepperProvider
-    val preprocessingParameters: PreprocessingParameters =
-      requireNotNull(taskContext.get(PreprocessingParameters::class)) {
-        "PreprocessingParameters must be set in taskContext"
+    val preProcessStep = step.preprocessEventsStep
+
+    return when (preProcessStep.protocol) {
+      PreprocessEventsStep.PreprocessProtocol.PREPROCESSOR_PROTOCOL_UNSPECIFIED,
+      PreprocessEventsStep.PreprocessProtocol.PRIVATE_MEMBERSHIP -> {
+        val eventPreprocessor = JniEventPreprocessor()
+        val deterministicCommutativeCipherKeyProvider =
+          ::HardCodedDeterministicCommutativeCipherKeyProvider
+        val hkdfPepperProvider = ::HardCodedHkdfPepperProvider
+        val identifierHashPepperProvider = ::HardCodedIdentifierHashPepperProvider
+        val preprocessingParameters: PreprocessingParameters =
+          requireNotNull(taskContext.get(PreprocessingParameters::class)) {
+            "PreprocessingParameters must be set in taskContext"
+          }
+        val outputsManifests = mapOf("preprocessed-event-data" to preprocessingParameters.fileCount)
+        return apacheBeamTaskFor(outputsManifests, emptyList()) {
+          preprocessEvents(
+            eventPreprocessor = eventPreprocessor,
+            deterministicCommutativeCipherKeyProvider = deterministicCommutativeCipherKeyProvider,
+            identifierPepperProvider = identifierHashPepperProvider,
+            hkdfPepperProvider = hkdfPepperProvider,
+            maxByteSize = preprocessingParameters.maxByteSize,
+          )
+        }
       }
-    val outputsManifests = mapOf("preprocessed-event-data" to preprocessingParameters.fileCount)
-    return apacheBeamTaskFor(outputsManifests, emptyList()) {
-      preprocessEvents(
-        eventPreprocessor = eventPreprocessor,
-        deterministicCommutativeCipherKeyProvider = deterministicCommutativeCipherKeyProvider,
-        identifierPepperProvider = identifierHashPepperProvider,
-        hkdfPepperProvider = hkdfPepperProvider,
-        maxByteSize = preprocessingParameters.maxByteSize,
-      )
+      PreprocessEventsStep.PreprocessProtocol.AUTHORIZED_VIEW -> {
+        val cipher = JniDeterministicCommutativeCipher()
+        return PreprocessSourceEventsTask(cipher = cipher)
+      }
+      else -> error("Unrecognized PreprocessProtocol: $preProcessStep")
     }
   }
 
@@ -370,5 +392,74 @@ open class ProductionExchangeTaskMapper(
       skipReadInput,
       execute,
     )
+  }
+
+  /** Returns the task that reads encrypted events from BigQuery authorized views. */
+  override suspend fun ExchangeContext.readEncryptedEventsFromBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.READ_ENCRYPTED_EVENTS_FROM_BIG_QUERY_STEP)
+    val readStep = step.readEncryptedEventsFromBigQueryStep
+    return ReadEncryptedEventsFromBigQueryTask(
+      projectId = readStep.projectId,
+      datasetId = readStep.datasetId,
+      tableOrViewId = readStep.tableOrViewId,
+      exchangeDate = exchangeDateKey.date,
+      bigQueryServiceFactory = bigQueryServiceFactory,
+      encryptedJoinKeyColumn =
+        readStep.encryptedJoinKeyColumn.ifEmpty {
+          ReadEncryptedEventsFromBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN
+        },
+      encryptedEventDataColumn =
+        readStep.encryptedEventDataColumn.ifEmpty {
+          ReadEncryptedEventsFromBigQueryTask.DEFAULT_ENCRYPTED_EVENT_DATA_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that writes keys to BigQuery using streaming API. */
+  override suspend fun ExchangeContext.writeKeysToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_KEYS_TO_BIG_QUERY_STEP)
+    val writeStep = step.writeKeysToBigQueryStep
+    return WriteToBigQueryTask.forJoinKeys(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      bigQueryServiceFactory = bigQueryServiceFactory,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty { WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that writes events to BigQuery using streaming API. */
+  override suspend fun ExchangeContext.writeEventsToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_EVENTS_TO_BIG_QUERY_STEP)
+    val writeStep = step.writeEventsToBigQueryStep
+    return WriteToBigQueryTask.forEncryptedEvents(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      bigQueryServiceFactory = bigQueryServiceFactory,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty { WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN },
+      dataColumnName =
+        writeStep.eventDataColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EVENT_DATA_COLUMN
+        },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that decrypts and matches events (combined BigQuery workflow step). */
+  override suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_AND_MATCH_EVENTS_STEP)
+    return DecryptAndMatchEventsTask()
   }
 }
