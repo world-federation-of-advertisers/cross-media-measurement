@@ -22,13 +22,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
+import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.consumeFirst
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
@@ -40,8 +43,10 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
@@ -129,6 +134,38 @@ class RequisitionFulfillmentService(
               registerCount = hmss.registerCount,
               dataProviderCertificate = hmss.dataProviderCertificate,
             )
+          } else if (computationToken.computationStage.hasTrusTee()) {
+            val trusTee = header.trusTee
+            when (trusTee.dataFormat) {
+              Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
+                recordPlainTrusTeeRequisitionLocally(
+                  token = computationToken,
+                  key = externalRequisitionKey,
+                  blobPath = blob.blobKey,
+                )
+              }
+              Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
+                val encryptedDekCiphertext =
+                  when (trusTee.envelopeEncryption.encryptedDek.format) {
+                    EncryptionKey.Format.TINK_ENCRYPTED_KEYSET ->
+                      trusTee.envelopeEncryption.encryptedDek.data
+                    else -> failGrpc { "Invalid EncryptedDek format" }
+                  }
+                recordEncryptedTrusTeeRequisitionLocally(
+                  token = computationToken,
+                  key = externalRequisitionKey,
+                  blobPath = blob.blobKey,
+                  encryptedDekCiphertext = encryptedDekCiphertext,
+                  kmsKekUri = trusTee.envelopeEncryption.kmsKekUri,
+                  workloadIdentityProvider = trusTee.envelopeEncryption.workloadIdentityProvider,
+                  impersonatedServiceAccount =
+                    trusTee.envelopeEncryption.impersonatedServiceAccount,
+                  populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                )
+              }
+              Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
+              Header.TrusTee.DataFormat.UNRECOGNIZED -> failGrpc { "Unsupported data format." }
+            }
           } else {
             recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
           }
@@ -244,6 +281,57 @@ class RequisitionFulfillmentService(
               this.secretSeedCiphertext = secretSeedCiphertext
               this.registerCount = registerCount
               this.dataProviderCertificate = dataProviderCertificate
+            }
+          }
+      }
+    )
+  }
+
+  /** Sends rpc to the duchy's internal ComputationsService to record plain TrusTee requisition */
+  private suspend fun recordPlainTrusTeeRequisitionLocally(
+    token: ComputationToken,
+    key: ExternalRequisitionKey,
+    blobPath: String,
+  ) {
+    computationsClient.recordRequisitionFulfillment(
+      recordRequisitionFulfillmentRequest {
+        this.token = token
+        this.key = key
+        this.blobPath = blobPath
+        publicApiVersion = Version.V2_ALPHA.string
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocol { trusTee = TrusTee.getDefaultInstance() }
+      }
+    )
+  }
+
+  /**
+   * Sends rpc to the duchy's internal ComputationsService to record encrypted TrusTee requisition.
+   */
+  private suspend fun recordEncryptedTrusTeeRequisitionLocally(
+    token: ComputationToken,
+    key: ExternalRequisitionKey,
+    blobPath: String,
+    encryptedDekCiphertext: ByteString,
+    kmsKekUri: String,
+    workloadIdentityProvider: String,
+    impersonatedServiceAccount: String,
+    populationSpecFingerprint: Long,
+  ) {
+    computationsClient.recordRequisitionFulfillment(
+      recordRequisitionFulfillmentRequest {
+        this.token = token
+        this.key = key
+        this.blobPath = blobPath
+        publicApiVersion = Version.V2_ALPHA.string
+        protocolDetails =
+          RequisitionDetailsKt.requisitionProtocol {
+            trusTee = trusTee {
+              this.encryptedDekCiphertext = encryptedDekCiphertext
+              this.kmsKekUri = kmsKekUri
+              this.workloadIdentityProvider = workloadIdentityProvider
+              this.impersonatedServiceAccount = impersonatedServiceAccount
+              this.populationSpecFingerprint = populationSpecFingerprint
             }
           }
       }
