@@ -172,7 +172,9 @@ message ListModelLinesPageToken {
   int32 page_size = 1;
   fixed64 external_model_provider_id = 2;
   fixed64 external_model_suite_id = 3;
-  repeated ModelLine.Type types = 4;
+  repeated ModelLine.Type type_in = 4;
+  google.type.Interval active_interval_contains = 6;
+
   message PreviousPageEnd {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
