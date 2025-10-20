@@ -142,13 +142,32 @@ class ImpressionMetadataService(
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    val blobUriSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
+
     val internalRequests: List<InternalCreateImpressionMetadataRequest> =
       request.requestsList.mapIndexed { index, it ->
-        if (it.requestId.isNotEmpty()) {
+        val blobUri = it.impressionMetadata.blobUri
+        if (!blobUriSet.add(blobUri)) {
+          throw InvalidFieldValueException("requests.$index.blob_uri") {
+              "blob uri $blobUri is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val requestId = it.requestId
+        if (requestId.isNotEmpty()) {
           try {
-            UUID.fromString(it.requestId)
+            UUID.fromString(requestId)
           } catch (e: IllegalArgumentException) {
             throw InvalidFieldValueException("requests.$index.request_id", e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+
+          if (!requestIdSet.add(requestId)) {
+            throw InvalidFieldValueException("requests.$index.request_id") {
+                "request Id $requestId is duplicate in the batch of requests"
+              }
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           }
         }
@@ -163,7 +182,7 @@ class ImpressionMetadataService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         internalCreateImpressionMetadataRequest {
-          requestId = it.requestId
+          this.requestId = requestId
           impressionMetadata = it.impressionMetadata.toInternal(dataProviderKey, null)
         }
       }

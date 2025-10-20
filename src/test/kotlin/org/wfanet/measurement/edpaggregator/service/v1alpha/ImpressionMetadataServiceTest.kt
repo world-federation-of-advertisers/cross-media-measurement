@@ -430,6 +430,37 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate request id`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA
+                requestId = REQUEST_ID
+              }
+              requests += createImpressionMetadataRequest {
+                impressionMetadata = IMPRESSION_METADATA_2
+                requestId = REQUEST_ID
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for duplicate blobUri`() = runBlocking {
     val duplicateBlobUri = "duplicate-blob-uri"
     val request1 = createImpressionMetadataRequest {
@@ -458,7 +489,7 @@ class ImpressionMetadataServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.impression_metadata.blob_uri"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.blob_uri"
         }
       )
   }

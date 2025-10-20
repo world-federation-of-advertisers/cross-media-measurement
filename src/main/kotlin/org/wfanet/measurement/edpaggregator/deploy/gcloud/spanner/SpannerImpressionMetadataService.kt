@@ -50,7 +50,6 @@ import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
-import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
@@ -125,14 +124,24 @@ class SpannerImpressionMetadataService(
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
     }
 
-    val blobUriSet = hashSetOf<String>()
-    val requestIdSet = hashSetOf<String>()
+    try {
+      validateImpressionMetadataRequest(request)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val blobUriSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, it ->
-      if (it.impressionMetadata.dataProviderResourceId != dataProviderResourceId) {
+      if (
+        dataProviderResourceId.isNotEmpty() &&
+          it.impressionMetadata.dataProviderResourceId != dataProviderResourceId
+      ) {
+        val childDataProviderResourceId = it.impressionMetadata.dataProviderResourceId
         throw InvalidFieldValueException(
             "requests.$index.impression_metadata.data_provider_resource_id"
           ) {
-            "All requests must be for the same DataProvider"
+            "Parent and child request refers to different DataProviders: Parent is $dataProviderResourceId, child has $childDataProviderResourceId"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }

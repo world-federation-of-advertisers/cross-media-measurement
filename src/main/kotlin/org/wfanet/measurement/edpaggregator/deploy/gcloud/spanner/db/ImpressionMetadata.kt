@@ -323,15 +323,11 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateImpressionMetadata
         created
       }
 
-  val creationsByRequestId: Map<String, ImpressionMetadata> =
-    requests
-      .filter { !existingRequestIdToImpressionMetadata.containsKey(it.requestId) }
-      .zip(creations)
-      .associate { (request, impressionMetadata) -> request.requestId to impressionMetadata }
+  val newCreationIterator = creations.iterator()
 
   return requests.map {
     existingRequestIdToImpressionMetadata[it.requestId]?.impressionMetadata
-      ?: creationsByRequestId.getValue(it.requestId)
+      ?: newCreationIterator.next()
   }
 }
 

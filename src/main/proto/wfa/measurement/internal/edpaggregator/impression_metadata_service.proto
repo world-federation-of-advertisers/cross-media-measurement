@@ -25,10 +25,6 @@ option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
 
 service ImpressionMetadataService {
-  // Creates a new ImpressionMetadata entry.
-  rpc CreateImpressionMetadata(CreateImpressionMetadataRequest)
-      returns (ImpressionMetadata);
-
   // Creates multiple new ImpressionMetadata entries in a single request.
   rpc BatchCreateImpressionMetadata(BatchCreateImpressionMetadataRequest)
       returns (BatchCreateImpressionMetadataResponse);
