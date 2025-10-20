@@ -92,8 +92,6 @@ class SpannerImpressionMetadataService(
   override suspend fun batchCreateImpressionMetadata(
     request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
-    val dataProviderResourceId = request.dataProviderResourceId
-
     if (request.requestsList.isEmpty()) {
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
     }
@@ -104,6 +102,7 @@ class SpannerImpressionMetadataService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val dataProviderResourceId = request.dataProviderResourceId
     val blobUriSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, it ->
