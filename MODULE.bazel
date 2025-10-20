@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.123.0",
+    version = "0.124.2",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,19 +47,9 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.83.0",
+    version = "0.85.0",
     repo_name = "wfa_measurement_proto",
 )
-
-#DO_NOT_SUBMIT: use version
-archive_override(
-    module_name = "cross-media-measurement-api",
-    strip_prefix = "cross-media-measurement-api-1cc111d4a4e45acfe9bf5e78f74c091770ff9859",
-    urls = [
-        "https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/1cc111d4a4e45acfe9bf5e78f74c091770ff9859.tar.gz",
-    ],
-)
-
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.22.0",
@@ -248,7 +238,8 @@ maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
-        "com.squareup.okhttp3:okhttp:4.12.0",
+        "com.squareup.okhttp3:okhttp",
+        "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
         "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
@@ -288,6 +279,7 @@ maven.install(
         "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
+        "com.squareup.okhttp3:okhttp-bom:4.12.0",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
     ],

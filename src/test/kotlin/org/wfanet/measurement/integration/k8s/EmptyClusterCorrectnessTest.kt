@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import io.kubernetes.client.common.KubernetesObject
@@ -27,7 +30,9 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
+import java.security.KeyPair
 import java.security.Security
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Logger
@@ -35,6 +40,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.jetbrains.annotations.Blocking
 import org.junit.ClassRule
 import org.junit.rules.TemporaryFolder
@@ -64,13 +73,16 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.jceProvider
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
@@ -393,6 +405,82 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           channels.add(it)
         }
 
+      val reportingGatewayPod: V1Pod = getPod(REPORTING_GATEWAY_DEPLOYMENT_NAME)
+      val gatewayForwarder = PortForwarder(reportingGatewayPod, SERVER_PORT)
+      portForwarders.add(gatewayForwarder)
+
+      val gatewayAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { gatewayForwarder.start() }
+
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val reportingRootCert = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+
+      val clientCertificate: X509Certificate = cert.readText().decodeCertificatePem()
+      val keyAlgorithm = clientCertificate.publicKey.algorithm
+      val certificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(reportingRootCert.readText().decodeCertificatePem())
+          .heldCertificate(
+            HeldCertificate(
+              KeyPair(clientCertificate.publicKey, readPrivateKey(key, keyAlgorithm)),
+              clientCertificate,
+            )
+          )
+          .build()
+
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
+          .build()
+
+      val accessPublicPod: V1Pod = getPod(ACCESS_PUBLIC_API_DEPLOYMENT_NAME)
+      val accessPublicApiForwarder = PortForwarder(accessPublicPod, SERVER_PORT)
+      portForwarders.add(accessPublicApiForwarder)
+
+      val accessPublicApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { accessPublicApiForwarder.start() }
+      val accessPublicApiChannel: Channel =
+        buildMutualTlsChannel(accessPublicApiAddress.toTarget(), ACCESS_SIGNING_CERTS).also {
+          channels.add(it)
+        }
+
+      val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
+      JsonFormat.parser()
+        .ignoringUnknownFields()
+        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
+      val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
+
+      val principal =
+        createAccessPrincipal(
+          measurementConsumerData.name,
+          accessPublicApiChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
+
+      val getAccessToken = {
+        OpenIdProvider(
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = openIdProvidersConfig.audience,
+            subject = principal.user.subject,
+            scopes =
+              setOf(
+                "reporting.basicReports.create",
+                "reporting.reports.create",
+                "reporting.metrics.create",
+                "reporting.basicReports.get",
+              ),
+          )
+          .token
+      }
+
       return ReportingUserSimulator(
         measurementConsumerName = measurementConsumerData.name,
         dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
@@ -404,6 +492,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         metricCalculationSpecsClient =
           MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
         reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayHost = gatewayAddress.hostName,
+        reportingGatewayPort = gatewayAddress.port,
+        getReportingAccessToken = getAccessToken,
       )
     }
 
@@ -636,6 +728,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val KINGDOM_PUBLIC_DEPLOYMENT_NAME = "v2alpha-public-api-server-deployment"
     private const val REPORTING_PUBLIC_DEPLOYMENT_NAME =
       "reporting-v2alpha-public-api-server-deployment"
+    private const val REPORTING_GATEWAY_DEPLOYMENT_NAME = "reporting-grpc-gateway-deployment"
+    private const val ACCESS_PUBLIC_API_DEPLOYMENT_NAME = "access-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
     private val READY_TIMEOUT = Duration.ofMinutes(2L)

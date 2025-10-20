@@ -1,0 +1,162 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Generate release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      milestone-name:
+        type: string
+        required: true
+      notes-start-commitish:
+        description: Full commit SHA or tag (exclusive)
+        type: string
+        required: true
+      notes-end-commitish:
+        description: Full commit SHA or tag (inclusive)
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      milestone-name:
+        type: string
+        required: true
+      notes-start-commitish:
+        description: Full commit SHA or tag (exclusive)
+        type: string
+        required: true
+      notes-end-commitish:
+        description: Full commit SHA or tag (inclusive)
+        type: string
+        required: true
+    outputs:
+      summary:
+        description: "Release notes"
+        value: ${{ jobs.generate-release-notes.outputs.summary }}
+
+jobs:
+  generate-release-notes:
+    name: Generate relnotes
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      summary: ${{ steps.generate-release-notes.outputs.summary }}
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate highlights section
+        id: generate-highlights
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MILESTONE: ${{ inputs.milestone-name }}
+        run: |
+          set -euo pipefail
+          
+          notes_json_array=$(gh issue list --milestone "${MILESTONE}" \
+            --search 'type:"Feature request" state:closed' \
+            --json number,title \
+            --jq 'map("\(.title). See [Issue #\(.number)]")')
+
+          jq . <<< "${notes_json_array}"
+
+          printf "json=%s\n" "$(jq -c . <<< ${notes_json_array})" >> $GITHUB_OUTPUT
+
+      - name: Validate start and end commitish
+        shell: bash
+        env:
+          NOTES_START_COMMITISH: ${{ inputs.notes-start-commitish }}
+          NOTES_END_COMMITISH: ${{ inputs.notes-end-commitish }}
+        run: |
+          set -euo pipefail
+          git rev-parse --verify "${NOTES_START_COMMITISH}"
+          git rev-parse --verify "${NOTES_END_COMMITISH}"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Fetch PRs data
+        id: fetch-prs-data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          START_COMMITISH: ${{ inputs.notes-start-commitish }}
+          END_COMMITISH: ${{ inputs.notes-end-commitish }}
+        run: python .github/workflows/scripts/release-automation/fetch_prs_data.py
+
+      - name: Print debug data
+        env:
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
+        run: |
+          jq . <<< "${JSON}"
+
+      - name: Generate issues addressed section
+        id: generate-issues-addressed
+        env:
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
+        run: python .github/workflows/scripts/release-automation/generate_issues_addressed_section.py
+
+      - name: Generate potentially requiring action section
+        id: generate-potentially-requiring-action
+        env:
+          JSON: ${{ steps.fetch-prs-data.outputs.json }}
+        run: python .github/workflows/scripts/release-automation/generate_potentially_requiring_action_section.py
+
+      - name: Get milestone url
+        id: generate-milestone-url
+        shell: bash
+        env: 
+          GH_TOKEN: ${{ github.token }}
+          MILESTONE: ${{ inputs.milestone-name }}
+          MILESTONE_STATE: "all"
+        run: |
+          url=$(gh api "/repos/world-federation-of-advertisers/cross-media-measurement/milestones?state=${MILESTONE_STATE}&per_page=100" --paginate --jq ".[] | select(.title==\"$MILESTONE\") | .html_url")
+          echo "URL for milestone ${MILESTONE} is ${url}"
+          echo "url=${url}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: generate-release-notes
+        shell: bash
+        env:
+          HIGHLIGHTS: ${{ steps.generate-highlights.outputs.json }}
+          ISSUES_ADDRESSED: ${{ steps.generate-issues-addressed.outputs.json }}
+          POTENTIALLY_REQUIRING_ACTION: ${{ steps.generate-potentially-requiring-action.outputs.json }}
+          MILESTONE_URL: ${{ steps.generate-milestone-url.outputs.url }}
+        run: |
+          print_section() {
+            local title=$1
+            local json_array=$2
+            echo
+            echo "## ${title}"
+            jq -r '.[] | "* \(.)"' <<<"${json_array}"
+          }
+
+          print_summary() {
+            echo "See the [corresponding milestone](${MILESTONE_URL}) for this release."
+            print_section "Highlights" "${HIGHLIGHTS}"
+            print_section "Issues Addressed" "${ISSUES_ADDRESSED}"
+            print_section "Potentially Requiring Action" "${POTENTIALLY_REQUIRING_ACTION}"
+          }
+
+          summary="$(print_summary)"
+          echo "${summary}"
+          printf 'summary<<EOF\n%s\nEOF\n' "${summary}" >> $GITHUB_OUTPUT

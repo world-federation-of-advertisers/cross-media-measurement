@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.type.Interval
+import com.google.type.interval
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -283,6 +285,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     modelSuite: ModelSuite,
     modelLineType: ModelLine.Type = ModelLine.Type.PROD,
     holdbackModelLine: ModelLine? = null,
+    activeInterval: Interval = interval {
+      startTime = Instant.now().plusSeconds(2000L).toProtoTime()
+    },
   ): ModelLine {
     return modelLinesService.createModelLine(
       modelLine {
@@ -290,7 +295,10 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         externalModelSuiteId = modelSuite.externalModelSuiteId
         displayName = "displayName"
         description = "description"
-        activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
+        activeStartTime = activeInterval.startTime
+        if (activeInterval.hasEndTime()) {
+          activeEndTime = activeInterval.endTime
+        }
         if (holdbackModelLine != null) {
           externalHoldbackModelLineId = holdbackModelLine.externalModelLineId
         }
