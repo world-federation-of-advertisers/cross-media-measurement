@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -225,6 +226,62 @@ class SpannerImpressionMetadataService(
             this.impressionMetadata += impressionMetadata
           }
         }
+      }
+    }
+  }
+
+  override suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.impressionMetadataResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=deleteImpressionMetadata"))
+
+    val deletedImpressionMetadata =
+      try {
+        transactionRunner.run { txn ->
+          val result =
+            txn.getImpressionMetadataByResourceId(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+            )
+
+          if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
+            return@run result.impressionMetadata
+          }
+
+          txn.updateImpressionMetadataState(
+            result.impressionMetadata.dataProviderResourceId,
+            result.impressionMetadataId,
+            State.IMPRESSION_METADATA_STATE_DELETED,
+          )
+
+          result.impressionMetadata.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+            clearEtag()
+          }
+        }
+      } catch (e: ImpressionMetadataNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+
+    if (deletedImpressionMetadata.hasUpdateTime()) {
+      return deletedImpressionMetadata
+    } else {
+      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+      return deletedImpressionMetadata.copy {
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     }
   }
