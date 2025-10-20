@@ -34,9 +34,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionM
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchCreateImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.impressionMetadataExists
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
@@ -130,6 +127,7 @@ class SpannerImpressionMetadataService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val dataProviderResourceId = request.dataProviderResourceId
     val blobUriSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, it ->
