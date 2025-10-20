@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareSh
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.trusTee
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
@@ -479,6 +480,13 @@ private fun buildMpcProtocolConfig(
             }
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toNoiseMechanism()
+        }
+      }
+    }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE -> {
+      protocol {
+        trusTee = trusTee {
+          noiseMechanism = protocolConfig.trusTee.noiseMechanism.toNoiseMechanism()
         }
       }
     }
@@ -1117,6 +1125,7 @@ fun Measurement.toInternal(
           }
         }
         InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        InternalProtocolConfig.ProtocolCase.TRUS_TEE,
         InternalProtocolConfig.ProtocolCase.DIRECT -> {}
         InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
       }
