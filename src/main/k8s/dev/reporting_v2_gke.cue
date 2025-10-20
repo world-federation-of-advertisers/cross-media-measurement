@@ -32,7 +32,11 @@ _accessPublicApiAddressName:   "access-public"
 
 #InternalServerResourceRequirements: #ResourceRequirements & {
 	requests: {
-		cpu: "100m"
+		cpu:    "100m"
+		memory: "384Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
