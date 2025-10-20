@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Recursively delete a directory and its contents
+
+target_dir="$1"
+shift 1
+empty_dir="$(mktemp -d)"
+rsync --archive --delete "${empty_dir}/" "${target_dir}" "$@"
+rmdir "${target_dir}"
+rmdir "${empty_dir}"
