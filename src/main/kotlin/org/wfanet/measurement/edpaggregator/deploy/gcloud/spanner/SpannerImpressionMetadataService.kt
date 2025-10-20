@@ -241,7 +241,7 @@ class SpannerImpressionMetadataService(
       throw RequiredFieldNotSetException("requests.0.data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val impressionMetadataResourceIdSet = HashSet<String>()
+    val impressionMetadataResourceIdSet = mutableSetOf<String>()
 
     request.requestsList.forEachIndexed { index, it ->
       if (it.dataProviderResourceId.isEmpty()) {
