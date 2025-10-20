@@ -21,8 +21,8 @@ import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
 import io.grpc.StatusException
 import java.security.GeneralSecurityException
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
+import java.time.Duration
+import java.time.Instant
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +35,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.trace.Span
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -45,8 +49,10 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
@@ -93,13 +99,6 @@ class ResultsFulfiller(
   private val responsePageSize: Int? = null,
 ) {
 
-  private val totalRequisitions = AtomicInteger(0)
-
-  private val buildTime = AtomicLong(0)
-  private val sendTime = AtomicLong(0)
-  private val fulfillmentTime = AtomicLong(0)
-  private val frequencyVectorTime = AtomicLong(0)
-
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey)
   }
@@ -117,6 +116,7 @@ class ResultsFulfiller(
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    val reportProcessingTimer = TimeSource.Monotonic.markNow()
     val requisitions =
       groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
         entry.requisition.unpack(Requisition::class.java)
@@ -129,8 +129,11 @@ class ResultsFulfiller(
     // Get requisitions metadata for the groupId of the grouped requisitions
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    totalRequisitions.addAndGet(requisitions.size)
-
+    val requisitionMetadataByName: Map<String, RequisitionMetadata> =
+      requisitionsMetadata.associateBy { it.cmmsRequisition }
+    val reportId: String? = requisitionsMetadata.firstOrNull()?.report
+    val earliestCreateTime: Instant? =
+      requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
     val eventDescriptor = modelInfo.eventDescriptor
@@ -149,48 +152,60 @@ class ResultsFulfiller(
         batchSize = pipelineConfiguration.batchSize,
       )
 
-    val frequencyVectorStart = TimeSource.Monotonic.markNow()
-    val frequencyVectorMap =
-      try {
-        orchestrator.run(
-          eventSource = eventSource,
-          vidIndexMap = vidIndexMap,
-          populationSpec = populationSpec,
-          requisitions = requisitions,
-          eventGroupReferenceIdMap = eventGroupReferenceIdMap,
-          config = pipelineConfiguration,
-          eventDescriptor = eventDescriptor,
-        )
-      } catch (e: Exception) {
-        e.printStackTrace()
-        throw e
-      }
-    val elapsedMs = frequencyVectorStart.elapsedNow().inWholeMilliseconds
-    frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
+    val reportSpanAttributes =
+      Attributes.of(
+        ATTR_GROUP_ID_KEY,
+        groupedRequisitions.groupId,
+        ATTR_REPORT_ID_KEY,
+        reportId ?: UNKNOWN_REPORT_ID,
+      )
+    withReportFulfillmentSpan(reportSpanAttributes) { span ->
+      val frequencyVectorMap =
+        ResultsFulfillerMetrics.frequencyVectorDuration.measureSuspending {
+          orchestrator.run(
+            eventSource = eventSource,
+            vidIndexMap = vidIndexMap,
+            populationSpec = populationSpec,
+            requisitions = requisitions,
+            eventGroupReferenceIdMap = eventGroupReferenceIdMap,
+            config = pipelineConfiguration,
+            eventDescriptor = eventDescriptor,
+          )
+        }
+      span.addEvent(
+        EVENT_FREQUENCY_VECTOR_FINISHED,
+        Attributes.of(
+          ATTR_REQUISITION_COUNT_KEY,
+          requisitions.size.toLong(),
+          ATTR_MODEL_LINE_KEY,
+          modelLine,
+        ),
+      )
 
-    var processedCount = 0
-    requisitions
-      .asFlow()
-      .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-      .flatMapMerge(concurrency = parallelism) {
-        (req: Requisition, frequencyVector: StripedByteFrequencyVector) ->
-        flow {
-          val start = TimeSource.Monotonic.markNow()
-          try {
-            fulfillSingleRequisition(req, frequencyVector, populationSpec, requisitionsMetadata)
-            val elapsedMs = start.elapsedNow().inWholeMilliseconds
-            fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
-            processedCount++
+      requisitions
+        .asFlow()
+        .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
+        .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
+          flow {
+            fulfillSingleRequisition(
+              requisition = req,
+              frequencyVector = frequencyVector,
+              populationSpec = populationSpec,
+              requisitionsMetadata = requisitionMetadataByName,
+            )
             emit(Unit)
-          } catch (t: Throwable) {
-            t.printStackTrace()
-            throw t
           }
         }
-      }
-      .collect()
+        .collect()
 
-    logFulfillmentStats()
+      recordReportCompletion(
+        span = span,
+        requisitionCount = requisitions.size,
+        modelLine = modelLine,
+        processingTimer = reportProcessingTimer,
+        earliestCreateTime = earliestCreateTime,
+      )
+    }
   }
 
   /**
@@ -205,21 +220,18 @@ class ResultsFulfiller(
     requisition: Requisition,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
-    requisitionsMetadata: List<RequisitionMetadata>,
+    requisitionsMetadata: Map<String, RequisitionMetadata>,
   ) {
 
+    val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
     // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
-
-    require(requisitionMetadata != null) {
-      "Requisition metadata not found for requisition: ${requisition.name}"
-    }
-
-    val updateRequisitionMetadata = signalRequisitionStartProcessing(requisitionMetadata)
+    val requisitionMetadata =
+      requisitionsMetadata[requisition.name]
+        ?: throw IllegalArgumentException("Requisition metadata not found for requisition: ${requisition.name}")
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
-    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    val frequencyData: IntArray = freqBytes.map { it.toInt() and BYTE_TO_UNSIGNED_MASK }.toIntArray()
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -231,49 +243,80 @@ class ResultsFulfiller(
         throw Exception("RequisitionSpec decryption failed", e)
       }
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
-    val buildStart = TimeSource.Monotonic.markNow()
-    val fulfiller =
-      fulfillerSelector.selectFulfiller(
-        requisition,
-        measurementSpec,
-        requisitionSpec,
-        frequencyData,
-        populationSpec,
+    val reportId = requisitionMetadata.report
+
+    val requisitionSpanAttributes =
+      Attributes.of(
+        ATTR_REQUISITION_NAME_KEY,
+        requisition.name,
+        ATTR_REPORT_ID_KEY,
+        reportId ?: UNKNOWN_REPORT_ID,
+        ATTR_GROUP_ID_KEY,
+        groupedRequisitions.groupId,
       )
-    buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
-    val sendStart = TimeSource.Monotonic.markNow()
-    withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    signalRequisitionFulfilled(updateRequisitionMetadata)
+    withRequisitionFulfillmentSpan(requisitionSpanAttributes) { span ->
+      try {
+        val updateMetadataResult =
+          ResultsFulfillerMetrics.networkTasksDuration.measureSuspending {
+            signalRequisitionStartProcessing(requisitionMetadata)
+          }
+        span.addEvent(
+          EVENT_REQUISITION_START_PROCESSING_SIGNALED,
+          Attributes.of(
+            ATTR_REQUISITION_METADATA_NAME_KEY,
+            updateMetadataResult.name,
+          ),
+        )
 
-    sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+        val fulfiller =
+          fulfillerSelector.selectFulfiller(
+            requisition,
+            measurementSpec,
+            requisitionSpec,
+            frequencyData,
+            populationSpec,
+          )
+        val fulfillerType =
+          fulfiller::class.simpleName
+            ?: fulfiller::class.java.simpleName
+            ?: fulfiller::class.java.name
+
+        ResultsFulfillerMetrics.sendDuration.measureSuspending {
+          withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+        }
+        span.addEvent(
+          EVENT_REQUISITION_FULFILLMENT_SENT,
+          Attributes.of(
+            ATTR_FULFILLER_TYPE_KEY,
+            fulfillerType,
+          ),
+        )
+
+        val fulfilledMetadata =
+          ResultsFulfillerMetrics.networkTasksDuration.measureSuspending {
+            signalRequisitionFulfilled(updateMetadataResult)
+          }
+        span.addEvent(
+          EVENT_REQUISITION_METADATA_FULFILLED,
+          Attributes.of(
+            ATTR_REQUISITION_METADATA_NAME_KEY,
+            fulfilledMetadata.name,
+          ),
+        )
+
+        recordRequisitionCompletion(
+          span = span,
+          requisitionProcessingTimer = requisitionProcessingTimer,
+          requisitionMetadata = requisitionMetadata,
+        )
+      } catch (t: Throwable) {
+        recordRequisitionFailure(span, t)
+        throw t
+      }
+    }
   }
 
-  /**
-   * Logs aggregate counters and timings for the current process lifetime.
-   *
-   * Includes totals for requisitions processed, frequency vector construction, builder creation,
-   * send time, and end-to-end fulfillment time.
-   */
-  fun logFulfillmentStats() {
-    val stats =
-      """
-      |=== FULFILLMENT STATISTICS ===
-      |  Total requisitions: ${totalRequisitions.get()}
-      |  Frequency vector total ms: ${frequencyVectorTime.get() / 1_000_000}
-      |  Build total ms: ${buildTime.get() / 1_000_000}
-      |  Send total ms: ${sendTime.get() / 1_000_000}
-      |  Fulfillment total ms: ${fulfillmentTime.get() / 1_000_000}
-      |  Average per requisition:
-      |    - Frequency vector: ${if (totalRequisitions.get() > 0) (frequencyVectorTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
-      |    - Build: ${if (totalRequisitions.get() > 0) (buildTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
-      |    - Send: ${if (totalRequisitions.get() > 0) (sendTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
-      |    - Total: ${if (totalRequisitions.get() > 0) (fulfillmentTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
-      |==============================
-      """
-        .trimMargin()
-    logger.info(stats)
-  }
 
   // List requisitions metadata for the goup id being processed.
   private suspend fun listRequisitionMetadata(): List<RequisitionMetadata> {
@@ -326,11 +369,189 @@ class ResultsFulfiller(
     return requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
   }
 
+  private suspend fun <T> withReportFulfillmentSpan(
+    attributes: Attributes,
+    block: suspend (Span) -> T,
+  ): T {
+    return Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = attributes) {
+      val span = Span.current()
+      block(span)
+    }
+  }
+
+  private suspend fun <T> withRequisitionFulfillmentSpan(
+    attributes: Attributes,
+    block: suspend (Span) -> T,
+  ): T {
+    return Tracing.traceSuspending(
+      spanName = SPAN_REQUISITION_FULFILLMENT,
+      attributes = attributes,
+    ) {
+      val span = Span.current()
+      block(span)
+    }
+  }
+
+  private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {
+    val timer = TimeSource.Monotonic.markNow()
+    return try {
+      block()
+    } finally {
+      record(timer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS)
+    }
+  }
+
+  private fun recordReportCompletion(
+    span: Span,
+    requisitionCount: Int,
+    modelLine: String,
+    processingTimer: TimeSource.Monotonic.ValueTimeMark,
+    earliestCreateTime: Instant?,
+  ) {
+    span.addEvent(
+      EVENT_REQUISITIONS_FULFILLMENT_FINISHED,
+      Attributes.of(
+        ATTR_REQUISITION_COUNT_KEY,
+        requisitionCount.toLong(),
+        ATTR_MODEL_LINE_KEY,
+        modelLine,
+      ),
+    )
+
+    val processingDurationSeconds =
+      processingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
+    ResultsFulfillerMetrics.reportProcessingDuration.record(processingDurationSeconds)
+    span.addEvent(
+      EVENT_REPORT_PROCESSING_METRICS_RECORDED,
+      Attributes.of(
+        ATTR_PROCESSING_DURATION_SECONDS_KEY,
+        processingDurationSeconds,
+      ),
+    )
+
+    val reportLatencySeconds =
+      earliestCreateTime?.let {
+        val reportCompletionTime = Instant.now()
+        Duration.between(it, reportCompletionTime).toNanos().toDouble() / NANOS_TO_SECONDS
+      }
+    if (reportLatencySeconds != null) {
+      ResultsFulfillerMetrics.reportFulfillmentLatency.record(reportLatencySeconds)
+      span.addEvent(
+        EVENT_REPORT_PROCESSING_FINISHED,
+        Attributes.of(
+          ATTR_STATUS_KEY,
+          STATUS_SUCCESS,
+          ATTR_REPORT_LATENCY_SECONDS_KEY,
+          reportLatencySeconds,
+        ),
+      )
+    } else {
+      span.addEvent(
+        EVENT_REPORT_PROCESSING_FINISHED,
+        Attributes.of(
+          ATTR_STATUS_KEY,
+          STATUS_SUCCESS,
+        ),
+      )
+    }
+  }
+
+  private fun recordRequisitionCompletion(
+    span: Span,
+    requisitionProcessingTimer: TimeSource.Monotonic.ValueTimeMark,
+    requisitionMetadata: RequisitionMetadata,
+  ) {
+    val requisitionProcessingDurationSeconds =
+      requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
+    ResultsFulfillerMetrics.requisitionProcessingDuration.record(
+      requisitionProcessingDurationSeconds
+    )
+    span.addEvent(
+      EVENT_REQUISITION_PROCESSING_METRICS_RECORDED,
+      Attributes.of(
+        ATTR_PROCESSING_DURATION_SECONDS_KEY,
+        requisitionProcessingDurationSeconds,
+      ),
+    )
+
+    val requisitionLatency =
+      Duration.between(requisitionMetadata.cmmsCreateTime.toInstant(), Instant.now())
+    ResultsFulfillerMetrics.requisitionFulfillmentLatency.record(
+      requisitionLatency.toNanos().toDouble() / NANOS_TO_SECONDS
+    )
+    ResultsFulfillerMetrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusSuccess)
+    span.addEvent(
+      EVENT_REQUISITION_PROCESSING_FINISHED,
+      Attributes.of(
+        ATTR_STATUS_KEY,
+        STATUS_SUCCESS,
+      ),
+    )
+  }
+
+  private fun recordRequisitionFailure(span: Span, throwable: Throwable) {
+    span.addEvent(
+      EVENT_REQUISITION_PROCESSING_FAILED,
+      Attributes.of(
+        ATTR_STATUS_KEY,
+        STATUS_FAILURE,
+        ATTR_ERROR_TYPE_KEY,
+        throwable::class.simpleName ?: throwable::class.java.simpleName ?: throwable::class.java.name,
+      ),
+    )
+    ResultsFulfillerMetrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
+  }
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     /** Utilize all cpu cores but keep one free for GC and system work. */
     private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
       (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+
+    /** Conversion factor from nanoseconds to seconds. */
+    private const val NANOS_TO_SECONDS = 1_000_000_000.0
+
+    /** Conversion factor from nanoseconds to milliseconds. */
+    private const val NANOS_TO_MILLIS = 1_000_000
+
+    /** Mask for converting signed byte to unsigned int. */
+    private const val BYTE_TO_UNSIGNED_MASK = 0xFF
+
+    private const val SPAN_REPORT_FULFILLMENT = "report_fulfillment"
+    private const val SPAN_REQUISITION_FULFILLMENT = "requisition_fulfillment"
+
+    private val ATTR_GROUP_ID_KEY = AttributeKey.stringKey("group_id")
+    private val ATTR_REPORT_ID_KEY = AttributeKey.stringKey("report_id")
+    private val ATTR_REQUISITION_NAME_KEY = AttributeKey.stringKey("cmms_requisition")
+    private val ATTR_MODEL_LINE_KEY = AttributeKey.stringKey("model_line")
+    private val ATTR_REQUISITION_COUNT_KEY = AttributeKey.longKey("requisition_count")
+    private val ATTR_PROCESSING_DURATION_SECONDS_KEY =
+      AttributeKey.doubleKey("processing_duration_seconds")
+    private val ATTR_REPORT_LATENCY_SECONDS_KEY =
+      AttributeKey.doubleKey("report_latency_seconds")
+    private val ATTR_STATUS_KEY = AttributeKey.stringKey("status")
+    private val ATTR_REQUISITION_METADATA_NAME_KEY =
+      AttributeKey.stringKey("requisition_metadata_name")
+    private val ATTR_FULFILLER_TYPE_KEY = AttributeKey.stringKey("fulfiller_type")
+    private val ATTR_ERROR_TYPE_KEY = AttributeKey.stringKey("error_type")
+
+    private const val EVENT_FREQUENCY_VECTOR_FINISHED = "frequency_vector_computation_finished"
+    private const val EVENT_REQUISITIONS_FULFILLMENT_FINISHED = "requisitions_fulfillment_finished"
+    private const val EVENT_REPORT_PROCESSING_METRICS_RECORDED =
+      "report_processing_metrics_recorded"
+    private const val EVENT_REPORT_PROCESSING_FINISHED = "report_processing_finished"
+    private const val EVENT_REQUISITION_START_PROCESSING_SIGNALED =
+      "requisition_start_processing_signaled"
+    private const val EVENT_REQUISITION_FULFILLMENT_SENT = "requisition_fulfillment_sent"
+    private const val EVENT_REQUISITION_METADATA_FULFILLED = "requisition_metadata_fulfilled"
+    private const val EVENT_REQUISITION_PROCESSING_METRICS_RECORDED =
+      "requisition_processing_metrics_recorded"
+    private const val EVENT_REQUISITION_PROCESSING_FINISHED = "requisition_processing_finished"
+    private const val EVENT_REQUISITION_PROCESSING_FAILED = "requisition_processing_failed"
+
+    private const val STATUS_SUCCESS = "success"
+    private const val STATUS_FAILURE = "failure"
+    private const val UNKNOWN_REPORT_ID = "unknown"
   }
 }
