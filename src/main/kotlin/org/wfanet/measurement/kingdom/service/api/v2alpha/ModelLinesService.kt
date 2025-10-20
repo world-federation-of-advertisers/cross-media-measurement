@@ -385,15 +385,27 @@ class ModelLinesService(
       }
     grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
 
-    val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
-    val externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+    val externalModelProviderId =
+      if (key.modelProviderId == ResourceKey.WILDCARD_ID) {
+        0L
+      } else {
+        apiIdToExternalId(key.modelProviderId)
+      }
+    val externalModelSuiteId =
+      if (key.modelSuiteId == ResourceKey.WILDCARD_ID) {
+        0L
+      } else {
+        apiIdToExternalId(key.modelSuiteId)
+      }
 
     return if (source.pageToken.isNotBlank()) {
       ListModelLinesPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-        grpcRequire(this.externalModelProviderId == externalModelProviderId) {
-          "Arguments must be kept the same when using a page token"
-        }
-        grpcRequire(this.externalModelSuiteId == externalModelSuiteId) {
+        grpcRequire(
+          this.externalModelProviderId == externalModelProviderId &&
+            this.externalModelSuiteId == externalModelSuiteId &&
+            this.typeIn == source.filter.typeInList &&
+            this.activeIntervalContains == source.filter.activeIntervalContains
+        ) {
           "Arguments must be kept the same when using a page token"
         }
 
@@ -411,7 +423,10 @@ class ModelLinesService(
           }
         this.externalModelProviderId = externalModelProviderId
         this.externalModelSuiteId = externalModelSuiteId
-        this.types += source.filter.typesList
+        this.typeIn += source.filter.typeInList
+        if (source.filter.hasActiveIntervalContains()) {
+          activeIntervalContains = source.filter.activeIntervalContains
+        }
       }
     }
   }
@@ -425,7 +440,10 @@ class ModelLinesService(
       filter = filter {
         externalModelProviderId = source.externalModelProviderId
         externalModelSuiteId = source.externalModelSuiteId
-        type += source.typesList.map { type -> type.toInternalType() }
+        type += source.typeInList.map { type -> type.toInternalType() }
+        if (source.hasActiveIntervalContains()) {
+          activeIntervalContains = source.activeIntervalContains
+        }
         if (source.hasLastModelLine()) {
           after = afterFilter {
             createTime = source.lastModelLine.createTime
