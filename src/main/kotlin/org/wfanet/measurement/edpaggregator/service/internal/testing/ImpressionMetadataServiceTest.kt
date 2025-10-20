@@ -941,12 +941,10 @@ abstract class ImpressionMetadataServiceTest {
         }
 
       val deleted1 =
-        service.batchDeleteImpressionMetadata(
-          batchDeleteImpressionMetadataRequest {
-            requests += deleteImpressionMetadataRequest {
-              dataProviderResourceId = created1.dataProviderResourceId
-              impressionMetadataResourceId = created1.impressionMetadataResourceId
-            }
+        service.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest {
+            dataProviderResourceId = created1.dataProviderResourceId
+            impressionMetadataResourceId = created1.impressionMetadataResourceId
           }
         )
 
@@ -959,7 +957,7 @@ abstract class ImpressionMetadataServiceTest {
         .comparingExpectedFieldsOnly()
         .isEqualTo(
           listImpressionMetadataResponse {
-            impressionMetadata += deleted1.impressionMetadataList.single()
+            impressionMetadata += deleted1
             impressionMetadata += created2
           }
         )
@@ -991,12 +989,10 @@ abstract class ImpressionMetadataServiceTest {
       val (created1, _) = createImpressionMetadata(IMPRESSION_METADATA_2, IMPRESSION_METADATA_3)
 
       val deleted1 =
-        service.batchDeleteImpressionMetadata(
-          batchDeleteImpressionMetadataRequest {
-            requests += deleteImpressionMetadataRequest {
-              dataProviderResourceId = created1.dataProviderResourceId
-              impressionMetadataResourceId = created1.impressionMetadataResourceId
-            }
+        service.deleteImpressionMetadata(
+          deleteImpressionMetadataRequest {
+            dataProviderResourceId = created1.dataProviderResourceId
+            impressionMetadataResourceId = created1.impressionMetadataResourceId
           }
         )
 
@@ -1012,11 +1008,7 @@ abstract class ImpressionMetadataServiceTest {
         )
 
       assertThat(response)
-        .isEqualTo(
-          listImpressionMetadataResponse {
-            impressionMetadata += deleted1.impressionMetadataList.single()
-          }
-        )
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted1 })
     }
 
   @Test
