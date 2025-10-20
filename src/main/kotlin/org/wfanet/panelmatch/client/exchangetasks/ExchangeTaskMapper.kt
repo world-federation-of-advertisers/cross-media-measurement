@@ -46,6 +46,11 @@ abstract class ExchangeTaskMapper {
         StepCase.GENERATE_HYBRID_ENCRYPTION_KEY_PAIR_STEP -> generateHybridEncryptionKeyPair()
         StepCase.GENERATE_RANDOM_BYTES_STEP -> generateRandomBytes()
         StepCase.ASSIGN_JOIN_KEY_IDS_STEP -> assignJoinKeyIds()
+        StepCase.READ_ENCRYPTED_EVENTS_FROM_BIG_QUERY_STEP -> readEncryptedEventsFromBigQuery()
+        StepCase.WRITE_KEYS_TO_BIG_QUERY_STEP -> writeKeysToBigQuery()
+        StepCase.WRITE_EVENTS_TO_BIG_QUERY_STEP -> writeEventsToBigQuery()
+        StepCase.DECRYPT_AND_MATCH_EVENTS_STEP -> decryptAndMatchEvents()
+        StepCase.PREPROCESS_SOURCE_EVENTS_STEP -> preProcessSourceEvents()
         StepCase.STEP_NOT_SET ->
           throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
       }
@@ -114,4 +119,19 @@ abstract class ExchangeTaskMapper {
 
   /** Returns the task that assigns ids to each [JoinKey]. */
   abstract suspend fun ExchangeContext.assignJoinKeyIds(): ExchangeTask
+
+  /** Returns the task that reads encrypted events from BigQuery authorized views. */
+  abstract suspend fun ExchangeContext.readEncryptedEventsFromBigQuery(): ExchangeTask
+
+  /** Returns the task that writes keys to BigQuery using streaming API. */
+  abstract suspend fun ExchangeContext.writeKeysToBigQuery(): ExchangeTask
+
+  /** Returns the task that writes events to BigQuery using streaming API. */
+  abstract suspend fun ExchangeContext.writeEventsToBigQuery(): ExchangeTask
+
+  /** Returns the task that decrypts and matches events (combined BigQuery workflow step). */
+  abstract suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask
+
+  /** Returns the task that decrypts and matches events (combined BigQuery workflow step). */
+  abstract suspend fun ExchangeContext.preProcessSourceEvents(): ExchangeTask
 }

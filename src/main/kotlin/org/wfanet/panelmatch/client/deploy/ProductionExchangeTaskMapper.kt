@@ -33,6 +33,7 @@ import org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.exchangetasks.DecryptAndMatchEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
@@ -43,7 +44,10 @@ import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
 import org.wfanet.panelmatch.client.exchangetasks.InputTask
 import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.PreprocessSourceEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
+import org.wfanet.panelmatch.client.exchangetasks.ReadEncryptedEventsFromBigQueryTask
+import org.wfanet.panelmatch.client.exchangetasks.WriteToBigQueryTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
@@ -370,5 +374,79 @@ open class ProductionExchangeTaskMapper(
       skipReadInput,
       execute,
     )
+  }
+
+  /** Returns the task that reads encrypted events from BigQuery authorized views. */
+  override suspend fun ExchangeContext.readEncryptedEventsFromBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.READ_ENCRYPTED_EVENTS_FROM_BIG_QUERY_STEP)
+    val readStep = step.readEncryptedEventsFromBigQueryStep
+    return ReadEncryptedEventsFromBigQueryTask(
+      projectId = readStep.projectId,
+      datasetId = readStep.datasetId,
+      tableOrViewId = readStep.tableOrViewId,
+      exchangeDate = exchangeDateKey.date,
+      encryptedJoinKeyColumn =
+        readStep.encryptedJoinKeyColumn.ifEmpty {
+          ReadEncryptedEventsFromBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN
+        },
+      encryptedEventDataColumn =
+        readStep.encryptedEventDataColumn.ifEmpty {
+          ReadEncryptedEventsFromBigQueryTask.DEFAULT_ENCRYPTED_EVENT_DATA_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that writes keys to BigQuery using streaming API. */
+  override suspend fun ExchangeContext.writeKeysToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_KEYS_TO_BIG_QUERY_STEP)
+    val writeStep = step.writeKeysToBigQueryStep
+    return WriteToBigQueryTask.forJoinKeys(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty { WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that writes events to BigQuery using streaming API. */
+  override suspend fun ExchangeContext.writeEventsToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_EVENTS_TO_BIG_QUERY_STEP)
+    val writeStep = step.writeEventsToBigQueryStep
+    return WriteToBigQueryTask.forEncryptedEvents(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty { WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN },
+      dataColumnName =
+        writeStep.eventDataColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EVENT_DATA_COLUMN
+        },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN
+        },
+    )
+  }
+
+  /** Returns the task that decrypts and matches events (combined BigQuery workflow step). */
+  override suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_AND_MATCH_EVENTS_STEP)
+    return DecryptAndMatchEventsTask()
+  }
+
+  override suspend fun ExchangeContext.preProcessSourceEvents(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.PREPROCESS_SOURCE_EVENTS_STEP)
+
+    val cipher = JniDeterministicCommutativeCipher()
+
+    return PreprocessSourceEventsTask(cipher = cipher)
   }
 }
