@@ -43,7 +43,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -96,6 +95,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
             ImpressionMetadataNotFoundException(request.name, e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -115,14 +115,63 @@ class ImpressionMetadataService(
   override suspend fun createImpressionMetadata(
     request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
-    return batchCreateImpressionMetadata(
-        batchCreateImpressionMetadataRequest {
-          parent = request.parent
-          requests += request
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("request.request_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    if (!request.hasImpressionMetadata()) {
+      throw RequiredFieldNotSetException("request.impression_metadata")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    ModelLineKey.fromName(request.impressionMetadata.modelLine)
+      ?: throw InvalidFieldValueException("request.impression_metadata.model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalImpressionMetadata =
+      try {
+        internalImpressionMetadataStub.createImpressionMetadata(
+          internalCreateImpressionMetadataRequest {
+            this.requestId = requestId
+            impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
+            ImpressionMetadataAlreadyExistsException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
-      )
-      .impressionMetadataList
-      .single()
+      }
+
+    return internalResponse.toImpressionMetadata()
   }
 
   override suspend fun batchCreateImpressionMetadata(
@@ -196,12 +245,10 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
             ImpressionMetadataAlreadyExistsException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.INVALID_FIELD_VALUE ->
-            InvalidFieldValueException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH ->
             DataProviderMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -245,6 +292,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -330,6 +378,7 @@ class ImpressionMetadataService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -386,6 +435,7 @@ class ImpressionMetadataService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
