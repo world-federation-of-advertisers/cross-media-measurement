@@ -19,6 +19,7 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
@@ -194,7 +195,29 @@ class DataProviderMismatchException(
       Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
     ),
     cause,
-  )
+  ) {
+  companion object : Factory<DataProviderMismatchException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.DATA_PROVIDER_MISMATCH
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): DataProviderMismatchException {
+      return DataProviderMismatchException(
+        DataProviderKey(
+            internalMetadata.getValue(InternalErrors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID)
+          )
+          .toName(),
+        DataProviderKey(
+            internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID)
+          )
+          .toName(),
+        cause,
+      )
+    }
+  }
+}
 
 class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
   ServiceException(
@@ -238,22 +261,7 @@ class InvalidFieldValueException(
     buildMessage(fieldName),
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
-  ) {
-  companion object : Factory<InvalidFieldValueException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.INVALID_FIELD_VALUE
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): InvalidFieldValueException {
-      return InvalidFieldValueException(
-        internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
-        cause,
-      )
-    }
-  }
-}
+  )
 
 class ImpressionMetadataNotFoundException(
   impressionMetadataResourceName: String,

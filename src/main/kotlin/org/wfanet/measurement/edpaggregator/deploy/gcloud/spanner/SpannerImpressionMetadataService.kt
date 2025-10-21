@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
+import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -43,6 +44,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
+import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
@@ -51,6 +53,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -89,6 +92,16 @@ class SpannerImpressionMetadataService(
     }
   }
 
+  override suspend fun createImpressionMetadata(
+    request: CreateImpressionMetadataRequest
+  ): ImpressionMetadata {
+    return batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest { requests += request }
+      )
+      .impressionMetadataList
+      .single()
+  }
+
   override suspend fun batchCreateImpressionMetadata(
     request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
@@ -103,27 +116,13 @@ class SpannerImpressionMetadataService(
     }
 
     val dataProviderResourceId = request.dataProviderResourceId
-    val blobUriSet = mutableSetOf<String>()
-    val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, it ->
       if (
         dataProviderResourceId.isNotEmpty() &&
           it.impressionMetadata.dataProviderResourceId != dataProviderResourceId
       ) {
         val childDataProviderResourceId = it.impressionMetadata.dataProviderResourceId
-        throw InvalidFieldValueException(
-            "requests.$index.impression_metadata.data_provider_resource_id"
-          ) {
-            "Parent and child request refers to different DataProviders: Parent is $dataProviderResourceId, child has $childDataProviderResourceId"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (!blobUriSet.add(it.impressionMetadata.blobUri)) {
-        val blobUri = it.impressionMetadata.blobUri
-        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
-            "blob uri $blobUri is duplicate in the batch of requests"
-          }
+        throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
@@ -133,13 +132,6 @@ class SpannerImpressionMetadataService(
           UUID.fromString(requestId)
         } catch (e: IllegalArgumentException) {
           throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
-
-        if (!requestIdSet.add(it.requestId)) {
-          throw InvalidFieldValueException("requests.$index.request_id") {
-              "request id $requestId is duplicate in the batch of requests"
-            }
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
