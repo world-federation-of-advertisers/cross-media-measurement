@@ -37,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
+import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
@@ -47,6 +48,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
+import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
@@ -56,6 +58,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
@@ -136,19 +139,7 @@ class SpannerImpressionMetadataService(
           it.impressionMetadata.dataProviderResourceId != dataProviderResourceId
       ) {
         val childDataProviderResourceId = it.impressionMetadata.dataProviderResourceId
-        throw InvalidFieldValueException(
-            "requests.$index.impression_metadata.data_provider_resource_id"
-          ) {
-            "Parent and child request refers to different DataProviders: Parent is $dataProviderResourceId, child has $childDataProviderResourceId"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (!blobUriSet.add(it.impressionMetadata.blobUri)) {
-        val blobUri = it.impressionMetadata.blobUri
-        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
-            "blob uri $blobUri is duplicate in the batch of requests"
-          }
+        throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 

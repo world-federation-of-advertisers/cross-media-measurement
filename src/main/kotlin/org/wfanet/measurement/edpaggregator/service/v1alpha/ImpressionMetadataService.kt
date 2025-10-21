@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundException
@@ -202,6 +203,9 @@ class ImpressionMetadataService(
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
           InternalErrors.Reason.INVALID_FIELD_VALUE ->
             InvalidFieldValueException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH ->
+            DataProviderMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
