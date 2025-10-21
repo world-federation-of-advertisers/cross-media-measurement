@@ -30,7 +30,7 @@ message EventGroupSyncConfig {
   // provided out-of-band.
   string data_provider = 1
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
-  // The blob uri for the event groups stored in Mesos RecordIo
+  // The blob uri for the event groups stored in Mesos RecordIo. Only used if not provided in the http request.
   string event_groups_blob_uri = 2;
   // The blob uri that contains MappedEventGroup(s) in Mesos RecordIO.
   string event_group_map_blob_uri = 3;
