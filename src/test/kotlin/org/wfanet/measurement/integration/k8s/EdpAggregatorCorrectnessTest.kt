@@ -378,11 +378,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         syntheticPopulationSpec,
         syntheticEventGroupMap,
         reportName,
-        "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
+        "modelProviders/AAAAAAAAAAA/modelSuites/BBBBBBBBBBB/modelLines/CCCCCCCCCCC",
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
-
+//        "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
     private fun shutDownChannels() {
       for (channel in channels) {
         channel.shutdown()
