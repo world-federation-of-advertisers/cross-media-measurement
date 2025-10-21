@@ -142,6 +142,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -240,6 +241,7 @@ class MeasurementsServiceTest {
 
   private lateinit var service: MeasurementsService
   private lateinit var hmssEnabledService: MeasurementsService
+  private lateinit var trusTeeEnabledService: MeasurementsService
 
   @Before
   fun initService() {
@@ -257,6 +259,14 @@ class MeasurementsServiceTest {
         DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
         NOISE_MECHANISMS,
         hmssEnabled = true,
+      )
+
+    trusTeeEnabledService =
+      MeasurementsService(
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        NOISE_MECHANISMS,
+        trusTeeEnabled = true,
       )
   }
 
@@ -908,6 +918,128 @@ class MeasurementsServiceTest {
                 details.copy {
                   clearFailure()
                   protocolConfig = HMSS_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                  measurementSpec = WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack().value
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with TrusTEE enabled and EDPs capable specifies trusTEE protocol`() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
+                  clearDuchyProtocolConfig()
+                }
+            }
+          requestId = request.requestId
+        }
+      )
+  }
+
+  @Test
+  fun `createMeasurement with TrusTEE enabled using wrapping VidSamplingInterval`() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities { trusTeeSupported = true }
+                  }
+              }
+            }
+          }
+        )
+    }
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        clearProtocolConfig()
+        measurementSpec = signedMessage {
+          setMessage(WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack())
+          signature = UPDATE_TIME.toByteString()
+          signatureAlgorithmOid = "2.9999"
+        }
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "foo"
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { trusTeeEnabledService.createMeasurement(request) }
+    }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement,
+      )
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          this.measurement =
+            INTERNAL_MEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+              results.clear()
+              details =
+                details.copy {
+                  clearFailure()
+                  protocolConfig = TRUS_TEE_INTERNAL_PROTOCOL_CONFIG
                   clearDuchyProtocolConfig()
                   measurementSpec = WRAPPING_INTERVAL_MEASUREMENT_SPEC.pack().value
                 }
@@ -2919,6 +3051,7 @@ class MeasurementsServiceTest {
         "worker2",
         "aggregator",
       )
+      TrusTeeProtocolConfig.setForTest(TRUS_TEE_INTERNAL_PROTOCOL_CONFIG.trusTee, "aggregator")
     }
 
     private val API_VERSION = Version.V2_ALPHA
@@ -3017,6 +3150,11 @@ class MeasurementsServiceTest {
     private val HMSS_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "hmss"
       honestMajorityShareShuffle = InternalProtocolConfigKt.honestMajorityShareShuffle {}
+    }
+
+    private val TRUS_TEE_INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "trustee"
+      trusTee = InternalProtocolConfigKt.trusTee {}
     }
 
     private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey { data = UPDATE_TIME.toByteString() }

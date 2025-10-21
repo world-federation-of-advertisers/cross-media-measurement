@@ -30,6 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
@@ -66,7 +67,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       BasicReportResultDetails,
       State,
       CreateReportRequestId,
-      ExternalReportId
+      ExternalReportId,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -113,7 +117,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       BasicReportResultDetails,
       State,
       CreateReportRequestId,
-      ExternalReportId
+      ExternalReportId,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -163,7 +170,10 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         BasicReportResultDetails,
         State,
         CreateReportRequestId,
-        ExternalReportId
+        ExternalReportId,
+        CmmsModelProviderId,
+        CmmsModelSuiteId,
+        CmmsModelLineId
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -253,6 +263,11 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("ExternalReportId").to(basicReport.externalReportId)
     }
     set("CreateRequestId").to(requestId)
+    if (basicReport.hasModelLineKey()) {
+      set("CmmsModelProviderId").to(basicReport.modelLineKey.cmmsModelProviderId)
+      set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
+      set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
+    }
   }
 }
 
@@ -313,6 +328,14 @@ private fun buildBasicReport(row: Struct): BasicReport {
     }
     if (!row.isNull("ExternalReportId")) {
       externalReportId = row.getString("ExternalReportId")
+    }
+    if (!row.isNull("CmmsModelProviderId")) {
+      modelLineKey =
+        BasicReportKt.modelLineKey {
+          cmmsModelProviderId = row.getString("CmmsModelProviderId")
+          cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
+          cmmsModelLineId = row.getString("CmmsModelLineId")
+        }
     }
   }
 }

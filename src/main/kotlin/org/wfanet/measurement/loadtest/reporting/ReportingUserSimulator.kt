@@ -100,6 +100,7 @@ class ReportingUserSimulator(
   private val reportingGatewayHost: String,
   private val reportingGatewayPort: Int = 443,
   private val getReportingAccessToken: () -> String,
+  private val modelLineName: String,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
@@ -173,6 +174,7 @@ class ReportingUserSimulator(
       title = "title"
       this.campaignGroup = campaignGroup.name
       campaignGroupDisplayName = campaignGroup.displayName
+      modelLine = modelLineName
       reportingInterval = reportingInterval {
         reportStart = dateTime {
           year = 2025
@@ -214,9 +216,7 @@ class ReportingUserSimulator(
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          // TODO(@tristanvuong2021): Include population after figuring out how to set default model
-          // line
-          populationSize = false
+          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =

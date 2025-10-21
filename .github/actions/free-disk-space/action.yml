@@ -27,19 +27,19 @@ runs:
 
     - name: Remove Android toolkit
       shell: bash
-      run: sudo rm -rf /usr/local/lib/android
+      run: sudo ${{ github.action_path }}/rdelete /usr/local/lib/android
 
     - name: Remove dotnet
       shell: bash
-      run: sudo rm -rf /usr/share/dotnet
-    
+      run: sudo ${{ github.action_path }}/rdelete /usr/share/dotnet
+
     - name: Remove CodeQL
       shell: bash
-      run: sudo rm -rf /opt/hostedtoolcache/CodeQL
+      run: sudo ${{ github.action_path }}/rdelete /opt/hostedtoolcache/CodeQL
 
     - name: Remove GHC (Haskell)
       shell: bash
-      run: sudo rm -rf /opt/ghc
+      run: sudo ${{ github.action_path }}/rdelete /opt/ghc
 
     - shell: bash
       run: df -h
