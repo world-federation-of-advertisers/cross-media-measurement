@@ -226,6 +226,7 @@ class DataAvailabilitySync(
         METADATA_FILE_NAME in fileName
       }
       .collect { impressionMetadataBlob ->
+        println("-------------------------------> impression metadata blob: ${impressionMetadataBlob.blobKey}")
         val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
         val bytes: ByteString = impressionMetadataBlob.read().flatten()
 
