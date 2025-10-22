@@ -62,6 +62,8 @@ message ListEventGroupsPageToken {
   repeated MediaType media_types_intersect = 8;
   google.protobuf.Timestamp data_availability_start_time_on_or_after = 9;
   google.protobuf.Timestamp data_availability_end_time_on_or_before = 10;
+  google.protobuf.Timestamp data_availability_start_time_on_or_before = 13;
+  google.protobuf.Timestamp data_availability_end_time_on_or_after = 14;
   string metadata_search_query = 11;
   ListEventGroupsRequest.OrderBy order_by = 12;
 

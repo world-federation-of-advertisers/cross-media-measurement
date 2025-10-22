@@ -17,7 +17,9 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.util.Timestamps
 import com.google.type.copy
+import com.google.type.endTimeOrNull
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -866,6 +868,46 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamEventGroups respects data availability interval contains filter`(): Unit =
+    runBlocking {
+      val now: Instant = testClock.instant()
+      val measurementConsumer: MeasurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider1: DataProvider = population.createDataProvider(dataProvidersService)
+      val dataProvider2: DataProvider = population.createDataProvider(dataProvidersService)
+      val eventGroups: List<EventGroup> =
+        populateTestEventGroups(now, measurementConsumer, dataProvider1, dataProvider2)
+      val filterRange: ClosedRange<Instant> =
+        now.minus(92L, ChronoUnit.DAYS)..now.minus(59L, ChronoUnit.DAYS)
+
+      val response =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                dataAvailabilityStartTimeOnOrBefore = filterRange.start.toProtoTime()
+                dataAvailabilityEndTimeOnOrAfter = filterRange.endInclusive.toProtoTime()
+              }
+            }
+          )
+          .toList()
+
+      assertThat(response)
+        .ignoringRepeatedFieldOrderOfFields(EventGroup.MEDIA_TYPES_FIELD_NUMBER)
+        .containsExactlyElementsIn(
+          eventGroups.filter {
+            val availabilityRange =
+              it.dataAvailabilityInterval.startTime.toInstant()..<(it.dataAvailabilityInterval
+                    .endTimeOrNull ?: Timestamps.MAX_VALUE)
+                  .toInstant()
+
+            filterRange in availabilityRange
+          }
+        )
+    }
+
+  @Test
   fun `streamEventGroups respects orderBy`(): Unit = runBlocking {
     val now: Instant = testClock.instant()
     val measurementConsumer: MeasurementConsumer =
@@ -1390,3 +1432,7 @@ data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
   val dataProvidersService: DataProvidersCoroutineImplBase,
   val accountsService: AccountsCoroutineImplBase,
 )
+
+private operator fun OpenEndRange<Instant>.contains(other: ClosedRange<Instant>): Boolean {
+  return start <= other.start && endExclusive > other.endInclusive
+}
