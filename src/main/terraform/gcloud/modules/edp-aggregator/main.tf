@@ -157,6 +157,7 @@ locals {
     "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
     "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   }
+
 }
 
 module "edp_aggregator_bucket" {
@@ -495,4 +496,25 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
+}
+
+resource "google_project_iam_member" "telemetry_log_writer" {
+  for_each = local.service_accounts
+  project  = var.project_id
+  role     = "roles/logging.logWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_metric_writer" {
+  for_each = local.service_accounts
+  project  = var.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_trace_agent" {
+  for_each = local.service_accounts
+  project  = var.project_id
+  role     = "roles/cloudtrace.agent"
+  member   = "serviceAccount:${each.value}"
 }
