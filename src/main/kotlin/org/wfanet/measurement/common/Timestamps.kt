@@ -39,7 +39,7 @@ fun DateTime.toTimestamp(): Timestamp {
         offset,
       )
     offsetDateTime.toInstant().toProtoTime()
-  } else {
+  } else if (source.hasTimeZone()) {
     val id = ZoneId.of(source.timeZone.id)
     val zonedDateTime =
       ZonedDateTime.of(
@@ -53,5 +53,7 @@ fun DateTime.toTimestamp(): Timestamp {
         id,
       )
     zonedDateTime.toInstant().toProtoTime()
+  } else {
+    throw IllegalArgumentException("utc_offset or time_zone required")
   }
 }

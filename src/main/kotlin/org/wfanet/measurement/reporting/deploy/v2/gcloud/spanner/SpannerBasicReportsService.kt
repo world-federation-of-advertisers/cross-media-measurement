@@ -42,7 +42,6 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -51,8 +50,8 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
-import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
@@ -609,60 +608,54 @@ class SpannerBasicReportsService(
     reportResult: ReportResult,
     campaignGroup: ReportingSet,
   ): List<ResultGroup> {
-    val campaignGroupReportingSetIdByReportingSet: Map<ReportingSet, String> =
-      listReportingSetsByCampaignGroup(
-          basicReport.cmmsMeasurementConsumerId,
-          basicReport.externalCampaignGroupId,
-        )
+    val campaignGroupReportingSets = listReportingSetsByCampaignGroup(
+      basicReport.cmmsMeasurementConsumerId,
+      basicReport.externalCampaignGroupId,
+    ).filter { it.filter.isEmpty() }
+
+    val campaignGroupReportingSetIdByReportingSetKey: Map<ReportingSetKey, String> =
+      campaignGroupReportingSets
         .associate {
-          it.copy {
-            clearCmmsMeasurementConsumerId()
-            clearExternalReportingSetId()
-            clearExternalCampaignGroupId()
-            weightedSubsetUnions.clear()
-          } to it.externalReportingSetId
+          if (it.hasComposite()) {
+            ReportingSetKey(setExpression = it.composite) to it.externalReportingSetId
+          } else {
+            ReportingSetKey(primitiveEventGroupKeys = it.primitive.eventGroupKeysList.toHashSet())to it.externalReportingSetId
+          }
         }
 
     val eventGroupKeysByDataProviderId:
-      Map<String, MutableList<ReportingSet.Primitive.EventGroupKey>> =
-      buildMap {
-        for (eventGroupKey in campaignGroup.primitive.eventGroupKeysList) {
-          val eventGroupsList = getOrPut(eventGroupKey.cmmsDataProviderId) { mutableListOf() }
-          eventGroupsList.add(eventGroupKey)
-        }
-      }
+      Map<String, List<ReportingSet.Primitive.EventGroupKey>> =
+      campaignGroup.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
 
-    val primitiveReportingSetByDataProviderId: Map<String, ReportingSet> = buildMap {
+    val primitiveInfoByDataProviderId: Map<String, BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo> = buildMap {
       for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
-        val reportingSet = reportingSet {
-          primitive =
-            ReportingSetKt.primitive {
-              eventGroupKeys += eventGroupKeysByDataProviderId.getValue(dataProviderId)
-            }
-        }
+        val primitiveEventGroupKeys = eventGroupKeysByDataProviderId.getValue(dataProviderId).toHashSet()
+        val reportingSetKey = ReportingSetKey(
+          primitiveEventGroupKeys = primitiveEventGroupKeys,
+        )
 
-        if (campaignGroupReportingSetIdByReportingSet.containsKey(reportingSet)) {
+        if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
           put(
             dataProviderId,
-            reportingSet.copy {
-              externalReportingSetId =
-                campaignGroupReportingSetIdByReportingSet.getValue(reportingSet)
-            },
+            BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+              eventGroupKeys = primitiveEventGroupKeys,
+              externalReportingSetId = campaignGroupReportingSetIdByReportingSetKey.getValue(reportingSetKey),
+            ),
           )
         }
       }
     }
 
     val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
-      campaignGroupReportingSetIdByReportingSet
-        .filter { it.key.hasComposite() && it.key.filter.isEmpty() }
-        .forEach { put(it.key.composite, it.value) }
+      campaignGroupReportingSetIdByReportingSetKey
+        .filter { it.key.setExpression != null }
+        .forEach { put(it.key.setExpression!!, it.value) }
     }
 
     return buildResultGroups(
       basicReport,
       reportResult,
-      primitiveReportingSetByDataProviderId,
+      primitiveInfoByDataProviderId,
       compositeReportingSetIdBySetExpression,
     )
   }
@@ -670,5 +663,10 @@ class SpannerBasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
+
+    private data class ReportingSetKey(
+      val setExpression: ReportingSet.SetExpression? = null,
+      val primitiveEventGroupKeys: HashSet<ReportingSet.Primitive.EventGroupKey>? = null,
+    )
   }
 }

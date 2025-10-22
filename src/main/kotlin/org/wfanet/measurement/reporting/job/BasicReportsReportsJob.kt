@@ -365,7 +365,7 @@ class BasicReportsReportsJob(
               ReportingSetResultInfoKey(
                 externalReportingSetId = externalReportingSetId,
                 filter = resultAttribute.filter,
-                groupingPredicates = resultAttribute.groupingPredicatesList,
+                groupingPredicates = resultAttribute.groupingPredicatesList.toHashSet(),
               )
             ) {
               ReportingSetResultInfo(
@@ -686,7 +686,7 @@ class BasicReportsReportsJob(
   private data class ReportingSetResultInfoKey(
     val externalReportingSetId: String,
     val filter: String,
-    val groupingPredicates: List<String>,
+    val groupingPredicates: HashSet<String>,
   )
 
   private data class ReportingSetResultInfo(

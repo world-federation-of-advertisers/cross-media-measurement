@@ -254,7 +254,6 @@ class BasicReportsServiceTest {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             displayName = "displayName"
-            filter = "filter"
             primitive =
               ReportingSetKt.primitive {
                 eventGroupKeys +=
@@ -410,7 +409,6 @@ class BasicReportsServiceTest {
           cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
           externalCampaignGroupId = campaignGroupKey.reportingSetId
           displayName = "displayName"
-          filter = "filter"
           primitive =
             ReportingSetKt.primitive {
               eventGroupKeys +=
@@ -619,7 +617,6 @@ class BasicReportsServiceTest {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             displayName = "displayName"
-            filter = "filter"
             primitive =
               ReportingSetKt.primitive {
                 eventGroupKeys +=
@@ -674,7 +671,6 @@ class BasicReportsServiceTest {
               cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
               externalCampaignGroupId = campaignGroupKey.reportingSetId
               displayName = "displayName"
-              filter = "filter"
 
               primitive =
                 ReportingSetKt.primitive {
@@ -926,7 +922,6 @@ class BasicReportsServiceTest {
               cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
               externalCampaignGroupId = campaignGroupKey.reportingSetId
               displayName = "displayName"
-              filter = "filter"
 
               primitive =
                 ReportingSetKt.primitive {
@@ -1412,7 +1407,6 @@ class BasicReportsServiceTest {
           createReportingSetRequest {
             externalReportingSetId = "c1234"
             reportingSet = internalReportingSet {
-              filter = "filter"
               cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
               externalCampaignGroupId = campaignGroupKey.reportingSetId
               composite =
@@ -1616,7 +1610,6 @@ class BasicReportsServiceTest {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             displayName = "displayName"
-            filter = "filter"
 
             primitive =
               ReportingSetKt.primitive {
@@ -6443,7 +6436,6 @@ class BasicReportsServiceTest {
           cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
           externalCampaignGroupId = campaignGroupKey.reportingSetId
           displayName = "displayName"
-          filter = "filter"
           primitive =
             ReportingSetKt.primitive {
               eventGroupKeys +=
@@ -6595,7 +6587,6 @@ class BasicReportsServiceTest {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
             displayName = "displayName"
-            filter = "filter"
             primitive =
               ReportingSetKt.primitive {
                 eventGroupKeys +=
@@ -8735,7 +8726,6 @@ class BasicReportsServiceTest {
 
     private val INTERNAL_CAMPAIGN_GROUP = internalReportingSet {
       displayName = "displayName"
-      filter = "filter"
 
       primitive =
         ReportingSetKt.primitive {

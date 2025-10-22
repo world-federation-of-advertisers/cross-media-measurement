@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -167,10 +168,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        )
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -184,7 +191,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       buildResultGroups(
         basicReport,
         reportResult,
-        primitiveReportingSetByDataProviderId,
+        primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
 
@@ -422,10 +429,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        )
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -439,7 +452,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       buildResultGroups(
         basicReport,
         reportResult,
-        primitiveReportingSetByDataProviderId,
+        primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
 
@@ -659,10 +672,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        )
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -676,7 +695,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       buildResultGroups(
         basicReport,
         reportResult,
-        primitiveReportingSetByDataProviderId,
+        primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
 
@@ -811,14 +830,20 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        )
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveReportingSetByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
@@ -989,10 +1014,20 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        ),
+        DATA_PROVIDER_3_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
+        )
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -1006,7 +1041,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       buildResultGroups(
         basicReport,
         reportResult,
-        primitiveReportingSetByDataProviderId,
+        primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
 
@@ -1304,11 +1339,20 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
-        DATA_PROVIDER_3_ID to PRIMITIVE_REPORTING_SET_3,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        ),
+        DATA_PROVIDER_3_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
+        )
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -1335,7 +1379,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       buildResultGroups(
         basicReport,
         reportResult,
-        primitiveReportingSetByDataProviderId,
+        primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
 
@@ -1596,14 +1640,20 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+        )
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveReportingSetByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
@@ -1925,14 +1975,20 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
 
-    val primitiveReportingSetByDataProviderId =
+    val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to PRIMITIVE_REPORTING_SET_1,
-        DATA_PROVIDER_2_ID to PRIMITIVE_REPORTING_SET_2,
+        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+        ),
+        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+        externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+      )
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveReportingSetByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
