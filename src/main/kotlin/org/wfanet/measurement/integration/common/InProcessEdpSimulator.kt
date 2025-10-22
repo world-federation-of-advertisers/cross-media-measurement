@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -105,6 +106,8 @@ class InProcessEdpSimulator(
         measurementConsumerName = mcResourceName,
         certificatesStub =
           CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+        modelLinesStub =
+          ModelLinesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         dataProvidersStub =
           DataProvidersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
         eventGroupsStub =

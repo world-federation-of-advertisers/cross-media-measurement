@@ -33,6 +33,7 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -49,11 +50,12 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
-import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalRequest
+import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -76,9 +78,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -127,6 +131,13 @@ import org.wfanet.measurement.loadtest.config.TestIdentifiers
  */
 @RunWith(JUnit4::class)
 abstract class AbstractEdpSimulatorTest {
+  private val modelLinesServiceMock: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService {
+    onBlocking { listModelLines(any()) } doReturn
+      listModelLinesResponse {
+        modelLines += modelLine { name = MODEL_LINE_NAME }
+        modelLines += modelLine { name = MODEL_LINE_2_NAME }
+      }
+  }
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
@@ -146,10 +157,10 @@ abstract class AbstractEdpSimulatorTest {
       .thenReturn(DATA_PROVIDER_RESULT_CERTIFICATE)
   }
   protected val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { replaceDataAvailabilityInterval(any()) }
+    onBlocking { replaceDataAvailabilityIntervals(any()) }
       .thenAnswer {
-        val request = it.arguments[0] as ReplaceDataAvailabilityIntervalRequest
-        dataProvider { dataAvailabilityInterval = request.dataAvailabilityInterval }
+        val request = it.arguments[0] as ReplaceDataAvailabilityIntervalsRequest
+        dataProvider { dataAvailabilityIntervals += request.dataAvailabilityIntervalsList }
       }
   }
   protected val measurementConsumersServiceMock:
@@ -184,6 +195,7 @@ abstract class AbstractEdpSimulatorTest {
     listOf(
       measurementConsumersServiceMock,
       certificatesServiceMock,
+      modelLinesServiceMock,
       dataProvidersServiceMock,
       eventGroupsServiceMock,
       requisitionsServiceMock,
@@ -199,6 +211,10 @@ abstract class AbstractEdpSimulatorTest {
 
   protected val certificatesStub: CertificatesCoroutineStub by lazy {
     CertificatesCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  protected val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub by lazy {
+    ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
   }
 
   protected val dataProvidersStub: DataProvidersCoroutineStub by lazy {
@@ -258,6 +274,8 @@ abstract class AbstractEdpSimulatorTest {
     const val DUCHY_TWO_ID = "worker2"
     const val DUCHY_ONE_NAME = "duchies/$DUCHY_ONE_ID"
     const val DUCHY_TWO_NAME = "duchies/$DUCHY_TWO_ID"
+    const val MODEL_LINE_NAME = "modelProviders/foo/modelSuites/bar/modelLines/baz"
+    const val MODEL_LINE_2_NAME = "modelProviders/foo/modelSuites/bar2/modelLines/baz"
     const val LLV2_DECAY_RATE = 12.0
     const val LLV2_MAX_SIZE = 100_000L
 
@@ -364,7 +382,7 @@ abstract class AbstractEdpSimulatorTest {
           }
         }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
-      nonce = Random.Default.nextLong()
+      nonce = Random.nextLong()
     }
 
     val ENCRYPTED_REQUISITION_SPEC =

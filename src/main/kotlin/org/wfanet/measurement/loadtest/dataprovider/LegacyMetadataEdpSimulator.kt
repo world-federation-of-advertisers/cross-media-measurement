@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SignedMessage
@@ -68,6 +69,7 @@ class LegacyMetadataEdpSimulator(
   private val measurementConsumersStub:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub,
   certificatesStub: CertificatesGrpcKt.CertificatesCoroutineStub,
+  modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val eventGroupMetadataDescriptorsStub:
@@ -99,6 +101,7 @@ class LegacyMetadataEdpSimulator(
     edpDisplayName,
     measurementConsumerName,
     certificatesStub,
+    modelLinesStub,
     dataProvidersStub,
     eventGroupsStub,
     requisitionsStub,
