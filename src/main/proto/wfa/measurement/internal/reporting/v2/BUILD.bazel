@@ -5,6 +5,7 @@ load(
     "kt_jvm_grpc_proto_library",
     "kt_jvm_proto_library",
 )
+load("@rules_python//python:proto.bzl", "py_proto_library")
 load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
@@ -424,5 +425,42 @@ proto_descriptor_set(
         ":reporting_unit_proto",
         ":result_group_proto",
         ":result_group_spec_proto",
+    ],
+)
+
+py_proto_library(
+    name = "google_type_pb2",
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "v2_protos",
+    srcs = glob(["*.proto"]),
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
+        "@com_google_googleapis//google/type:dayofweek_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+py_proto_library(
+    name = "v2_py_pb2",
+    deps = [
+        ":v2_protos",
     ],
 )

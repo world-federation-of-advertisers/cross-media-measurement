@@ -101,7 +101,7 @@ message ReportResult {
               double value = 1;
               UnivariateStatistics univariate_statistics = 2;
             }
-            repeated BinResult bins = 1;
+            map<int32, BinResult> bins = 1;
           }
 
           message ImpressionCountResult {
@@ -110,7 +110,7 @@ message ReportResult {
           }
 
           ReachResult reach = 1;
-          HistogramResult frequencyHistogram = 2;
+          HistogramResult frequency_histogram = 2;
           ImpressionCountResult impression_count = 3;
         }
 

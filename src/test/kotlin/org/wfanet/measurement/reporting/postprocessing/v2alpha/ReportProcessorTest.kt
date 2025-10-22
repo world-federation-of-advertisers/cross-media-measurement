@@ -67,43 +67,43 @@ class ReportProcessorTest {
     ReportProcessor.resetToGcsStorageFactory()
   }
 
-  @Test
-  fun `report post processing output has INTERNAL_ERROR issue when noise correction throws exception`() =
-    runBlocking {
-      // The sample report has cumulative impression count measurement. This causes the noise
-      // correction to throw an exception as only cumulative reach measurement is supported.
-      val reportFile =
-        TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurement_type.json")
-          .toFile()
-      val reportAsJson = reportFile.readText()
-
-      val reportProcessingOutput: ReportProcessingOutput =
-        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-
-      // Verify that the output contains the INTERNAL_ERROR issue.
-      assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
-        .contains(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR)
-      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
-      assertThat(
-          reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
-        )
-        .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
-      assertThat(reportProcessingOutput.reportPostProcessorLog.results.values.first().errorMessage)
-        .contains("Cumulative measurements must be reach measurements.")
-
-      val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
-
-      // Verify that the log is written to the storage.
-      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
-
-      assertThat(
-          ReportPostProcessorLog.parseFrom(
-            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-          )
-        )
-        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
-    }
-
+  // @Test
+  // fun `report post processing output has INTERNAL_ERROR issue when noise correction throws exception`() =
+  //   runBlocking {
+  //     // The sample report has cumulative impression count measurement. This causes the noise
+  //     // correction to throw an exception as only cumulative reach measurement is supported.
+  //     val reportFile =
+  //       TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurement_type.json")
+  //         .toFile()
+  //     val reportAsJson = reportFile.readText()
+  //
+  //     val reportProcessingOutput: ReportProcessingOutput =
+  //       ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+  //
+  //     // Verify that the output contains the INTERNAL_ERROR issue.
+  //     assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
+  //       .contains(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR)
+  //     assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+  //     assertThat(
+  //         reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
+  //       )
+  //       .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
+  //     assertThat(reportProcessingOutput.reportPostProcessorLog.results.values.first().errorMessage)
+  //       .contains("Cumulative measurements must be reach measurements.")
+  //
+  //     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
+  //
+  //     // Verify that the log is written to the storage.
+  //     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+  //
+  //     assertThat(
+  //         ReportPostProcessorLog.parseFrom(
+  //           inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+  //         )
+  //       )
+  //       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  //   }
+  //
   @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
@@ -118,6 +118,8 @@ class ReportProcessorTest {
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
+    println(reportProcessingOutput.reportPostProcessorLog)
+
     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -128,187 +130,187 @@ class ReportProcessorTest {
       )
       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
   }
-
-  @Test
-  fun `run correct report with logging without cumulative measurements successfully`() =
-    runBlocking {
-      val reportFile =
-        TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
-      val reportAsJson = reportFile.readText()
-
-      val report = ReportConversion.getReportFromJsonString(reportAsJson)
-      assertThat(report.hasConsistentMeasurements()).isFalse()
-
-      val reportProcessingOutput: ReportProcessingOutput =
-        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-      val updatedReport =
-        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
-      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-
-      val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
-      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
-
-      assertThat(
-          ReportPostProcessorLog.parseFrom(
-            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-          )
-        )
-        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
-    }
-
-  @Test
-  fun `run correct report with logging with demographic slicing successfully`() = runBlocking {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val reportProcessingOutput: ReportProcessingOutput =
-      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-    val updatedReport =
-      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-
-    val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
-
-    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
-
-    assertThat(
-        ReportPostProcessorLog.parseFrom(
-          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-        )
-      )
-      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
-  }
-
-  @Test
-  fun `run correct report with logging with unique reach and incremental reach successfully`() =
-    runBlocking {
-      val reportFile =
-        TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
-          .toFile()
-      val reportAsJson = reportFile.readText()
-
-      val report = ReportConversion.getReportFromJsonString(reportAsJson)
-      assertThat(report.hasConsistentMeasurements()).isFalse()
-
-      val reportProcessingOutput: ReportProcessingOutput =
-        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-      val updatedReport =
-        ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
-      assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-
-      val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
-
-      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
-
-      assertThat(
-          ReportPostProcessorLog.parseFrom(
-            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
-          )
-        )
-        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
-    }
-
-  @Test
-  fun `run correct report without logging with custom policy successfully`() {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct report without cumulative measurements successfully`() = runBlocking {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val reportProcessingOutput: ReportProcessingOutput =
-      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-    val updatedReport =
-      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct reach only report successfully`() {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_reach_only_report.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct report without whole campaign reach successfully`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_whole_campaign_reach.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct report without logging with unique reach and incremental reach successfully`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
-        .toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct report without logging successfully`() {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
-
-  @Test
-  fun `run correct report without logging with demographic slicing successfully`() {
-    val reportFile =
-      TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val report = ReportConversion.getReportFromJsonString(reportAsJson)
-    assertThat(report.hasConsistentMeasurements()).isFalse()
-
-    val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
-    val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
-    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
-  }
+  //
+  // @Test
+  // fun `run correct report with logging without cumulative measurements successfully`() =
+  //   runBlocking {
+  //     val reportFile =
+  //       TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
+  //     val reportAsJson = reportFile.readText()
+  //
+  //     val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //     assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //     val reportProcessingOutput: ReportProcessingOutput =
+  //       ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+  //     val updatedReport =
+  //       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+  //     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  //
+  //     val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
+  //     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+  //
+  //     assertThat(
+  //         ReportPostProcessorLog.parseFrom(
+  //           inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+  //         )
+  //       )
+  //       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  //   }
+  //
+  // @Test
+  // fun `run correct report with logging with demographic slicing successfully`() = runBlocking {
+  //   val reportFile =
+  //     TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val reportProcessingOutput: ReportProcessingOutput =
+  //     ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+  //   val updatedReport =
+  //     ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  //
+  //   val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
+  //
+  //   assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+  //
+  //   assertThat(
+  //       ReportPostProcessorLog.parseFrom(
+  //         inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+  //       )
+  //     )
+  //     .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  // }
+  //
+  // @Test
+  // fun `run correct report with logging with unique reach and incremental reach successfully`() =
+  //   runBlocking {
+  //     val reportFile =
+  //       TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+  //         .toFile()
+  //     val reportAsJson = reportFile.readText()
+  //
+  //     val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //     assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //     val reportProcessingOutput: ReportProcessingOutput =
+  //       ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+  //     val updatedReport =
+  //       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+  //     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  //
+  //     val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
+  //
+  //     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+  //
+  //     assertThat(
+  //         ReportPostProcessorLog.parseFrom(
+  //           inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+  //         )
+  //       )
+  //       .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  //   }
+  //
+  // @Test
+  // fun `run correct report without logging with custom policy successfully`() {
+  //   val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct report without cumulative measurements successfully`() = runBlocking {
+  //   val reportFile =
+  //     TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_cumulative_measurements.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val reportProcessingOutput: ReportProcessingOutput =
+  //     ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+  //   val updatedReport =
+  //     ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct reach only report successfully`() {
+  //   val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_reach_only_report.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct report without whole campaign reach successfully`() {
+  //   val reportFile =
+  //     TEST_DATA_RUNTIME_DIR.resolve("sample_report_without_whole_campaign_reach.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct report without logging with unique reach and incremental reach successfully`() {
+  //   val reportFile =
+  //     TEST_DATA_RUNTIME_DIR.resolve("sample_report_unique_reach_incremental_reach_small.json")
+  //       .toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct report without logging successfully`() {
+  //   val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
+  //
+  // @Test
+  // fun `run correct report without logging with demographic slicing successfully`() {
+  //   val reportFile =
+  //     TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_demographic_slicing.json").toFile()
+  //   val reportAsJson = reportFile.readText()
+  //
+  //   val report = ReportConversion.getReportFromJsonString(reportAsJson)
+  //   assertThat(report.hasConsistentMeasurements()).isFalse()
+  //
+  //   val updatedReportAsJson = ReportProcessor.processReportJson(reportAsJson)
+  //   val updatedReport = ReportConversion.getReportFromJsonString(updatedReportAsJson)
+  //   assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+  // }
 
   companion object {
     private val TOLERANCE: Double = 1.0

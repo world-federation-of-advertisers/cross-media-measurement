@@ -48,11 +48,10 @@ message ReportSummaryV2 {
     // Represents a frequency distribution result.
     message FrequencyResult {
       message BinResult {
-        string label = 1;
-        int64 value = 2;
-        double standard_deviation = 3;
+        int64 value = 1;
+        double standard_deviation = 2;
       }
-      repeated BinResult bins = 1;
+      map<int32, BinResult> bins = 1;
 
       // The unique name that is associated with this result.
       string metric = 2;
@@ -80,6 +79,7 @@ message ReportSummaryV2 {
       ReachResult reach = 4;
       FrequencyResult frequency = 5;
       ImpressionCountResult impression_count = 6;
+      string external_noisy_report_result_value_id = 7;
     }
 
     // A list of cumulative results, ordered by the end date of the window.
@@ -90,23 +90,31 @@ message ReportSummaryV2 {
     // `metric_frequency_type` is `TOTAL`) and periodic non-cumulative metrics
     // (e.g., where `metric_frequency_type` is `WEEKLY`).
     repeated ReportSummaryWindowResult non_cumulative_results = 6;
+
+    string external_reporting_set_id = 7;
   }
 
   // A list containing the details and results for each set of metrics included
   // in the report summary.
   repeated ReportSummarySetResult report_summary_set_results = 1;
 
-  // Identifies the filtered demographic groups this report summary applies to.
+  // Identifies the filtered demographic groups and event filters this report
+  // summary applies to.
   //
-  // The demographic_groups field contains a list of strings, each corresponds
-  // to a single demographic group identifier. For examples:
-  // - For a report summary on a subset of groups: ["MALE_AGE_GROUP1",
-  // "FEMALE_AGE_GROUP1"].
-  // - For a report summary on a single group: ["MALE_AGE_GROUP1"].
+  // Each string is a representation of a single filter term, formatted as
+  // "path=value". For example:
+  // ["person.age_group=YEARS_18_TO_34", "banner_ad.viewable=true"]
+  //
   // - For a report summary on the whole population (no filter): ["-"].
-  repeated string demographic_groups = 2;
+  repeated string grouping_predicates = 2;
 
   // The total population size of the selected demographic groups in this report
   // summary.
   int64 population = 3;
+
+  // The CMMS Measurement Consumer ID.
+  string cmms_measurement_consumer_id = 4;
+
+  // The external ID of the report result from which this summary was generated.
+  string external_report_result_id = 5;
 }
