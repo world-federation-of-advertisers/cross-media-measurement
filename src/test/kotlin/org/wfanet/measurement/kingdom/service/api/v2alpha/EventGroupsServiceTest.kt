@@ -984,6 +984,10 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       pageSize = 100
+      filter = filter {
+        dataAvailabilityStartTimeOnOrBefore = EVENT_GROUP.dataAvailabilityInterval.startTime
+        dataAvailabilityEndTimeOnOrAfter = EVENT_GROUP.dataAvailabilityInterval.endTime
+      }
       orderBy =
         ListEventGroupsRequestKt.orderBy {
           field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
@@ -1013,6 +1017,9 @@ class EventGroupsServiceTest {
           filter =
             StreamEventGroupsRequestKt.filter {
               externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+              dataAvailabilityStartTimeOnOrBefore =
+                request.filter.dataAvailabilityStartTimeOnOrBefore
+              dataAvailabilityEndTimeOnOrAfter = request.filter.dataAvailabilityEndTimeOnOrAfter
             }
           orderBy =
             StreamEventGroupsRequestKt.orderBy {
