@@ -69,7 +69,7 @@ suspend fun <ITEM, RESP, RESULT> submitBatchRequests(
 
   // For network requests, the number of concurrent coroutines needs to be capped. To be on the safe
   // side, a low number is chosen.
-  val batchSemaphore = Semaphore(3)
+  val batchSemaphore = Semaphore(1)
   return flow {
     coroutineScope {
       val deferred: List<Deferred<List<RESULT>>> = buildList {
