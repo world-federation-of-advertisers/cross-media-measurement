@@ -608,43 +608,46 @@ class SpannerBasicReportsService(
     reportResult: ReportResult,
     campaignGroup: ReportingSet,
   ): List<ResultGroup> {
-    val campaignGroupReportingSets = listReportingSetsByCampaignGroup(
-      basicReport.cmmsMeasurementConsumerId,
-      basicReport.externalCampaignGroupId,
-    ).filter { it.filter.isEmpty() }
+    val campaignGroupReportingSets =
+      listReportingSetsByCampaignGroup(
+          basicReport.cmmsMeasurementConsumerId,
+          basicReport.externalCampaignGroupId,
+        )
+        .filter { it.filter.isEmpty() }
 
     val campaignGroupReportingSetIdByReportingSetKey: Map<ReportingSetKey, String> =
-      campaignGroupReportingSets
-        .associate {
-          if (it.hasComposite()) {
-            ReportingSetKey(setExpression = it.composite) to it.externalReportingSetId
-          } else {
-            ReportingSetKey(primitiveEventGroupKeys = it.primitive.eventGroupKeysList.toHashSet())to it.externalReportingSetId
-          }
-        }
-
-    val eventGroupKeysByDataProviderId:
-      Map<String, List<ReportingSet.Primitive.EventGroupKey>> =
-      campaignGroup.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
-
-    val primitiveInfoByDataProviderId: Map<String, BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo> = buildMap {
-      for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
-        val primitiveEventGroupKeys = eventGroupKeysByDataProviderId.getValue(dataProviderId).toHashSet()
-        val reportingSetKey = ReportingSetKey(
-          primitiveEventGroupKeys = primitiveEventGroupKeys,
-        )
-
-        if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
-          put(
-            dataProviderId,
-            BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-              eventGroupKeys = primitiveEventGroupKeys,
-              externalReportingSetId = campaignGroupReportingSetIdByReportingSetKey.getValue(reportingSetKey),
-            ),
-          )
+      campaignGroupReportingSets.associate {
+        if (it.hasComposite()) {
+          ReportingSetKey(setExpression = it.composite) to it.externalReportingSetId
+        } else {
+          ReportingSetKey(primitiveEventGroupKeys = it.primitive.eventGroupKeysList.toHashSet()) to
+            it.externalReportingSetId
         }
       }
-    }
+
+    val eventGroupKeysByDataProviderId: Map<String, List<ReportingSet.Primitive.EventGroupKey>> =
+      campaignGroup.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
+
+    val primitiveInfoByDataProviderId:
+      Map<String, BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo> =
+      buildMap {
+        for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
+          val primitiveEventGroupKeys =
+            eventGroupKeysByDataProviderId.getValue(dataProviderId).toHashSet()
+          val reportingSetKey = ReportingSetKey(primitiveEventGroupKeys = primitiveEventGroupKeys)
+
+          if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
+            put(
+              dataProviderId,
+              BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+                eventGroupKeys = primitiveEventGroupKeys,
+                externalReportingSetId =
+                  campaignGroupReportingSetIdByReportingSetKey.getValue(reportingSetKey),
+              ),
+            )
+          }
+        }
+      }
 
     val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
       campaignGroupReportingSetIdByReportingSetKey

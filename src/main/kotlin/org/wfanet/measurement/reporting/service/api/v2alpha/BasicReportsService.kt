@@ -529,15 +529,18 @@ class BasicReportsService(
             limit = 1000
           }
         )
-        .filter {
-          it.filter.isEmpty()
-        }
+        .filter { it.filter.isEmpty() }
         .collect {
           val reportingSet = it.toReportingSet()
           if (reportingSet.hasComposite()) {
             put(ReportingSetMapKey(composite = reportingSet.composite), reportingSet)
           } else {
-            put(ReportingSetMapKey(cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toHashSet()), reportingSet)
+            put(
+              ReportingSetMapKey(
+                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toHashSet()
+              ),
+              reportingSet,
+            )
           }
         }
     }
@@ -546,7 +549,9 @@ class BasicReportsService(
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
       for (dataProviderName in dataProviderEventGroupsMap.keys) {
         val reportingSetMapKey =
-          ReportingSetMapKey(cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toHashSet())
+          ReportingSetMapKey(
+            cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toHashSet()
+          )
 
         if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
           put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSetMapKey))

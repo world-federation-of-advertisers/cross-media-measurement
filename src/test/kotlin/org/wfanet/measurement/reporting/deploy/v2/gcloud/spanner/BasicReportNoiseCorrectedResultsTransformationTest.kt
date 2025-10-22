@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -52,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
 
 @RunWith(JUnit4::class)
 class BasicReportNoiseCorrectedResultsTransformationTest {
@@ -170,14 +170,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -431,14 +433,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -674,14 +678,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -832,14 +838,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val resultGroups =
@@ -1016,18 +1024,21 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        ),
-        DATA_PROVIDER_3_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+        DATA_PROVIDER_3_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
+          ),
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -1341,18 +1352,21 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        ),
-        DATA_PROVIDER_3_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
+        DATA_PROVIDER_3_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
+          ),
       )
 
     val compositeReportingSetIdBySetExpression =
@@ -1642,14 +1656,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-        )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val resultGroups =
@@ -1977,14 +1993,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
     val primitiveInfoByDataProviderId =
       mapOf(
-        DATA_PROVIDER_1_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
-          externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
-        ),
-        DATA_PROVIDER_2_ID to BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-          eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
-        externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
-      )
+        DATA_PROVIDER_1_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          ),
+        DATA_PROVIDER_2_ID to
+          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
+          ),
       )
 
     val resultGroups =
