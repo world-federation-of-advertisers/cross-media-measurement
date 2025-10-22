@@ -38,6 +38,7 @@ import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignali
 import org.wfanet.measurement.consent.client.duchy.verifyRequisitionFulfillment
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
@@ -111,63 +112,69 @@ class RequisitionFulfillmentService(
               RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
               consumed.remaining.map { it.bodyChunk.data },
             )
-
-          if (computationToken.computationStage.hasHonestMajorityShareShuffle()) {
-            val hmss = header.honestMajorityShareShuffle
-            grpcRequire(hmss.hasSecretSeed()) { "Secret seed not specified for HMSS protocol." }
-            grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
-              "DataProviderCertificate not specified for HMSS protocol."
+          when (computationToken.computationStage.stageCase) {
+            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+            ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
+              recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
             }
-            val fulfillingDuchyId = requisitionMetadata.details.externalFulfillingDuchyId
-            grpcRequire(fulfillingDuchyId == duchyId) {
-              "FulfillingDuchyId mismatch. fulfillingDuchyId=$fulfillingDuchyId, " +
-                "currentDuchy=$duchyId"
-            }
-
-            val secretSeedCiphertext = hmss.secretSeed.ciphertext
-
-            recordHmssRequisitionLocally(
-              token = computationToken,
-              key = externalRequisitionKey,
-              blobPath = blob.blobKey,
-              secretSeedCiphertext = secretSeedCiphertext,
-              registerCount = hmss.registerCount,
-              dataProviderCertificate = hmss.dataProviderCertificate,
-            )
-          } else if (computationToken.computationStage.hasTrusTee()) {
-            val trusTee = header.trusTee
-            when (trusTee.dataFormat) {
-              Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
-                recordPlainTrusTeeRequisitionLocally(
-                  token = computationToken,
-                  key = externalRequisitionKey,
-                  blobPath = blob.blobKey,
-                )
+            ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+              val hmss = header.honestMajorityShareShuffle
+              grpcRequire(hmss.hasSecretSeed()) { "Secret seed not specified for HMSS protocol." }
+              grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
+                "DataProviderCertificate not specified for HMSS protocol."
               }
-              Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-                val encryptedDekCiphertext =
-                  when (trusTee.envelopeEncryption.encryptedDek.format) {
-                    EncryptionKey.Format.TINK_ENCRYPTED_KEYSET ->
-                      trusTee.envelopeEncryption.encryptedDek.data
-                    else -> failGrpc { "Invalid EncryptedDek format" }
-                  }
-                recordEncryptedTrusTeeRequisitionLocally(
-                  token = computationToken,
-                  key = externalRequisitionKey,
-                  blobPath = blob.blobKey,
-                  encryptedDekCiphertext = encryptedDekCiphertext,
-                  kmsKekUri = trusTee.envelopeEncryption.kmsKekUri,
-                  workloadIdentityProvider = trusTee.envelopeEncryption.workloadIdentityProvider,
-                  impersonatedServiceAccount =
-                    trusTee.envelopeEncryption.impersonatedServiceAccount,
-                  populationSpecFingerprint = trusTee.populationSpecFingerprint,
-                )
+              val fulfillingDuchyId = requisitionMetadata.details.externalFulfillingDuchyId
+              grpcRequire(fulfillingDuchyId == duchyId) {
+                "FulfillingDuchyId mismatch. fulfillingDuchyId=$fulfillingDuchyId, " +
+                  "currentDuchy=$duchyId"
               }
-              Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
-              Header.TrusTee.DataFormat.UNRECOGNIZED -> failGrpc { "Unsupported data format." }
+
+              val secretSeedCiphertext = hmss.secretSeed.ciphertext
+
+              recordHmssRequisitionLocally(
+                token = computationToken,
+                key = externalRequisitionKey,
+                blobPath = blob.blobKey,
+                secretSeedCiphertext = secretSeedCiphertext,
+                registerCount = hmss.registerCount,
+                dataProviderCertificate = hmss.dataProviderCertificate,
+              )
             }
-          } else {
-            recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
+            ComputationStage.StageCase.TRUS_TEE -> {
+              val trusTee = header.trusTee
+              when (trusTee.dataFormat) {
+                Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
+                  recordPlainTrusTeeRequisitionLocally(
+                    token = computationToken,
+                    key = externalRequisitionKey,
+                    blobPath = blob.blobKey,
+                    populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                  )
+                }
+                Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
+                  val encryptedDekCiphertext =
+                    when (trusTee.envelopeEncryption.encryptedDek.format) {
+                      EncryptionKey.Format.TINK_ENCRYPTED_KEYSET ->
+                        trusTee.envelopeEncryption.encryptedDek.data
+                      else -> failGrpc { "Invalid EncryptedDek format" }
+                    }
+                  recordEncryptedTrusTeeRequisitionLocally(
+                    token = computationToken,
+                    key = externalRequisitionKey,
+                    blobPath = blob.blobKey,
+                    encryptedDekCiphertext = encryptedDekCiphertext,
+                    kmsKekUri = trusTee.envelopeEncryption.kmsKekUri,
+                    workloadIdentityProvider = trusTee.envelopeEncryption.workloadIdentityProvider,
+                    impersonatedServiceAccount =
+                      trusTee.envelopeEncryption.impersonatedServiceAccount,
+                    populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                  )
+                }
+                Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
+                Header.TrusTee.DataFormat.UNRECOGNIZED -> failGrpc { "Unsupported data format." }
+              }
+            }
+            ComputationStage.StageCase.STAGE_NOT_SET -> failGrpc { "ComputationStage not set" }
           }
         }
 
@@ -292,6 +299,7 @@ class RequisitionFulfillmentService(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
+    populationSpecFingerprint: Long,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
@@ -300,7 +308,9 @@ class RequisitionFulfillmentService(
         this.blobPath = blobPath
         publicApiVersion = Version.V2_ALPHA.string
         protocolDetails =
-          RequisitionDetailsKt.requisitionProtocol { trusTee = TrusTee.getDefaultInstance() }
+          RequisitionDetailsKt.requisitionProtocol {
+            trusTee = trusTee { this.populationSpecFingerprint = populationSpecFingerprint }
+          }
       }
     )
   }

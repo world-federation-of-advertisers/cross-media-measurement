@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputa
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage as TrusTeeStage
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -127,13 +128,17 @@ private val PLAIN_TRUS_TEE_HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
   nonce = NONCE
-  trusTee = trusTee { dataFormat = Header.TrusTee.DataFormat.FREQUENCY_VECTOR }
+  trusTee = trusTee {
+    dataFormat = Header.TrusTee.DataFormat.FREQUENCY_VECTOR
+    populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+  }
 }
 
 private val ENCRYPTED_DEK_DATA = "encrypted dek".toByteStringUtf8()
 private val KMS_KEK_URI = "some/uri/to/kms/kek"
 private val WORKLOAD_IDENTITY_PROVIDER = "workload identity provider"
 private val IMPERSONATED_SERVICE_ACCOUNT = "a service account for decryption"
+private const val POPULATION_SPEC_FINGERPRINT = 100L
 private val ENCRYPTED_TRUS_TEE_HEADER = header {
   name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
   requisitionFingerprint = REQUISITION_FINGERPRINT
@@ -149,6 +154,7 @@ private val ENCRYPTED_TRUS_TEE_HEADER = header {
       workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
       impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
     }
+    populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
   }
 }
 
@@ -217,6 +223,9 @@ class RequisitionFulfillmentServiceTest {
   fun `fulfillRequisition writes new data to blob`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
+      computationStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Llv2Stage.INITIALIZATION_PHASE
+      }
       computationDetails = COMPUTATION_DETAILS
       requisitions += REQUISITION_METADATA
     }
@@ -396,7 +405,10 @@ class RequisitionFulfillmentServiceTest {
           publicApiVersion = Version.V2_ALPHA.string
           protocolDetails =
             RequisitionDetailsKt.requisitionProtocol {
-              trusTee = RequisitionDetailsKt.RequisitionProtocolKt.trusTee {}
+              trusTee =
+                RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                }
             }
         }
       )
@@ -449,6 +461,7 @@ class RequisitionFulfillmentServiceTest {
                   kmsKekUri = KMS_KEK_URI
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
                   impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+                  populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                 }
             }
         }
