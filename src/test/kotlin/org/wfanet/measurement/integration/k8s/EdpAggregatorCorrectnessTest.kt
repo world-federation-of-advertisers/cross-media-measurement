@@ -378,7 +378,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         syntheticPopulationSpec,
         syntheticEventGroupMap,
         reportName,
-        "modelProviders/AAAAAAAAAAA/modelSuites/BBBBBBBBBBB/modelLines/CCCCCCCCCCC",
+        "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/Esau8aCtQ78",
         onMeasurementsCreated = ::triggerRequisitionFetcher,
       )
     }
