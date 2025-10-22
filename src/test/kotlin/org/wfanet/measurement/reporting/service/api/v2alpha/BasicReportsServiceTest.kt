@@ -1407,6 +1407,7 @@ class BasicReportsServiceTest {
           createReportingSetRequest {
             externalReportingSetId = "c1234"
             reportingSet = internalReportingSet {
+              filter = "filter"
               cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
               externalCampaignGroupId = campaignGroupKey.reportingSetId
               composite =
