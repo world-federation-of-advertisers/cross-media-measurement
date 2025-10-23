@@ -220,6 +220,12 @@ kt_jvm_library(
 kt_jvm_library(
     name = "storage_event_reader",
     srcs = ["StorageEventReader.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//tools:__pkg__",
+    ],
     deps = [
         ":event_reader",
         ":impression_read_exception",
