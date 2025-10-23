@@ -54,6 +54,8 @@ class EventGroupSyncFunction() : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting EventGroupSyncFunction")
+    val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
+    logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
     val requestBody: BufferedReader = request.getReader()
     val eventGroupSyncConfig =
       EventGroupSyncConfig.newBuilder()
@@ -74,8 +76,11 @@ class EventGroupSyncFunction() : HttpFunction {
     val eventGroupsClient = EventGroupsCoroutineStub(publicChannel)
     val eventGroups: Flow<EventGroup> = runBlocking {
       val eventGroupsBlobUri =
-        SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
-
+        if (dataWatcherPath.isBlank()) {
+          SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupsBlobUri)
+        } else {
+          SelectedStorageClient.parseBlobUri(dataWatcherPath)
+        }
       when {
         eventGroupsBlobUri.key.endsWith(PROTO_FILE_SUFFIX) -> {
           getEventGroupsFromProtoFormat(eventGroupsBlobUri, eventGroupSyncConfig)
@@ -183,5 +188,7 @@ class EventGroupSyncFunction() : HttpFunction {
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
+    private val DATA_WATCHER_PATH_HEADER =
+      System.getenv("DATA_WATCHER_PATH_HEADER") ?: "X-DataWatcher-Path"
   }
 }
