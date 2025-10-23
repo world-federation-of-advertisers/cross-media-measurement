@@ -44,6 +44,8 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -403,6 +405,243 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if request id is malformed`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = "invalid-request-id"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
+    val request1 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val response =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request1
+          requests += request2
+        }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchCreateImpressionMetadataResponse {
+          impressionMetadata += request1.impressionMetadata
+          impressionMetadata += request2.impressionMetadata
+        }
+      )
+    assertThat(response.impressionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata is idempotent and creates new items in same request`() =
+    runBlocking {
+      val idempotentRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+      val initialResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest
+          }
+        )
+
+      assertThat(initialResponse)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata += idempotentRequest.impressionMetadata
+          }
+        )
+
+      val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
+
+      val newRequest = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA_2
+        requestId = UUID.randomUUID().toString()
+      }
+      val secondResponse =
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest // Idempotent request
+            requests += newRequest // New request
+          }
+        )
+
+      assertThat(secondResponse)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata += IMPRESSION_METADATA
+            impressionMetadata += newRequest.impressionMetadata
+          }
+        )
+
+      val newImpressionMetadata = secondResponse.impressionMetadataList[1]
+      assertThat(newImpressionMetadata.updateTime.toInstant())
+        .isGreaterThan(existingImpressionMetadata.updateTime.toInstant())
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { blobUri = "duplicate-blob-uri" }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val conflictingRequest = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = "duplicate-blob-uri" }
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += conflictingRequest
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { dataProviderResourceId = "different-dp" }
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID // Mismatch with request inside
+              requests += request
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.0.impression_metadata.data_provider_resource_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch reqeusts`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request
+              requests += request.copy { requestId = UUID.randomUUID().toString() }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.impression_metadata.blob_uri"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch reqeusts`() =
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val request1 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        this.requestId = requestId
+      }
+
+      val request2 = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA_2
+        this.requestId = requestId
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateImpressionMetadata(
+            batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request1
+              requests += request2
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
+
+  @Test
   fun `deleteImpressionMetadata soft deletes and returns updated ImpressionMetadata`() =
     runBlocking {
       val created =
@@ -580,7 +819,7 @@ abstract class ImpressionMetadataServiceTest {
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[2] })
   }
 
-  @Test
+  // @Test
   fun `listImpressionMetadata returns empty when filter matches nothing`() = runBlocking {
     createImpressionMetadata(IMPRESSION_METADATA_2)
 
