@@ -32,6 +32,8 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import java.time.ZoneOffset
+import com.google.type.interval
 
 /**
  * A class responsible for writing labeled impression data to storage with encryption.
@@ -68,7 +70,11 @@ class ImpressionsWriter(
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun <T : Message> writeLabeledImpressionData(events: Sequence<LabeledEventDateShard<T>>) {
+  suspend fun <T : Message> writeLabeledImpressionData(
+    events: Sequence<LabeledEventDateShard<T>>,
+    blobModelLine: String = "some-model-line",
+    impressionsBasePath: String? = null,
+  ) {
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
@@ -90,7 +96,11 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
+      val impressionsBlobKey = if(impressionsBasePath != null) {
+        "$impressionsBasePath/$ds/impressions"
+      } else {
+        "ds/$ds/$eventGroupPath/impressions"
+      }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
@@ -106,7 +116,11 @@ class ImpressionsWriter(
         impressionsBlobKey,
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
-      val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
+        "$impressionsBasePath/$ds/metadata.binpb"
+      } else {
+        "ds/$ds/$eventGroupPath/metadata.binpb"
+      }
 
       val impressionsMetadataFileUri =
         "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
@@ -117,10 +131,19 @@ class ImpressionsWriter(
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, storagePath)
 
+      val zoneId = ZoneOffset.UTC
+      val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
+      val endOfDay = localDate.plusDays(1).atStartOfDay(zoneId).toInstant().toProtoTime()
+
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
         this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
+        this.interval = interval {
+          startTime = startOfDay
+          endTime = endOfDay
+        }
+        this.modelLine = blobModelLine
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,
