@@ -23,7 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 
-class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter, limit: Int = 0) :
+class StreamModelLines(requestFilter: StreamModelLinesRequest.Filter, limit: Int = 0) :
   SimpleSpannerQuery<ModelLineReader.Result>() {
 
   override val reader =
@@ -31,10 +31,11 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
       appendWhereClause(requestFilter)
       appendClause(
         """
-        ORDER BY ModelLines.CreateTime ASC,
-        ModelProviders.ExternalModelProviderId ASC,
-        ModelSuites.ExternalModelSuiteId ASC,
-        ModelLines.ExternalModelLineId ASC
+        ORDER BY
+          ModelLines.CreateTime ASC,
+          ModelProviders.ExternalModelProviderId ASC,
+          ModelSuites.ExternalModelSuiteId ASC,
+          ModelLines.ExternalModelLineId ASC
         """
           .trimIndent()
       )
@@ -57,24 +58,45 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
       bind(EXTERNAL_MODEL_SUITE_ID to filter.externalModelSuiteId)
     }
 
+    if (filter.hasActiveIntervalContains()) {
+      require(filter.activeIntervalContains.hasStartTime())
+      require(filter.activeIntervalContains.hasEndTime())
+      conjuncts.add("ModelLines.ActiveStartTime <= @$ACTIVE_START_TIME")
+      conjuncts.add("IFNULL(ModelLines.ActiveEndTime, @$TIMESTAMP_MAX) >= @$ACTIVE_END_TIME")
+      bind(ACTIVE_START_TIME).to(filter.activeIntervalContains.startTime.toGcloudTimestamp())
+      bind(ACTIVE_END_TIME).to(filter.activeIntervalContains.endTime.toGcloudTimestamp())
+      bind(TIMESTAMP_MAX).to(com.google.cloud.Timestamp.MAX_VALUE)
+    }
+
     if (filter.hasAfter()) {
       conjuncts.add(
         """
-          ((ModelLines.CreateTime  > @${CREATED_AFTER})
-          OR (ModelLines.CreateTime = @${CREATED_AFTER}
-          AND ModelProviders.ExternalModelProviderId > @${EXTERNAL_MODEL_PROVIDER_ID})
-          OR (ModelLines.CreateTime = @${CREATED_AFTER}
-          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
-          AND ModelSuites.ExternalModelSuiteId > @${EXTERNAL_MODEL_SUITE_ID})
-          OR (ModelLines.CreateTime = @${CREATED_AFTER}
-          AND ModelProviders.ExternalModelProviderId = @${EXTERNAL_MODEL_PROVIDER_ID}
-          AND ModelSuites.ExternalModelSuiteId = @${EXTERNAL_MODEL_SUITE_ID}
-          AND ModelLines.ExternalModelLineId > @${EXTERNAL_MODEL_LINE_ID}))
+        (
+          ModelLines.CreateTime > @${PageParams.CREATE_TIME}
+          OR (
+            ModelLines.CreateTime = @${PageParams.CREATE_TIME}
+            AND (
+              ModelProviders.ExternalModelProviderId > @${PageParams.EXTERNAL_MODEL_PROVIDER_ID}
+              OR (
+                ModelProviders.ExternalModelProviderId = @${PageParams.EXTERNAL_MODEL_PROVIDER_ID}
+                AND (
+                  ModelSuites.ExternalModelSuiteId > @${PageParams.EXTERNAL_MODEL_SUITE_ID}
+                  OR (
+                    ModelSuites.ExternalModelSuiteId = @${PageParams.EXTERNAL_MODEL_SUITE_ID}
+                    AND ModelLines.ExternalModelLineId > @${PageParams.EXTERNAL_MODEL_LINE_ID}
+                  )
+                )
+              )
+            )
+          )
+        )
         """
           .trimIndent()
       )
-      bind(CREATED_AFTER to filter.after.createTime.toGcloudTimestamp())
-      bind(EXTERNAL_MODEL_LINE_ID to filter.after.externalModelLineId)
+      bind(PageParams.CREATE_TIME).to(filter.after.createTime.toGcloudTimestamp())
+      bind(PageParams.EXTERNAL_MODEL_PROVIDER_ID).to(filter.after.externalModelProviderId)
+      bind(PageParams.EXTERNAL_MODEL_SUITE_ID).to(filter.after.externalModelSuiteId)
+      bind(PageParams.EXTERNAL_MODEL_LINE_ID).to(filter.after.externalModelLineId)
     }
 
     if (filter.typeValueList.isNotEmpty()) {
@@ -91,11 +113,19 @@ class StreamModelLines(private val requestFilter: StreamModelLinesRequest.Filter
   }
 
   companion object {
-    const val LIMIT = "limit"
-    const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
-    const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
-    const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId"
-    const val CREATED_AFTER = "createdAfter"
-    const val TYPES = "types"
+    private const val LIMIT = "limit"
+    private const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId"
+    private const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId"
+    private const val TYPES = "types"
+    private const val ACTIVE_START_TIME = "activeStartTime"
+    private const val ACTIVE_END_TIME = "activeEndTime"
+    private const val TIMESTAMP_MAX = "timestampMax"
+
+    private object PageParams {
+      const val CREATE_TIME = "createTime_after"
+      const val EXTERNAL_MODEL_PROVIDER_ID = "externalModelProviderId_after"
+      const val EXTERNAL_MODEL_SUITE_ID = "externalModelSuiteId_after"
+      const val EXTERNAL_MODEL_LINE_ID = "externalModelLineId_after"
+    }
   }
 }

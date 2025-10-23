@@ -20,6 +20,7 @@ from google.type import date_pb2
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
     report_summary_v2_pb2,)
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
+from wfa.measurement.internal.reporting.v2 import metric_frequency_spec_pb2
 from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
 
 ReportResult = report_result_pb2.ReportResult
@@ -44,6 +45,13 @@ def get_report_summary_v2_from_report_result(
     A list of converted ReportSummaryV2 messages, one for each demographic
     group found in the report_result.
   """
+  if not report_result.cmms_measurement_consumer_id:
+    raise ValueError("The report result must have a cmms_measurement_consumer_id.")
+  if not report_result.external_report_result_id:
+    raise ValueError("The report result must have an external_report_result_id.")
+  if not report_result.HasField("report_start"):
+    raise ValueError("The report result must have a report_start date.")
+
   # If the report result does not have any reporting set results, return an
   # empty list.
   if len(report_result.reporting_set_results) == 0:
@@ -54,25 +62,26 @@ def get_report_summary_v2_from_report_result(
   # The key is a frozenset of hashable representations of all EventTemplateFields
   # from both the `groupings` and `event_filters` fields.
   grouped_results = defaultdict(list)
-  for reporting_set_result in report_result.reporting_set_results:
-    group_key = _get_group_key(reporting_set_result)
-    grouped_results[group_key].append(reporting_set_result)
+  for reporting_set_result_entry in report_result.reporting_set_results:
+    if not reporting_set_result_entry.HasField("key"):
+      raise ValueError("ReportingSetResultEntry must have a key.")
+    if not reporting_set_result_entry.HasField("value"):
+      raise ValueError("ReportingSetResultEntry must have a value.")
+    group_key = _get_group_key(reporting_set_result_entry.key)
+    grouped_results[group_key].append(reporting_set_result_entry)
 
   # Determine the overall report date range to identify whole-campaign results.
   all_window_dates = [
       (
-          _proto_date_to_datetime(window_result.window_start_date),
-          _proto_date_to_datetime(window_result.window_end_date),
+          _proto_date_to_datetime(window_entry.key.start),
+          _proto_date_to_datetime(window_entry.key.end),
       )
-      for reporting_set_result in report_result.reporting_set_results
-      for window_result in reporting_set_result.reporting_window_results
+      for reporting_set_result_entry in report_result.reporting_set_results
+      for window_entry in reporting_set_result_entry.value.reporting_window_results
   ]
 
   if not all_window_dates:
     raise ValueError("The report does not have any reporting windows.")
-
-  if not report_result.HasField("report_start"):
-    raise ValueError("The report does not have a report_start date.")
 
   report_start_date = date(
       report_result.report_start.year,
@@ -96,32 +105,47 @@ def get_report_summary_v2_from_report_result(
         sorted(grouping_predicate_strings) or ["-"]
     )
 
-    for reporting_set_result in results_for_group:
+    for reporting_set_result_entry in results_for_group:
+      reporting_set_result_key = reporting_set_result_entry.key
+      reporting_set_result_value = reporting_set_result_entry.value
+
+      if not reporting_set_result_key.external_reporting_set_id:
+        raise ValueError("ReportingSetResultKey must have an external_reporting_set_id.")
+      if (reporting_set_result_key.venn_diagram_region_type
+          == ReportResult.VennDiagramRegionType.VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED):
+        raise ValueError("ReportingSetResultKey must have a venn_diagram_region_type.")
+      if not reporting_set_result_key.WhichOneof("impression_qualification_filter"):
+        raise ValueError(
+            "ReportingSetResultKey must have an impression_qualification_filter."
+        )
+      if not reporting_set_result_key.HasField("metric_frequency_spec"):
+        raise ValueError("ReportingSetResultKey must have a metric_frequency_spec.")
+
       summary_set_result = report_summary.report_summary_set_results.add()
 
       # Map Impression Filter from the oneof using a match/case statement.
-      match reporting_set_result.WhichOneof("impression_qualification_filter"):
+      match reporting_set_result_key.WhichOneof("impression_qualification_filter"):
         case "external_impression_qualification_filter_id":
           summary_set_result.impression_filter = (
-              reporting_set_result.external_impression_qualification_filter_id
+              reporting_set_result_key.external_impression_qualification_filter_id
           )
-        case "custom" if reporting_set_result.custom:
+        case "custom" if reporting_set_result_key.custom:
           summary_set_result.impression_filter = "custom"
 
       # Map Set Operation
       if (
-          reporting_set_result.venn_diagram_region_type
+          reporting_set_result_key.venn_diagram_region_type
           == ReportResult.VennDiagramRegionType.UNION
       ):
         summary_set_result.set_operation = "union"
       elif (
-          reporting_set_result.venn_diagram_region_type
+          reporting_set_result_key.venn_diagram_region_type
           == ReportResult.VennDiagramRegionType.PRIMITIVE
       ):
         summary_set_result.set_operation = "primitive"
 
       # Map Data Providers using the external_reporting_set_id.
-      reporting_set_id = str(reporting_set_result.external_reporting_set_id)
+      reporting_set_id = str(reporting_set_result_key.external_reporting_set_id)
       if reporting_set_id in edp_combinations_by_reporting_set_id:
         data_providers = edp_combinations_by_reporting_set_id[reporting_set_id]
         summary_set_result.data_providers.extend(sorted(data_providers))
@@ -129,21 +153,28 @@ def get_report_summary_v2_from_report_result(
         raise ValueError(f"Cannot find the data providers for reporting set {reporting_set_id}.")
 
       # Map Population
-      if reporting_set_result.population_size > 0:
-        report_summary.population = reporting_set_result.population_size
+      if reporting_set_result_value.population_size > 0:
+        report_summary.population = reporting_set_result_value.population_size
 
       # Map Reporting Window Results
       sorted_window_results = sorted(
-          reporting_set_result.reporting_window_results, key=lambda wr: _proto_date_to_datetime(wr.window_end_date)
+          reporting_set_result_value.reporting_window_results,
+          key=lambda wre: _proto_date_to_datetime(wre.key.end),
       )
 
       whole_campaign_non_cumulative_results = []
-      for window_result in sorted_window_results:
+      for window_entry in sorted_window_results:
+        window_key = window_entry.key
+        window_value = window_entry.value
+        if not window_key.HasField("start"):
+          raise ValueError("ReportingWindow must have a start date.")
+        if not window_key.HasField("end"):
+          raise ValueError("ReportingWindow must have an end date.")
         # We only process noisy results for post-processing.
-        if not window_result.HasField("noisy_report_result_values"):
+        if not window_value.HasField("noisy_report_result_values"):
           continue
 
-        noisy_values = window_result.noisy_report_result_values
+        noisy_values = window_value.noisy_report_result_values
 
         # Map Cumulative Results
         if noisy_values.HasField("cumulative_results"):
@@ -151,19 +182,18 @@ def get_report_summary_v2_from_report_result(
           _copy_window_results(
               noisy_values.cumulative_results,
               summary_window,
-              reporting_set_result.metric_frequency_type,
               summary_set_result,
               is_cumulative=True,
-              window_end_date=window_result.window_end_date,
+              window_end_date=window_key.end,
           )
 
         # Map Non-Cumulative Results
         if noisy_values.HasField("non_cumulative_results"):
           is_whole_campaign = (
               report_start_date is not None
-              and _proto_date_to_datetime(window_result.window_start_date)
+              and _proto_date_to_datetime(window_key.start)
               == report_start_date
-              and _proto_date_to_datetime(window_result.window_end_date)
+              and _proto_date_to_datetime(window_key.end)
               == report_end_date
           )
 
@@ -171,7 +201,7 @@ def get_report_summary_v2_from_report_result(
             # Defer adding whole-campaign results to the end.
             whole_campaign_non_cumulative_results.append((
                 noisy_values.non_cumulative_results,
-                window_result.window_end_date,
+                window_key.end,
             ))
           else:
             # Add weekly non-cumulative results immediately.
@@ -179,10 +209,9 @@ def get_report_summary_v2_from_report_result(
             _copy_window_results(
                 noisy_values.non_cumulative_results,
                 summary_window,
-                reporting_set_result.metric_frequency_type,
                 summary_set_result,
                 is_cumulative=False,
-                window_end_date=window_result.window_end_date,
+                window_end_date=window_key.end,
             )
 
       # Add the deferred whole-campaign results last.
@@ -191,7 +220,6 @@ def get_report_summary_v2_from_report_result(
         _copy_window_results(
             result,
             summary_window,
-            reporting_set_result.metric_frequency_type,
             summary_set_result,
             is_cumulative=False,
             window_end_date=end_date,
@@ -201,7 +229,7 @@ def get_report_summary_v2_from_report_result(
   return report_summaries
 
 def _get_group_key(
-    reporting_set_result: ReportResult.ReportingSetResult,
+    reporting_set_result_key: ReportResult.ReportingSetResultKey,
 ) -> frozenset[tuple[str, any]]:
   """Creates a hashable key for grouping reporting set results.
 
@@ -209,8 +237,8 @@ def _get_group_key(
   Results without any groupings or event filters will be assigned the key
   ("-", "").
   """
-  all_terms = list(reporting_set_result.groupings)
-  for event_filter in reporting_set_result.event_filters:
+  all_terms = list(reporting_set_result_key.groupings)
+  for event_filter in reporting_set_result_key.event_filters:
     all_terms.extend(event_filter.terms)
 
   if not all_terms:
@@ -235,19 +263,14 @@ def _proto_date_to_datetime(proto_date: ProtoDate) -> date:
 def _copy_window_results(
     noisy_metric_set: NoisyMetricSet,
     summary_window: ReportSummaryWindowResult,
-    metric_frequency_type: ReportResult.MetricFrequencyType,
     summary_set_result: ReportSummaryV2.ReportSummarySetResult,
     is_cumulative: bool,
     window_end_date: ProtoDate | None,
 ) -> None:
   """Helper to copy metric values from a NoisyMetricSet to a ReportSummaryWindowResult."""
-  summary_window.metric_frequency_type = metric_frequency_type
 
   # Build the base name for the metric ID.
-  metric_name_parts = [
-      ReportResult.MetricFrequencyType.Name(metric_frequency_type).lower(),
-      "cumulative" if is_cumulative else "non_cumulative",
-  ]
+  metric_name_parts = ["cumulative" if is_cumulative else "non_cumulative"]
   metric_name_parts.extend(summary_set_result.data_providers)
   metric_name_parts.append(summary_set_result.impression_filter)
 
@@ -276,8 +299,8 @@ def _copy_window_results(
   # Copies Frequency Histogram
   if noisy_metric_set.HasField("frequency_histogram"):
     # The bins are a map from frequency (e.g., 1, 2, 3) to the bin result.
-    for key, bin_result in noisy_metric_set.frequency_histogram.bins.items():
-      summary_bin = summary_window.frequency.bins[key]
+    for key, bin_result in noisy_metric_set.frequency_histogram.bin_results.items():
+      summary_bin = summary_window.frequency.bins[str(key)]
       summary_bin.value = int(bin_result.value)
       if bin_result.HasField("univariate_statistics"):
         summary_bin.standard_deviation = (

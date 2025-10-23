@@ -57,6 +57,7 @@ import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
@@ -1216,6 +1217,8 @@ class BasicReportsServiceTest {
 
       assertThat(existingMetricCalculationSpecs).hasSize(0)
 
+      val modelLineName = ModelLineKey("1234", "1234", "1234").toName()
+
       val basicReport = basicReport {
         this.campaignGroup = campaignGroupKey.toName()
         title = "title"
@@ -1232,6 +1235,7 @@ class BasicReportsServiceTest {
             day = 5
           }
         }
+        modelLine = modelLineName
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
             ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -1340,6 +1344,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = modelLineName
             details =
               MetricCalculationSpecKt.details {
                 groupings +=
@@ -1449,6 +1454,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = modelLineName
             details =
               MetricCalculationSpecKt.details {
                 groupings +=
@@ -1592,6 +1598,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = modelLineName
             details =
               MetricCalculationSpecKt.details {
                 filter =
@@ -1640,6 +1647,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = modelLineName
             details =
               MetricCalculationSpecKt.details {
                 filter =
@@ -2190,6 +2198,53 @@ class BasicReportsServiceTest {
           }
         )
     }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when modelLine is invalid`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          modelLine = "1234"
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.model_line"
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval missing`() = runBlocking {
@@ -6086,6 +6141,100 @@ class BasicReportsServiceTest {
 
     assertThat(response).isEqualTo(createdBasicReport)
   }
+
+  @Test
+  fun `getBasicReport with createBasicReport with model line returns basic report when found`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            filter = "filter"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport = basicReport {
+        title = "title"
+        this.campaignGroup = campaignGroupKey.toName()
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
+        modelLine = ModelLineKey("1234", "1234", "1234").toName()
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          impressionQualificationFilter =
+            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+              .toName()
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {}
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+
+      val createBasicReportRequest = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val createdBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.createBasicReport(createBasicReportRequest)
+        }
+
+      assertThat(createdBasicReport.modelLine).isEqualTo(basicReport.modelLine)
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+        }
+
+      assertThat(response).isEqualTo(createdBasicReport)
+    }
 
   @Test
   fun `getBasicReport returns basic report when found`() = runBlocking {

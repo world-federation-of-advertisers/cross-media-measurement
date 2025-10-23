@@ -23,14 +23,17 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.timestamp
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Channel
+import io.grpc.StatusException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.*
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -80,8 +83,14 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValid
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -97,7 +106,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServices as InternalSecureComputationApiServices
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.storage.StorageClient
@@ -112,16 +121,6 @@ class InProcessEdpAggregatorComponents(
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
 ) : TestRule {
 
-  private val internalServicesRule: ProviderRule<InternalApiServices> =
-    SecureComputationServicesProviderRule(
-      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
-      queueMapping = QueueMapping(QUEUES_CONFIG),
-      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
-    )
-
-  private val internalServices: InternalApiServices
-    get() = internalServicesRule.value
-
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
 
   private lateinit var edpResourceNameMap: Map<String, String>
@@ -130,12 +129,37 @@ class InProcessEdpAggregatorComponents(
 
   private lateinit var duchyChannelMap: Map<String, Channel>
 
+  private val internalSecureComputationServicesRule:
+    ProviderRule<InternalSecureComputationApiServices> =
+    SecureComputationServicesProviderRule(
+      workItemPublisher = GoogleWorkItemPublisher(PROJECT_ID, pubSubClient),
+      queueMapping = QueueMapping(QUEUES_CONFIG),
+      emulatorDatabaseAdmin = secureComputationDatabaseAdmin,
+    )
+
+  private val internalSecureComputationServices: InternalSecureComputationApiServices
+    get() = internalSecureComputationServicesRule.value
+
   private val secureComputationPublicApi by lazy {
-    InProcessSecureComputationPublicApi(internalServicesProvider = { internalServices })
+    InProcessSecureComputationPublicApi(
+      internalServicesProvider = { internalSecureComputationServices }
+    )
   }
 
   private val workItemsClient: WorkItemsCoroutineStub by lazy {
     WorkItemsCoroutineStub(secureComputationPublicApi.publicApiChannel)
+  }
+
+  private val edpAggregatorSystemApi by lazy {
+    InProcessEdpAggregatorSystemApi(secureComputationDatabaseAdmin)
+  }
+
+  private val requisitionMetadataClient: RequisitionMetadataServiceCoroutineStub by lazy {
+    RequisitionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
+  }
+
+  private val impressionMetadataClient: ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
   private lateinit var dataWatcher: DataWatcher
@@ -167,6 +191,8 @@ class InProcessEdpAggregatorComponents(
         WorkItemAttemptsCoroutineStub(secureComputationPublicApi.publicApiChannel),
       queueSubscriber = subscriber,
       kmsClients = kmsClients.toMutableMap(),
+      requisitionMetadataStub = requisitionMetadataClient,
+      impressionMetadataStub = impressionMetadataClient,
       requisitionStubFactory = requisitionStubFactory,
       getImpressionsMetadataStorageConfig = getStorageConfig,
       getImpressionsStorageConfig = getStorageConfig,
@@ -176,7 +202,11 @@ class InProcessEdpAggregatorComponents(
   }
 
   val ruleChain: TestRule by lazy {
-    chainRulesSequentially(internalServicesRule, secureComputationPublicApi)
+    chainRulesSequentially(
+      internalSecureComputationServicesRule,
+      secureComputationPublicApi,
+      edpAggregatorSystemApi,
+    )
   }
 
   private val loggingName = javaClass.simpleName
@@ -261,9 +291,15 @@ class InProcessEdpAggregatorComponents(
       val requisitionGrouper =
         RequisitionGrouperByReportId(
           requisitionsValidator,
+          edpResourceName,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          requisitionMetadataClient,
+          subscribingStorageClient,
+          50,
+          "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
+          throttler,
           eventGroupsClient,
           requisitionsClient,
-          throttler,
         )
 
       val requisitionFetcher =
@@ -273,7 +309,6 @@ class InProcessEdpAggregatorComponents(
           edpResourceName,
           "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           requisitionGrouper,
-          ::createGroupedRequisitionId,
         )
       backgroundScope.launch {
         while (true) {
@@ -287,6 +322,37 @@ class InProcessEdpAggregatorComponents(
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }
+
+      mappedEventGroups.forEach { mappedEventGroup ->
+        val events =
+          SyntheticDataGeneration.generateEvents(
+            TestEvent.getDefaultInstance(),
+            syntheticPopulationSpec,
+            syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
+          )
+
+        val allDates: List<LocalDate> = events.map { it.localDate }.toList()
+        val startDate = allDates.min()
+        val endExclusive = allDates.max().plusDays(1)
+
+        val eventGroupReferenceId = mappedEventGroup.eventGroupReferenceId
+        val eventGroupPath =
+          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/$eventGroupReferenceId"
+        val impressionsMetadataBucket = "$IMPRESSIONS_METADATA_BUCKET-$edpAggregatorShortName"
+        val modelLine = modelLineInfoMap.keys.first()
+
+        val impressionsMetadata: List<ImpressionMetadata> =
+          buildImpressionMetadataForDateRange(
+            startInclusive = startDate,
+            endExclusive = endExclusive,
+            eventGroupPath = eventGroupPath,
+            modelLine = modelLine,
+            eventGroupReferenceId = eventGroupReferenceId,
+            impressionsMetadataBucket = impressionsMetadataBucket,
+          )
+        logger.info("Storing impression metadata for edp: $edpResourceName")
+        saveImpressionMetadata(impressionsMetadata, edpResourceName)
+      }
     }
     backgroundScope.launch { resultFulfillerApp.run() }
   }
@@ -305,6 +371,73 @@ class InProcessEdpAggregatorComponents(
       requisitionsStub.refuseRequisition(request)
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
+    }
+  }
+
+  private suspend fun buildImpressionMetadataForDateRange(
+    startInclusive: LocalDate,
+    endExclusive: LocalDate,
+    eventGroupPath: String,
+    modelLine: String,
+    eventGroupReferenceId: String,
+    impressionsMetadataBucket: String,
+    zoneId: ZoneId = ZONE_ID,
+  ): List<ImpressionMetadata> {
+
+    fun dailyInterval(day: LocalDate): Interval = interval {
+      val start = day.atStartOfDay(zoneId).toInstant()
+      val end = day.atTime(23, 59, 59).atZone(zoneId).toInstant()
+      startTime = timestamp { seconds = start.epochSecond }
+      endTime = timestamp { seconds = end.epochSecond }
+    }
+
+    val out = mutableListOf<ImpressionMetadata>()
+    var day = startInclusive
+    while (day.isBefore(endExclusive)) {
+      val ds = day.toString()
+
+      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+
+      val impressionsFileUri = "file:///$impressionsMetadataBucket/$impressionMetadataBlobKey"
+      val perDayInterval = dailyInterval(day)
+
+      val impressionMetadata = impressionMetadata {
+        blobUri = impressionsFileUri
+        blobTypeUrl = BLOB_TYPE_URL
+        this.eventGroupReferenceId = eventGroupReferenceId
+        this.modelLine = modelLine
+        interval = perDayInterval
+      }
+      logger.info("Impression metadata object: $impressionMetadata")
+      out += impressionMetadata
+      day = day.plusDays(1)
+    }
+    return out
+  }
+
+  private suspend fun saveImpressionMetadata(
+    impressionMetadataList: List<ImpressionMetadata>,
+    dataProviderName: String,
+  ) {
+    val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
+      mutableListOf()
+    impressionMetadataList.forEach {
+      createImpressionMetadataRequests.add(
+        createImpressionMetadataRequest {
+          parent = dataProviderName
+          this.impressionMetadata = it
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
+    try {
+      throttler.onReady {
+        createImpressionMetadataRequests.forEach {
+          impressionMetadataClient.createImpressionMetadata(it)
+        }
+      }
+    } catch (e: StatusException) {
+      throw Exception("Error creating Impressions Metadata", e)
     }
   }
 
@@ -394,6 +527,8 @@ class InProcessEdpAggregatorComponents(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val BLOB_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
     private const val IMPRESSIONS_BUCKET = "impression-bucket"
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
     private const val REQUISITION_STORAGE_PREFIX = "requisition-storage-prefix"

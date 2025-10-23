@@ -41,7 +41,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dataProviderName of the EDP for which [Requisition]s will be retrieved
  * @param storagePathPrefix the blob key prefix to use when storing a [Requisition]
  * @param requisitionGrouper the instance of [RequisitionGrouper] to use to group requisitions
- * @param groupedRequisitionsIdGenerator deterministic ID generator
  * @param responsePageSize
  */
 class RequisitionFetcher(
@@ -50,7 +49,6 @@ class RequisitionFetcher(
   private val dataProviderName: String,
   private val storagePathPrefix: String,
   private val requisitionGrouper: RequisitionGrouper,
-  val groupedRequisitionsIdGenerator: (GroupedRequisitions) -> String,
   private val responsePageSize: Int? = null,
 ) {
 
@@ -69,8 +67,6 @@ class RequisitionFetcher(
 
     var requisitionsCount = 0
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2095): Update logic once we have
-    // a more efficient way to pull only the Requisitions that have not been stored in storage.
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
@@ -92,9 +88,10 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-
+    logger.info("Fetched ${requisitions.toList().size} requisitions...")
     val groupedRequisition: List<GroupedRequisitions> =
       requisitionGrouper.groupRequisitions(requisitions.toList())
+    logger.info("GroupedRequisitions: $groupedRequisition")
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
 
     logger.info {
@@ -111,14 +108,9 @@ class RequisitionFetcher(
   private suspend fun storeRequisitions(groupedRequisitions: List<GroupedRequisitions>): Int {
     var storedGroupedRequisitions = 0
     groupedRequisitions.forEach { groupedRequisition: GroupedRequisitions ->
-      val groupedRequisitionId = groupedRequisitionsIdGenerator(groupedRequisition)
-      val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
-
-      // TODO(@marcopremier): Add mechanism to check whether requisitions inside grouped
-      // requisitions were stored already.
-      if (
-        groupedRequisition.requisitionsList.isNotEmpty() && storageClient.getBlob(blobKey) == null
-      ) {
+      if (groupedRequisition.requisitionsList.isNotEmpty()) {
+        val groupedRequisitionId = groupedRequisition.groupId
+        val blobKey = "$storagePathPrefix/${groupedRequisitionId}"
         logger.info("Storing ${groupedRequisition.requisitionsList.size} requisitions: $blobKey")
         storageClient.writeBlob(blobKey, Any.pack(groupedRequisition).toByteString())
         storedGroupedRequisitions += 1

@@ -72,7 +72,34 @@ variable "data_watcher_tls_pem" {
   })
 }
 
+variable "data_availability_tls_key" {
+  description = "Data Availability tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "data_availability_tls_pem" {
+  description = "Data Availability tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "secure_computation_root_ca" {
+  description = "Secure Computation root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "metadata_storage_root_ca" {
   description = "Secure Computation root CA"
   type = object({
     secret_id         = string
@@ -228,6 +255,12 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_function_name" {
+  description = "Name of the DataAvailabilitySync cloud function."
+  type        = string
+  nullable    = false
+}
+
 variable "cloud_function_configs" {
   type = map(object({
     function_name       = string
@@ -313,6 +346,24 @@ variable "spanner_database_name" {
   type        = string
   default     = "edp-aggregator"
   nullable    = false
+}
+
+variable "requisition_fetcher_tls_key" {
+  description = "Requisition Fetcher tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "requisition_fetcher_tls_pem" {
+  description = "Requisition Fetcher tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
 }
 
 variable "edp_aggregator_api_server_ip_address" {

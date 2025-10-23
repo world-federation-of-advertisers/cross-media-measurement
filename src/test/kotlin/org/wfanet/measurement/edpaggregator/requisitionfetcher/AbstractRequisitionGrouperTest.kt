@@ -21,7 +21,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteStringUtf8
-import io.grpc.Status
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -65,18 +64,6 @@ abstract class AbstractRequisitionGrouperTest {
       requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
     }
     assertTrue(groupedRequisitions.isNotEmpty())
-  }
-
-  @Test
-  fun `skips Requisition when EventGroup not found`() {
-
-    eventGroupsServiceMock.stub {
-      onBlocking { getEventGroup(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
-    }
-    val requisitions = runBlocking {
-      requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION))
-    }
-    assertThat(requisitions).hasSize(0)
   }
 
   @Test

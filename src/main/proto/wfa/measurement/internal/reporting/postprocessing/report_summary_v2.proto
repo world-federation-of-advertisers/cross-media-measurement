@@ -51,7 +51,7 @@ message ReportSummaryV2 {
         int64 value = 1;
         double standard_deviation = 2;
       }
-      map<int32, BinResult> bins = 1;
+      map<string, BinResult> bins = 1;
 
       // The unique name that is associated with this result.
       string metric = 2;
