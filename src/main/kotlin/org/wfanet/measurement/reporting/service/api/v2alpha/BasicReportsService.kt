@@ -109,6 +109,7 @@ class BasicReportsService(
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
+
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
 

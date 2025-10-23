@@ -83,7 +83,9 @@ class SpannerBasicReportsService(
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetKey {
     data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()
-    data class Primitive(val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>) : ReportingSetKey()
+
+    data class Primitive(val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>) :
+      ReportingSetKey()
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
