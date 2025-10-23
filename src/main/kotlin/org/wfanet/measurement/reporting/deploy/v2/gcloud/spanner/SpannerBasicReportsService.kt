@@ -81,6 +81,11 @@ class SpannerBasicReportsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  private sealed class ReportingSetKey {
+    data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()
+    data class Primitive(val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>) : ReportingSetKey()
+  }
+
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
@@ -618,9 +623,9 @@ class SpannerBasicReportsService(
     val campaignGroupReportingSetIdByReportingSetKey: Map<ReportingSetKey, String> =
       campaignGroupReportingSets.associate {
         if (it.hasComposite()) {
-          ReportingSetKey(setExpression = it.composite) to it.externalReportingSetId
+          ReportingSetKey.Composite(setExpression = it.composite) to it.externalReportingSetId
         } else {
-          ReportingSetKey(primitiveEventGroupKeys = it.primitive.eventGroupKeysList.toHashSet()) to
+          ReportingSetKey.Primitive(eventGroupKeys = it.primitive.eventGroupKeysList.toSet()) to
             it.externalReportingSetId
         }
       }
@@ -633,8 +638,8 @@ class SpannerBasicReportsService(
       buildMap {
         for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
           val primitiveEventGroupKeys =
-            eventGroupKeysByDataProviderId.getValue(dataProviderId).toHashSet()
-          val reportingSetKey = ReportingSetKey(primitiveEventGroupKeys = primitiveEventGroupKeys)
+            eventGroupKeysByDataProviderId.getValue(dataProviderId).toSet()
+          val reportingSetKey = ReportingSetKey.Primitive(eventGroupKeys = primitiveEventGroupKeys)
 
           if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
             put(
@@ -651,8 +656,8 @@ class SpannerBasicReportsService(
 
     val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
       campaignGroupReportingSetIdByReportingSetKey
-        .filter { it.key.setExpression != null }
-        .forEach { put(it.key.setExpression!!, it.value) }
+        .filter { it.key is ReportingSetKey.Composite }
+        .forEach { put((it.key as ReportingSetKey.Composite).setExpression, it.value) }
     }
 
     return buildResultGroups(
@@ -666,10 +671,5 @@ class SpannerBasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
-
-    private data class ReportingSetKey(
-      val setExpression: ReportingSet.SetExpression? = null,
-      val primitiveEventGroupKeys: HashSet<ReportingSet.Primitive.EventGroupKey>? = null,
-    )
   }
 }

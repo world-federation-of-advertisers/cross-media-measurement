@@ -107,6 +107,17 @@ class BasicReportsService(
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  private sealed class ReportingSetMapKey {
+    data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
+    data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
+  }
+
+  private data class ReportingSetMaps(
+    // Map of DataProvider resource name to Primitive ReportingSet
+    val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
+    // Map of ReportingSet composite to ReportingSet resource name
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     if (request.parent.isEmpty()) {
@@ -533,11 +544,11 @@ class BasicReportsService(
         .collect {
           val reportingSet = it.toReportingSet()
           if (reportingSet.hasComposite()) {
-            put(ReportingSetMapKey(composite = reportingSet.composite), reportingSet)
+            put(ReportingSetMapKey.Composite(composite = reportingSet.composite), reportingSet)
           } else {
             put(
-              ReportingSetMapKey(
-                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toHashSet()
+              ReportingSetMapKey.Primitive(
+                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toSet()
               ),
               reportingSet,
             )
@@ -549,8 +560,8 @@ class BasicReportsService(
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
       for (dataProviderName in dataProviderEventGroupsMap.keys) {
         val reportingSetMapKey =
-          ReportingSetMapKey(
-            cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toHashSet()
+          ReportingSetMapKey.Primitive(
+            cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toSet()
           )
 
         if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
@@ -604,8 +615,8 @@ class BasicReportsService(
     // Map of ReportingSet Composite to ReportingSet resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
       campaignGroupReportingSetMap
-        .filter { it.key.composite != null }
-        .forEach { put(it.key.composite!!, it.value.name) }
+        .filter { it.key is ReportingSetMapKey.Composite }
+        .forEach { put((it.key as ReportingSetMapKey.Composite).composite, it.value.name) }
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)
@@ -809,18 +820,6 @@ class BasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000
-
-    private data class ReportingSetMapKey(
-      val composite: ReportingSet.Composite? = null,
-      val cmmsEventGroups: HashSet<String>? = null,
-    )
-
-    private data class ReportingSetMaps(
-      // Map of DataProvider resource name to Primitive ReportingSet
-      val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
-      // Map of ReportingSet composite to ReportingSet resource name
-      val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
-    )
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(

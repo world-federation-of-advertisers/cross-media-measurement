@@ -223,8 +223,8 @@ object BasicReportNoiseCorrectedResultsTransformation {
               ResultGroupSpecKey(
                 metricFrequencySpec = resultGroupSpec.metricFrequency,
                 groupingFields =
-                  resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList.toHashSet(),
-                eventFilters = resultGroupSpec.dimensionSpec.filtersList.toHashSet(),
+                  resultGroupSpec.dimensionSpec.grouping.eventTemplateFieldsList.toSet(),
+                eventFilters = resultGroupSpec.dimensionSpec.filtersList.toSet(),
               )
             )
 
@@ -375,8 +375,8 @@ object BasicReportNoiseCorrectedResultsTransformation {
           val resultGroupSpecKey =
             ResultGroupSpecKey(
               metricFrequencySpec = metricFrequencySpec,
-              groupingFields = reportingSetResult.groupingsList.map { it.path }.toHashSet(),
-              eventFilters = reportingSetResult.eventFiltersList.toHashSet(),
+              groupingFields = reportingSetResult.groupingsList.map { it.path }.toSet(),
+              eventFilters = reportingSetResult.eventFiltersList.toSet(),
             )
 
           val reportingWindowResultMap:
@@ -385,7 +385,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
           val key =
             ReportingWindowResultKey(
-              groupings = reportingSetResult.groupingsList.toHashSet(),
+              groupings = reportingSetResult.groupingsList.toSet(),
               windowStartDate = reportingWindowResult.windowStartDate,
               windowEndDate = reportingWindowResult.windowEndDate,
               externalImpressionQualificationFilterId = externalImpressionQualificationFilterId,
@@ -610,12 +610,12 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
   private data class ResultGroupSpecKey(
     val metricFrequencySpec: MetricFrequencySpec,
-    val eventFilters: HashSet<EventFilter>,
-    val groupingFields: HashSet<String>,
+    val eventFilters: Set<EventFilter>,
+    val groupingFields: Set<String>,
   )
 
   private data class ReportingWindowResultKey(
-    val groupings: HashSet<EventTemplateField>,
+    val groupings: Set<EventTemplateField>,
     val windowStartDate: Date,
     val windowEndDate: Date,
     val externalImpressionQualificationFilterId: String? = null,
@@ -634,7 +634,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
   )
 
   data class PrimitiveInfo(
-    val eventGroupKeys: HashSet<ReportingSet.Primitive.EventGroupKey>,
+    val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
     val externalReportingSetId: String,
   )
 }

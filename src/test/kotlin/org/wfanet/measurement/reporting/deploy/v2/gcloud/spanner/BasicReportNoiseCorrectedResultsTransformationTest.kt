@@ -172,12 +172,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
@@ -435,12 +435,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
@@ -680,12 +680,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
@@ -840,12 +840,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
@@ -1026,17 +1026,17 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
         DATA_PROVIDER_3_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
           ),
       )
@@ -1354,17 +1354,17 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
         DATA_PROVIDER_3_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
           ),
       )
@@ -1658,12 +1658,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
@@ -1995,12 +1995,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       mapOf(
         DATA_PROVIDER_1_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
           BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
-            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toHashSet(),
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
       )
