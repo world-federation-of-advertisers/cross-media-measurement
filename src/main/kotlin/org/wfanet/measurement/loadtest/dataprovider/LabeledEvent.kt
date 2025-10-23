@@ -19,6 +19,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Message
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.flow.Flow
 
 /** An event [message] with [timestamp] and [vid] labels. */
 data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val message: T)
@@ -32,4 +33,15 @@ data class LabeledEvent<T : Message>(val timestamp: Instant, val vid: Long, val 
 data class LabeledEventDateShard<T : Message>(
   val localDate: LocalDate,
   val labeledEvents: Sequence<LabeledEvent<T>>,
+)
+
+/**
+ * A single shard of [LabeledEvent]s for a specific date as a Flow.
+ *
+ * @param localDate the date associated with this shard
+ * @param labeledEvents labeled events for this shard as a Flow
+ */
+data class LabeledEventDateShardFlow<T : Message>(
+  val localDate: LocalDate,
+  val labeledEvents: Flow<LabeledEvent<T>>,
 )
