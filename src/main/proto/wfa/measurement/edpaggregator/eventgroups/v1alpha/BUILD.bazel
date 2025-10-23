@@ -8,6 +8,7 @@ package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__subpackages__",
+    "//tools:__pkg__",
 ])
 
 IMPORT_PREFIX = "/src/main/proto"
