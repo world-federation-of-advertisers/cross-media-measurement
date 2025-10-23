@@ -34,6 +34,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 
@@ -41,6 +42,7 @@ data class BasicReportResult(
   val measurementConsumerId: Long,
   val basicReportId: Long,
   val basicReport: BasicReport,
+  val reportResult: ReportResult? = null,
 )
 
 /**

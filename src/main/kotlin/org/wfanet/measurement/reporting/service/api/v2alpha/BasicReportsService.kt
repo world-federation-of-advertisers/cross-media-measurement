@@ -24,6 +24,7 @@ import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
@@ -88,7 +89,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -107,6 +107,18 @@ class BasicReportsService(
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  private sealed class ReportingSetMapKey {
+    data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
+
+    data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
+  }
+
+  private data class ReportingSetMaps(
+    // Map of DataProvider resource name to Primitive ReportingSet
+    val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
+    // Map of ReportingSet composite to ReportingSet resource name
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     if (request.parent.isEmpty()) {
@@ -510,18 +522,14 @@ class BasicReportsService(
     campaignGroup: ReportingSet,
     campaignGroupKey: ReportingSetKey,
   ): ReportingSetMaps {
-    val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
-      for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
-        val eventGroupKey = EventGroupKey.fromName(eventGroupName)
-        val eventGroupsList = getOrDefault(eventGroupKey!!.parentKey.toName(), mutableListOf())
-        eventGroupsList.add(eventGroupName)
-        put(eventGroupKey.parentKey.toName(), eventGroupsList)
+    val dataProviderEventGroupsMap: Map<String, List<String>> =
+      campaignGroup.primitive.cmmsEventGroupsList.groupBy {
+        EventGroupKey.fromName(it)!!.parentKey.toName()
       }
-    }
 
-    // Map of ReportingSet without name to ReportingSet with name. For determining whether a
+    // Map of ReportingSetMapKey to ReportingSet. For determining whether a
     // ReportingSet already exists.
-    val campaignGroupReportingSetMap: Map<ReportingSet, ReportingSet> = buildMap {
+    val campaignGroupReportingSetMap: Map<ReportingSetMapKey, ReportingSet> = buildMap {
       internalReportingSetsStub
         .streamReportingSets(
           streamReportingSetsRequest {
@@ -533,28 +541,43 @@ class BasicReportsService(
             limit = 1000
           }
         )
+        .filter { it.filter.isEmpty() }
         .collect {
           val reportingSet = it.toReportingSet()
-          put(reportingSet.copy { clearName() }, reportingSet)
+          if (reportingSet.hasComposite()) {
+            put(ReportingSetMapKey.Composite(composite = reportingSet.composite), reportingSet)
+          } else {
+            put(
+              ReportingSetMapKey.Primitive(
+                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toSet()
+              ),
+              reportingSet,
+            )
+          }
         }
     }
 
     // Map of DataProvider resource names to primitive Reporting Sets.
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
       for (dataProviderName in dataProviderEventGroupsMap.keys) {
-        val reportingSet = reportingSet {
-          this.campaignGroup = campaignGroup.name
-          primitive =
-            ReportingSetKt.primitive {
-              cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-            }
-        }
+        val reportingSetMapKey =
+          ReportingSetMapKey.Primitive(
+            cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toSet()
+          )
 
-        if (campaignGroupReportingSetMap.containsKey(reportingSet)) {
-          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet))
+        if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
+          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSetMapKey))
         } else {
           val uuid = UUID.randomUUID()
           val id = "a$uuid"
+
+          val reportingSet = reportingSet {
+            this.campaignGroup = campaignGroup.name
+            primitive =
+              ReportingSetKt.primitive {
+                cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+              }
+          }
 
           val createdReportingSet =
             try {
@@ -592,10 +615,9 @@ class BasicReportsService(
 
     // Map of ReportingSet Composite to ReportingSet resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
-      campaignGroupReportingSetMap.filter { it.key.hasComposite() }
-      for (entry in campaignGroupReportingSetMap) {
-        put(entry.key.composite, entry.value.name)
-      }
+      campaignGroupReportingSetMap
+        .filter { it.key is ReportingSetMapKey.Composite }
+        .forEach { put((it.key as ReportingSetMapKey.Composite).composite, it.value.name) }
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)
@@ -799,13 +821,6 @@ class BasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000
-
-    private data class ReportingSetMaps(
-      // Map of DataProvider resource name to Primitive ReportingSet
-      val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
-      // Map of ReportingSet composite to ReportingSet resource name
-      val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
-    )
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(
