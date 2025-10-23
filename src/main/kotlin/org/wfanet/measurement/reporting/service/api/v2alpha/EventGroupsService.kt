@@ -391,6 +391,12 @@ private fun ListEventGroupsRequest.Filter.toCmmsFilter(): CmmsListEventGroupsReq
     if (source.hasDataAvailabilityStartTimeOnOrAfter()) {
       dataAvailabilityStartTimeOnOrAfter = source.dataAvailabilityStartTimeOnOrAfter
     }
+    if (source.hasDataAvailabilityStartTimeOnOrBefore()) {
+      dataAvailabilityStartTimeOnOrBefore = source.dataAvailabilityStartTimeOnOrBefore
+    }
+    if (source.hasDataAvailabilityEndTimeOnOrAfter()) {
+      dataAvailabilityEndTimeOnOrAfter = source.dataAvailabilityEndTimeOnOrAfter
+    }
     metadataSearchQuery = source.metadataSearchQuery
   }
 }
