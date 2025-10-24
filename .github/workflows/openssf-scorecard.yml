@@ -14,9 +14,8 @@
 
 name: OpenSSF Scorecard supply-chain security
 on:
-  # Workflow dispatch & pull_request are experimental
+  # Workflow dispatch is experimental
   workflow_dispatch:
-  pull_request:
   # For Branch-Protection check. Only the default branch is supported. See
   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection
   branch_protection_rule:
