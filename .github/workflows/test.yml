@@ -1,0 +1,32 @@
+name: Upload Secret to GCS (temporary)
+
+on:
+  workflow_dispatch:  # manual trigger only
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'  # required for Workload Identity Federation
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Install Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Save secret to file
+        run: |
+          echo "${{ secrets.MC_API_KEY }}" > secret.txt
+
+      - name: Upload to GCS
+        run: |
+          gsutil cp secret.txt gs://secure-computation-storage-dev-bucket/whatever.txt
+
+      - name: Cleanup
+        run: rm secret.txt
