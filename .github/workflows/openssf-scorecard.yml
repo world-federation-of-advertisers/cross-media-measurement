@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Scorecard supply-chain security
+name: OpenSSF Scorecard supply-chain security
 on:
-  # Experimental feature
+  # Workflow dispatch & pull_request are experimental
+  workflow_dispatch:
   pull_request:
   # For Branch-Protection check. Only the default branch is supported. See
   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection
@@ -60,7 +61,7 @@ jobs:
           #   - Publish results to OpenSSF REST API for easy access by consumers
           #   - Allows the repository to include the Scorecard badge.
           #   - See https://github.com/ossf/scorecard-action#publishing-results.
-          # publish_results: true
+          publish_results: true
 
       - name: "Upload artifact"
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
