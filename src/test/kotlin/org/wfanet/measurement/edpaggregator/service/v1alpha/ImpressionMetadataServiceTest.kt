@@ -937,47 +937,49 @@ class ImpressionMetadataServiceTest {
 
   @Test
   fun `computeModelLineBounds returns bounds`() = runBlocking {
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest {
+    service.batchCreateImpressionMetadata(
+      batchCreateImpressionMetadataRequest {
         parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata =
-          IMPRESSION_METADATA.copy {
-            modelLine = MODEL_LINE_1
-            interval = interval {
-              startTime = timestamp { seconds = 100 }
-              endTime = timestamp { seconds = 200 }
+        requests += createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              modelLine = MODEL_LINE_1
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
             }
-          }
+        }
+
+        requests += createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              modelLine = MODEL_LINE_1
+              blobUri = "blob-2"
+              interval = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+            }
+        }
+
+        requests += createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              modelLine = MODEL_LINE_2
+              blobUri = "blob-3"
+              interval = interval {
+                startTime = timestamp { seconds = 500 }
+                endTime = timestamp { seconds = 700 }
+              }
+            }
+        }
       }
     )
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata =
-          IMPRESSION_METADATA.copy {
-            modelLine = MODEL_LINE_1
-            blobUri = "blob-2"
-            interval = interval {
-              startTime = timestamp { seconds = 300 }
-              endTime = timestamp { seconds = 400 }
-            }
-          }
-      }
-    )
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        impressionMetadata =
-          IMPRESSION_METADATA.copy {
-            modelLine = MODEL_LINE_2
-            blobUri = "blob-3"
-            interval = interval {
-              startTime = timestamp { seconds = 500 }
-              endTime = timestamp { seconds = 700 }
-            }
-          }
-      }
-    )
+
     val request = computeModelLineBoundsRequest {
       parent = DATA_PROVIDER_KEY.toName()
       modelLines += MODEL_LINE_1
