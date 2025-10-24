@@ -249,7 +249,24 @@ class ImpressionMetadataNotFoundException(
     "ImpressionMetadata $impressionMetadataResourceName not found",
     mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
     cause,
-  )
+  ) {
+  companion object : Factory<ImpressionMetadataNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): ImpressionMetadataNotFoundException {
+      val impressionMetadataKey =
+        ImpressionMetadataKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.IMPRESSION_METADATA_RESOURCE_ID),
+        )
+      return ImpressionMetadataNotFoundException(impressionMetadataKey.toName(), cause)
+    }
+  }
+}
 
 class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
