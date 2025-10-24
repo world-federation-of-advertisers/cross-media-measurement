@@ -171,18 +171,15 @@ class ImpressionMetadataService(
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
     return try {
       internalImpressionMetadataStub
-        .batchDeleteImpressionMetadata(
-          internalBatchDeleteImpressionMetadataRequest {
-            requests += internalDeleteImpressionMetadataRequest {
-              dataProviderResourceId = key.dataProviderId
-              impressionMetadataResourceId = key.impressionMetadataId
-            }
+        .deleteImpressionMetadata(
+          internalDeleteImpressionMetadataRequest {
+            dataProviderResourceId = key.dataProviderId
+            impressionMetadataResourceId = key.impressionMetadataId
           }
         )
-        .impressionMetadataList
-        .single()
         .toImpressionMetadata()
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {

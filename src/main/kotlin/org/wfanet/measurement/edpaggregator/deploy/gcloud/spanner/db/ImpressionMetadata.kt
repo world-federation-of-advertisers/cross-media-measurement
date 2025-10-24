@@ -64,8 +64,6 @@ suspend fun AsyncDatabaseClient.ReadContext.impressionMetadataExists(
  *
  * @return the [ImpressionMetadataResult]
  * @throws ImpressionMetadataNotFoundException
- *
- * TODO: Delete this one?
  */
 suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceId(
   dataProviderResourceId: String,
