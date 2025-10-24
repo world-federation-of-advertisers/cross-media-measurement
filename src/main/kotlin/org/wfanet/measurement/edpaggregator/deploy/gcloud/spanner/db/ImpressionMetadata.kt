@@ -244,7 +244,6 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
   impressionMetadata: ImpressionMetadata,
   createRequestId: String,
 ) {
-  println("debug: $createRequestId")
   bufferInsertMutation("ImpressionMetadata") {
     set("DataProviderResourceId").to(impressionMetadata.dataProviderResourceId)
     set("ImpressionMetadataId").to(impressionMetadataId)
