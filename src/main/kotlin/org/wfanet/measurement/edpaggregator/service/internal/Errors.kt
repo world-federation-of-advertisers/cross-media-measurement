@@ -29,6 +29,7 @@ object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
 
   enum class Reason {
+    DATA_PROVIDER_MISMATCH,
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
     IMPRESSION_METADATA_STATE_INVALID,
@@ -42,6 +43,7 @@ object Errors {
   }
 
   enum class Metadata(val key: String) {
+    EXPECTED_DATA_PROVIDER_RESOURCE_ID("expectedDataProviderResourceId"),
     DATA_PROVIDER_RESOURCE_ID("dataProviderResourceId"),
     IMPRESSION_METADATA_RESOURCE_ID("impressionMetadataResourceId"),
     REQUISITION_METADATA_RESOURCE_ID("requisitionMetadataResourceId"),
@@ -108,6 +110,21 @@ sealed class ServiceException(
   }
 }
 
+class DataProviderMismatchException(
+  expectedDataProviderResourceId: String,
+  actualDataProviderResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.DATA_PROVIDER_MISMATCH,
+    "Expect DataProvider with resource ID $expectedDataProviderResourceId but got $actualDataProviderResourceId",
+    mapOf(
+      Errors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID to expectedDataProviderResourceId,
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to actualDataProviderResourceId,
+    ),
+    cause,
+  )
+
 class ImpressionMetadataNotFoundException(
   dataProviderResourceId: String,
   impressionMetadataResourceId: String,
@@ -123,11 +140,11 @@ class ImpressionMetadataNotFoundException(
     cause,
   )
 
-class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
     "ImpressionMetadata already exists",
-    emptyMap(),
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )
 
