@@ -115,40 +115,21 @@ class ImpressionMetadataService(
   override suspend fun createImpressionMetadata(
     request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
-    if (request.parent.isEmpty()) {
-      throw RequiredFieldNotSetException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    try {
+      validateImpressionMetadataRequest(request, "")
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
-    val dataProviderKey =
-      DataProviderKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    val requestId = request.requestId
-    if (requestId.isNotEmpty()) {
-      try {
-        UUID.fromString(requestId)
-      } catch (e: IllegalArgumentException) {
-        throw InvalidFieldValueException("request.request_id", e)
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
-
-    if (!request.hasImpressionMetadata()) {
-      throw RequiredFieldNotSetException("request.impression_metadata")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    ModelLineKey.fromName(request.impressionMetadata.modelLine)
-      ?: throw InvalidFieldValueException("request.impression_metadata.model_line")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val internalResponse: InternalImpressionMetadata =
       try {
+        val dataProviderKey: DataProviderKey = DataProviderKey.fromName(request.parent)!!
+
         internalImpressionMetadataStub.createImpressionMetadata(
           internalCreateImpressionMetadataRequest {
-            this.requestId = requestId
+            this.requestId = request.requestId
             impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
           }
         )
@@ -192,6 +173,11 @@ class ImpressionMetadataService(
 
     val internalRequests: List<InternalCreateImpressionMetadataRequest> =
       request.requestsList.mapIndexed { index, it ->
+        if (it.parent.isNotEmpty() && it.parent != request.parent) {
+          throw DataProviderMismatchException(request.parent, it.parent)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
         val blobUri = it.impressionMetadata.blobUri
         if (!blobUriSet.add(blobUri)) {
           throw InvalidFieldValueException("requests.$index.blob_uri") {
@@ -202,13 +188,6 @@ class ImpressionMetadataService(
 
         val requestId = it.requestId
         if (requestId.isNotEmpty()) {
-          try {
-            UUID.fromString(requestId)
-          } catch (e: IllegalArgumentException) {
-            throw InvalidFieldValueException("requests.$index.request_id", e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-          }
-
           if (!requestIdSet.add(requestId)) {
             throw InvalidFieldValueException("requests.$index.request_id") {
                 "request Id $requestId is duplicate in the batch of requests"
@@ -217,14 +196,13 @@ class ImpressionMetadataService(
           }
         }
 
-        if (!it.hasImpressionMetadata()) {
-          throw RequiredFieldNotSetException("requests.$index.impression_metadata")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        try {
+          validateImpressionMetadataRequest(it, "requests.$index.")
+        } catch (e: RequiredFieldNotSetException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: InvalidFieldValueException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
-
-        ModelLineKey.fromName(it.impressionMetadata.modelLine)
-          ?: throw InvalidFieldValueException("requests.$index.impression_metadata.model_line")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
         internalCreateImpressionMetadataRequest {
           this.requestId = requestId
@@ -245,9 +223,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
             ImpressionMetadataAlreadyExistsException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          InternalErrors.Reason.DATA_PROVIDER_MISMATCH ->
-            DataProviderMismatchException.fromInternal(e)
-              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -457,6 +433,62 @@ class ImpressionMetadataService(
           this.value = value
         }
       }
+    }
+  }
+
+  /**
+   * Checks whether the specified create impression metadata request is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   */
+  private fun validateImpressionMetadataRequest(
+    request: CreateImpressionMetadataRequest,
+    fieldPathPrefix: String,
+  ) {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}parent")
+    }
+
+    DataProviderKey.fromName(request.parent)
+      ?: throw InvalidFieldValueException("${fieldPathPrefix}parent")
+
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("${fieldPathPrefix}request_id", e)
+      }
+    }
+
+    if (!request.hasImpressionMetadata()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
+    }
+
+    if (request.impressionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
+    }
+
+    if (request.impressionMetadata.blobTypeUrl.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
+    }
+
+    if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id"
+      )
+    }
+
+    if (request.impressionMetadata.modelLine.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.model_line")
+    }
+
+    ModelLineKey.fromName(request.impressionMetadata.modelLine)
+      ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.model_line")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    if (!request.impressionMetadata.hasInterval()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
   }
 

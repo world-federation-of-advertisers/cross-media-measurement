@@ -19,7 +19,6 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
@@ -183,41 +182,19 @@ class RequisitionMetadataInvalidStateException(
   )
 
 class DataProviderMismatchException(
-  expectedDataProviderResourceName: String,
+  parentDataProviderResourceName: String,
   actualDataProviderResourceName: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.DATA_PROVIDER_MISMATCH,
-    "DataProvider from parent $actualDataProviderResourceName does not match DataProvider $actualDataProviderResourceName",
+    "DataProvider $actualDataProviderResourceName does not match parent DataProvider $parentDataProviderResourceName",
     mapOf(
-      Errors.Metadata.PARENT to expectedDataProviderResourceName,
+      Errors.Metadata.PARENT to parentDataProviderResourceName,
       Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
     ),
     cause,
-  ) {
-  companion object : Factory<DataProviderMismatchException>() {
-    override val reason: Errors.Reason
-      get() = Errors.Reason.DATA_PROVIDER_MISMATCH
-
-    override fun fromInternal(
-      internalMetadata: Map<InternalErrors.Metadata, String>,
-      cause: Throwable,
-    ): DataProviderMismatchException {
-      return DataProviderMismatchException(
-        DataProviderKey(
-            internalMetadata.getValue(InternalErrors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID)
-          )
-          .toName(),
-        DataProviderKey(
-            internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID)
-          )
-          .toName(),
-        cause,
-      )
-    }
-  }
-}
+  )
 
 class EtagMismatchException(requestEtag: String, etag: String, cause: Throwable? = null) :
   ServiceException(
