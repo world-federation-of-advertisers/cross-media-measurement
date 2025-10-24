@@ -145,7 +145,6 @@ class ImpressionMetadataServiceTest {
         impressionMetadata = IMPRESSION_METADATA
         requestId = REQUEST_ID
       }
-      println("debug: ${request.requestId}")
       val existingRequisitionMetadata = service.createImpressionMetadata(request)
 
       val requisitionMetadata = service.createImpressionMetadata(request)
