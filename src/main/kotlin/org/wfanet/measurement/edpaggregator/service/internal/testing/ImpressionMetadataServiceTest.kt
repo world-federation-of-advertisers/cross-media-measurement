@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
@@ -276,193 +277,15 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if dataProviderId not set`() =
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if request id is malformed`() =
     runBlocking {
-      val request = batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { clearDataProviderResourceId() }
-        }
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA
+        requestId = "invalid-request-id"
       }
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "requests.0.impression_metadata.data_provider_resource_id"
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if blobUri not set`() = runBlocking {
-    val request = batchCreateImpressionMetadataRequest {
-      requests += createImpressionMetadataRequest {
-        impressionMetadata = IMPRESSION_METADATA.copy { clearBlobUri() }
-      }
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.impression_metadata.blob_uri"
-        }
-      )
-  }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws ALREADY_EXISTS if blobUri already exists`() =
-    runBlocking {
-      service.batchCreateImpressionMetadata(
-        batchCreateImpressionMetadataRequest {
-          requests += createImpressionMetadataRequest {
-            impressionMetadata =
-              IMPRESSION_METADATA.copy {
-                cmmsModelLine =
-                  "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
-              }
-          }
-        }
-      )
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.batchCreateImpressionMetadata(
-            batchCreateImpressionMetadataRequest {
-              requests += createImpressionMetadataRequest {
-                impressionMetadata =
-                  IMPRESSION_METADATA.copy {
-                    // same blobUri
-                    cmmsModelLine =
-                      "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
-                  }
-              }
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
-            metadata[Errors.Metadata.BLOB_URI.key] = IMPRESSION_METADATA.blobUri
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if blobTypeUrl not set`() =
-    runBlocking {
-      val request = batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { clearBlobTypeUrl() }
-        }
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "requests.0.impression_metadata.blob_type_url"
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if eventGroupReferenceId not set`() =
-    runBlocking {
-      val request = batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
-        }
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "requests.0.impression_metadata.event_group_reference_id"
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if cmmsModelLine not set`() =
-    runBlocking {
-      val request = batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA.copy { clearCmmsModelLine() }
-        }
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "requests.0.impression_metadata.cmms_model_line"
-          }
-        )
-    }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if interval not set`() = runBlocking {
-    val request = batchCreateImpressionMetadataRequest {
-      requests += createImpressionMetadataRequest {
-        impressionMetadata = IMPRESSION_METADATA.copy { clearInterval() }
-      }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.impression_metadata.interval"
-        }
-      )
-  }
-
-  @Test
-  fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT if request id is malformed`() =
-    runBlocking {
-      val request = batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest {
-          impressionMetadata = IMPRESSION_METADATA
-          requestId = "invalid-request-id"
-        }
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.batchCreateImpressionMetadata(request) }
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.errorInfo)
@@ -470,10 +293,188 @@ abstract class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
           }
         )
     }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if impressionMetadata is not set`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest { requestId = CREATE_REQUEST_ID }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata"
+          }
+        )
+    }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if dataProviderId not set`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearDataProviderResourceId() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.data_provider_resource_id"
+        }
+      )
+  }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if blobUri not set`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearBlobUri() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.blob_uri"
+        }
+      )
+  }
+
+  @Test
+  fun `createImpressionMetadata throws ALREADY_EXISTS if blobUri already exists`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest {
+        impressionMetadata =
+          IMPRESSION_METADATA.copy {
+            cmmsModelLine =
+              "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
+          }
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy {
+                // same blobUri
+                cmmsModelLine =
+                  "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/model-line-1"
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS.name
+          metadata[Errors.Metadata.BLOB_URI.key] = IMPRESSION_METADATA.blobUri
+        }
+      )
+  }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if blobTypeUrl not set`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearBlobTypeUrl() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.blob_type_url"
+        }
+      )
+  }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if eventGroupReferenceId not set`() =
+    runBlocking {
+      val request = createImpressionMetadataRequest {
+        impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "impression_metadata.event_group_reference_id"
+          }
+        )
+    }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearCmmsModelLine() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.cmms_model_line"
+        }
+      )
+  }
+
+  @Test
+  fun `createImpressionMetadata throws INVALID_ARGUMENT if interval not set`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      impressionMetadata = IMPRESSION_METADATA.copy { clearInterval() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata.interval"
+        }
+      )
+  }
 
   @Test
   fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
@@ -504,6 +505,18 @@ abstract class ImpressionMetadataServiceTest {
         }
       )
     assertThat(response.impressionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata without subrequests returns default response`() = runBlocking {
+    val response =
+      service.batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(BatchCreateImpressionMetadataResponse.getDefaultInstance())
   }
 
   @Test
@@ -620,9 +633,10 @@ abstract class ImpressionMetadataServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "requests.0.impression_metadata.data_provider_resource_id"
+            reason = Errors.Reason.DATA_PROVIDER_MISMATCH.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] = "different-dp"
+            metadata[Errors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID.key] =
+              IMPRESSION_METADATA.dataProviderResourceId
           }
         )
     }

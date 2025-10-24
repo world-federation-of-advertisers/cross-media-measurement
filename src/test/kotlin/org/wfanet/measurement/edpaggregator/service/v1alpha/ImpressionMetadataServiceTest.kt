@@ -147,6 +147,7 @@ class ImpressionMetadataServiceTest {
         impressionMetadata = IMPRESSION_METADATA
         requestId = REQUEST_ID
       }
+      println("debug: ${request.requestId}")
       val existingRequisitionMetadata = service.createImpressionMetadata(request)
 
       val requisitionMetadata = service.createImpressionMetadata(request)
@@ -197,6 +198,27 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid request id`() = runBlocking {
+    val request = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      impressionMetadata = IMPRESSION_METADATA
+      requestId = "invalid-request-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
+        }
+      )
+  }
+
+  @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT when impressionMetadata is missing`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
@@ -213,7 +235,7 @@ class ImpressionMetadataServiceTest {
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.impression_metadata"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "impression_metadata"
           }
         )
     }
@@ -271,10 +293,12 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
     val request1 = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA
       requestId = UUID.randomUUID().toString()
     }
     val request2 = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2
       requestId = UUID.randomUUID().toString()
     }
@@ -315,6 +339,7 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `batchCreateImpressionMetadata is idempotent`() = runBlocking {
     val idempotentRequest = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA
       requestId = UUID.randomUUID().toString()
     }
@@ -328,6 +353,7 @@ class ImpressionMetadataServiceTest {
     val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
 
     val newRequest = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2
       requestId = UUID.randomUUID().toString()
     }
@@ -411,6 +437,7 @@ class ImpressionMetadataServiceTest {
             batchCreateImpressionMetadataRequest {
               parent = DATA_PROVIDER_KEY.toName()
               requests += createImpressionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA
                 requestId = "invalid-request-id"
               }
@@ -438,10 +465,12 @@ class ImpressionMetadataServiceTest {
             batchCreateImpressionMetadataRequest {
               parent = DATA_PROVIDER_KEY.toName()
               requests += createImpressionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA
                 requestId = REQUEST_ID
               }
               requests += createImpressionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA_2
                 requestId = REQUEST_ID
               }
@@ -464,10 +493,12 @@ class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for duplicate blobUri`() = runBlocking {
     val duplicateBlobUri = "duplicate-blob-uri"
     val request1 = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
     }
     val request2 = createImpressionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
     }

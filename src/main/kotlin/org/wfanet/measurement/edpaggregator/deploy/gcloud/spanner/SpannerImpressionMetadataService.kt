@@ -101,58 +101,67 @@ class SpannerImpressionMetadataService(
       request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
     try {
-      validateImpressionMetadataRequest(request)
+      validateImpressionMetadataRequest(request, "")
     } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    return batchCreateImpressionMetadata(
-            batchCreateImpressionMetadataRequest {
-              dataProviderResourceId = request.impressionMetadata.dataProviderResourceId
-              requests += request
-            }
-        )
-        .impressionMetadataList
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=createImpressionMetadata"))
+
+    val result =
+      try {
+          transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(listOf(request)) }
+        } catch (e: SpannerException) {
+          throw e
+        }
         .single()
+
+    if (result.hasCreateTime()) {
+      return result
+    }
+
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return result.copy {
+      createTime = commitTimestamp
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
   }
 
   override suspend fun batchCreateImpressionMetadata(
-      request: BatchCreateImpressionMetadataRequest
+    request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
-    val dataProviderResourceId = request.dataProviderResourceId
     if (request.requestsList.isEmpty()) {
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
-    }
-
-    try {
-      validateImpressionMetadataRequest(request)
-    } catch (e: RequiredFieldNotSetException) {
-      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     val dataProviderResourceId = request.dataProviderResourceId
     val blobUriSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
-    request.requestsList.forEachIndexed { index, it ->
+    request.requestsList.forEachIndexed { index, subRequest ->
       if (
         dataProviderResourceId.isNotEmpty() &&
-          it.impressionMetadata.dataProviderResourceId != dataProviderResourceId
+          subRequest.impressionMetadata.dataProviderResourceId != dataProviderResourceId
       ) {
-        val childDataProviderResourceId = it.impressionMetadata.dataProviderResourceId
+        val childDataProviderResourceId = subRequest.impressionMetadata.dataProviderResourceId
         throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      val requestId = it.requestId
-      if (requestId.isNotEmpty()) {
-        try {
-          UUID.fromString(requestId)
-        } catch (e: IllegalArgumentException) {
-          throw InvalidFieldValueException("requests.$index.request_id", e)
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        }
+      if (!blobUriSet.add(subRequest.impressionMetadata.blobUri)) {
+        val blobUri = subRequest.impressionMetadata.blobUri
+        throw InvalidFieldValueException("requests.$index.impression_metadata.blob_uri") {
+            "blob uri $blobUri is duplicate in the batch of requests"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
-        if (!requestIdSet.add(it.requestId)) {
+      val requestId = subRequest.requestId
+      if (requestId.isNotEmpty()) {
+        if (!requestIdSet.add(subRequest.requestId)) {
           throw InvalidFieldValueException("requests.$index.request_id") {
               "request id $requestId is duplicate in the batch of requests"
             }
@@ -160,7 +169,13 @@ class SpannerImpressionMetadataService(
         }
       }
 
-      validateImpressionMetadataRequest(it)
+      try {
+        validateImpressionMetadataRequest(subRequest, "requests.$index.")
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
@@ -416,24 +431,49 @@ class SpannerImpressionMetadataService(
    *
    * @throws RequiredFieldNotSetException
    */
-  private fun validateImpressionMetadataRequest(request: CreateImpressionMetadataRequest) {
+  private fun validateImpressionMetadataRequest(
+    request: CreateImpressionMetadataRequest,
+    fieldPathPrefix: String,
+  ) {
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("${fieldPathPrefix}request_id", e)
+      }
+    }
+
+    if (!request.hasImpressionMetadata()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata")
+    }
+
     if (request.impressionMetadata.dataProviderResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata.data_provider_resource_id")
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.data_provider_resource_id"
+      )
     }
+
     if (request.impressionMetadata.blobUri.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata.blob_uri")
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
     }
+
     if (request.impressionMetadata.blobTypeUrl.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata.blob_type_url")
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_type_url")
     }
+
     if (request.impressionMetadata.eventGroupReferenceId.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata.event_group_reference_id")
+      throw RequiredFieldNotSetException(
+        "${fieldPathPrefix}impression_metadata.event_group_reference_id"
+      )
     }
+
     if (request.impressionMetadata.cmmsModelLine.isEmpty()) {
-      throw RequiredFieldNotSetException("impression_metadata.cmms_model_line")
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.cmms_model_line")
     }
+
     if (!request.impressionMetadata.hasInterval()) {
-      throw RequiredFieldNotSetException("impression_metadata.interval")
+      throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
   }
 
