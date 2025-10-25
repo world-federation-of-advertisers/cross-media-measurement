@@ -67,4 +67,38 @@ object EventTemplates {
 
     return templateType.options.getExtension(EventAnnotationsProto.eventTemplate)
   }
+
+  fun getEventDescriptor(eventMessageDescriptor: Descriptors.Descriptor): EventDescriptor {
+    require(eventMessageDescriptor.options.hasExtension(EventAnnotationsProto.event)) {
+      "${eventMessageDescriptor.fullName} it not an event message type"
+    }
+
+    return eventMessageDescriptor.options.getExtension(EventAnnotationsProto.event)
+  }
+
+  /**
+   * Returns the groupable fields from [eventMessageDescriptor].
+   *
+   * Groupable fields are those which have [EventFieldDescriptor.ReportingFeature.GROUPABLE].
+   */
+  fun getGroupableFields(
+    eventMessageDescriptor: Descriptors.Descriptor
+  ): List<Descriptors.FieldDescriptor> = buildList {
+    for (field in eventMessageDescriptor.fields) {
+      require(field.messageType.options.hasExtension(EventAnnotationsProto.eventTemplate)) {
+        "${eventMessageDescriptor.fullName} is not a valid event message type"
+      }
+      for (templateField in field.messageType.fields) {
+        val templateFieldDescriptor: EventFieldDescriptor =
+          templateField.options.getExtension(EventAnnotationsProto.templateField)
+        if (
+          templateFieldDescriptor.reportingFeaturesList.contains(
+            EventFieldDescriptor.ReportingFeature.GROUPABLE
+          )
+        ) {
+          add(templateField)
+        }
+      }
+    }
+  }
 }

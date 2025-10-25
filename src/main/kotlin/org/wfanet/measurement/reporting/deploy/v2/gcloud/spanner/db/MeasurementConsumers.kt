@@ -18,10 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
-import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
@@ -39,27 +37,17 @@ data class MeasurementConsumerResult(
 suspend fun AsyncDatabaseClient.ReadContext.getMeasurementConsumerByCmmsMeasurementConsumerId(
   cmmsMeasurementConsumerId: String
 ): MeasurementConsumerResult {
-  val sql =
-    """
-    SELECT
-      MeasurementConsumerId,
-      CmmsMeasurementConsumerId
-    FROM
-      MeasurementConsumers
-    WHERE
-      CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-    """
-      .trimIndent()
   val row: Struct =
-    executeQuery(statement(sql) { bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId) })
-      .singleOrNullIfEmpty()
-      ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId)
+    readRowUsingIndex(
+      "MeasurementConsumers",
+      "MeasurementConsumersByCmmsMeasurementConsumerId",
+      Key.of(cmmsMeasurementConsumerId),
+      "MeasurementConsumerId",
+    ) ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId)
 
   return MeasurementConsumerResult(
     row.getLong("MeasurementConsumerId"),
-    measurementConsumer {
-      this.cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
-    },
+    measurementConsumer { this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId },
   )
 }
 
