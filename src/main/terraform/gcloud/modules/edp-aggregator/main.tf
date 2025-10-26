@@ -496,3 +496,24 @@ resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
 }
+
+resource "google_project_iam_member" "telemetry_log_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/logging.logWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_metric_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_trace_agent" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/cloudtrace.agent"
+  member   = "serviceAccount:${each.value}"
+}
