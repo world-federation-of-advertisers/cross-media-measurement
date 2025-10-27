@@ -241,7 +241,7 @@ class BasicReportsReportsJob(
             }
             metricFrequencySpec = reportingSetResultInfoEntry.value.metricFrequencySpec
             groupings +=
-              Normalization.sortGroupings(
+              Normalization.sortGrouping(
                 reportingSetResultInfoEntry.key.groupingPredicates.map {
                   eventTemplateFieldByPredicate.getValue(it)
                 }

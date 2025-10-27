@@ -43,9 +43,9 @@ object Normalization {
   private val eventFilterComparator: Comparator<EventFilter> =
     compareBy(Ordering.from(eventFilterTermComparator).lexicographical()) { it.termsList }
 
-  /** Returns a sorted copy of [groupings]. */
-  fun sortGroupings(groupings: Iterable<EventTemplateField>): List<EventTemplateField> {
-    return groupings.sortedWith(groupingComparator)
+  /** Returns a sorted copy of [grouping]. */
+  fun sortGrouping(grouping: Iterable<EventTemplateField>): List<EventTemplateField> {
+    return grouping.sortedWith(groupingComparator)
   }
 
   /** Returns a normalized copy of [eventFilters]. */
@@ -82,15 +82,15 @@ object Normalization {
     return fingerprint(serialization)
   }
 
-  /** Computes the fingerprint of a grouping slice. */
+  /** Computes the fingerprint of a grouping. */
   fun computeFingerprint(
     eventMessageVersion: Int,
-    sortedGroupings: Iterable<EventTemplateField>,
+    sortedGrouping: Iterable<EventTemplateField>,
   ): Long {
     val serialization = buildString {
       appendLine(eventMessageVersion)
       appendLine("[")
-      for (grouping in sortedGroupings) {
+      for (grouping in sortedGrouping) {
         appendLine("{")
         append(serialize(grouping))
         appendLine("},")
@@ -101,7 +101,7 @@ object Normalization {
     return fingerprint(serialization)
   }
 
-  /** Computes the fingerprint of [EventFilter]s. */
+  /** Computes the fingerprint of [normalizedEventFilters]. */
   fun computeFingerprint(normalizedEventFilters: Iterable<EventFilter>): Long {
     val serialization = buildString {
       appendLine("[")
@@ -149,7 +149,7 @@ object Normalization {
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
         append(EventTemplateField.FieldValue.FLOAT_VALUE_FIELD_NUMBER)
         append(":")
-        appendLine(field.value.boolValue)
+        appendLine(field.value.floatValue)
       }
       EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> Unit
     }
