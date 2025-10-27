@@ -35,7 +35,7 @@ service BasicReports {
   rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
-      body: "basic_report"
+      body: "*"
     };
     option (google.api.method_signature) =
         "parent,basic_report,basic_report_id";

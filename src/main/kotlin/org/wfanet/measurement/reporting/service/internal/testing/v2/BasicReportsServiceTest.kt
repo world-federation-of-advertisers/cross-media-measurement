@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -521,6 +522,92 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
 
     val createdBasicReport =
       service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
+
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
+  }
+
+  @Test
+  fun `getBasicReport with createBasicReport with model line succeeds`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalBasicReportId = "1237"
+      externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+      modelLineKey =
+        BasicReportKt.modelLineKey {
+          cmmsModelProviderId = "1234"
+          cmmsModelSuiteId = "1235"
+          cmmsModelLineId = "1236"
+        }
+      details = basicReportDetails {
+        title = "title"
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
+              }
+          }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                stackedIncrementalReach = true
+              }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+      resultDetails = basicReportResultDetails {}
+      createReportRequestId = "1235"
+    }
+
+    val createdBasicReport =
+      service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
+
+    assertThat(createdBasicReport.modelLineKey.cmmsModelProviderId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelProviderId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelSuiteId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelSuiteId)
+    assertThat(createdBasicReport.modelLineKey.cmmsModelLineId)
+      .isEqualTo(basicReport.modelLineKey.cmmsModelLineId)
 
     val retrievedBasicReport =
       service.getBasicReport(

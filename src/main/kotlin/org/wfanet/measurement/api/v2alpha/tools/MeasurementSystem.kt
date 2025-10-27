@@ -1197,7 +1197,7 @@ private class ModelLines {
       pageSize = listPageSize
       pageToken = listPageToken
       if (modelLineTypes != null) {
-        filter = filter { types += modelLineTypes }
+        filter = filter { typeIn += modelLineTypes }
       }
     }
     val response =
