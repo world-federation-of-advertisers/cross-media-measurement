@@ -1,9 +1,12 @@
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(default_visibility = [
+    test_target(":__pkg__"),
     "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2:__subpackages__",
@@ -31,6 +34,16 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "normalization",
+    srcs = ["Normalization.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
 

@@ -22,7 +22,7 @@ option java_multiple_files = true;
 // A representation of an event template field with its value
 message EventTemplateField {
   // A field path with respect to the local market Event message
-  // with `.` as the traversal operator.
+  // with `.` as the traversal operator. Required.
   //
   // For example, if the Event message had an event template `common` with
   // a field `age_group` then the field path would be `common.age_group`.
@@ -44,6 +44,6 @@ message EventTemplateField {
       float float_value = 4;
     }
   }
-  // The value of the field
+  // The value of the field. Required.
   FieldValue value = 2;
 }
