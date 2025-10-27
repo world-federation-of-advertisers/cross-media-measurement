@@ -22,6 +22,7 @@ locals {
         "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
         "tee-image-reference"        = var.docker_image
         "tee-cmd"                    = jsonencode(var.tee_cmd)
+        "tee-env-JAVA_TOOL_OPTIONS"  = "-Xmx400G -Djava.util.logging.ConsoleHandler.level=FINE -Djava.util.logging.level=FINE"
       },
       var.config_storage_bucket == null ? {} : {
         "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
@@ -96,8 +97,11 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   disk {
-    boot            = true
-    source_image    = data.google_compute_image.confidential_space.self_link
+    boot                   = true
+    source_image           = data.google_compute_image.confidential_space.self_link
+    disk_type              = "hyperdisk-balanced"
+    provisioned_iops       = 5000
+    provisioned_throughput = 1250
   }
 
   shielded_instance_config {
