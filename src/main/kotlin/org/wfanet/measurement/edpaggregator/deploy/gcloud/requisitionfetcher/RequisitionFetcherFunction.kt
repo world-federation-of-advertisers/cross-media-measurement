@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
@@ -106,16 +107,19 @@ class RequisitionFetcherFunction : HttpFunction {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
     val cmmsSigningCerts = loadSigningCerts(dataProviderConfig.cmmsConnection)
-    val cmmsPublicChannel = buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
+    val cmmsPublicChannel =
+      buildMutualTlsChannel(kingdomTarget, cmmsSigningCerts, kingdomCertHost)
+        .withShutdownTimeout(channelShutdownDuration)
 
     val requisitionMetadataStorageSigningCerts =
       loadSigningCerts(dataProviderConfig.requisitionMetadataStorageConnection)
     val requisitionMetadataStoragePublicChannel =
       buildMutualTlsChannel(
-        metadataStorageTarget,
-        requisitionMetadataStorageSigningCerts,
-        metadataStorageCertHost,
-      )
+          metadataStorageTarget,
+          requisitionMetadataStorageSigningCerts,
+          metadataStorageCertHost,
+        )
+        .withShutdownTimeout(channelShutdownDuration)
 
     val requisitionsStub = RequisitionsCoroutineStub(cmmsPublicChannel)
     val requisitionMetadataStub =
@@ -210,6 +214,13 @@ class RequisitionFetcherFunction : HttpFunction {
         DEFAULT_PAGE_SIZE
       }
     }
+
+    private const val GRPC_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
+    private val channelShutdownDuration =
+      Duration.ofSeconds(
+        System.getenv("GRPC_CHANNEL_SHUTDOWN_DURATION_SECONDS")?.toLong()
+          ?: GRPC_CHANNEL_SHUTDOWN_DURATION_SECONDS
+      )
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {

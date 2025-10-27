@@ -188,9 +188,13 @@ class EventGroupsServiceTest {
           mediaTypesIntersect += MediaType.VIDEO
           mediaTypesIntersect += MediaType.DISPLAY
           dataAvailabilityStartTimeOnOrAfter =
-            LocalDate.of(2025, 1, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            LocalDate.of(2025, 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           dataAvailabilityEndTimeOnOrBefore =
-            LocalDate.of(2025, 4, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            LocalDate.of(2025, 4, 20).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          dataAvailabilityStartTimeOnOrBefore =
+            LocalDate.of(2025, 1, 11).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          dataAvailabilityEndTimeOnOrAfter =
+            LocalDate.of(2025, 4, 12).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           metadataSearchQuery = "log"
         }
       orderBy =
@@ -218,6 +222,10 @@ class EventGroupsServiceTest {
                 request.structuredFilter.dataAvailabilityStartTimeOnOrAfter
               dataAvailabilityEndTimeOnOrBefore =
                 request.structuredFilter.dataAvailabilityEndTimeOnOrBefore
+              dataAvailabilityStartTimeOnOrBefore =
+                request.structuredFilter.dataAvailabilityStartTimeOnOrBefore
+              dataAvailabilityEndTimeOnOrAfter =
+                request.structuredFilter.dataAvailabilityEndTimeOnOrAfter
               metadataSearchQuery = request.structuredFilter.metadataSearchQuery
             }
           orderBy =
