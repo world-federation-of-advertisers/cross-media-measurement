@@ -41,6 +41,7 @@ py_test(
     name = "report_conversion_test",
     size = "small",
     srcs = ["report_conversion_test.py"],
+    data = [":sample_reports"],
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:report_conversion",
         requirement("absl-py"),
@@ -53,5 +54,8 @@ py_test(
 
 filegroup(
     name = "sample_reports",
-    srcs = glob(["*.json"]),
+    srcs = glob([
+        "*.json",
+        "*.textproto",
+    ]),
 )
