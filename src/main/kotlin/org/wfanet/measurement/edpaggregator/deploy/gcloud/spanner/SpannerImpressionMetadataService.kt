@@ -325,7 +325,6 @@ class SpannerImpressionMetadataService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=batchDeleteImpressionMetadata"))
 
-    val previousDeletedList = mutableListOf<ImpressionMetadata>()
     val deletedList: List<ImpressionMetadata> = buildList {
       transactionRunner.run { txn ->
         val existingImpressionMetadataByResourceId =
@@ -335,25 +334,18 @@ class SpannerImpressionMetadataService(
           )
 
         request.requestsList.forEach {
+          val result: ImpressionMetadataResult? =
+            existingImpressionMetadataByResourceId[it.impressionMetadataResourceId]
+
           if (
-            !existingImpressionMetadataByResourceId.containsKey(it.impressionMetadataResourceId)
+            result == null ||
+              result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED
           ) {
             throw ImpressionMetadataNotFoundException(
                 dataProviderResourceId,
                 it.impressionMetadataResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          }
-        }
-
-        request.requestsList.forEach {
-          val impressionMetadata =
-            existingImpressionMetadataByResourceId[it.impressionMetadataResourceId]!!
-          if (
-            impressionMetadata.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED
-          ) {
-            previousDeletedList.add(impressionMetadata.impressionMetadata)
-            return@forEach
           }
 
           txn.updateImpressionMetadataState(
@@ -373,7 +365,6 @@ class SpannerImpressionMetadataService(
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
     return batchDeleteImpressionMetadataResponse {
-      impressionMetadata += previousDeletedList
       impressionMetadata +=
         deletedList.map {
           it.copy {

@@ -732,6 +732,40 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `batchDeleteImpressionMetadata throws NOT_FOUND for already deleted ImpressionMetadata`() =
+    runBlocking {
+      val created =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata = IMPRESSION_METADATA
+          }
+        )
+
+      service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created.name })
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchDeleteImpressionMetadata(
+            batchDeleteImpressionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              names += created.name
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
+            metadata[Errors.Metadata.IMPRESSION_METADATA.key] = created.name
+          }
+        )
+    }
+
+  @Test
   fun `listImpressionMetadata returns ImpressionMetadata`() = runBlocking {
     val created = createImpressionMetadata(IMPRESSION_METADATA)
 
