@@ -546,7 +546,8 @@ class MetricReader(private val readContext: ReadContext) {
 
   fun readMetrics(request: StreamMetricsRequest): Flow<Result> {
     val sql =
-      """
+      if (request.filter.externalReportId.isEmpty()) {
+        """
         $baseSqlSelect
         FROM (
           SELECT *
@@ -559,8 +560,58 @@ class MetricReader(private val readContext: ReadContext) {
         ) AS Metrics
         $baseSqlJoins
         ORDER BY ExternalMetricId ASC
-      """
-        .trimIndent()
+        """
+          .trimIndent()
+      } else {
+        """
+        $baseSqlSelect
+        FROM (
+          SELECT
+            CmmsMeasurementConsumerId,
+            Metrics.MeasurementConsumerId,
+            Metrics.CreateMetricRequestId,
+            Metrics.ReportingSetId,
+            Metrics.MetricId,
+            Metrics.ExternalMetricId,
+            Metrics.TimeIntervalStart,
+            Metrics.TimeIntervalEndExclusive,
+            Metrics.MetricType,
+            Metrics.DifferentialPrivacyEpsilon,
+            Metrics.DifferentialPrivacyDelta,
+            Metrics.FrequencyDifferentialPrivacyEpsilon,
+            Metrics.FrequencyDifferentialPrivacyDelta,
+            Metrics.MaximumFrequency,
+            Metrics.MaximumFrequencyPerUser,
+            Metrics.MaximumWatchDurationPerUser,
+            Metrics.VidSamplingIntervalStart,
+            Metrics.VidSamplingIntervalWidth,
+            Metrics.SingleDataProviderDifferentialPrivacyEpsilon,
+            Metrics.SingleDataProviderDifferentialPrivacyDelta,
+            Metrics.SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+            Metrics.SingleDataProviderFrequencyDifferentialPrivacyDelta,
+            Metrics.SingleDataProviderVidSamplingIntervalStart,
+            Metrics.SingleDataProviderVidSamplingIntervalWidth,
+            Metrics.CreateTime,
+            Metrics.MetricDetails,
+            Metrics.State,
+            CmmsModelLineName,
+            ExternalReportId
+          FROM
+            MeasurementConsumers
+            JOIN Reports USING (MeasurementConsumerId)
+            JOIN MetricCalculationSpecReportingMetrics USING (MeasurementConsumerId, ReportId)
+            JOIN Metrics USING (MeasurementConsumerId, MetricId)
+          WHERE CmmsMeasurementConsumerId = $1
+            AND ExternalReportId = $4
+            AND ExternalMetricId > $2
+          ORDER BY ExternalMetricId ASC
+          LIMIT $3
+        ) AS Metrics
+        $baseSqlJoins
+        ORDER BY ExternalMetricId ASC
+        """
+          .trimIndent()
+      }
 
     val statement =
       boundStatement(sql) {
@@ -569,7 +620,10 @@ class MetricReader(private val readContext: ReadContext) {
         if (request.limit > 0) {
           bind("$3", request.limit)
         } else {
-          bind("$3", 50)
+          bind("$3", 2147483647)
+        }
+        if (request.filter.externalReportId.isNotEmpty()) {
+          bind("$4", request.filter.externalReportId)
         }
       }
 

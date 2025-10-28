@@ -72,6 +72,7 @@ message StreamMetricsRequest {
     string cmms_measurement_consumer_id = 1;
     // Skips to results with an external id greater than this.
     string external_metric_id_after = 2;
+    string external_report_id = 3;
   }
   Filter filter = 1;
 

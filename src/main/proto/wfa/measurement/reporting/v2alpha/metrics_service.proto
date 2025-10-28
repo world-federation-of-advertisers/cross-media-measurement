@@ -138,6 +138,19 @@ message ListMetricsRequest {
   // When paginating, all other parameters provided to `ListMetrics` must match
   // the call that provided the page token.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
+  message Filter {
+    // Matches against any `Metric` that is requested by the specified `Report`.
+    string report = 1 [(google.api.resource_reference).type =
+                           "reporting.halo-cmm.org/Report"];
+  }
+  // Filter criteria.
+  //
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: This API uses structured filters. --)
+  Filter filter = 4;
 }
 
 // Response message for `ListMetrics` method.

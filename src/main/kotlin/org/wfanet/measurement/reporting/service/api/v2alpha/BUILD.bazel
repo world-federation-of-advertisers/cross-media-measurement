@@ -219,6 +219,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:submit_batch_requests",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:metric_spec_defaults",
