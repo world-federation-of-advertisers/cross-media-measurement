@@ -179,13 +179,7 @@ abstract class ImpressionMetadataServiceTest {
           createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
         )
 
-      assertThat(impressionMetadata)
-        .ignoringFields(
-          ImpressionMetadata.CREATE_TIME_FIELD_NUMBER,
-          ImpressionMetadata.UPDATE_TIME_FIELD_NUMBER,
-          ImpressionMetadata.ETAG_FIELD_NUMBER,
-        )
-        .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_ACTIVE })
+      assertThat(impressionMetadata.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
       assertThat(impressionMetadata.etag).isNotEmpty()
@@ -204,13 +198,7 @@ abstract class ImpressionMetadataServiceTest {
           }
         )
 
-      assertThat(impressionMetadata)
-        .ignoringFields(
-          ImpressionMetadata.CREATE_TIME_FIELD_NUMBER,
-          ImpressionMetadata.UPDATE_TIME_FIELD_NUMBER,
-          ImpressionMetadata.ETAG_FIELD_NUMBER,
-        )
-        .isEqualTo(IMPRESSION_METADATA.copy { state = State.IMPRESSION_METADATA_STATE_ACTIVE })
+      assertThat(impressionMetadata.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
       assertThat(impressionMetadata.etag).isNotEmpty()
