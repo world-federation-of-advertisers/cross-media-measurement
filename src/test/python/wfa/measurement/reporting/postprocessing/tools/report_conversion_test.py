@@ -14,7 +14,6 @@
 """Tests for report_conversion."""
 
 import unittest
-import os
 
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
@@ -31,11 +30,8 @@ class ReportConversionTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        test_data_dir = os.path.dirname(os.path.realpath(__file__))
-        report_result_textproto_path = os.path.join(
-            test_data_dir, 'sample_report_result.textproto')
-        with open(report_result_textproto_path, 'r') as f:
-            report_result_textproto = f.read()
+        with open('src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result.textproto', 'r') as file:
+            report_result_textproto = file.read()
         self.report_result = text_format.Parse(
             report_result_textproto, report_result_pb2.ReportResult())
 
