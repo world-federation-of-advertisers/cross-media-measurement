@@ -357,7 +357,7 @@ java_image(
     base = "@java_image_base_root",
     binary = ":ResultsFulfiller",
     labels = {
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET",
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],
