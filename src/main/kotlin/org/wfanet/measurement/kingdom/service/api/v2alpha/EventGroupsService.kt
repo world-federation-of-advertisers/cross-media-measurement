@@ -399,6 +399,12 @@ class EventGroupsService(
       if (internalFilter.hasDataAvailabilityEndTimeOnOrBefore()) {
         dataAvailabilityEndTimeOnOrBefore = internalFilter.dataAvailabilityEndTimeOnOrBefore
       }
+      if (internalFilter.hasDataAvailabilityStartTimeOnOrBefore()) {
+        dataAvailabilityStartTimeOnOrBefore = internalFilter.dataAvailabilityStartTimeOnOrBefore
+      }
+      if (internalFilter.hasDataAvailabilityEndTimeOnOrAfter()) {
+        dataAvailabilityEndTimeOnOrAfter = internalFilter.dataAvailabilityEndTimeOnOrAfter
+      }
       metadataSearchQuery = internalFilter.metadataSearchQuery
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
@@ -462,6 +468,12 @@ class EventGroupsService(
           if (filter.hasDataAvailabilityEndTimeOnOrBefore()) {
             dataAvailabilityEndTimeOnOrBefore = filter.dataAvailabilityEndTimeOnOrBefore
           }
+          if (filter.hasDataAvailabilityStartTimeOnOrBefore()) {
+            dataAvailabilityStartTimeOnOrBefore = filter.dataAvailabilityStartTimeOnOrBefore
+          }
+          if (filter.hasDataAvailabilityEndTimeOnOrAfter()) {
+            dataAvailabilityEndTimeOnOrAfter = filter.dataAvailabilityEndTimeOnOrAfter
+          }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -475,6 +487,9 @@ class EventGroupsService(
                 pageToken.dataAvailabilityStartTimeOnOrAfter !=
                   dataAvailabilityStartTimeOnOrAfter ||
                 pageToken.dataAvailabilityEndTimeOnOrBefore != dataAvailabilityEndTimeOnOrBefore ||
+                pageToken.dataAvailabilityStartTimeOnOrBefore !=
+                  dataAvailabilityStartTimeOnOrBefore ||
+                pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
                 pageToken.metadataSearchQuery != metadataSearchQuery
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(

@@ -29,7 +29,7 @@ option java_multiple_files = true;
 message ReportResult {
   // The CMMS Measurement Consumer ID. Required. Immutable.
   string cmms_measurement_consumer_id = 1;
-  // The external ID of this result. Required. Immutable.
+  // The external ID of this result. Immutable.
   fixed64 external_report_result_id = 2;
   // The report start time. Required. Immutable.
   google.type.DateTime report_start = 3;
@@ -59,13 +59,13 @@ message ReportResult {
     }
     // Frequency specification. Required.
     MetricFrequencySpec metric_frequency_spec = 5;
-    // The event template dimensions from the `DimensionSpec`, ordered by `path`
-    // and `value` following the natural order of the value type. Each event
-    // template field path may exist at most once in this list.
+    // The event template dimensions from the `DimensionSpec`, ordered by
+    // `path`. Each event template field path may exist at most once in this
+    // list.
     repeated EventTemplateField groupings = 6;
     // The event filters from the `DimensionSpec`, ordered by `terms`
-    // lexicographically. The terms themselves are ordered as described in
-    // `groupings`.
+    // lexicographically. The terms themselves are ordered by `path` and
+    // `value`, following the natural order of the value type.
     repeated EventFilter event_filters = 7;
   }
   message ReportingSetResult {
@@ -74,10 +74,18 @@ message ReportResult {
 
     // Window for report results. Immutable.
     //
+    // This implicitly covers up to two logical windows with the same end date:
+    // 1. The window for cumulative metrics, which starts at `report_start`
+    // 2. The window for non-cumulative metrics, which starts at
+    // `non_cumulative_start`.
+    //
     // The time of day is implicitly the time in `report_start`.
     message ReportingWindow {
-      // Start of the window range, inclusive. Required.
-      google.type.Date start = 1;
+      // Start of the window range for non-cumulative metrics, inclusive.
+      //
+      // Required if there are non-cumulative metrics in the corresponding
+      // `ReportingWindowResult`.
+      google.type.Date non_cumulative_start = 1;
       // End of the window range, inclusive. Required.
       google.type.Date end = 2;
     }

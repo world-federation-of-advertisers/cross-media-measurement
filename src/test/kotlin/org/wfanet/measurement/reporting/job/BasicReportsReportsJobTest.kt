@@ -78,6 +78,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
+import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
@@ -471,7 +472,7 @@ class BasicReportsReportsJobTest {
                       externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
                       vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
                       custom = true
-                      metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
+                      metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                       groupings += eventTemplateField {
                         path = "person.age_group"
                         value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
@@ -494,7 +495,7 @@ class BasicReportsReportsJobTest {
                         ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
                           key =
                             ReportResultKt.ReportingSetResultKt.reportingWindow {
-                              start = date {
+                              nonCumulativeStart = date {
                                 year = 2025
                                 month = 1
                                 day = 6
@@ -552,7 +553,7 @@ class BasicReportsReportsJobTest {
                         ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
                           key =
                             ReportResultKt.ReportingSetResultKt.reportingWindow {
-                              start = date {
+                              nonCumulativeStart = date {
                                 year = 2025
                                 month = 1
                                 day = 13
@@ -592,7 +593,7 @@ class BasicReportsReportsJobTest {
                       externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
                       vennDiagramRegionType = ReportResult.VennDiagramRegionType.PRIMITIVE
                       custom = true
-                      metricFrequencyType = ReportResult.MetricFrequencyType.WEEKLY
+                      metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                       groupings += eventTemplateField {
                         path = "person.age_group"
                         value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
@@ -614,7 +615,7 @@ class BasicReportsReportsJobTest {
                         ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
                           key =
                             ReportResultKt.ReportingSetResultKt.reportingWindow {
-                              start = date {
+                              nonCumulativeStart = date {
                                 year = 2025
                                 month = 1
                                 day = 6
@@ -654,7 +655,7 @@ class BasicReportsReportsJobTest {
                       externalReportingSetId = COMPOSITE_REPORTING_SET.externalReportingSetId
                       vennDiagramRegionType = ReportResult.VennDiagramRegionType.UNION
                       custom = true
-                      metricFrequencyType = ReportResult.MetricFrequencyType.TOTAL
+                      metricFrequencySpec = metricFrequencySpec { total = true }
                       groupings += eventTemplateField {
                         path = "person.age_group"
                         value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
@@ -1177,9 +1178,9 @@ class BasicReportsReportsJobTest {
           requestCaptor.firstValue.reportResult.reportingSetResultsList
             .single()
             .key
-            .metricFrequencyType
+            .metricFrequencySpec
         )
-        .isEqualTo(ReportResult.MetricFrequencyType.WEEKLY)
+        .isEqualTo(metricFrequencySpec { weekly = DayOfWeek.MONDAY })
     }
 
   @Test
@@ -1228,9 +1229,9 @@ class BasicReportsReportsJobTest {
         requestCaptor.firstValue.reportResult.reportingSetResultsList
           .single()
           .key
-          .metricFrequencyType
+          .metricFrequencySpec
       )
-      .isEqualTo(ReportResult.MetricFrequencyType.TOTAL)
+      .isEqualTo(metricFrequencySpec { total = true })
   }
 
   @Test
@@ -1667,7 +1668,7 @@ class BasicReportsReportsJobTest {
         ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
           key =
             ReportResultKt.ReportingSetResultKt.reportingWindow {
-              start = date {
+              nonCumulativeStart = date {
                 year = 2025
                 month = 1
                 day = 6
@@ -1858,7 +1859,7 @@ class BasicReportsReportsJobTest {
           ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
             key =
               ReportResultKt.ReportingSetResultKt.reportingWindow {
-                start = date {
+                nonCumulativeStart = date {
                   year = 2025
                   month = 1
                   day = 6

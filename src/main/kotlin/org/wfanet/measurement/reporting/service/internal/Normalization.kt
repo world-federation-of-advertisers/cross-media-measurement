@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.internal
 import com.google.common.collect.Ordering
 import org.wfanet.measurement.internal.reporting.v2.EventFilter
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.copy
 
 object Normalization {
   private val fieldValueComparator: Comparator<EventTemplateField.FieldValue> = compareBy {
@@ -31,10 +32,30 @@ object Normalization {
     }
   }
 
-  val eventTemplateFieldComparator: Comparator<EventTemplateField> =
+  private val groupingComparator: Comparator<EventTemplateField> = compareBy { it.path }
+
+  private val eventFilterTermComparator: Comparator<EventTemplateField> =
     compareBy { it: EventTemplateField -> it.path }
       .thenComparing({ it.value }, fieldValueComparator)
 
-  val eventFilterComparator: Comparator<EventFilter> =
-    compareBy(Ordering.from(eventTemplateFieldComparator).lexicographical()) { it.termsList }
+  private val eventFilterComparator: Comparator<EventFilter> =
+    compareBy(Ordering.from(eventFilterTermComparator).lexicographical()) { it.termsList }
+
+  /** Returns a sorted copy of [groupings]. */
+  fun sortGroupings(groupings: Iterable<EventTemplateField>): List<EventTemplateField> {
+    return groupings.sortedWith(groupingComparator)
+  }
+
+  /** Returns a normalized copy of [eventFilters]. */
+  fun normalizeEventFilters(eventFilters: Iterable<EventFilter>): List<EventFilter> {
+    return eventFilters
+      .map {
+        it.copy {
+          val normalizedTerms = terms.sortedWith(eventFilterTermComparator)
+          terms.clear()
+          terms += normalizedTerms
+        }
+      }
+      .sortedWith(eventFilterComparator)
+  }
 }

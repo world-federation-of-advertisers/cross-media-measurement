@@ -41,8 +41,8 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
-import org.wfanet.measurement.internal.reporting.v2.ReportResult.MetricFrequencyType
 import org.wfanet.measurement.internal.reporting.v2.ReportResult.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportResult.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
@@ -54,6 +54,7 @@ import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
@@ -238,13 +239,14 @@ class BasicReportsReportsJob(
             } else {
               custom = true
             }
-            metricFrequencyType = reportingSetResultInfoEntry.value.metricFrequencyType
+            metricFrequencySpec = reportingSetResultInfoEntry.value.metricFrequencySpec
             groupings +=
-              reportingSetResultInfoEntry.key.groupingPredicates
-                .map { eventTemplateFieldByPredicate.getValue(it) }
-                .sortedWith(Normalization.eventTemplateFieldComparator)
-            eventFilters +=
-              filterInfo.dimensionSpecFilters.sortedWith(Normalization.eventFilterComparator)
+              Normalization.sortGroupings(
+                reportingSetResultInfoEntry.key.groupingPredicates.map {
+                  eventTemplateFieldByPredicate.getValue(it)
+                }
+              )
+            eventFilters += Normalization.normalizeEventFilters(filterInfo.dimensionSpecFilters)
           }
         reportingSetResults +=
           ReportResultKt.reportingSetResultEntry {
@@ -256,13 +258,9 @@ class BasicReportsReportsJob(
                   reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
                   val window =
                     ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      start =
-                        reportingWindowResultInfoEntry.value.startDate
-                          ?: date {
-                            year = reportStart.year
-                            month = reportStart.month
-                            day = reportStart.day
-                          }
+                      if (reportingWindowResultInfoEntry.value.startDate != null) {
+                        nonCumulativeStart = reportingWindowResultInfoEntry.value.startDate!!
+                      }
                       end = reportingWindowResultInfoEntry.key
                     }
                   reportingWindowResults +=
@@ -370,8 +368,6 @@ class BasicReportsReportsJob(
         val metricCalculationSpecInfo: MetricCalculationSpecInfo =
           metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
 
-        val metricFrequencyType: MetricFrequencyType =
-          metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencyType()
         val vennDiagramRegionType: VennDiagramRegionType =
           vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
 
@@ -386,7 +382,8 @@ class BasicReportsReportsJob(
             ) {
               ReportingSetResultInfo(
                 vennDiagramRegionType = vennDiagramRegionType,
-                metricFrequencyType = metricFrequencyType,
+                metricFrequencySpec =
+                  metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
                 populationSize = 0,
                 reportingWindowResultInfoByEndDate = mutableMapOf(),
               )
@@ -501,17 +498,20 @@ class BasicReportsReportsJob(
       }
   }
 
-  /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencyType] */
-  private fun MetricCalculationSpec.MetricFrequencySpec.toMetricFrequencyType():
-    MetricFrequencyType {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case enums cannot be null.
-    return when (this.frequencyCase) {
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY -> MetricFrequencyType.WEEKLY
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET ->
-        MetricFrequencyType.TOTAL
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY,
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY ->
-        MetricFrequencyType.METRIC_FREQUENCY_TYPE_UNSPECIFIED
+  /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencySpec] */
+  private fun MetricCalculationSpec.MetricFrequencySpec.toMetricFrequencySpec():
+    MetricFrequencySpec {
+    val source = this
+
+    return metricFrequencySpec {
+      when (source.frequencyCase) {
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY ->
+          weekly = source.weekly.dayOfWeek
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> total = true
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY,
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY ->
+          error("Unsupported frequency type ${source.frequencyCase}")
+      }
     }
   }
 
@@ -707,7 +707,7 @@ class BasicReportsReportsJob(
 
   private data class ReportingSetResultInfo(
     val vennDiagramRegionType: VennDiagramRegionType,
-    val metricFrequencyType: MetricFrequencyType,
+    val metricFrequencySpec: MetricFrequencySpec,
     var populationSize: Int,
     val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>,
   )

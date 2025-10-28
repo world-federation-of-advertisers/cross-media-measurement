@@ -79,7 +79,6 @@ message ReportSummaryV2 {
       ReachResult reach = 4;
       FrequencyResult frequency = 5;
       ImpressionCountResult impression_count = 6;
-      string external_noisy_report_result_value_id = 7;
     }
 
     // A list of cumulative results, ordered by the end date of the window.
