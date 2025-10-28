@@ -166,87 +166,87 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_ami_total_measurements(self):
         """Tests conversion for a report with only non-cumulative total measurements."""
         ami_report_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: 123
-      report_start { year: 2025 month: 10 day: 1 }
-      reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          external_impression_qualification_filter_id: "ami"
-          metric_frequency_spec { total: true }
-          groupings {
-            path: "person.age_group"
-            value { enum_value: "YEARS_18_TO_34" }
-          }
-          groupings {
-            path: "person.gender"
-            value { enum_value: "MALE" }
-          }
-          event_filters {
-            terms {
-              path: "banner_ad.viewable"
-              value { bool_value: true }
-            }
-          }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 15 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { total: true }
+              groupings {
+                path: "person.age_group"
+                value { enum_value: "YEARS_18_TO_34" }
+              }
+              groupings {
+                path: "person.gender"
+                value { enum_value: "MALE" }
+              }
+              event_filters {
+                terms {
+                  path: "banner_ad.viewable"
+                  value { bool_value: true }
+                }
+              }
             }
             value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach {
-                    value: 5000
-                    univariate_statistics { standard_deviation: 200 }
-                  }
-                  impression_count { value: 50000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 2500 } }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach {
+                        value: 5000
+                        univariate_statistics { standard_deviation: 200 }
+                      }
+                      impression_count { value: 50000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 2500 } }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        }
-      }
-    """
+        """
         expected_ami_report_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "banner_ad.viewable=True"
-      grouping_predicates: "person.age_group=YEARS_18_TO_34"
-      grouping_predicates: "person.gender=MALE"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "ami"
-        set_operation: "union"
-        data_providers: "edp1"
-        non_cumulative_results {
-          metric_frequency_type: TOTAL
-          reach {
-            value: 5000
-            standard_deviation: 200
-            metric: "reach_non_cumulative_edp1_ami_2025_10_15"
-          }
-          impression_count {
-            value: 50000
-            metric: "impression_non_cumulative_edp1_ami_2025_10_15"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 2500 }
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "banner_ad.viewable=True"
+          grouping_predicates: "person.age_group=YEARS_18_TO_34"
+          grouping_predicates: "person.gender=MALE"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "ami"
+            set_operation: "union"
+            data_providers: "edp1"
+            non_cumulative_results {
+              metric_frequency_type: TOTAL
+              reach {
+                value: 5000
+                standard_deviation: 200
+                metric: "reach_non_cumulative_edp1_ami_2025_10_15"
+              }
+              impression_count {
+                value: 50000
+                metric: "impression_non_cumulative_edp1_ami_2025_10_15"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 2500 }
+                }
+                metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
           }
-        }
-      }
-    """
+        """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(
@@ -262,71 +262,71 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_custom_total_measurements(self):
         """Tests conversion for a report with only non-cumulative total measurements."""
         custom_report_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: 123
-      report_start { year: 2025 month: 10 day: 1 }
-      reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          custom: true
-          metric_frequency_spec { total: true }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 15 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              custom: true
+              metric_frequency_spec { total: true }
             }
             value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach {
-                    value: 5000
-                    univariate_statistics { standard_deviation: 200 }
-                  }
-                  impression_count { value: 50000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 2500 } }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach {
+                        value: 5000
+                        univariate_statistics { standard_deviation: 200 }
+                      }
+                      impression_count { value: 50000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 2500 } }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        }
-      }
-    """
+        """
         expected_custom_report_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "-"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "custom"
-        set_operation: "union"
-        data_providers: "edp1"
-        non_cumulative_results {
-          metric_frequency_type: TOTAL
-          reach {
-            value: 5000
-            standard_deviation: 200
-            metric: "reach_non_cumulative_edp1_custom_2025_10_15"
-          }
-          impression_count {
-            value: 50000
-            metric: "impression_non_cumulative_edp1_custom_2025_10_15"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 2500 }
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "-"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "custom"
+            set_operation: "union"
+            data_providers: "edp1"
+            non_cumulative_results {
+              metric_frequency_type: TOTAL
+              reach {
+                value: 5000
+                standard_deviation: 200
+                metric: "reach_non_cumulative_edp1_custom_2025_10_15"
+              }
+              impression_count {
+                value: 50000
+                metric: "impression_non_cumulative_edp1_custom_2025_10_15"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 2500 }
+                }
+                metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
           }
-        }
-      }
-    """
+        """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(
@@ -343,106 +343,106 @@ class ReportConversionTest(unittest.TestCase):
             self):
         """Tests conversion for a report with only non-cumulative weekly measurements."""
         ami_report_textproto = """
-     cmms_measurement_consumer_id: "abcd"
-     external_report_result_id: 123
-     report_start { year: 2025 month: 10 day: 1 }
-     reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          external_impression_qualification_filter_id: "ami"
-          metric_frequency_spec { weekly: MONDAY }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 8 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { weekly: MONDAY }
             }
             value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach { value: 2000 }
-                  impression_count { value: 20000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 1000 } }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 8 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach { value: 2000 }
+                      impression_count { value: 20000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 1000 } }
+                      }
+                    }
+                  }
+                }
+              }
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 8 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach {
+                        value: 3000
+                        univariate_statistics { standard_deviation: 150 }
+                      }
+                      impression_count { value: 30000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 1500 } }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-          reporting_window_results {
-            key {
-              non_cumulative_start { year: 2025 month: 10 day: 8 }
-              end { year: 2025 month: 10 day: 15 }
-            }
-            value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach {
-                    value: 3000
-                    univariate_statistics { standard_deviation: 150 }
-                  }
-                  impression_count { value: 30000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 1500 } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    """
+        """
         expected_ami_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "-"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "ami"
-        set_operation: "union"
-        data_providers: "edp1"
-        non_cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 2000
-            metric: "reach_non_cumulative_edp1_ami_2025_10_08"
-          }
-          impression_count {
-            value: 20000
-            metric: "impression_non_cumulative_edp1_ami_2025_10_08"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 1000 }
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "-"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "ami"
+            set_operation: "union"
+            data_providers: "edp1"
+            non_cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 2000
+                metric: "reach_non_cumulative_edp1_ami_2025_10_08"
+              }
+              impression_count {
+                value: 20000
+                metric: "impression_non_cumulative_edp1_ami_2025_10_08"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 1000 }
+                }
+                metric: "frequency_non_cumulative_edp1_ami_2025_10_08"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_ami_2025_10_08"
-          }
-        }
-        non_cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 3000
-            standard_deviation: 150
-            metric: "reach_non_cumulative_edp1_ami_2025_10_15"
-          }
-          impression_count {
-            value: 30000
-            metric: "impression_non_cumulative_edp1_ami_2025_10_15"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 1500 }
+            non_cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 3000
+                standard_deviation: 150
+                metric: "reach_non_cumulative_edp1_ami_2025_10_15"
+              }
+              impression_count {
+                value: 30000
+                metric: "impression_non_cumulative_edp1_ami_2025_10_15"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 1500 }
+                }
+                metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
           }
-        }
-     }
-    """
+        """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(
@@ -458,122 +458,122 @@ class ReportConversionTest(unittest.TestCase):
             self):
         """Tests conversion for a report with only non-cumulative weekly measurements."""
         custom_report_textproto = """
-     cmms_measurement_consumer_id: "abcd"
-     external_report_result_id: 123
-     report_start { year: 2025 month: 10 day: 1 }
-     reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          custom: true
-          metric_frequency_spec { weekly: MONDAY }
-          groupings {
-            path: "person.age_group"
-            value { enum_value: "YEARS_18_TO_34" }
-          }
-          groupings {
-            path: "person.gender"
-            value { enum_value: "MALE" }
-          }
-          event_filters {
-            terms {
-              path: "banner_ad.viewable"
-              value { bool_value: true }
-            }
-          }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 8 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              custom: true
+              metric_frequency_spec { weekly: MONDAY }
+              groupings {
+                path: "person.age_group"
+                value { enum_value: "YEARS_18_TO_34" }
+              }
+              groupings {
+                path: "person.gender"
+                value { enum_value: "MALE" }
+              }
+              event_filters {
+                terms {
+                  path: "banner_ad.viewable"
+                  value { bool_value: true }
+                }
+              }
             }
             value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach { value: 2000 }
-                  impression_count { value: 20000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 1000 } }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 8 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach { value: 2000 }
+                      impression_count { value: 20000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 1000 } }
+                      }
+                    }
+                  }
+                }
+              }
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 8 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach {
+                        value: 3000
+                        univariate_statistics { standard_deviation: 150 }
+                      }
+                      impression_count { value: 30000 }
+                      frequency_histogram {
+                        bin_results { key: "1" value { value: 1500 } }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-          reporting_window_results {
-            key {
-              non_cumulative_start { year: 2025 month: 10 day: 8 }
-              end { year: 2025 month: 10 day: 15 }
-            }
-            value {
-              noisy_report_result_values {
-                non_cumulative_results {
-                  reach {
-                    value: 3000
-                    univariate_statistics { standard_deviation: 150 }
-                  }
-                  impression_count { value: 30000 }
-                  frequency_histogram {
-                    bin_results { key: "1" value { value: 1500 } }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    """
+        """
         expected_custom_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "banner_ad.viewable=True"
-      grouping_predicates: "person.age_group=YEARS_18_TO_34"
-      grouping_predicates: "person.gender=MALE"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "custom"
-        set_operation: "union"
-        data_providers: "edp1"
-        non_cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 2000
-            metric: "reach_non_cumulative_edp1_custom_2025_10_08"
-          }
-          impression_count {
-            value: 20000
-            metric: "impression_non_cumulative_edp1_custom_2025_10_08"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 1000 }
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "banner_ad.viewable=True"
+          grouping_predicates: "person.age_group=YEARS_18_TO_34"
+          grouping_predicates: "person.gender=MALE"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "custom"
+            set_operation: "union"
+            data_providers: "edp1"
+            non_cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 2000
+                metric: "reach_non_cumulative_edp1_custom_2025_10_08"
+              }
+              impression_count {
+                value: 20000
+                metric: "impression_non_cumulative_edp1_custom_2025_10_08"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 1000 }
+                }
+                metric: "frequency_non_cumulative_edp1_custom_2025_10_08"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_custom_2025_10_08"
-          }
-        }
-        non_cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 3000
-            standard_deviation: 150
-            metric: "reach_non_cumulative_edp1_custom_2025_10_15"
-          }
-          impression_count {
-            value: 30000
-            metric: "impression_non_cumulative_edp1_custom_2025_10_15"
-          }
-          frequency {
-            bins {
-              key: "1"
-              value { value: 1500 }
+            non_cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 3000
+                standard_deviation: 150
+                metric: "reach_non_cumulative_edp1_custom_2025_10_15"
+              }
+              impression_count {
+                value: 30000
+                metric: "impression_non_cumulative_edp1_custom_2025_10_15"
+              }
+              frequency {
+                bins {
+                  key: "1"
+                  value { value: 1500 }
+                }
+                metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
+              }
             }
-            metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
-          }
-        }
-     }
-    """
+         }
+        """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(
@@ -589,76 +589,76 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_cumulative_ami_measurements(self):
         """Tests conversion for a report with only cumulative weekly measurements."""
         ami_report_textproto = """
-     cmms_measurement_consumer_id: "abcd"
-     external_report_result_id: 123
-     report_start { year: 2025 month: 10 day: 1 }
-     reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          external_impression_qualification_filter_id: "ami"
-          metric_frequency_spec { weekly: MONDAY }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 8 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { weekly: MONDAY }
             }
             value {
-              noisy_report_result_values {
-                cumulative_results {
-                  reach { value: 2000 }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 8 }
+                }
+                value {
+                  noisy_report_result_values {
+                    cumulative_results {
+                      reach { value: 2000 }
+                    }
+                  }
                 }
               }
-            }
-          }
-          reporting_window_results {
-            key {
-              non_cumulative_start { year: 2025 month: 10 day: 8 }
-              end { year: 2025 month: 10 day: 15 }
-            }
-            value {
-              noisy_report_result_values {
-                cumulative_results {
-                  reach {
-                    value: 3000
-                    univariate_statistics { standard_deviation: 150 }
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 8 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    cumulative_results {
+                      reach {
+                        value: 3000
+                        univariate_statistics { standard_deviation: 150 }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        }
-      }
-    """
+        """
         expected_ami_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "-"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "ami"
-        set_operation: "union"
-        data_providers: "edp1"
-        cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 2000
-            metric: "reach_cumulative_edp1_ami_2025_10_08"
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "-"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "ami"
+            set_operation: "union"
+            data_providers: "edp1"
+            cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 2000
+                metric: "reach_cumulative_edp1_ami_2025_10_08"
+              }
+            }
+            cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 3000
+                standard_deviation: 150
+                metric: "reach_cumulative_edp1_ami_2025_10_15"
+              }
+            }
           }
-        }
-        cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 3000
-            standard_deviation: 150
-            metric: "reach_cumulative_edp1_ami_2025_10_15"
-          }
-        }
-     }
-    """
+        """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(
@@ -673,76 +673,76 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_cumulative_custom_measurements(self):
         """Tests conversion for a report with only cumulative measurements."""
         custom_report_textproto = """
-     cmms_measurement_consumer_id: "abcd"
-     external_report_result_id: 123
-     report_start { year: 2025 month: 10 day: 1 }
-     reporting_set_results {
-        key {
-          external_reporting_set_id: "edp1"
-          venn_diagram_region_type: UNION
-          custom: true
-          metric_frequency_spec { weekly: MONDAY }
-        }
-        value {
-          population_size: 10000
-          reporting_window_results {
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
             key {
-              non_cumulative_start { year: 2025 month: 10 day: 1 }
-              end { year: 2025 month: 10 day: 8 }
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              custom: true
+              metric_frequency_spec { weekly: MONDAY }
             }
             value {
-              noisy_report_result_values {
-                cumulative_results {
-                  reach { value: 2000 }
+              population_size: 10000
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 8 }
+                }
+                value {
+                  noisy_report_result_values {
+                    cumulative_results {
+                      reach { value: 2000 }
+                    }
+                  }
                 }
               }
-            }
-          }
-          reporting_window_results {
-            key {
-              non_cumulative_start { year: 2025 month: 10 day: 8 }
-              end { year: 2025 month: 10 day: 15 }
-            }
-            value {
-              noisy_report_result_values {
-                cumulative_results {
-                  reach {
-                    value: 3000
-                    univariate_statistics { standard_deviation: 150 }
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 8 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    cumulative_results {
+                      reach {
+                        value: 3000
+                        univariate_statistics { standard_deviation: 150 }
+                      }
+                    }
                   }
                 }
               }
             }
           }
-        }
-      }
-    """
+        """
         expected_custom_summary_textproto = """
-      cmms_measurement_consumer_id: "abcd"
-      external_report_result_id: "123"
-      grouping_predicates: "-"
-      population: 10000
-      report_summary_set_results {
-        impression_filter: "custom"
-        set_operation: "union"
-        data_providers: "edp1"
-        cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 2000
-            metric: "reach_cumulative_edp1_custom_2025_10_08"
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: "123"
+          grouping_predicates: "-"
+          population: 10000
+          report_summary_set_results {
+            impression_filter: "custom"
+            set_operation: "union"
+            data_providers: "edp1"
+            cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 2000
+                metric: "reach_cumulative_edp1_custom_2025_10_08"
+              }
+            }
+            cumulative_results {
+              metric_frequency_type: WEEKLY
+              reach {
+                value: 3000
+                standard_deviation: 150
+                metric: "reach_cumulative_edp1_custom_2025_10_15"
+              }
+            }
           }
-        }
-        cumulative_results {
-          metric_frequency_type: WEEKLY
-          reach {
-            value: 3000
-            standard_deviation: 150
-            metric: "reach_cumulative_edp1_custom_2025_10_15"
-          }
-        }
-     }
-    """
+        """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
         report_summaries = get_report_summary_v2_from_report_result(

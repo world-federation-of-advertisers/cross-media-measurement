@@ -35,15 +35,15 @@ def get_report_summary_v2_from_report_result(
     report_result: ReportResult,
     edp_combinations_by_reporting_set_id: dict[str, list[str]],
 ) -> list[ReportSummaryV2]:
-    """Converts a ReportResult to a list of ReportSummaryV2, grouped by demographics.
+    """Converts a ReportResult to a list of ReportSummaryV2.
 
   Args:
     report_result: The ReportResult to convert.
     edp_combinations_by_reporting_set_id: A dict mapping reporting set id to EDPs.
 
   Returns:
-    A list of converted ReportSummaryV2 messages, one for each demographic
-    group found in the report_result.
+    A list of converted ReportSummaryV2 messages, one for each set of grouping
+    predicates found in the report_result.
   """
     if not report_result.cmms_measurement_consumer_id:
         raise ValueError(
