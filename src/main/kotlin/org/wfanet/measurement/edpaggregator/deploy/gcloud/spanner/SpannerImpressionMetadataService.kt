@@ -256,7 +256,11 @@ class SpannerImpressionMetadataService(
             )
 
           if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
-            return@run result.impressionMetadata
+            throw ImpressionMetadataNotFoundException(
+                request.dataProviderResourceId,
+                request.impressionMetadataResourceId,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
           }
 
           txn.updateImpressionMetadataState(
@@ -275,14 +279,10 @@ class SpannerImpressionMetadataService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
-    if (deletedImpressionMetadata.hasUpdateTime()) {
-      return deletedImpressionMetadata
-    } else {
-      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      return deletedImpressionMetadata.copy {
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
-      }
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return deletedImpressionMetadata.copy {
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
     }
   }
 

@@ -506,6 +506,49 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `deleteImpressionMetadata throws NOT_FOUND when ImpressionMetadata was already deleted`() =
+    runBlocking {
+      val created =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        )
+
+      val deleteRequest = deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+      }
+
+      val deleted = service.deleteImpressionMetadata(deleteRequest)
+
+      assertThat(deleted.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
+      assertThat(deleted)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          created.copy {
+            state = State.IMPRESSION_METADATA_STATE_DELETED
+            clearUpdateTime()
+            clearEtag()
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.deleteImpressionMetadata(deleteRequest) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] =
+              deleteRequest.dataProviderResourceId
+            metadata[Errors.Metadata.IMPRESSION_METADATA_RESOURCE_ID.key] =
+              deleteRequest.impressionMetadataResourceId
+          }
+        )
+    }
+
+  @Test
   fun `batchDeleteImpressionMetadata returns deleted ImpressionMetadata`() = runBlocking {
     val created1 =
       service.createImpressionMetadata(
