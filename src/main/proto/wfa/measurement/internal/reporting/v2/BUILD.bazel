@@ -447,7 +447,5 @@ proto_library(
 
 py_proto_library(
     name = "v2_py_pb2",
-    deps = [
-        ":v2_protos",
-    ],
+    deps = [":v2_protos"],
 )
