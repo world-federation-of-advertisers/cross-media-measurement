@@ -427,7 +427,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
    * @param reportResult [ReportResult] to get [ReportResult.ReportingSetResult]s from
    */
   private fun buildReportingWindowResultValuesByResultGroupSpecKey(
-    reportResult: ReportResult,
+    reportResult: ReportResult
   ): Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> {
     return buildMap<
       ResultGroupSpecKey,
@@ -459,7 +459,10 @@ object BasicReportNoiseCorrectedResultsTransformation {
             ReportingWindowResultKey(
               groupings = reportingSetResult.key.groupingsList.toSet(),
               nonCumulativeWindowStartDate =
-                if (reportingSetResult.key.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY) {
+                if (
+                  reportingSetResult.key.metricFrequencySpec.selectorCase ==
+                    MetricFrequencySpec.SelectorCase.WEEKLY
+                ) {
                   reportingWindowResult.key.nonCumulativeStart
                 } else {
                   null
@@ -478,7 +481,8 @@ object BasicReportNoiseCorrectedResultsTransformation {
             reportingWindowResultMap.getOrPut(key) { value }
 
           if (
-            reportingWindowResultValues.populationSize == 0 && reportingSetResult.value.populationSize > 0
+            reportingWindowResultValues.populationSize == 0 &&
+              reportingSetResult.value.populationSize > 0
           ) {
             reportingWindowResultValues.populationSize = reportingSetResult.value.populationSize
           }
