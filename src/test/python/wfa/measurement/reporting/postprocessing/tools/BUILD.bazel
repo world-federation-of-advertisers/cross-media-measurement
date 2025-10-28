@@ -44,14 +44,12 @@ py_test(
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:report_conversion",
         requirement("absl-py"),
-        requirement("protobuf"),
         requirement("google-api-core"),
+        requirement("protobuf"),
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:v2_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:google_type_pb2",
     ],
 )
-
 
 filegroup(
     name = "sample_reports",

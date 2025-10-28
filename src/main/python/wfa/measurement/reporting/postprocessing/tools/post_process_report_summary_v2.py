@@ -182,7 +182,7 @@ class ReportSummaryV2Processor:
         if result.HasField("frequency"):
             for key, bin_result in result.frequency.bins.items():
                 k_reach_id = f"{result.frequency.metric}-bin-{key}"
-                k_reach[key] = Measurement(
+                k_reach[int(key)] = Measurement(
                     bin_result.value, bin_result.standard_deviation, k_reach_id
                 )
         if result.HasField("impression_count"):
@@ -191,6 +191,7 @@ class ReportSummaryV2Processor:
                 result.impression_count.standard_deviation,
                 result.impression_count.metric,
             )
+        print(k_reach)
         return MeasurementSet(reach=reach,
                               k_reach=k_reach,
                               impression=impression)
