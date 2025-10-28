@@ -70,6 +70,13 @@ def get_report_summary_v2_from_report_result(
     group_key = _get_group_key(reporting_set_result_entry.key)
     grouped_results[group_key].append(reporting_set_result_entry)
 
+  # Validate that all reporting windows have start and end dates before processing.
+  for reporting_set_result_entry in report_result.reporting_set_results:
+    for window_entry in reporting_set_result_entry.value.reporting_window_results:
+      if not window_entry.key.HasField("start"):
+        raise ValueError("ReportingWindow must have a start date.")
+      if not window_entry.key.HasField("end"):
+        raise ValueError("ReportingWindow must have an end date.")
   # Determine the overall report date range to identify whole-campaign results.
   all_window_dates = [
       (
@@ -100,7 +107,9 @@ def get_report_summary_v2_from_report_result(
         report_result.external_report_result_id
     )
     # Create a descriptive string for each term in the group key (e.g., "path=value")
-    grouping_predicate_strings = [f"{path}={value}" for path, value in group_key]
+    grouping_predicate_strings = [
+        f"{path}={value}" for path, value in group_key if value
+    ]
     report_summary.grouping_predicates.extend(
         sorted(grouping_predicate_strings) or ["-"]
     )
@@ -166,10 +175,6 @@ def get_report_summary_v2_from_report_result(
       for window_entry in sorted_window_results:
         window_key = window_entry.key
         window_value = window_entry.value
-        if not window_key.HasField("start"):
-          raise ValueError("ReportingWindow must have a start date.")
-        if not window_key.HasField("end"):
-          raise ValueError("ReportingWindow must have an end date.")
         # We only process noisy results for post-processing.
         if not window_value.HasField("noisy_report_result_values"):
           continue
