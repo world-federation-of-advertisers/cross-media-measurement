@@ -191,7 +191,6 @@ class ReportSummaryV2Processor:
                 result.impression_count.standard_deviation,
                 result.impression_count.metric,
             )
-        print(k_reach)
         return MeasurementSet(reach=reach,
                               k_reach=k_reach,
                               impression=impression)
