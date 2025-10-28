@@ -346,13 +346,15 @@ object BasicReportNoiseCorrectedResultsTransformation {
           ResultGroupKt.metricMetadata {
             this.reportingUnitSummary = reportingUnitSummary
 
-            if (reportingWindowResults.key.nonCumulativeWindowStartDate != null) {
+            val nonCumulativeWindowStartDate =
+              reportingWindowResults.key.nonCumulativeWindowStartDate
+            if (nonCumulativeWindowStartDate != null) {
               nonCumulativeMetricStartTime =
                 reportStart
                   .copy {
-                    day = reportingWindowResults.key.nonCumulativeWindowStartDate!!.day
-                    month = reportingWindowResults.key.nonCumulativeWindowStartDate!!.month
-                    year = reportingWindowResults.key.nonCumulativeWindowStartDate!!.year
+                    day = nonCumulativeWindowStartDate.day
+                    month = nonCumulativeWindowStartDate.month
+                    year = nonCumulativeWindowStartDate.year
                   }
                   .toTimestamp()
             }
