@@ -257,10 +257,9 @@ class SpannerImpressionMetadataService(
 
           if (result.impressionMetadata.state == State.IMPRESSION_METADATA_STATE_DELETED) {
             throw ImpressionMetadataNotFoundException(
-                request.dataProviderResourceId,
-                request.impressionMetadataResourceId,
-              )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+            )
           }
 
           txn.updateImpressionMetadataState(
