@@ -33,7 +33,6 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
-import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 
 object BasicReportNoiseCorrectedResultsTransformation {
@@ -55,7 +54,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
   ): List<ResultGroup> {
     val reportingWindowResultValuesByResultGroupSpecKey:
       Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> =
-      buildReportingWindowResultValuesByResultGroupSpecKey(basicReport, reportResult)
+      buildReportingWindowResultValuesByResultGroupSpecKey(reportResult)
 
     // If there is no custom ReportingImpressionQualificationFilter, this will be unused so the
     // value
@@ -347,14 +346,13 @@ object BasicReportNoiseCorrectedResultsTransformation {
           ResultGroupKt.metricMetadata {
             this.reportingUnitSummary = reportingUnitSummary
 
-            // If the windowStartDate is empty, then there are no non-cumulative metrics.
-            if (reportingWindowResults.key.windowStartDate.day != 0) {
+            if (reportingWindowResults.key.nonCumulativeWindowStartDate != null) {
               nonCumulativeMetricStartTime =
                 reportStart
                   .copy {
-                    day = reportingWindowResults.key.windowStartDate.day
-                    month = reportingWindowResults.key.windowStartDate.month
-                    year = reportingWindowResults.key.windowStartDate.year
+                    day = reportingWindowResults.key.nonCumulativeWindowStartDate!!.day
+                    month = reportingWindowResults.key.nonCumulativeWindowStartDate!!.month
+                    year = reportingWindowResults.key.nonCumulativeWindowStartDate!!.year
                   }
                   .toTimestamp()
             }
@@ -426,61 +424,31 @@ object BasicReportNoiseCorrectedResultsTransformation {
   /**
    * Builds a Map for finding all results for each [ResultGroupSpec] in the [BasicReport]
    *
-   * @param basicReport [BasicReport] to get [ResultGroupSpec]s from
    * @param reportResult [ReportResult] to get [ReportResult.ReportingSetResult]s from
    */
   private fun buildReportingWindowResultValuesByResultGroupSpecKey(
-    basicReport: BasicReport,
     reportResult: ReportResult,
   ): Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> {
-    val totalMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec { total = true }
-
-    // ReportResult only has a weekly enum and not the DayOfWeek. Without that information, the
-    // assumption is that the DayOfWeek is the same for all weekly frequencies.
-    var weeklyMetricFrequencySpec: MetricFrequencySpec = metricFrequencySpec {}
-    for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
-      if (resultGroupSpec.metricFrequency.hasWeekly()) {
-        weeklyMetricFrequencySpec = resultGroupSpec.metricFrequency
-      }
-    }
-
     return buildMap<
       ResultGroupSpecKey,
       MutableMap<ReportingWindowResultKey, ReportingWindowResultValues>,
     > {
       for (reportingSetResult in reportResult.reportingSetResultsList) {
-        for (reportingWindowResult in reportingSetResult.reportingWindowResultsList) {
+        for (reportingWindowResult in reportingSetResult.value.reportingWindowResultsList) {
           val externalImpressionQualificationFilterId: String? =
-            if (reportingSetResult.custom) {
+            if (reportingSetResult.key.custom) {
               null
             } else {
-              reportingSetResult.externalImpressionQualificationFilterId
-            }
-
-          val metricFrequencySpec: MetricFrequencySpec =
-            when (reportingSetResult.metricFrequencyType) {
-              ReportResult.MetricFrequencyType.TOTAL -> {
-                totalMetricFrequencySpec
-              }
-
-              ReportResult.MetricFrequencyType.WEEKLY -> {
-                weeklyMetricFrequencySpec
-              }
-
-              else -> {
-                throw IllegalStateException(
-                  "Unknown metric frequency type: ${reportingSetResult.metricFrequencyType}"
-                )
-              }
+              reportingSetResult.key.externalImpressionQualificationFilterId
             }
 
           // This isn't unique to a ResultGroupSpec because it doesn't include the ReportingUnit,
           // but it is unique enough to get the results for every ResultGroupSpec that matches this.
           val resultGroupSpecKey =
             ResultGroupSpecKey(
-              metricFrequencySpec = metricFrequencySpec,
-              groupingFields = reportingSetResult.groupingsList.map { it.path }.toSet(),
-              eventFilters = reportingSetResult.eventFiltersList.toSet(),
+              metricFrequencySpec = reportingSetResult.key.metricFrequencySpec,
+              groupingFields = reportingSetResult.key.groupingsList.map { it.path }.toSet(),
+              eventFilters = reportingSetResult.key.eventFiltersList.toSet(),
             )
 
           val reportingWindowResultMap:
@@ -489,15 +457,20 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
           val key =
             ReportingWindowResultKey(
-              groupings = reportingSetResult.groupingsList.toSet(),
-              windowStartDate = reportingWindowResult.windowStartDate,
-              windowEndDate = reportingWindowResult.windowEndDate,
+              groupings = reportingSetResult.key.groupingsList.toSet(),
+              nonCumulativeWindowStartDate =
+                if (reportingSetResult.key.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY) {
+                  reportingWindowResult.key.nonCumulativeStart
+                } else {
+                  null
+                },
+              windowEndDate = reportingWindowResult.key.end,
               externalImpressionQualificationFilterId = externalImpressionQualificationFilterId,
             )
 
           val value =
             ReportingWindowResultValues(
-              populationSize = reportingSetResult.populationSize,
+              populationSize = reportingSetResult.value.populationSize,
               reportResultValuesByExternalReportingSetId = mutableMapOf(),
             )
 
@@ -505,14 +478,14 @@ object BasicReportNoiseCorrectedResultsTransformation {
             reportingWindowResultMap.getOrPut(key) { value }
 
           if (
-            reportingWindowResultValues.populationSize == 0 && reportingSetResult.populationSize > 0
+            reportingWindowResultValues.populationSize == 0 && reportingSetResult.value.populationSize > 0
           ) {
-            reportingWindowResultValues.populationSize = reportingSetResult.populationSize
+            reportingWindowResultValues.populationSize = reportingSetResult.value.populationSize
           }
 
           reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
-              reportingSetResult.externalReportingSetId] =
-            reportingWindowResult.denoisedReportResultValues
+              reportingSetResult.key.externalReportingSetId] =
+            reportingWindowResult.value.denoisedReportResultValues
         }
       }
     }
@@ -720,7 +693,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
   private data class ReportingWindowResultKey(
     val groupings: Set<EventTemplateField>,
-    val windowStartDate: Date,
+    val nonCumulativeWindowStartDate: Date?,
     val windowEndDate: Date,
     val externalImpressionQualificationFilterId: String? = null,
   )
