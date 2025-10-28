@@ -3719,9 +3719,9 @@ class ReportsServiceTest {
               metric {
                 name =
                   MetricKey(
-                    MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
-                    ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
-                  )
+                      MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+                      ExternalId(REACH_METRIC_ID_BASE_LONG + index).apiId.value,
+                    )
                     .toName()
                 reportingSet = PRIMITIVE_REPORTING_SETS.first().name
                 timeInterval = interval

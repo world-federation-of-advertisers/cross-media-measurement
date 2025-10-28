@@ -175,9 +175,8 @@ class ReportsService(
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       for (reportName in reportNames) {
         val metricsFlow: Flow<ResourceList<Metric, String>> =
-          metricsStub
-            .withForwardedTrustedCredentials()
-            .listResources(Int.MAX_VALUE) { pageToken, _ ->
+          metricsStub.withForwardedTrustedCredentials().listResources(Int.MAX_VALUE) { pageToken, _
+            ->
             val response: ListMetricsResponse =
               listMetrics(
                 listMetricsRequest {
@@ -245,9 +244,7 @@ class ReportsService(
 
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       val metricsFlow: Flow<ResourceList<Metric, String>> =
-        metricsStub
-          .withForwardedTrustedCredentials()
-          .listResources(Int.MAX_VALUE) { pageToken, _ ->
+        metricsStub.withForwardedTrustedCredentials().listResources(Int.MAX_VALUE) { pageToken, _ ->
           val response: ListMetricsResponse =
             listMetrics(
               listMetricsRequest {
