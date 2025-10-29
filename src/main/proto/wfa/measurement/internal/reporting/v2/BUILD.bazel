@@ -410,42 +410,29 @@ proto_library(
     for prefix in SERVICE_LIBS
 ]
 
+[
+     py_proto_library(
+         name = "{prefix}_py_pb2".format(prefix = prefix),
+         deps = [":{prefix}_proto".format(prefix = prefix)],
+     )
+    for prefix in MESSAGE_LIBS
+]
+
 proto_descriptor_set(
-    name = "descriptor_set",
-    deps = [
-        ":basic_report_details_proto",
-        ":basic_report_result_details_proto",
-        ":event_filter_proto",
-        ":event_template_field_proto",
-        ":impression_qualification_filter_proto",
-        ":impression_qualification_filter_spec_proto",
-        ":metric_frequency_spec_proto",
-        ":report_result_proto",
-        ":reporting_impression_qualification_filter_proto",
-        ":reporting_interval_proto",
-        ":reporting_unit_proto",
-        ":result_group_proto",
-        ":result_group_spec_proto",
-    ],
-)
-
-proto_library(
-    name = "v2_protos",
-    srcs = glob(["*.proto"]),
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_googleapis//google/type:date_proto",
-        "@com_google_googleapis//google/type:datetime_proto",
-        "@com_google_googleapis//google/type:dayofweek_proto",
-        "@com_google_googleapis//google/type:interval_proto",
-        "@com_google_protobuf//:duration_proto",
-        "@com_google_protobuf//:empty_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-py_proto_library(
-    name = "v2_py_pb2",
-    deps = [":v2_protos"],
-)
+     name = "descriptor_set",
+     deps = [
+         ":basic_report_details_proto",
+         ":basic_report_result_details_proto",
+         ":event_filter_proto",
+         ":event_template_field_proto",
+         ":impression_qualification_filter_proto",
+         ":impression_qualification_filter_spec_proto",
+         ":metric_frequency_spec_proto",
+         ":report_result_proto",
+         ":reporting_impression_qualification_filter_proto",
+         ":reporting_interval_proto",
+         ":reporting_unit_proto",
+         ":result_group_proto",
+         ":result_group_spec_proto",
+     ],
+ )

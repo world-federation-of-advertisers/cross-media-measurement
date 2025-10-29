@@ -74,6 +74,6 @@ py_library(
         requirement("google-api-core"),
         requirement("protobuf"),
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:v2_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
     ],
 )

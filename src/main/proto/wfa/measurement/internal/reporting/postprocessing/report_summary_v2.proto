@@ -51,6 +51,7 @@ message ReportSummaryV2 {
         int64 value = 1;
         double standard_deviation = 2;
       }
+      // Map of bin label to `BinResult`.
       map<string, BinResult> bins = 1;
 
       // The unique name that is associated with this result.

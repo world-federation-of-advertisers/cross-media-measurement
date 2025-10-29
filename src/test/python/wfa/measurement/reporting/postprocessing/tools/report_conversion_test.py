@@ -22,15 +22,17 @@ from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
     report_summary_v2_pb2, )
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
 
-ReportSummaryWindowResult = (
-    report_summary_v2_pb2.ReportSummaryV2.ReportSummarySetResult.ReportSummaryWindowResult
-)
+ReportSummaryWindowResult = (report_summary_v2_pb2.ReportSummaryV2.
+                             ReportSummarySetResult.ReportSummaryWindowResult)
+
 
 class ReportConversionTest(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        with open('src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result.textproto', 'r') as file:
+        with open(
+                'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result.textproto',
+                'r') as file:
             report_result_textproto = file.read()
         self.report_result = text_format.Parse(
             report_result_textproto, report_result_pb2.ReportResult())
@@ -59,14 +61,16 @@ class ReportConversionTest(unittest.TestCase):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      invalid_edp_combinations)
 
-    def test_report_result_missing_cmms_measurement_consumer_id_raises_error(self):
+    def test_report_result_missing_cmms_measurement_consumer_id_raises_error(
+            self):
         self.report_result.ClearField('cmms_measurement_consumer_id')
         with self.assertRaisesRegex(
                 ValueError, 'must have a cmms_measurement_consumer_id'):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_missing_external_report_result_id_raises_error(self):
+    def test_report_result_missing_external_report_result_id_raises_error(
+            self):
         self.report_result.ClearField('external_report_result_id')
         with self.assertRaisesRegex(ValueError,
                                     'must have an external_report_result_id'):
@@ -86,13 +90,15 @@ class ReportConversionTest(unittest.TestCase):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_missing_reporting_set_result_value_raises_error(self):
+    def test_report_result_missing_reporting_set_result_value_raises_error(
+            self):
         self.report_result.reporting_set_results[0].ClearField('value')
         with self.assertRaisesRegex(ValueError, 'must have a value'):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_missing_external_reporting_set_id_raises_error(self):
+    def test_report_result_missing_external_reporting_set_id_raises_error(
+            self):
         self.report_result.reporting_set_results[0].key.ClearField(
             'external_reporting_set_id')
         with self.assertRaisesRegex(ValueError,
@@ -100,7 +106,8 @@ class ReportConversionTest(unittest.TestCase):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_unspecified_venn_diagram_region_type_raises_error(self):
+    def test_report_result_unspecified_venn_diagram_region_type_raises_error(
+            self):
         self.report_result.reporting_set_results[
             0].key.venn_diagram_region_type = (
                 report_result_pb2.ReportResult.VennDiagramRegionType.
@@ -110,7 +117,8 @@ class ReportConversionTest(unittest.TestCase):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_missing_impression_qualification_filter_raises_error(self):
+    def test_report_result_missing_impression_qualification_filter_raises_error(
+            self):
         self.report_result.reporting_set_results[0].key.ClearField(
             'impression_qualification_filter')
         with self.assertRaisesRegex(
@@ -130,7 +138,8 @@ class ReportConversionTest(unittest.TestCase):
         self.report_result.reporting_set_results[
             0].value.reporting_window_results[0].key.ClearField(
                 'non_cumulative_start')
-        with self.assertRaisesRegex(ValueError, 'must have a non-cumulative start date'):
+        with self.assertRaisesRegex(ValueError,
+                                    'must have a non-cumulative start date'):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
@@ -141,13 +150,68 @@ class ReportConversionTest(unittest.TestCase):
             get_report_summary_v2_from_report_result(self.report_result,
                                                      self.edp_combinations)
 
-    def test_report_result_missing_noisy_report_result_values_raises_error(self):
+    def test_report_result_missing_noisy_report_result_values_raises_error(
+            self):
         self.report_result.reporting_set_results[
             0].value.reporting_window_results[0].value.ClearField(
                 'noisy_report_result_values')
         with self.assertRaisesRegex(ValueError,
                                     'Missing noisy_report_result_values'):
             get_report_summary_v2_from_report_result(self.report_result,
+                                                     self.edp_combinations)
+
+    def test_report_result_with_mismatched_population_raises_error(self):
+        mismatched_population_report_result_textproto = """
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
+            key {
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { total: true }
+              groupings {
+                path: "person.age_group"
+                value { enum_value: "YEARS_18_TO_34" }
+              }
+            }
+            value {
+              population_size: 10000
+              reporting_window_results {
+                key { end { year: 2025 month: 10 day: 15 } }
+                value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
+              }
+            }
+          }
+          reporting_set_results {
+            key {
+              external_reporting_set_id: "edp2"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { total: true }
+              groupings {
+                path: "person.age_group"
+                value { enum_value: "YEARS_18_TO_34" }
+              }
+            }
+            value {
+              population_size: 20000
+              reporting_window_results {
+                key { end { year: 2025 month: 10 day: 15 } }
+                value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
+              }
+            }
+          }
+        """
+        report_result = text_format.Parse(
+            mismatched_population_report_result_textproto,
+            report_result_pb2.ReportResult())
+        with self.assertRaisesRegex(
+                ValueError,
+                'Inconsistent population sizes found within the same result group.'
+        ):
+            get_report_summary_v2_from_report_result(report_result,
                                                      self.edp_combinations)
 
     def test_get_report_summary_v2_from_empty_report_results(self):
@@ -815,8 +879,7 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative = (
             expected_reporting_set_result_18_34.non_cumulative_results.add())
         non_cumulative.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.TOTAL
-        )
+            ReportSummaryWindowResult.MetricFrequencyType.TOTAL)
         non_cumulative.reach.value = 19030737
         non_cumulative.reach.standard_deviation = 10000.0
         non_cumulative.reach.metric = (
@@ -854,8 +917,7 @@ class ReportConversionTest(unittest.TestCase):
         cumulative1 = expected_reporting_set_result_35_54.cumulative_results.add(
         )
         cumulative1.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY
-        )
+            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
         cumulative1.reach.value = 9992500
         cumulative1.reach.standard_deviation = 10000.0
         cumulative1.reach.metric = 'reach_cumulative_edp1_ami_2025_10_08'
@@ -864,8 +926,7 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative1 = expected_reporting_set_result_35_54.non_cumulative_results.add(
         )
         non_cumulative1.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY
-        )
+            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
         non_cumulative1.reach.value = 10008130
         non_cumulative1.reach.standard_deviation = 10000.0
         non_cumulative1.reach.metric = 'reach_non_cumulative_edp1_ami_2025_10_08'
@@ -888,8 +949,7 @@ class ReportConversionTest(unittest.TestCase):
         cumulative2 = expected_reporting_set_result_35_54.cumulative_results.add(
         )
         cumulative2.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY
-        )
+            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
         cumulative2.reach.value = 11998422
         cumulative2.reach.standard_deviation = 10000.0
         cumulative2.reach.metric = 'reach_cumulative_edp1_ami_2025_10_15'
@@ -898,8 +958,7 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative2 = expected_reporting_set_result_35_54.non_cumulative_results.add(
         )
         non_cumulative2.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY
-        )
+            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
         non_cumulative2.reach.value = 2452001
         non_cumulative2.reach.standard_deviation = 10000.0
         non_cumulative2.reach.metric = 'reach_non_cumulative_edp1_ami_2025_10_15'

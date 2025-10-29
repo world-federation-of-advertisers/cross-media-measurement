@@ -41,6 +41,7 @@ py_test(
     name = "report_conversion_test",
     size = "small",
     srcs = ["report_conversion_test.py"],
+    imports = ["../../../../../../../../../"],
     data = [":sample_reports"],
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:report_conversion",
@@ -48,7 +49,7 @@ py_test(
         requirement("google-api-core"),
         requirement("protobuf"),
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:v2_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
     ],
 )
 

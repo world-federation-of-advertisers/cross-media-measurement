@@ -21,8 +21,10 @@ from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
 
 from noiseninja.noised_measurements import Measurement, MeasurementSet
 
-from report.report import MetricReport
-from report.report import Report
+from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
+    MetricReport,
+    Report,
+)
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
     report_summary_v2_pb2
 
