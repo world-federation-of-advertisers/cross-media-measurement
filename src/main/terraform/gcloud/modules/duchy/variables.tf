@@ -61,3 +61,72 @@ variable "dashboard_json_files" {
     "duchy_dashboard_2.json.tmpl",
   ]
 }
+
+variable "enable_trustee_mill" {
+  description = "Whether to create the trustee mill."
+  type        = bool
+  default     = false
+}
+
+variable "aggregator_tls_cert" {
+  description = "aggregator tls cert"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+
+variable "aggregator_tls_key" {
+  description = "aggregator tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "aggregator_cert_collection" {
+  description = "aggregator cert collection"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "aggregator_cs_cert" {
+  description = "aggregator cs cert"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+variable "aggregator_cs_private" {
+  description = "aggregator cs private"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+
+
+variable "trustee_config" {
+  description = "Config for TrusTEE MIG mill"
+  type = object({
+    instance_template_name        = string
+    base_instance_name            = string
+    managed_instance_group_name   = string
+    mig_service_account_name      = string
+    replicas                      = number
+    machine_type                  = string
+    docker_image                  = string
+    edpa_tee_signed_image_repo    = string
+    mig_distribution_policy_zones = list(string)
+    app_flags                     = list(string)
+  })
+}

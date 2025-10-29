@@ -12,6 +12,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  aggregator_tls_cert = {
+    secret_id         = "aggregator-tls-cert",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_tls.pem"),
+    is_binary_format  = false
+  }
+
+  aggregator_tls_key = {
+    secret_id         = "aggregator-tls-key",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_tls.key"),
+    is_binary_format  = false
+  }
+
+  aggregator_cert_collection = {
+    secret_id         = "aggregator-cert-collection",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/all_root_certs.pem"),
+    is_binary_format  = false
+  }
+
+  aggregator_cs_cert = {
+    secret_id         = "aggregator-cs-cert",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_cert.pem"),
+    is_binary_format  = false
+  }
+
+  aggregator_cs_private = {
+    secret_id         = "aggregator-cs-private",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_private.der"),
+    is_binary_format  = false
+  }
+
+  aggregator_trustee_config = {
+    instance_template_name        = "trustee-mill-template"
+    base_instance_name            = "trustee-mill"
+    managed_instance_group_name   = "trustee-mill-mig"
+    mig_service_account_name      = "trustee-mill-mig-sa"
+    replicas                      = 1
+    machine_type                  = "n2d-standard-2"
+    docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
+    signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
+    mig_distribution_policy_zones = ["us-central1-a"]
+    app_flags                     = [
+                                      "--computations-service-target=", "<internal-service-address>:<port>",
+                                      "--computations-service-cert-host", "localhost",
+                                      "--duchy-name", "aggregator",
+                                      "--tls-cert-file", "/var/run/secrets/files/aggregator_tls.pem",
+                                      "--tls-key-file", "/var/run/secrets/files/aggregator_tls.key",
+                                      "--cert-collection-file", "/var/run/secrets/files/all_root_certs.pem",
+                                      "--consent-signaling-certificate-der-file", "/var/run/secrets/files/aggregator_cs_cert.der",
+                                      "--consent-signaling-private-key-der-file", "/var/run/secrets/files/aggregator_cs_private.der",
+                                      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/TgZwIV_vGjs",
+                                      "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
+                                      "--kingdom-system-api-cert-host", "localhost",
+                                      "--google-cloud-storage-project", "halo-cmm-dev",
+                                      "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
+                                      "--work-lock-duration=", "10m",
+                                      "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
+                                      "--polling-interval", "5s",
+                                    ]
+  }
+}
+
 module "clusters" {
   source   = "../modules/cluster"
   for_each = local.duchy_names
@@ -63,6 +125,12 @@ module "aggregator_duchy" {
   database_name    = "aggregator_duchy_computations"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+
+  # TrusTEE MIG configurations
+  enable_trustee_mill = true
+  terraform_service_account = var.terraform_service_account
+  trustee_config = local.aggregator_trustee_config
+
 }
 
 module "worker1_duchy" {

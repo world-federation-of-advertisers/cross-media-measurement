@@ -88,15 +88,6 @@ abstract class TrusTeeMillDaemon : Runnable {
         )
         .withShutdownTimeout(flags.channelShutdownTimeout)
 
-    val publicApiChannel =
-      buildMutualTlsChannel(
-          flags.publicApiFlags.target,
-          clientCerts,
-          flags.publicApiFlags.certHost,
-          MillBase.SERVICE_CONFIG,
-        )
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-
     val systemComputationsClient =
       SystemComputationsCoroutineStub(systemApiChannel).withDuchyId(duchyName)
     val systemComputationParticipantsClient =

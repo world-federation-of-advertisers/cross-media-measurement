@@ -16,6 +16,29 @@ data "google_project" "project" {}
 
 locals {
   database_name = var.database_name == null ? "${var.name}-duchy" : var.database_name
+
+  trustee_secrets_to_access = {
+    {
+      secret_id  = var.aggregator_tls_cert.secret_id
+      version    = "latest"
+    },
+    {
+      secret_id  = var.aggregator_tls_key.secret_id
+      version    = "latest"
+    },
+    {
+      secret_id  = var.aggregator_cert_collection.secret_id
+      version    = "latest"
+    },
+    {
+      secret_id  = var.aggregator_cs_cert.secret_id
+      version    = "latest"
+    },
+    {
+      secret_id  = var.aggregator_cs_private.secret_id
+      version    = "latest"
+    },
+  }
 }
 
 module "storage_user" {
@@ -91,5 +114,41 @@ resource "google_monitoring_dashboard" "dashboards" {
   dashboard_json = templatefile("${path.module}/${each.value}", {
     duchy_name = var.name
   })
+}
+
+module "trustee_mill" {
+  count = var.enable_trustee_mill ? 1 : 0
+  
+  source   = "../mig"
+
+  depends_on = [module.secrets]
+  
+  instance_template_name        = var.trustee_config.instance_template_name
+  base_instance_name            = var.trustee_config.base_instance_name
+  managed_instance_group_name   = var.trustee_config.managed_instance_group_name
+  mig_service_account_name      = var.trustee_config.mig_service_account_name
+  min_replicas                  = var.trustee_config.replicas
+  max_replicas                  = var.trustee_config.replicas
+  machine_type                  = var.trustee_config.machine_type
+  docker_image                  = var.trustee_config.docker_image
+  edpa_tee_signed_image_repo    = var.trustee_config.signed_image_repo
+  mig_distribution_policy_zones = var.trustee_config.mig_distribution_policy_zones
+  tee_cmd                       = var.trustee_config.app_flags
+
+  terraform_service_account     = var.terraform_service_account
+  secrets_to_access             = local.trustee_secrets_to_access
+  disk_image_family             = var.results_fulfiller_disk_image_family
+  config_storage_bucket         = module.config_files_bucket.storage_bucket.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
+}
+
+module "secrets" {
+  count = var.enable_trustee_mill ? 1 : 0
+
+  source            = "../secret"
+  for_each          = local.all_secrets
+  secret_id         = each.value.secret_id
+  secret_path       = each.value.secret_local_path
+  is_binary_format  = each.value.is_binary_format
 }
 

@@ -18,7 +18,6 @@ import java.io.File
 import java.time.Duration
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
-import org.wfanet.measurement.duchy.deploy.common.KingdomPublicApiFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.mill.MillFlags
 import picocli.CommandLine
@@ -34,10 +33,6 @@ class TrusTeeMillFlags : MillFlags() {
 
   @CommandLine.Mixin
   lateinit var computationsServiceFlags: ComputationsServiceFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var publicApiFlags: KingdomPublicApiFlags
     private set
 
   @CommandLine.Option(
