@@ -45,58 +45,17 @@ def get_report_summary_v2_from_report_result(
     A list of converted ReportSummaryV2 messages, one for each set of grouping
     predicates found in the report_result.
   """
-    if not report_result.cmms_measurement_consumer_id:
-        raise ValueError(
-            "The report result must have a cmms_measurement_consumer_id.")
-    if not report_result.external_report_result_id:
-        raise ValueError(
-            "The report result must have an external_report_result_id.")
-    if not report_result.HasField("report_start"):
-        raise ValueError("The report result must have a report_start date.")
+    _validate_report_result(report_result, edp_combinations_by_reporting_set_id)
 
-    # If the report result does not have any reporting set results, return an
-    # empty list.
-    if len(report_result.reporting_set_results) == 0:
+    if not report_result.reporting_set_results:
         logging.warning(
             "The report result does not have any reporting set results.")
         return []
 
-    # Group reporting set results by demographic groupings and event filters.
-    # The key is a frozenset of hashable representations of all EventTemplateFields
-    # from both the `groupings` and `event_filters`.
     grouped_results = defaultdict(list)
     for reporting_set_result_entry in report_result.reporting_set_results:
-        if not reporting_set_result_entry.HasField("key"):
-            raise ValueError("ReportingSetResultEntry must have a key.")
-        if not reporting_set_result_entry.HasField("value"):
-            raise ValueError("ReportingSetResultEntry must have a value.")
         group_key = _get_group_key(reporting_set_result_entry.key)
         grouped_results[group_key].append(reporting_set_result_entry)
-
-    # Gets all the end dates of the reporting windows. At the same time,
-    # validates that all reporting windows have end dates, and start dates
-    # where applicable (start date must exist if non-cumulative results exist).
-    all_end_dates = []
-    for reporting_set_result_entry in report_result.reporting_set_results:
-        for window_entry in reporting_set_result_entry.value.reporting_window_results:
-            if (window_entry.value.noisy_report_result_values.HasField(
-                    "non_cumulative_results")
-                    and not window_entry.key.HasField("non_cumulative_start")):
-                raise ValueError("ReportingWindow with non_cumulative_results "
-                                 "must have a non-cumulative start date.")
-            if not window_entry.key.HasField("end"):
-                raise ValueError("ReportingWindow must have an end date.")
-            all_end_dates.append(_proto_date_to_datetime(window_entry.key.end))
-
-    if not all_end_dates:
-        raise ValueError("The report does not have any reporting windows.")
-
-    report_start_date = date(
-        report_result.report_start.year,
-        report_result.report_start.month,
-        report_result.report_start.day,
-    )
-    report_end_date = max(end_date for end_date in all_end_dates)
 
     # Extracts report summaries from the report result.
     report_summaries = []
@@ -118,22 +77,9 @@ def get_report_summary_v2_from_report_result(
             reporting_set_result_key = reporting_set_result_entry.key
             reporting_set_result_value = reporting_set_result_entry.value
 
-            if not reporting_set_result_key.external_reporting_set_id:
-                raise ValueError(
-                    "ReportingSetResultKey must have an external_reporting_set_id."
-                )
-            if not reporting_set_result_key.HasField("metric_frequency_spec"):
-                raise ValueError(
-                    "ReportingSetResultKey must have a metric_frequency_spec.")
-
             report_summary_set_result = report_summary.report_summary_set_results.add()
 
             # Gets the impression_filter.
-            if not reporting_set_result_key.WhichOneof(
-                    "impression_qualification_filter"):
-                raise ValueError(
-                    "ReportingSetResultKey must have an impression_qualification_filter."
-                )
             match reporting_set_result_key.WhichOneof(
                     "impression_qualification_filter"):
                 case "external_impression_qualification_filter_id":
@@ -157,15 +103,8 @@ def get_report_summary_v2_from_report_result(
             # Gets data_providers.
             reporting_set_id = str(
                 reporting_set_result_key.external_reporting_set_id)
-            if reporting_set_id in edp_combinations_by_reporting_set_id:
-                data_providers = edp_combinations_by_reporting_set_id[
-                    reporting_set_id]
-                report_summary_set_result.data_providers.extend(
-                    sorted(data_providers))
-            else:
-                raise ValueError(
-                    f"Cannot find the data providers for reporting set {reporting_set_id}."
-                )
+            report_summary_set_result.data_providers.extend(
+                sorted(edp_combinations_by_reporting_set_id[reporting_set_id]))
 
             # Gets the population.
             if reporting_set_result_value.population_size > 0:
@@ -182,10 +121,6 @@ def get_report_summary_v2_from_report_result(
             for window_entry in sorted_window_results:
                 window_key = window_entry.key
                 window_value = window_entry.value
-
-                # We only process noisy results for post-processing.
-                if not window_value.HasField("noisy_report_result_values"):
-                    raise ValueError("Missing noisy_report_result_values field.")
 
                 noisy_values = window_value.noisy_report_result_values
 
@@ -241,6 +176,67 @@ def get_report_summary_v2_from_report_result(
         report_summaries.append(report_summary)
 
     return report_summaries
+
+
+def _validate_report_result(
+    report_result: ReportResult,
+    edp_combinations: dict[str, list[str]]) -> None:
+  """Performs validation checks on the input ReportResult."""
+  # Validates that the report result has the required top-level fields.
+  if not report_result.cmms_measurement_consumer_id:
+    raise ValueError(
+        "The report result must have a cmms_measurement_consumer_id.")
+  if not report_result.external_report_result_id:
+    raise ValueError(
+        "The report result must have an external_report_result_id.")
+  if not report_result.HasField("report_start"):
+    raise ValueError("The report result must have a report_start date.")
+
+  if not report_result.reporting_set_results:
+    return
+
+  for entry in report_result.reporting_set_results:
+    # Each reporting set result must have a key and a value.
+    if not entry.HasField("key"):
+      raise ValueError("ReportingSetResultEntry must have a key.")
+    if not entry.HasField("value"):
+      raise ValueError("ReportingSetResultEntry must have a value.")
+
+    key = entry.key
+
+    # Validates that the reporting set result key has the required fields.
+    if not key.external_reporting_set_id:
+      raise ValueError(
+          "ReportingSetResultKey must have an external_reporting_set_id.")
+    if str(key.external_reporting_set_id) not in edp_combinations:
+      raise ValueError(
+          "Cannot find the data providers for reporting set "
+          f"{key.external_reporting_set_id}."
+      )
+    if not key.HasField("metric_frequency_spec"):
+      raise ValueError(
+          "ReportingSetResultKey must have a metric_frequency_spec.")
+    if not key.WhichOneof("impression_qualification_filter"):
+      raise ValueError(
+          "ReportingSetResultKey must have an impression_qualification_filter."
+      )
+    if key.venn_diagram_region_type == ReportResult.VennDiagramRegionType.VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED:
+      raise ValueError(
+          "ReportingSetResultKey must have a venn_diagram_region_type.")
+
+    # Validates that each reporting window result has the required fields.
+    for window_entry in entry.value.reporting_window_results:
+      if (window_entry.value.noisy_report_result_values.HasField(
+          "non_cumulative_results") and
+          not window_entry.key.HasField("non_cumulative_start")):
+        raise ValueError(
+            "ReportingWindow with non_cumulative_results must have a "
+            "non-cumulative start date."
+        )
+      if not window_entry.key.HasField("end"):
+        raise ValueError("ReportingWindow must have an end date.")
+      if not window_entry.value.HasField("noisy_report_result_values"):
+        raise ValueError("Missing noisy_report_result_values field.")
 
 
 def _get_group_key(
