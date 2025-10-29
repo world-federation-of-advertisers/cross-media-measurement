@@ -17,8 +17,10 @@ package org.wfanet.measurement.loadtest.edpaggregator.testing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
+import com.google.type.interval
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
@@ -32,8 +34,6 @@ import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
-import java.time.ZoneOffset
-import com.google.type.interval
 
 /**
  * A class responsible for writing labeled impression data to storage with encryption.
@@ -96,11 +96,12 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/$ds/impressions"
-      } else {
-        "ds/$ds/$eventGroupPath/impressions"
-      }
+      val impressionsBlobKey =
+        if (impressionsBasePath != null) {
+          "$impressionsBasePath/$ds/$eventGroupReferenceId/impressions"
+        } else {
+          "ds/$ds/$eventGroupPath/impressions"
+        }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
@@ -116,11 +117,12 @@ class ImpressionsWriter(
         impressionsBlobKey,
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
-      val impressionsMetaDataBlobKey = if(impressionsBasePath != null) {
-        "$impressionsBasePath/$ds/metadata.binpb"
-      } else {
-        "ds/$ds/$eventGroupPath/metadata.binpb"
-      }
+      val impressionsMetaDataBlobKey =
+        if (impressionsBasePath != null) {
+          "$impressionsBasePath/$ds/$eventGroupReferenceId/metadata.binpb"
+        } else {
+          "ds/$ds/$eventGroupPath/metadata.binpb"
+        }
 
       val impressionsMetadataFileUri =
         "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
