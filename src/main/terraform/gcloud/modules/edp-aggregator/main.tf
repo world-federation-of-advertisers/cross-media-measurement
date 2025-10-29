@@ -177,14 +177,14 @@ resource "google_storage_bucket_object" "upload_data_watcher_config" {
   name   = var.data_watcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.data_watcher_config.local_path
-  source_hash = filemd5(var.data_watcher_config.local_path)
+  source_md5hash = filemd5(var.data_watcher_config.local_path)
 }
 
 resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   name   = var.requisition_fetcher_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
   source = var.requisition_fetcher_config.local_path
-  source_hash = filemd5(var.requisition_fetcher_config.local_path)
+  source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
 }
 
 resource "google_storage_bucket_object" "upload_edps_config" {
