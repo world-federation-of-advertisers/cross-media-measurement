@@ -66,8 +66,8 @@ variable "uber_jar_path" {
   nullable    = false
 }
 
-variable "config_path" {
-  description = "The path to the config file the Cloud Function uses."
+variable "uploaded_config_generation" {
+  description = "The GCS generation of the uploaded config file. Changes only when file is re-uploaded."
   type        = string
   nullable    = true
   default     = null
