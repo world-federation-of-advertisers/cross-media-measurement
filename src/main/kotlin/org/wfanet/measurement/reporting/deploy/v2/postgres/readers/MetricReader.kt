@@ -165,19 +165,14 @@ class MetricReader(private val readContext: ReadContext) {
 
   private val baseSqlJoins: String =
     """
-    JOIN ReportingSets ON Metrics.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
-      AND Metrics.ReportingSetId = ReportingSets.ReportingSetId
-    JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
-      AND Metrics.MetricId = MetricMeasurements.MetricId
-    JOIN Measurements ON Metrics.MeasurementConsumerId = Measurements.MeasurementConsumerId
-      AND MetricMeasurements.MeasurementId = Measurements.MeasurementId
-    JOIN MeasurementPrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = MeasurementPrimitiveReportingSetBases.MeasurementConsumerId
-      AND Measurements.MeasurementId = MeasurementPrimitiveReportingSetBases.MeasurementId
-    JOIN PrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBases.MeasurementConsumerId
-      AND MeasurementPrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBases.PrimitiveReportingSetBasisId
+    JOIN ReportingSets USING (MeasurementConsumerId, ReportingSetId)
+    JOIN MetricMeasurements USING (MeasurementConsumerId, MetricId)
+    JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+    JOIN MeasurementPrimitiveReportingSetBases USING (MeasurementConsumerId, MeasurementId)
+    JOIN PrimitiveReportingSetBases USING (MeasurementConsumerId, PrimitiveReportingSetBasisId)
     JOIN ReportingSets AS PrimitiveReportingSets
       ON Metrics.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
-      AND PrimitiveReportingSetBases.PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
+      AND PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
     LEFT JOIN PrimitiveReportingSetBasisFilters
       ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
       AND PrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBasisFilters.PrimitiveReportingSetBasisId
@@ -197,18 +192,16 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH Metrics AS (
+            SELECT *
+            FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
+            WHERE MeasurementConsumers.MeasurementConsumerId = $1
+              AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+          )
           $baseSqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
-              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT MetricId
-                FROM Metrics
-                WHERE MeasurementConsumerId = $1
-                  AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
@@ -254,26 +247,50 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH MeasurementIds AS (
+            SELECT MeasurementId
+            FROM Measurements
+            WHERE MeasurementConsumerId = $1
+              AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+          ), Metrics AS (
+            SELECT
+              CmmsMeasurementConsumerId,
+              Metrics.MeasurementConsumerId,
+              Metrics.CreateMetricRequestId,
+              Metrics.MetricId,
+              Metrics.ExternalMetricId,
+              Metrics.ReportingSetId,
+              Metrics.TimeIntervalStart,
+              Metrics.TimeIntervalEndExclusive,
+              Metrics.MetricType,
+              Metrics.DifferentialPrivacyEpsilon,
+              Metrics.DifferentialPrivacyDelta,
+              Metrics.FrequencyDifferentialPrivacyEpsilon,
+              Metrics.FrequencyDifferentialPrivacyDelta,
+              Metrics.MaximumFrequency,
+              Metrics.MaximumFrequencyPerUser,
+              Metrics.MaximumWatchDurationPerUser,
+              Metrics.VidSamplingIntervalStart,
+              Metrics.VidSamplingIntervalWidth,
+              Metrics.SingleDataProviderDifferentialPrivacyEpsilon,
+              Metrics.SingleDataProviderDifferentialPrivacyDelta,
+              Metrics.SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+              Metrics.SingleDataProviderFrequencyDifferentialPrivacyDelta,
+              Metrics.SingleDataProviderVidSamplingIntervalStart,
+              Metrics.SingleDataProviderVidSamplingIntervalWidth,
+              Metrics.CreateTime,
+              Metrics.MetricDetails,
+              Metrics.State,
+              Metrics.CmmsModelLineName
+            FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
+            JOIN MetricMeasurements USING (MeasurementConsumerId, MetricId)
+            JOIN MeasurementIds USING (MeasurementId)
+            WHERE MeasurementConsumers.MeasurementConsumerId = $1
+          )
           $baseSqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
-              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT Metrics.MetricId
-                FROM
-                  (
-                    SELECT MeasurementId
-                    FROM Measurements
-                    WHERE MeasurementConsumerId = $1
-                      AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-                  ) as MeasurementIds
-                  JOIN Metrics ON Metrics.MeasurementConsumerId = $1
-                  JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
-                    AND Metrics.MetricId = MetricMeasurements.MetricId
-                    AND MeasurementIds.MeasurementId = MetricMeasurements.MeasurementId
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
@@ -317,7 +334,7 @@ class MetricReader(private val readContext: ReadContext) {
       """
       SELECT
         CmmsMeasurementConsumerId,
-        MeasurementConsumerId,
+        Metrics.MeasurementConsumerId,
         MetricCalculationSpecId,
         Metrics.CreateMetricRequestId,
         Metrics.ReportingSetId,
@@ -343,31 +360,25 @@ class MetricReader(private val readContext: ReadContext) {
         Metrics.SingleDataProviderVidSamplingIntervalWidth,
         Metrics.MetricDetails,
         Metrics.State,
-        Metrics.CreateTime
+        Metrics.CreateTime,
+        Metrics.CmmsModelLineName
       """
         .trimIndent()
 
     val sql =
       StringBuilder(
         """
-          WITH ReusableMetricIds AS (
-            SELECT MetricId
-            FROM
-              Metrics JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-            WHERE Metrics.MeasurementConsumerId = $1
+          $sqlSelect
+          FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
+            JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
+          WHERE MeasurementConsumerId = $1
             AND (
               Metrics.ReportingSetId,
               Metrics.TimeIntervalStart,
               Metrics.TimeIntervalEndExclusive,
               MetricCalculationSpecReportingMetrics.MetricCalculationSpecId
             ) IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-          )
-          $sqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics USING(MeasurementConsumerId)
-            JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-          WHERE Metrics.MetricId IN (SELECT MetricId FROM ReusableMetricIDs)
         """
           .trimIndent()
       )
@@ -502,17 +513,15 @@ class MetricReader(private val readContext: ReadContext) {
             SELECT *
             FROM MeasurementConsumers
             WHERE CmmsMeasurementConsumerId = $1
+          ), Metrics AS (
+            SELECT *
+            FROM MeasurementConsumerForMetrics
+            JOIN Metrics USING (MeasurementConsumerId)
+            WHERE ExternalMetricId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
           )
           $baseSqlSelect
-          FROM MeasurementConsumerForMetrics
-            JOIN Metrics ON MeasurementConsumerForMetrics.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT MetricId
-                FROM Metrics
-                WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForMetrics)
-                  AND ExternalMetricId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
@@ -846,8 +855,8 @@ class MetricReader(private val readContext: ReadContext) {
                 }
               if (
                 singleDataProviderVidSamplingInterval != null &&
-                  singleDataProviderDifferentialPrivacyEpsilon != null &&
-                  singleDataProviderDifferentialPrivacyDelta != null
+                singleDataProviderDifferentialPrivacyEpsilon != null &&
+                singleDataProviderDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
                   MetricSpecKt.samplingAndPrivacyParams {
@@ -863,8 +872,8 @@ class MetricReader(private val readContext: ReadContext) {
         MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
           if (
             frequencyDifferentialPrivacyDelta == null ||
-              frequencyDifferentialPrivacyEpsilon == null ||
-              maximumFrequency == null
+            frequencyDifferentialPrivacyEpsilon == null ||
+            maximumFrequency == null
           ) {
             throw IllegalStateException()
           }
@@ -887,10 +896,10 @@ class MetricReader(private val readContext: ReadContext) {
                 }
               if (
                 singleDataProviderVidSamplingInterval != null &&
-                  singleDataProviderDifferentialPrivacyEpsilon != null &&
-                  singleDataProviderDifferentialPrivacyDelta != null &&
-                  singleDataProviderFrequencyDifferentialPrivacyEpsilon != null &&
-                  singleDataProviderFrequencyDifferentialPrivacyDelta != null
+                singleDataProviderDifferentialPrivacyEpsilon != null &&
+                singleDataProviderDifferentialPrivacyDelta != null &&
+                singleDataProviderFrequencyDifferentialPrivacyEpsilon != null &&
+                singleDataProviderFrequencyDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
                   MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
