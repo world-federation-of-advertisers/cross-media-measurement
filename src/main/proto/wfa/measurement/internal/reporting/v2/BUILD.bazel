@@ -411,28 +411,28 @@ proto_library(
 ]
 
 [
-     py_proto_library(
-         name = "{prefix}_py_pb2".format(prefix = prefix),
-         deps = [":{prefix}_proto".format(prefix = prefix)],
-     )
+    py_proto_library(
+        name = "{prefix}_py_pb2".format(prefix = prefix),
+        deps = [":{prefix}_proto".format(prefix = prefix)],
+    )
     for prefix in MESSAGE_LIBS
 ]
 
 proto_descriptor_set(
-     name = "descriptor_set",
-     deps = [
-         ":basic_report_details_proto",
-         ":basic_report_result_details_proto",
-         ":event_filter_proto",
-         ":event_template_field_proto",
-         ":impression_qualification_filter_proto",
-         ":impression_qualification_filter_spec_proto",
-         ":metric_frequency_spec_proto",
-         ":report_result_proto",
-         ":reporting_impression_qualification_filter_proto",
-         ":reporting_interval_proto",
-         ":reporting_unit_proto",
-         ":result_group_proto",
-         ":result_group_spec_proto",
-     ],
- )
+    name = "descriptor_set",
+    deps = [
+        ":basic_report_details_proto",
+        ":basic_report_result_details_proto",
+        ":event_filter_proto",
+        ":event_template_field_proto",
+        ":impression_qualification_filter_proto",
+        ":impression_qualification_filter_spec_proto",
+        ":metric_frequency_spec_proto",
+        ":report_result_proto",
+        ":reporting_impression_qualification_filter_proto",
+        ":reporting_interval_proto",
+        ":reporting_unit_proto",
+        ":result_group_proto",
+        ":result_group_spec_proto",
+    ],
+)
