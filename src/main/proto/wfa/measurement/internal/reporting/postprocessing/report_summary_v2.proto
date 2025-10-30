@@ -98,15 +98,15 @@ message ReportSummaryV2 {
   // in the report summary.
   repeated ReportSummarySetResult report_summary_set_results = 1;
 
+  // The path and value of an EventTemplateField.
+  message GroupingPredicate {
+    string path = 1;
+    string value = 2;
+  }
+
   // Identifies the filtered demographic groups and event filters this report
   // summary applies to.
-  //
-  // Each string is a representation of a single filter term, formatted as
-  // "path=value". For example:
-  // ["person.age_group=YEARS_18_TO_34", "banner_ad.viewable=true"]
-  //
-  // - For a report summary on the whole population (no filter): ["-"].
-  repeated string grouping_predicates = 2;
+  repeated GroupingPredicate grouping_predicates = 2;
 
   // The total population size of the selected demographic groups in this report
   // summary.
