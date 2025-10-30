@@ -27,7 +27,7 @@ variable "base_instance_name" {
 variable "single_instance_assignment" {
   description = "The amount of undelivered messages a single instance can handle. Used by the autoscaler to determine the number of instances needed based on the total number of undelivered messages."
   type        = number
-  nullable    = true
+  default     = null
 }
 
 variable "mig_service_account_name" {
@@ -53,7 +53,7 @@ variable "secrets_to_access" {
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string
-  nullable    = true
+  default     = null
 }
 
 variable "managed_instance_group_name" {

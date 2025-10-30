@@ -53,6 +53,15 @@ locals {
     docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones = ["us-central1-a"]
+    disk_image_family             = "confidential-space"
+
+    aggregator_tls_cert           = local.aggregator_tls_cert
+    aggregator_tls_key            = local.aggregator_tls_key
+    aggregator_cert_collection    = local.aggregator_cert_collection
+    aggregator_cs_cert            = local.aggregator_cs_cert
+    aggregator_cs_private         = local.aggregator_cs_private
+    terraform_service_account     = var.terraform_service_account
+
     app_flags                     = [
                                       "--computations-service-target=", "35.223.49.72:8443",
                                       "--computations-service-cert-host", "localhost",
@@ -127,10 +136,7 @@ module "aggregator_duchy" {
   storage_bucket   = module.storage.storage_bucket
 
   # TrusTEE MIG configurations
-  enable_trustee_mill = true
-  terraform_service_account = var.terraform_service_account
   trustee_config = local.aggregator_trustee_config
-
 }
 
 module "worker1_duchy" {

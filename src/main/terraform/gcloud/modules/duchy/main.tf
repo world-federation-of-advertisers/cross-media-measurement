@@ -17,28 +17,36 @@ data "google_project" "project" {}
 locals {
   database_name = var.database_name == null ? "${var.name}-duchy" : var.database_name
 
-  trustee_secrets_to_access = {
+  trustee_secrets_to_access = var.trustee_config != null ? [
     {
-      secret_id  = var.aggregator_tls_cert.secret_id
+      secret_id  = var.trustee_config.aggregator_tls_cert.secret_id
       version    = "latest"
     },
     {
-      secret_id  = var.aggregator_tls_key.secret_id
+      secret_id  = var.trustee_config.aggregator_tls_key.secret_id
       version    = "latest"
     },
     {
-      secret_id  = var.aggregator_cert_collection.secret_id
+      secret_id  = var.trustee_config.aggregator_cert_collection.secret_id
       version    = "latest"
     },
     {
-      secret_id  = var.aggregator_cs_cert.secret_id
+      secret_id  = var.trustee_config.aggregator_cs_cert.secret_id
       version    = "latest"
     },
     {
-      secret_id  = var.aggregator_cs_private.secret_id
+      secret_id  = var.trustee_config.aggregator_cs_private.secret_id
       version    = "latest"
     },
-  }
+  ] : []
+
+  all_secrets = var.trustee_config != null ? {
+    aggregator_tls_cert        = var.trustee_config.aggregator_tls_cert
+    aggregator_tls_key         = var.trustee_config.aggregator_tls_key
+    aggregator_cert_collection = var.trustee_config.aggregator_cert_collection
+    aggregator_cs_cert         = var.trustee_config.aggregator_cs_cert
+    aggregator_cs_private      = var.trustee_config.aggregator_cs_private
+  } : {}
 }
 
 module "storage_user" {
@@ -117,7 +125,7 @@ resource "google_monitoring_dashboard" "dashboards" {
 }
 
 module "trustee_mill" {
-  count = var.enable_trustee_mill ? 1 : 0
+  count = var.trustee_config != null ? 1 : 0
   
   source   = "../mig"
 
@@ -133,19 +141,17 @@ module "trustee_mill" {
   docker_image                  = var.trustee_config.docker_image
   edpa_tee_signed_image_repo    = var.trustee_config.signed_image_repo
   mig_distribution_policy_zones = var.trustee_config.mig_distribution_policy_zones
+  terraform_service_account     = var.trustee_config.terraform_service_account
+  disk_image_family             = var.trustee_config.disk_image_family
   tee_cmd                       = var.trustee_config.app_flags
-
-  terraform_service_account     = var.terraform_service_account
   secrets_to_access             = local.trustee_secrets_to_access
-  disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
 }
 
 module "secrets" {
-  count = var.enable_trustee_mill ? 1 : 0
-
   source            = "../secret"
+
   for_each          = local.all_secrets
   secret_id         = each.value.secret_id
   secret_path       = each.value.secret_local_path

@@ -41,7 +41,7 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_mig_sa" {
 }
 
 resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
-  count = var.subscription_id == null ? 1 : 0
+  count = var.subscription_id != null ? 1 : 0
 
   subscription  = var.subscription_id
   role          = "roles/pubsub.subscriber"
@@ -146,7 +146,7 @@ resource "google_compute_region_autoscaler" "mig_autoscaler" {
     min_replicas = var.min_replicas
 
     dynamic "metric" {
-      for_each = var.single_instance_assignment == null ? [1] : []
+      for_each = var.single_instance_assignment != null ? [1] : []
       content {
         name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"
         filter                     = "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"${var.subscription_id}\""

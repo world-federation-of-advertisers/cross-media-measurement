@@ -62,59 +62,6 @@ variable "dashboard_json_files" {
   ]
 }
 
-variable "enable_trustee_mill" {
-  description = "Whether to create the trustee mill."
-  type        = bool
-  default     = false
-}
-
-variable "aggregator_tls_cert" {
-  description = "aggregator tls cert"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-
-variable "aggregator_tls_key" {
-  description = "aggregator tls key"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "aggregator_cert_collection" {
-  description = "aggregator cert collection"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-variable "aggregator_cs_cert" {
-  description = "aggregator cs cert"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-variable "aggregator_cs_private" {
-  description = "aggregator cs private"
-  type = object({
-    secret_id         = string
-    secret_local_path = string
-    is_binary_format  = bool
-  })
-}
-
-
-
 variable "trustee_config" {
   description = "Config for TrusTEE MIG mill"
   type = object({
@@ -127,6 +74,36 @@ variable "trustee_config" {
     docker_image                  = string
     edpa_tee_signed_image_repo    = string
     mig_distribution_policy_zones = list(string)
+    terraform_service_account     = string
+    disk_image_family             = string
+
+    aggregator_tls_cert           = object({
+                                      secret_id         = string
+                                      secret_local_path = string
+                                      is_binary_format  = bool
+                                    })
+    aggregator_tls_key            = object({
+                                      secret_id         = string
+                                      secret_local_path = string
+                                      is_binary_format  = bool
+                                    })
+    aggregator_cert_collection    = object({
+                                      secret_id         = string
+                                      secret_local_path = string
+                                      is_binary_format  = bool
+                                    })
+    aggregator_cs_cert            = object({
+                                      secret_id         = string
+                                      secret_local_path = string
+                                      is_binary_format  = bool
+                                    })
+    aggregator_cs_private         = object({
+                                      secret_id         = string
+                                      secret_local_path = string
+                                      is_binary_format  = bool
+                                    })
+
     app_flags                     = list(string)
   })
+  default = null
 }

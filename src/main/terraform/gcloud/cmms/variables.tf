@@ -137,11 +137,6 @@ variable "kingdom_public_api_target" {
   type        = string
 }
 
-variable "kingdom_system_api_target" {
-  description = "Kingdom system api target"
-  type        = string
-}
-
 variable "secure_computation_public_api_target" {
   description = "Secure Computation public api target"
   type        = string
