@@ -54,7 +54,7 @@ locals {
     signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones = ["us-central1-a"]
     app_flags                     = [
-                                      "--computations-service-target=", "<internal-service-address>:<port>",
+                                      "--computations-service-target=", "35.223.49.72:8443",
                                       "--computations-service-cert-host", "localhost",
                                       "--duchy-name", "aggregator",
                                       "--tls-cert-file", "/var/run/secrets/files/aggregator_tls.pem",
