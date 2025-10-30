@@ -42,3 +42,20 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
     ],
 )
+
+kt_jvm_test(
+    name = "DataWatcherFunctionTracingTest",
+    srcs = ["DataWatcherFunctionTracingTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunctionTracingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/cloudevents/core",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
