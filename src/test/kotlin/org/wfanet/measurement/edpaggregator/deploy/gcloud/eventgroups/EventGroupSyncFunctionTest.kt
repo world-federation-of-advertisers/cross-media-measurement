@@ -21,6 +21,11 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.net.URI
@@ -29,6 +34,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.Collections
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -80,6 +86,22 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
+
+  private val capturedTraceparentHeaders =
+    Collections.synchronizedList(mutableListOf<String>())
+  private val traceparentKey =
+    Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
+  private val metadataCaptureInterceptor =
+    object : ServerInterceptor {
+      override fun <ReqT, RespT> interceptCall(
+        call: ServerCall<ReqT, RespT>,
+        headers: Metadata,
+        next: ServerCallHandler<ReqT, RespT>,
+      ): ServerCall.Listener<ReqT> {
+        headers[traceparentKey]?.let { capturedTraceparentHeaders.add(it) }
+        return next.startCall(call, headers)
+      }
+    }
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
@@ -153,12 +175,19 @@ class EventGroupSyncFunctionTest() {
       }
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(eventGroupsServiceMock) }
+  @get:Rule
+  val grpcTestServerRule =
+    GrpcTestServerRule {
+      val interceptedService =
+        ServerInterceptors.intercept(eventGroupsServiceMock.bindService(), metadataCaptureInterceptor)
+      addService(interceptedService)
+    }
 
   @get:Rule val tempFolder = TemporaryFolder()
 
   @Before
   fun startInfra() {
+    capturedTraceparentHeaders.clear()
     /** Start gRPC server with mock EventGroups service */
     grpcServer =
       CommonServer.fromParameters(
@@ -166,7 +195,13 @@ class EventGroupSyncFunctionTest() {
           certs = serverCerts,
           clientAuth = ClientAuth.REQUIRE,
           nameForLogging = "EventGroupsServer",
-          services = listOf(eventGroupsServiceMock.bindService()),
+          services =
+            listOf(
+              ServerInterceptors.intercept(
+                eventGroupsServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              )
+            ),
         )
         .start()
     functionProcess =
@@ -216,6 +251,9 @@ class EventGroupSyncFunctionTest() {
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
+    val traceId = "463ac35c9f6413ad48485a3953bb6124"
+    val parentSpanId = "0020000000000001"
+    val traceparentValue = "00-$traceId-$parentSpanId-01"
     val port = runBlocking {
       functionProcess.start(
         mapOf(
@@ -223,6 +261,9 @@ class EventGroupSyncFunctionTest() {
           "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
           "KINGDOM_CERT_HOST" to "localhost",
           "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
         )
       )
     }
@@ -245,6 +286,7 @@ class EventGroupSyncFunctionTest() {
     val getRequest =
       HttpRequest.newBuilder()
         .uri(URI.create(url))
+        .header("traceparent", traceparentValue)
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -272,6 +314,13 @@ class EventGroupSyncFunctionTest() {
           "reference-id-4" to "resource-name-for-reference-id-4",
         )
       )
+    assertThat(capturedTraceparentHeaders).isNotEmpty()
+    val observedTraceIds =
+      capturedTraceparentHeaders.mapNotNull { header ->
+        val parts = header.split('-')
+        if (parts.size >= 4) parts[1] else null
+      }
+    assertThat(observedTraceIds).contains(traceId)
   }
 
   @Test
@@ -340,6 +389,9 @@ class EventGroupSyncFunctionTest() {
           "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
           "KINGDOM_CERT_HOST" to "localhost",
           "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
         )
       )
     }
@@ -452,6 +504,9 @@ class EventGroupSyncFunctionTest() {
           "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
           "KINGDOM_CERT_HOST" to "localhost",
           "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
         )
       )
     }
