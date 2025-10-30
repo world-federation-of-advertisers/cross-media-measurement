@@ -174,6 +174,10 @@ duchy: #SpannerDuchy & {
 	services: {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
+		// DO_NOT_SUBMIT: For TrusTEE integration only.
+		"internal-api-server": #ExternalService & {
+			_ipAddressName: _duchy_name + "-internal"
+		}
 	}
 
 	podTemplates: {
