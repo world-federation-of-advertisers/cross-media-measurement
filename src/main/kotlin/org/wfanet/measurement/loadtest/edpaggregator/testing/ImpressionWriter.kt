@@ -72,7 +72,7 @@ class ImpressionsWriter(
    */
   suspend fun <T : Message> writeLabeledImpressionData(
     events: Sequence<LabeledEventDateShard<T>>,
-    blobModelLine: String = "some-model-line",
+    blobModelLine: String,
     impressionsBasePath: String? = null,
   ) {
     val serializedEncryptionKey =

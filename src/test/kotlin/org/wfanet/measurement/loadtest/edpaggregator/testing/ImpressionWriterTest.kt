@@ -115,7 +115,7 @@ class ImpressionWriterTest {
           ),
         ),
       )
-    runBlocking { impressionWriter.writeLabeledImpressionData(events) }
+    runBlocking { impressionWriter.writeLabeledImpressionData(events, "some-model-line") }
     val storageClient = FileSystemStorageClient(tempFolder.root)
     runBlocking {
       listOf("2020-01-01", "2020-01-02").forEach { date ->
