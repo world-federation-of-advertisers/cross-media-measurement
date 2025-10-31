@@ -40,8 +40,12 @@ import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
+import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest.Header
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.honestMajorityShareShuffle
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
@@ -49,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
+import org.wfanet.measurement.api.v2alpha.encryptionKey
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -67,7 +72,9 @@ import org.wfanet.measurement.internal.duchy.*
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage
+import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle.Stage as HmssStage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage as TrusTeeStage
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
@@ -116,6 +123,41 @@ private val HMSS_HEADER = header {
     dataProviderCertificate = DATA_PROVIDER_CERTIFICATE
   }
 }
+
+private val PLAIN_TRUS_TEE_HEADER = header {
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  nonce = NONCE
+  trusTee = trusTee {
+    dataFormat = Header.TrusTee.DataFormat.FREQUENCY_VECTOR
+    populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+  }
+}
+
+private val ENCRYPTED_DEK_DATA = "encrypted dek".toByteStringUtf8()
+private val KMS_KEK_URI = "some/uri/to/kms/kek"
+private val WORKLOAD_IDENTITY_PROVIDER = "workload identity provider"
+private val IMPERSONATED_SERVICE_ACCOUNT = "a service account for decryption"
+private const val POPULATION_SPEC_FINGERPRINT = 100L
+private val ENCRYPTED_TRUS_TEE_HEADER = header {
+  name = CanonicalRequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  nonce = NONCE
+  trusTee = trusTee {
+    dataFormat = Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+    envelopeEncryption = envelopeEncryption {
+      encryptedDek = encryptionKey {
+        format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+        data = ENCRYPTED_DEK_DATA
+      }
+      kmsKekUri = KMS_KEK_URI
+      workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
+      impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+    }
+    populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+  }
+}
+
 private val FULFILLED_RESPONSE = fulfillRequisitionResponse { state = Requisition.State.FULFILLED }
 private val SYSTEM_REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_API_ID)
 private val REQUISITION_KEY = externalRequisitionKey {
@@ -134,6 +176,13 @@ private val REQUISITION_METADATA = requisitionMetadata {
   details = requisitionDetails { nonceHash = NONCE_HASH.bytes }
 }
 private val HMSS_REQUISITION_METADATA = requisitionMetadata {
+  externalKey = REQUISITION_KEY
+  details = requisitionDetails {
+    externalFulfillingDuchyId = DUCHY_ID
+    nonceHash = NONCE_HASH.bytes
+  }
+}
+private val TRUS_TEE_REQUISITION_METADATA = requisitionMetadata {
   externalKey = REQUISITION_KEY
   details = requisitionDetails {
     externalFulfillingDuchyId = DUCHY_ID
@@ -174,6 +223,9 @@ class RequisitionFulfillmentServiceTest {
   fun `fulfillRequisition writes new data to blob`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
+      computationStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Llv2Stage.INITIALIZATION_PHASE
+      }
       computationDetails = COMPUTATION_DETAILS
       requisitions += REQUISITION_METADATA
     }
@@ -247,7 +299,7 @@ class RequisitionFulfillmentServiceTest {
   fun `fulfillRequisition writes the data and seed for HMSS protocol`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
-      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
+      computationStage = computationStage { honestMajorityShareShuffle = HmssStage.INITIALIZED }
       computationDetails = COMPUTATION_DETAILS
       requisitions += HMSS_REQUISITION_METADATA
     }
@@ -299,7 +351,7 @@ class RequisitionFulfillmentServiceTest {
   fun `fulfillRequisiiton fails when seed is not specified for HMSS protocol`() = runBlocking {
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
-      computationStage = computationStage { honestMajorityShareShuffle = Stage.INITIALIZED }
+      computationStage = computationStage { honestMajorityShareShuffle = HmssStage.INITIALIZED }
       computationDetails = COMPUTATION_DETAILS
       requisitions += HMSS_REQUISITION_METADATA
     }
@@ -317,6 +369,110 @@ class RequisitionFulfillmentServiceTest {
 
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(e.message).contains("seed")
+  }
+
+  @Test
+  fun `fulfillRequisition writes plain fulfillment data for TrusTEE protocol`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { trusTee = TrusTeeStage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += TRUS_TEE_REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(PLAIN_TRUS_TEE_HEADER.withContent(TEST_REQUISITION_DATA))
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
+      .isEqualTo(
+        recordRequisitionFulfillmentRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          blobPath = blob.blobKey
+          publicApiVersion = Version.V2_ALPHA.string
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocol {
+              trusTee =
+                RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                }
+            }
+        }
+      )
+    verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
+      .isEqualTo(
+        systemFulfillRequisitionRequest {
+          name = SYSTEM_REQUISITION_KEY.toName()
+          nonce = NONCE
+        }
+      )
+  }
+
+  @Test
+  fun `fulfillRequisition writes encrypted fulfillment data for TrusTEE protocol`() = runBlocking {
+    val fakeToken = computationToken {
+      globalComputationId = COMPUTATION_ID
+      computationStage = computationStage { trusTee = TrusTeeStage.INITIALIZED }
+      computationDetails = COMPUTATION_DETAILS
+      requisitions += TRUS_TEE_REQUISITION_METADATA
+    }
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
+    }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
+
+    val response =
+      withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+        service.fulfillRequisition(ENCRYPTED_TRUS_TEE_HEADER.withContent(TEST_REQUISITION_DATA))
+      }
+
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
+    verifyProtoArgument(
+        computationsServiceMock,
+        ComputationsCoroutineImplBase::recordRequisitionFulfillment,
+      )
+      .isEqualTo(
+        recordRequisitionFulfillmentRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          blobPath = blob.blobKey
+          publicApiVersion = Version.V2_ALPHA.string
+          protocolDetails =
+            RequisitionDetailsKt.requisitionProtocol {
+              trusTee =
+                RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  encryptedDekCiphertext = ENCRYPTED_DEK_DATA
+                  kmsKekUri = KMS_KEK_URI
+                  workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER
+                  impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
+                  populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
+                }
+            }
+        }
+      )
+    verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
+      .isEqualTo(
+        systemFulfillRequisitionRequest {
+          name = SYSTEM_REQUISITION_KEY.toName()
+          nonce = NONCE
+        }
+      )
   }
 
   @Test
