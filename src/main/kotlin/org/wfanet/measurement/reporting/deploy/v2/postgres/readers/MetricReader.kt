@@ -165,19 +165,14 @@ class MetricReader(private val readContext: ReadContext) {
 
   private val baseSqlJoins: String =
     """
-    JOIN ReportingSets ON Metrics.MeasurementConsumerId = ReportingSets.MeasurementConsumerId
-      AND Metrics.ReportingSetId = ReportingSets.ReportingSetId
-    JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
-      AND Metrics.MetricId = MetricMeasurements.MetricId
-    JOIN Measurements ON Metrics.MeasurementConsumerId = Measurements.MeasurementConsumerId
-      AND MetricMeasurements.MeasurementId = Measurements.MeasurementId
-    JOIN MeasurementPrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = MeasurementPrimitiveReportingSetBases.MeasurementConsumerId
-      AND Measurements.MeasurementId = MeasurementPrimitiveReportingSetBases.MeasurementId
-    JOIN PrimitiveReportingSetBases ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBases.MeasurementConsumerId
-      AND MeasurementPrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBases.PrimitiveReportingSetBasisId
+    JOIN ReportingSets USING (MeasurementConsumerId, ReportingSetId)
+    JOIN MetricMeasurements USING (MeasurementConsumerId, MetricId)
+    JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+    JOIN MeasurementPrimitiveReportingSetBases USING (MeasurementConsumerId, MeasurementId)
+    JOIN PrimitiveReportingSetBases USING (MeasurementConsumerId, PrimitiveReportingSetBasisId)
     JOIN ReportingSets AS PrimitiveReportingSets
       ON Metrics.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
-      AND PrimitiveReportingSetBases.PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
+      AND PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
     LEFT JOIN PrimitiveReportingSetBasisFilters
       ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
       AND PrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBasisFilters.PrimitiveReportingSetBasisId
@@ -197,18 +192,20 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH CreateMetricRequestIds AS MATERIALIZED (
+            SELECT *
+            FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(CreateMetricRequestId)
+          ), Metrics AS (
+            SELECT *
+            FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
+            JOIN CreateMetricRequestIds USING (CreateMetricRequestId)
+            WHERE MeasurementConsumers.MeasurementConsumerId = $1
+          )
           $baseSqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
-              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT MetricId
-                FROM Metrics
-                WHERE MeasurementConsumerId = $1
-                  AND CreateMetricRequestId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
@@ -254,26 +251,55 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH CmmsMeasurementIds AS MATERIALIZED (
+            SELECT *
+            FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(CmmsMeasurementId)
+          ), MeasurementIds AS (
+            SELECT
+              MeasurementConsumerId,
+              MeasurementId
+            FROM Measurements
+            JOIN CmmsMeasurementIds USING (CmmsMeasurementId)
+            WHERE MeasurementConsumerId = $1
+          ), Metrics AS (
+            SELECT
+              CmmsMeasurementConsumerId,
+              Metrics.MeasurementConsumerId,
+              Metrics.CreateMetricRequestId,
+              Metrics.MetricId,
+              Metrics.ExternalMetricId,
+              Metrics.ReportingSetId,
+              Metrics.TimeIntervalStart,
+              Metrics.TimeIntervalEndExclusive,
+              Metrics.MetricType,
+              Metrics.DifferentialPrivacyEpsilon,
+              Metrics.DifferentialPrivacyDelta,
+              Metrics.FrequencyDifferentialPrivacyEpsilon,
+              Metrics.FrequencyDifferentialPrivacyDelta,
+              Metrics.MaximumFrequency,
+              Metrics.MaximumFrequencyPerUser,
+              Metrics.MaximumWatchDurationPerUser,
+              Metrics.VidSamplingIntervalStart,
+              Metrics.VidSamplingIntervalWidth,
+              Metrics.SingleDataProviderDifferentialPrivacyEpsilon,
+              Metrics.SingleDataProviderDifferentialPrivacyDelta,
+              Metrics.SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+              Metrics.SingleDataProviderFrequencyDifferentialPrivacyDelta,
+              Metrics.SingleDataProviderVidSamplingIntervalStart,
+              Metrics.SingleDataProviderVidSamplingIntervalWidth,
+              Metrics.CreateTime,
+              Metrics.MetricDetails,
+              Metrics.State,
+              Metrics.CmmsModelLineName
+            FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
+            JOIN MetricMeasurements USING (MeasurementConsumerId, MetricId)
+            JOIN MeasurementIds USING (MeasurementConsumerId, MeasurementId)
+          )
           $baseSqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics ON MeasurementConsumers.MeasurementConsumerId = $1
-              AND MeasurementConsumers.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT Metrics.MetricId
-                FROM
-                  (
-                    SELECT MeasurementId
-                    FROM Measurements
-                    WHERE MeasurementConsumerId = $1
-                      AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-                  ) as MeasurementIds
-                  JOIN Metrics ON Metrics.MeasurementConsumerId = $1
-                  JOIN MetricMeasurements ON Metrics.MeasurementConsumerId = MetricMeasurements.MeasurementConsumerId
-                    AND Metrics.MetricId = MetricMeasurements.MetricId
-                    AND MeasurementIds.MeasurementId = MetricMeasurements.MeasurementId
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
@@ -317,8 +343,8 @@ class MetricReader(private val readContext: ReadContext) {
       """
       SELECT
         CmmsMeasurementConsumerId,
-        MeasurementConsumerId,
-        MetricCalculationSpecId,
+        Metrics.MeasurementConsumerId,
+        MetricCalculationSpecReportingMetrics.MetricCalculationSpecId,
         Metrics.CreateMetricRequestId,
         Metrics.ReportingSetId,
         Metrics.MetricId,
@@ -350,28 +376,24 @@ class MetricReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
-          WITH ReusableMetricIds AS (
-            SELECT MetricId
-            FROM
-              Metrics JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-            WHERE Metrics.MeasurementConsumerId = $1
-            AND (
-              Metrics.ReportingSetId,
-              Metrics.TimeIntervalStart,
-              Metrics.TimeIntervalEndExclusive,
-              MetricCalculationSpecReportingMetrics.MetricCalculationSpecId
-            ) IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+          WITH ReportingMetricKeys AS MATERIALIZED (
+            SELECT *
+            FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(ReportingSetId, TimeIntervalStart, TimeIntervalEndExclusive, MetricCalculationSpecId)
           )
           $sqlSelect
-          FROM
-            MeasurementConsumers
-            JOIN Metrics USING(MeasurementConsumerId)
+          FROM MeasurementConsumers
+            JOIN Metrics USING (MeasurementConsumerId)
             JOIN MetricCalculationSpecReportingMetrics USING(MeasurementConsumerId, MetricId)
-          WHERE Metrics.MetricId IN (SELECT MetricId FROM ReusableMetricIDs)
+            JOIN ReportingMetricKeys
+              ON Metrics.ReportingSetId = ReportingMetricKeys.ReportingSetId
+              AND Metrics.TimeIntervalStart = ReportingMetricKeys.TimeIntervalStart
+              AND Metrics.TimeIntervalEndExclusive = ReportingMetricKeys.TimeIntervalEndExclusive
+              AND MetricCalculationSpecReportingMetrics.MetricCalculationSpecId = ReportingMetricKeys.MetricCalculationSpecId
+          WHERE MeasurementConsumerId = $1
         """
           .trimIndent()
       )
-
     val statement =
       valuesListBoundStatement(valuesStartIndex = 1, paramCount = 4, sql.toString()) {
         bind("$1", measurementConsumerId)
@@ -502,17 +524,19 @@ class MetricReader(private val readContext: ReadContext) {
             SELECT *
             FROM MeasurementConsumers
             WHERE CmmsMeasurementConsumerId = $1
+          ), ExternalMetricIds AS MATERIALIZED (
+            SELECT *
+            FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(ExternalMetricId)
+          ), Metrics AS (
+            SELECT *
+            FROM MeasurementConsumerForMetrics
+            JOIN Metrics USING (MeasurementConsumerId)
+            JOIN ExternalMetricIds USING (ExternalMetricId)
           )
           $baseSqlSelect
-          FROM MeasurementConsumerForMetrics
-            JOIN Metrics ON MeasurementConsumerForMetrics.MeasurementConsumerId = Metrics.MeasurementConsumerId
-              AND Metrics.MetricId IN (
-                SELECT MetricId
-                FROM Metrics
-                WHERE MeasurementConsumerId IN (SELECT MeasurementConsumerId FROM MeasurementConsumerForMetrics)
-                  AND ExternalMetricId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-              )
-            $baseSqlJoins
+          FROM Metrics
+          $baseSqlJoins
         """
           .trimIndent()
       )
