@@ -35,7 +35,7 @@ class SpannerImpressionMetadataServiceTest : ImpressionMetadataServiceTest() {
     idGenerator: IdGenerator
   ): ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
-    return SpannerImpressionMetadataService(databaseClient, idGenerator = idGenerator)
+    return SpannerImpressionMetadataService(databaseClient)
   }
 
   companion object {
