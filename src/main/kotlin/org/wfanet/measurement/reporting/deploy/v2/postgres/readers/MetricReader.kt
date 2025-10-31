@@ -870,8 +870,8 @@ class MetricReader(private val readContext: ReadContext) {
                 }
               if (
                 singleDataProviderVidSamplingInterval != null &&
-                singleDataProviderDifferentialPrivacyEpsilon != null &&
-                singleDataProviderDifferentialPrivacyDelta != null
+                  singleDataProviderDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
                   MetricSpecKt.samplingAndPrivacyParams {
@@ -887,8 +887,8 @@ class MetricReader(private val readContext: ReadContext) {
         MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
           if (
             frequencyDifferentialPrivacyDelta == null ||
-            frequencyDifferentialPrivacyEpsilon == null ||
-            maximumFrequency == null
+              frequencyDifferentialPrivacyEpsilon == null ||
+              maximumFrequency == null
           ) {
             throw IllegalStateException()
           }
@@ -911,10 +911,10 @@ class MetricReader(private val readContext: ReadContext) {
                 }
               if (
                 singleDataProviderVidSamplingInterval != null &&
-                singleDataProviderDifferentialPrivacyEpsilon != null &&
-                singleDataProviderDifferentialPrivacyDelta != null &&
-                singleDataProviderFrequencyDifferentialPrivacyEpsilon != null &&
-                singleDataProviderFrequencyDifferentialPrivacyDelta != null
+                  singleDataProviderDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderDifferentialPrivacyDelta != null &&
+                  singleDataProviderFrequencyDifferentialPrivacyEpsilon != null &&
+                  singleDataProviderFrequencyDifferentialPrivacyDelta != null
               ) {
                 singleDataProviderParams =
                   MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
