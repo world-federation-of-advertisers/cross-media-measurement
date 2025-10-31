@@ -2,6 +2,7 @@ load(
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
     "spanner_emulator_test",
 )
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 spanner_emulator_test(
     name = "ReportingSchemaTest",
@@ -38,5 +39,23 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "BasicReportNoiseCorrectedResultsTransformationTest",
+    srcs = ["BasicReportNoiseCorrectedResultsTransformationTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_report_noise_corrected_results_transformation",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_impression_qualification_filter_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
