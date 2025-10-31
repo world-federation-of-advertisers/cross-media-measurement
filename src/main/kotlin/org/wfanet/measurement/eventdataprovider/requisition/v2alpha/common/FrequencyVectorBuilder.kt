@@ -183,7 +183,12 @@ class FrequencyVectorBuilder(
   }
 
   /** Build a FrequencyVector. */
-  fun build(): FrequencyVector = frequencyVector { data += frequencyData.asList() }
+  fun build(): FrequencyVector =
+    frequencyVector {
+      for (value in frequencyData) {
+        data += value
+      }
+    }
 
   /**
    * Increment the frequency vector for the VID at the given globalIndex.

@@ -218,8 +218,7 @@ class ResultsFulfiller(
     val updateRequisitionMetadata = signalRequisitionStartProcessing(requisitionMetadata)
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val freqBytes = frequencyVector.getByteArray()
-    val frequencyData = IntArray(freqBytes.size) { index -> freqBytes[index].toInt() and 0xFF }
+    val frequencyDataBytes = frequencyVector.getByteArray()
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -237,7 +236,7 @@ class ResultsFulfiller(
         requisition,
         measurementSpec,
         requisitionSpec,
-        frequencyData,
+        frequencyDataBytes,
         populationSpec,
       )
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
