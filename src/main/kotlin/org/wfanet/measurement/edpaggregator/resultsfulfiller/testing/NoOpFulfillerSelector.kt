@@ -37,10 +37,10 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
+    frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-    return NoOpMeasurementFulfiller(requisition, frequencyData)
+    return NoOpMeasurementFulfiller(requisition, frequencyDataBytes.toUnsignedIntArray())
   }
 
   companion object {
@@ -94,5 +94,9 @@ class NoOpFulfillerSelector : FulfillerSelector {
     companion object {
       private val logger = Logger.getLogger(NoOpMeasurementFulfiller::class.java.name)
     }
+  }
+
+  private fun ByteArray.toUnsignedIntArray(): IntArray {
+    return IntArray(size) { index -> this[index].toInt() and 0xFF }
   }
 }
