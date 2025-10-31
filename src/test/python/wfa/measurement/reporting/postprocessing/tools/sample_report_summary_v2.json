@@ -33,33 +33,28 @@
             "metric": "m_003"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "6182655",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "3091328",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1545664",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "772832",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "386415",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_004"
           },
           "impressionCount": {
@@ -76,33 +71,28 @@
             "metric": "m_006"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "5165486",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "2582743",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1291372",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "645686",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "322843",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_007"
           },
           "impressionCount": {
@@ -119,33 +109,28 @@
             "metric": "m_009"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1265549",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "632775",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "316388",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "158194",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "79095",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_010"
           },
           "impressionCount": {
@@ -186,28 +171,23 @@
             "metric": "m_014"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "3096774"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1548387"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "774194"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "387097"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "193548"
               }
-            ],
+            },
             "metric": "m_015"
           },
           "impressionCount": {
@@ -222,28 +202,23 @@
             "metric": "m_017"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "2580645"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1290323"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "645162"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "322581"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "161289"
               }
-            ],
+            },
             "metric": "m_018"
           },
           "impressionCount": {
@@ -258,28 +233,23 @@
             "metric": "m_020"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "567742"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "283871"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "141936"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "70968"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "35483"
               }
-            ],
+            },
             "metric": "m_021"
           },
           "impressionCount": {
@@ -319,28 +289,23 @@
             "metric": "m_025"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "516129"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "258065"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "129033"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "64517"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "32256"
               }
-            ],
+            },
             "metric": "m_026"
           },
           "impressionCount": {
@@ -355,28 +320,23 @@
             "metric": "m_028"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "412903"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "206452"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "103226"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "51613"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "25806"
               }
-            ],
+            },
             "metric": "m_029"
           },
           "impressionCount": {
@@ -391,28 +351,23 @@
             "metric": "m_031"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "104749"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "52375"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "26188"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "13094"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "6546"
               }
-            ],
+            },
             "metric": "m_032"
           },
           "impressionCount": {
@@ -480,33 +435,28 @@
             "metric": "m_038"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "9817671",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "4908836",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "2454418",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "1227209",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "613604",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_039"
           },
           "impressionCount": {
@@ -523,33 +473,28 @@
             "metric": "m_041"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "8169963",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "4084982",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "2042491",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "1021246",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "510622",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_042"
           },
           "impressionCount": {
@@ -566,33 +511,28 @@
             "metric": "m_044"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1941425",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "970713",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "485357",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "242679",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "121336",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_045"
           },
           "impressionCount": {
@@ -636,33 +576,28 @@
             "metric": "m_049"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "5874706",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "2937353",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1468677",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "734339",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "367168",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_050"
           },
           "impressionCount": {
@@ -679,33 +614,28 @@
             "metric": "m_052"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "4905004",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "2452502",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1226251",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "613126",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "306563",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_053"
           },
           "impressionCount": {
@@ -722,33 +652,28 @@
             "metric": "m_055"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1181549",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "590775",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "295388",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "147694",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "73846",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_056"
           },
           "impressionCount": {
@@ -789,28 +714,23 @@
             "metric": "m_060"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "2941935"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1470968"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "735484"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "367742"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "183871"
               }
-            ],
+            },
             "metric": "m_061"
           },
           "impressionCount": {
@@ -825,28 +745,23 @@
             "metric": "m_063"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "2451613"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1225807"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "612904"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "306452"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "153224"
               }
-            ],
+            },
             "metric": "m_064"
           },
           "impressionCount": {
@@ -861,28 +776,23 @@
             "metric": "m_066"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "536671"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "268336"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "134168"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "67084"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "33542"
               }
-            ],
+            },
             "metric": "m_067"
           },
           "impressionCount": {
@@ -922,28 +832,23 @@
             "metric": "m_071"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "490323"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "245162"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "122581"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "61291"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "30643"
               }
-            ],
+            },
             "metric": "m_072"
           },
           "impressionCount": {
@@ -958,28 +863,23 @@
             "metric": "m_074"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "392258"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "196129"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "98065"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "49033"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "24515"
               }
-            ],
+            },
             "metric": "m_075"
           },
           "impressionCount": {
@@ -994,28 +894,23 @@
             "metric": "m_077"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "99438"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "49719"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "24860"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "12430"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "6215"
               }
-            ],
+            },
             "metric": "m_078"
           },
           "impressionCount": {
@@ -1059,33 +954,28 @@
             "metric": "m_082"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "8211035",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "4105518",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "2052759",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "1026380",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "513189",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_083"
           },
           "impressionCount": {
@@ -1102,33 +992,28 @@
             "metric": "m_085"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "6929788",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "3464894",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1732447",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "866224",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "433111",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_086"
           },
           "impressionCount": {
@@ -1145,33 +1030,28 @@
             "metric": "m_088"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1691941",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "845971",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "422986",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "211493",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "105745",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_089"
           },
           "impressionCount": {
@@ -1215,33 +1095,28 @@
             "metric": "m_093"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "6202336",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "3101168",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1550584",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "775292",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "387646",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_094"
           },
           "impressionCount": {
@@ -1258,33 +1133,28 @@
             "metric": "m_096"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "5161797",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "2580899",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "1290450",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "645225",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "322610",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_097"
           },
           "impressionCount": {
@@ -1301,33 +1171,28 @@
             "metric": "m_099"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1259893",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "629947",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "314974",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "157487",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "78741",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_100"
           },
           "impressionCount": {
@@ -1368,28 +1233,23 @@
             "metric": "m_104"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "3096774"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1548387"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "774194"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "387097"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "193548"
               }
-            ],
+            },
             "metric": "m_105"
           },
           "impressionCount": {
@@ -1404,28 +1264,23 @@
             "metric": "m_107"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "2580645"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "1290323"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "645162"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "322581"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "161289"
               }
-            ],
+            },
             "metric": "m_108"
           },
           "impressionCount": {
@@ -1440,28 +1295,23 @@
             "metric": "m_110"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "567742"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "283871"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "141936"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "70968"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "35483"
               }
-            ],
+            },
             "metric": "m_111"
           },
           "impressionCount": {
@@ -1501,28 +1351,23 @@
             "metric": "m_115"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "516129"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "258065"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "129033"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "64517"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "32256"
               }
-            ],
+            },
             "metric": "m_116"
           },
           "impressionCount": {
@@ -1537,28 +1382,23 @@
             "metric": "m_118"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "412903"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "206452"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "103226"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "51613"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "25806"
               }
-            ],
+            },
             "metric": "m_119"
           },
           "impressionCount": {
@@ -1573,28 +1413,23 @@
             "metric": "m_121"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "104749"
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "52375"
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "26188"
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "13094"
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "6546"
               }
-            ],
+            },
             "metric": "m_122"
           },
           "impressionCount": {
@@ -1639,33 +1474,28 @@
             "metric": "m_126"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "9822316",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "4911158",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "2455579",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "1227790",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "613894",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_127"
           },
           "impressionCount": {
@@ -1682,33 +1512,28 @@
             "metric": "m_129"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "8165148",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "4082574",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "2041287",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "1020644",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "510321",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_130"
           },
           "impressionCount": {
@@ -1725,33 +1550,28 @@
             "metric": "m_132"
           },
           "frequency": {
-            "bins": [
-              {
-                "label": "1",
+            "bins": {
+              "1": {
                 "value": "1936280",
                 "standardDeviation": 10000
               },
-              {
-                "label": "2",
+              "2": {
                 "value": "968140",
                 "standardDeviation": 10000
               },
-              {
-                "label": "3",
+              "3": {
                 "value": "484070",
                 "standardDeviation": 10000
               },
-              {
-                "label": "4",
+              "4": {
                 "value": "242035",
                 "standardDeviation": 10000
               },
-              {
-                "label": "5",
+              "5": {
                 "value": "121017",
                 "standardDeviation": 10000
               }
-            ],
+            },
             "metric": "m_133"
           },
           "impressionCount": {

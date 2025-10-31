@@ -48,11 +48,11 @@ message ReportSummaryV2 {
     // Represents a frequency distribution result.
     message FrequencyResult {
       message BinResult {
-        string label = 1;
-        int64 value = 2;
-        double standard_deviation = 3;
+        int64 value = 1;
+        double standard_deviation = 2;
       }
-      repeated BinResult bins = 1;
+      // Map of bin label to `BinResult`.
+      map<string, BinResult> bins = 1;
 
       // The unique name that is associated with this result.
       string metric = 2;
@@ -90,23 +90,31 @@ message ReportSummaryV2 {
     // `metric_frequency_type` is `TOTAL`) and periodic non-cumulative metrics
     // (e.g., where `metric_frequency_type` is `WEEKLY`).
     repeated ReportSummaryWindowResult non_cumulative_results = 6;
+
+    string external_reporting_set_id = 7;
   }
 
   // A list containing the details and results for each set of metrics included
   // in the report summary.
   repeated ReportSummarySetResult report_summary_set_results = 1;
 
-  // Identifies the filtered demographic groups this report summary applies to.
-  //
-  // The demographic_groups field contains a list of strings, each corresponds
-  // to a single demographic group identifier. For examples:
-  // - For a report summary on a subset of groups: ["MALE_AGE_GROUP1",
-  // "FEMALE_AGE_GROUP1"].
-  // - For a report summary on a single group: ["MALE_AGE_GROUP1"].
-  // - For a report summary on the whole population (no filter): ["-"].
-  repeated string demographic_groups = 2;
+  // The path and value of an EventTemplateField.
+  message GroupingPredicate {
+    string path = 1;
+    string value = 2;
+  }
+
+  // Identifies the filtered demographic groups and event filters this report
+  // summary applies to.
+  repeated GroupingPredicate grouping_predicates = 2;
 
   // The total population size of the selected demographic groups in this report
   // summary.
   int64 population = 3;
+
+  // The CMMS Measurement Consumer ID.
+  string cmms_measurement_consumer_id = 4;
+
+  // The external ID of the report result from which this summary was generated.
+  string external_report_result_id = 5;
 }

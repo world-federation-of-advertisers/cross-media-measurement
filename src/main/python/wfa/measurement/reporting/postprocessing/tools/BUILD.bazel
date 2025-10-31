@@ -64,3 +64,16 @@ py_library(
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
     ],
 )
+
+py_library(
+    name = "report_conversion",
+    srcs = ["report_conversion.py"],
+    imports = ["../"],
+    deps = [
+        requirement("absl-py"),
+        requirement("google-api-core"),
+        requirement("protobuf"),
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
+    ],
+)
