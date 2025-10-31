@@ -125,6 +125,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS ->
             RequisitionMetadataAlreadyExistsException(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -161,6 +162,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -239,6 +241,7 @@ class RequisitionMetadataService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -291,6 +294,7 @@ class RequisitionMetadataService(
                 request.cmmsRequisition,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -322,6 +326,7 @@ class RequisitionMetadataService(
       internalClient.fetchLatestCmmsCreateTime(internalRequest)
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -368,6 +373,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -410,6 +416,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -452,6 +459,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -499,6 +507,7 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
