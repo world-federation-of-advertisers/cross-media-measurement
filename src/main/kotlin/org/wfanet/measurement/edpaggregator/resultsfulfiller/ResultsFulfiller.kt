@@ -219,7 +219,7 @@ class ResultsFulfiller(
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
-    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    val frequencyData = IntArray(freqBytes.size) { index -> freqBytes[index].toInt() and 0xFF }
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -329,8 +329,7 @@ class ResultsFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Utilize all cpu cores but keep one free for GC and system work. */
-    private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
-      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+    /** Reduced parallelism to prevent OOM from large frequency vector allocations. */
+    private val DEFAULT_FULFILLMENT_PARALLELISM: Int = 8
   }
 }
