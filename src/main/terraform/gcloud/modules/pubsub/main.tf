@@ -45,3 +45,22 @@ resource "google_pubsub_topic_iam_member" "dead_letter_writer" {
   role  = "roles/pubsub.publisher"
   member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
+
+resource "google_pubsub_subscription" "dead_letter_subscription" {
+  name  = "${var.topic_name}-dlq-sub"
+  topic = google_pubsub_topic.dead_letter_topic.id
+
+  ack_deadline_seconds = 30
+}
+
+resource "google_pubsub_topic_iam_member" "dead_letter_reader" {
+  topic  = google_pubsub_topic.topic.name
+  role   = "roles/pubsub.subscriber"
+  member = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_pubsub_subscription_iam_member" "dead_letter_subscription_subscriber" {
+  subscription = google_pubsub_subscription.subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
