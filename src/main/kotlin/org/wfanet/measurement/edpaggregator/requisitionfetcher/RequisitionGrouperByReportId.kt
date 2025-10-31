@@ -131,7 +131,7 @@ class RequisitionGrouperByReportId(
     val groupedRequisitions = mutableListOf<GroupedRequisitions>()
     for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
       val requisitionsMetadata: List<RequisitionMetadata> =
-        listStoredRequisitionMetadataByReportId(reportId)
+        listRequisitionMetadataByReportId(reportId)
       val groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
         requisitionsMetadata.groupBy { it.groupId }
       groupedRequisitions.addAll(
@@ -434,11 +434,13 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Lists [RequisitionMetadata] records for a specific report using the Requisition Metadata
-   * Storage.
+   * Lists [RequisitionMetadata] records for the given report.
+   *
+   * This fetches all requisition metadata entries for the report and filters them client-side to
+   * include only those in the `STORED`, `QUEUED`, or `PROCESSING` states.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listStoredRequisitionMetadataByReportId(
+  private suspend fun listRequisitionMetadataByReportId(
     reportName: String
   ): List<RequisitionMetadata> {
     val requisitionMetadataList: Flow<RequisitionMetadata> =
@@ -446,11 +448,7 @@ class RequisitionGrouperByReportId(
         .listResources { pageToken: String ->
           val request = listRequisitionMetadataRequest {
             parent = dataProviderName
-            filter =
-              ListRequisitionMetadataRequestKt.filter {
-                report = reportName
-                state = RequisitionMetadata.State.STORED
-              }
+            filter = ListRequisitionMetadataRequestKt.filter { report = reportName }
             pageSize = responsePageSize
             this.pageToken = pageToken
           }
@@ -459,7 +457,14 @@ class RequisitionGrouperByReportId(
           ResourceList(response.requisitionMetadataList, response.nextPageToken)
         }
         .flattenConcat()
-    return requisitionMetadataList.toList()
+    return requisitionMetadataList.toList().filter {
+      it.state in
+        setOf(
+          RequisitionMetadata.State.STORED,
+          RequisitionMetadata.State.QUEUED,
+          RequisitionMetadata.State.PROCESSING,
+        )
+    }
   }
 
   /**
