@@ -43,7 +43,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 /** [MetricCalculationSpec] fields for equality check */
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
-  val groupings: List<MetricCalculationSpec.Grouping>,
+  val groupings: Set<MetricCalculationSpec.Grouping>,
   val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec?,
   val trailingWindow: MetricCalculationSpec.TrailingWindow?,
 )
@@ -702,7 +702,7 @@ private fun createMetricCalculationSpecInfoKey(
 
   return MetricCalculationSpecInfoKey(
     filter = metricCalculationSpecFilter,
-    groupings = groupings,
+    groupings = groupings.toSet(),
     metricFrequencySpec = metricFrequencySpec,
     trailingWindow = trailingWindow,
   )
