@@ -47,6 +47,6 @@ import "strings"
 		"--x509-common-name=" + certCommonName,
 		"--x509-organization=" + certOrganization,
 		"--x509-dns-name=" + certDnsName,
-		"--x509-valid-days=14d",
+		"--x509-valid-days=14",
 	]
 }
