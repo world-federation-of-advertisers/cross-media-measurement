@@ -53,7 +53,7 @@ locals {
     docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones = ["us-central1-a"]
-    disk_image_family             = "confidential-space"
+    disk_image_family             = "confidential-space-debug"
 
     aggregator_tls_cert           = local.aggregator_tls_cert
     aggregator_tls_key            = local.aggregator_tls_key
