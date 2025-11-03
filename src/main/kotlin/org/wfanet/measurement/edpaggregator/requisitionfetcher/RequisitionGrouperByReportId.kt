@@ -132,11 +132,18 @@ class RequisitionGrouperByReportId(
     for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
       val requisitionsMetadata: List<RequisitionMetadata> =
         listRequisitionMetadataByReportId(reportId)
+      val storedRequisitionMetadata =
+        requisitionsMetadata.filter { it.state == RequisitionMetadata.State.STORED }
+      val storedGroupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
+        storedRequisitionMetadata.groupBy { it.groupId }
+      groupedRequisitions.addAll(
+        recoverUnpersistedGroupedRequisitions(
+          storedGroupIdToRequisitionMetadata,
+          requisitionsByReportId,
+        )
+      )
       val groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
         requisitionsMetadata.groupBy { it.groupId }
-      groupedRequisitions.addAll(
-        recoverUnpersistedGroupedRequisitions(groupIdToRequisitionMetadata, requisitionsByReportId)
-      )
       getNewGroupedRequisitions(groupIdToRequisitionMetadata, reportId, requisitionsByReportId)
         ?.let { groupedRequisitions.add(it) }
     }
@@ -457,14 +464,7 @@ class RequisitionGrouperByReportId(
           ResourceList(response.requisitionMetadataList, response.nextPageToken)
         }
         .flattenConcat()
-    return requisitionMetadataList.toList().filter {
-      it.state in
-        setOf(
-          RequisitionMetadata.State.STORED,
-          RequisitionMetadata.State.QUEUED,
-          RequisitionMetadata.State.PROCESSING,
-        )
-    }
+    return requisitionMetadataList.toList()
   }
 
   /**
