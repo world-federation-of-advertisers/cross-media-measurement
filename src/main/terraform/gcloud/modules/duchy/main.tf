@@ -135,6 +135,38 @@ resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
   private_ip_google_access = true
 }
 
+# Cloud Router for NAT gateway
+resource "google_compute_router" "trustee_mill_router" {
+  count   = var.trustee_config != null ? 1 : 0
+
+  name    = "${var.name}-trustee-mill-router"
+  region  = data.google_client_config.default.region
+  network = "default"
+}
+
+# Cloud NAT configuration
+resource "google_compute_router_nat" "trustee_mill_nat" {
+  count = var.trustee_config != null ? 1 : 0
+
+  name                               = "${var.name}-trustee-mill-nat"
+  router                             = google_compute_router.trustee_mill_router[0].name
+  region                             = google_compute_router.trustee_mill_router[0].region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.trustee_mill_subnetwork[0].self_link
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  enable_endpoint_independent_mapping = true
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
 module "trustee_mill" {
   count = var.trustee_config != null ? 1 : 0
   
