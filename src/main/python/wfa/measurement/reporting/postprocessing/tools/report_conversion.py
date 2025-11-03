@@ -206,12 +206,11 @@ def _create_report_summary_for_group(
     report_summary.external_report_result_id = str(
         report_result.external_report_result_id)
 
-    # Gets the grouping predicates from the group_key's. The group_key is a
-    # frozenset of (path, value) tuples. A special key frozenset({('-', '')}) is
-    # used for no groupings and the tuple is ignore.
-    for path, value in sorted(list(group_key)):
-        if value:
-            report_summary.grouping_predicates.add(path=path, value=str(value))
+    # Since all results in results_for_group share the same grouping key, we get
+    # the groupings and event filters from the first result.
+    report_summary.groupings.extend(results_for_group[0].key.groupings)
+    report_summary.event_filters.extend(results_for_group[0].key.event_filters)
+
     population = _get_population(results_for_group)
 
     if population > 0:
@@ -484,5 +483,3 @@ def _get_hashable_term(term: EventTemplateField) -> tuple[str, Any]:
 def _proto_date_to_datetime(proto_date: ProtoDate) -> date:
     """Converts a google.type.Date to a Python datetime.date."""
     return date(proto_date.year, proto_date.month, proto_date.day)
-
-

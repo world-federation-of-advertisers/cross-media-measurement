@@ -16,6 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.postprocessing;
 
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+
 option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
 option java_outer_classname = "ReportSummaryV2Proto";
@@ -98,23 +101,24 @@ message ReportSummaryV2 {
   // in the report summary.
   repeated ReportSummarySetResult report_summary_set_results = 1;
 
-  // The path and value of an EventTemplateField.
-  message GroupingPredicate {
-    string path = 1;
-    string value = 2;
-  }
+  // The event template dimensions from the `DimensionSpec`, ordered by
+  // `path`. Each event template field path may exist at most once in this
+  // list.
+  repeated wfa.measurement.internal.reporting.v2.EventTemplateField groupings =
+      2;
 
-  // Identifies the filtered demographic groups and event filters this report
-  // summary applies to.
-  repeated GroupingPredicate grouping_predicates = 2;
+  // The event filters from the `DimensionSpec`, ordered by `terms`
+  // lexicographically. The terms themselves are ordered by `path` and
+  // `value`, following the natural order of the value type.
+  repeated wfa.measurement.internal.reporting.v2.EventFilter event_filters = 3;
 
   // The total population size of the selected demographic groups in this report
   // summary.
-  int64 population = 3;
+  int64 population = 4;
 
   // The CMMS Measurement Consumer ID.
-  string cmms_measurement_consumer_id = 4;
+  string cmms_measurement_consumer_id = 5;
 
   // The external ID of the report result from which this summary was generated.
-  string external_report_result_id = 5;
+  string external_report_result_id = 6;
 }

@@ -21,10 +21,10 @@ from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conve
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
     report_summary_v2_pb2, )
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
+from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
 
 ReportSummaryWindowResult = (report_summary_v2_pb2.ReportSummaryV2.
                              ReportSummarySetResult.ReportSummaryWindowResult)
-GroupingPredicate = report_summary_v2_pb2.ReportSummaryV2.GroupingPredicate
 
 
 class ReportConversionTest(unittest.TestCase):
@@ -283,9 +283,20 @@ class ReportConversionTest(unittest.TestCase):
         expected_ami_report_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
           external_report_result_id: "123"
-          grouping_predicates { path: "banner_ad.viewable" value: "True" }
-          grouping_predicates { path: "person.age_group" value: "YEARS_18_TO_34" }
-          grouping_predicates { path: "person.gender" value: "MALE" }
+          groupings {
+            path: "person.age_group"
+            value { enum_value: "YEARS_18_TO_34" }
+          }
+          groupings {
+            path: "person.gender"
+            value { enum_value: "MALE" }
+          }
+          event_filters {
+            terms {
+              path: "banner_ad.viewable"
+              value { bool_value: true }
+            }
+          }
           population: 10000
           report_summary_set_results {
             impression_filter: "ami"
@@ -590,9 +601,20 @@ class ReportConversionTest(unittest.TestCase):
         expected_custom_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
           external_report_result_id: "123"
-          grouping_predicates { path: "banner_ad.viewable" value: "True" }
-          grouping_predicates { path: "person.age_group" value: "YEARS_18_TO_34" }
-          grouping_predicates { path: "person.gender" value: "MALE" }
+          groupings {
+            path: "person.age_group"
+            value { enum_value: "YEARS_18_TO_34" }
+          }
+          groupings {
+            path: "person.gender"
+            value { enum_value: "MALE" }
+          }
+          event_filters {
+            terms {
+              path: "banner_ad.viewable"
+              value { bool_value: true }
+            }
+          }
           population: 10000
           report_summary_set_results {
             impression_filter: "custom"
@@ -830,15 +852,15 @@ class ReportConversionTest(unittest.TestCase):
         report_summary_18_34 = None
         report_summary_35_54 = None
 
-        predicate_18_34 = report_summary_v2_pb2.ReportSummaryV2.GroupingPredicate(
-            path='person.age_group', value='YEARS_18_TO_34')
-        predicate_35_54 = report_summary_v2_pb2.ReportSummaryV2.GroupingPredicate(
-            path='person.age_group', value='YEARS_35_TO_54')
+        grouping_18_34 = event_template_field_pb2.EventTemplateField(
+            path='person.age_group', value={'enum_value': 'YEARS_18_TO_34'})
+        grouping_35_54 = event_template_field_pb2.EventTemplateField(
+            path='person.age_group', value={'enum_value': 'YEARS_35_TO_54'})
 
         for report_summary in report_summaries:
-            if predicate_18_34 in report_summary.grouping_predicates:
+            if grouping_18_34 in report_summary.groupings:
                 report_summary_18_34 = report_summary
-            elif predicate_35_54 in report_summary.grouping_predicates:
+            elif grouping_35_54 in report_summary.groupings:
                 report_summary_35_54 = report_summary
 
         self.assertIsNotNone(report_summary_18_34)
@@ -852,22 +874,26 @@ class ReportConversionTest(unittest.TestCase):
                          8)
 
         # Verifies the grouping predicates for the 18-34 age group.
-        expected_predicates_18_34 = [
-            GroupingPredicate(path='banner_ad.viewable', value='True'),
-            GroupingPredicate(path='person.age_group', value='YEARS_18_TO_34'),
-            GroupingPredicate(path='person.gender', value='MALE'),
+        expected_groupings_18_34 = [
+            event_template_field_pb2.EventTemplateField(
+                path='person.age_group',
+                value={'enum_value': 'YEARS_18_TO_34'}),
+            event_template_field_pb2.EventTemplateField(
+                path='person.gender', value={'enum_value': 'MALE'}),
         ]
-        self.assertCountEqual(report_summary_18_34.grouping_predicates,
-                              expected_predicates_18_34)
+        self.assertCountEqual(report_summary_18_34.groupings,
+                              expected_groupings_18_34)
 
         # Verifies the grouping predicates for the 35-54 age group.
-        expected_predicates_35_54 = [
-            GroupingPredicate(path='banner_ad.viewable', value='True'),
-            GroupingPredicate(path='person.age_group', value='YEARS_35_TO_54'),
-            GroupingPredicate(path='person.gender', value='MALE'),
+        expected_groupings_35_54 = [
+            event_template_field_pb2.EventTemplateField(
+                path='person.age_group',
+                value={'enum_value': 'YEARS_35_TO_54'}),
+            event_template_field_pb2.EventTemplateField(
+                path='person.gender', value={'enum_value': 'MALE'}),
         ]
-        self.assertCountEqual(report_summary_35_54.grouping_predicates,
-                              expected_predicates_35_54)
+        self.assertCountEqual(report_summary_35_54.groupings,
+                              expected_groupings_35_54)
 
         # Verifies that the total campaign measurements for the 3 edps are in the
         # report summary.
