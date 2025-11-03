@@ -62,7 +62,10 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
         paramCount = 3,
         """
         WITH MeasurementDetails AS MATERIALIZED (
-          SELECT *
+          SELECT
+            MeasurementDetails,
+            MeasurementDetailsJson,
+            CmmsMeasurementId
           FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
           AS c(MeasurementDetails, MeasurementDetailsJson, CmmsMeasurementId)
         )
@@ -110,7 +113,8 @@ class SetMeasurementFailures(private val request: BatchSetMeasurementFailuresReq
           paramCount = 1,
           """
         WITH MetricIds AS MATERIALIZED (
-          SELECT *
+          SELECT
+            MetricId
           FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
           AS c(MetricId)
         )

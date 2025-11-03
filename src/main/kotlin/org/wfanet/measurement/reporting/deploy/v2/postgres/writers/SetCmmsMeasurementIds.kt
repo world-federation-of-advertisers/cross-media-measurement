@@ -46,7 +46,9 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
         paramCount = 2,
         """
         WITH MeasurementIds AS MATERIALIZED (
-          SELECT *
+          SELECT
+            CmmsMeasurementId,
+            CmmsCreateMeasurementRequestId
           FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
           AS c(CmmsMeasurementId, CmmsCreateMeasurementRequestId)
         )

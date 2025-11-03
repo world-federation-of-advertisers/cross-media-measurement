@@ -78,7 +78,8 @@ class MeasurementReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           WITH CmmsMeasurementIds AS MATERIALIZED (
-            SELECT *
+            SELECT
+              CmmsMeasurementId
             FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
             AS c(CmmsMeasurementId)
           )

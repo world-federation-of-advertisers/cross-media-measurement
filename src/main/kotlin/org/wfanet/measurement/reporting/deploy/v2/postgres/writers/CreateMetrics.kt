@@ -479,7 +479,9 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         paramCount = 2,
         """
         WITH MetricIds AS MATERIALIZED (
-          SELECT *
+          SELECT
+            MetricId,
+            CreateMetricRequestId
           FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
           AS c(MetricId, CreateMetricRequestId)
         )

@@ -121,32 +121,32 @@ class MetricReader(private val readContext: ReadContext) {
     """
     SELECT
       CmmsMeasurementConsumerId,
-      Metrics.MeasurementConsumerId,
-      Metrics.CreateMetricRequestId,
+      FilteredMetrics.MeasurementConsumerId,
+      FilteredMetrics.CreateMetricRequestId,
       ReportingSets.ExternalReportingSetId AS MetricsExternalReportingSetId,
-      Metrics.MetricId,
-      Metrics.ExternalMetricId,
-      Metrics.TimeIntervalStart AS MetricsTimeIntervalStart,
-      Metrics.TimeIntervalEndExclusive AS MetricsTimeIntervalEndExclusive,
-      Metrics.MetricType,
-      Metrics.DifferentialPrivacyEpsilon,
-      Metrics.DifferentialPrivacyDelta,
-      Metrics.FrequencyDifferentialPrivacyEpsilon,
-      Metrics.FrequencyDifferentialPrivacyDelta,
-      Metrics.MaximumFrequency,
-      Metrics.MaximumFrequencyPerUser,
-      Metrics.MaximumWatchDurationPerUser,
-      Metrics.VidSamplingIntervalStart,
-      Metrics.VidSamplingIntervalWidth,
-      Metrics.SingleDataProviderDifferentialPrivacyEpsilon,
-      Metrics.SingleDataProviderDifferentialPrivacyDelta,
-      Metrics.SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
-      Metrics.SingleDataProviderFrequencyDifferentialPrivacyDelta,
-      Metrics.SingleDataProviderVidSamplingIntervalStart,
-      Metrics.SingleDataProviderVidSamplingIntervalWidth,
-      Metrics.CreateTime,
-      Metrics.MetricDetails,
-      Metrics.State as MetricsState,
+      FilteredMetrics.MetricId,
+      FilteredMetrics.ExternalMetricId,
+      FilteredMetrics.TimeIntervalStart AS MetricsTimeIntervalStart,
+      FilteredMetrics.TimeIntervalEndExclusive AS MetricsTimeIntervalEndExclusive,
+      FilteredMetrics.MetricType,
+      FilteredMetrics.DifferentialPrivacyEpsilon,
+      FilteredMetrics.DifferentialPrivacyDelta,
+      FilteredMetrics.FrequencyDifferentialPrivacyEpsilon,
+      FilteredMetrics.FrequencyDifferentialPrivacyDelta,
+      FilteredMetrics.MaximumFrequency,
+      FilteredMetrics.MaximumFrequencyPerUser,
+      FilteredMetrics.MaximumWatchDurationPerUser,
+      FilteredMetrics.VidSamplingIntervalStart,
+      FilteredMetrics.VidSamplingIntervalWidth,
+      FilteredMetrics.SingleDataProviderDifferentialPrivacyEpsilon,
+      FilteredMetrics.SingleDataProviderDifferentialPrivacyDelta,
+      FilteredMetrics.SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+      FilteredMetrics.SingleDataProviderFrequencyDifferentialPrivacyDelta,
+      FilteredMetrics.SingleDataProviderVidSamplingIntervalStart,
+      FilteredMetrics.SingleDataProviderVidSamplingIntervalWidth,
+      FilteredMetrics.CreateTime,
+      FilteredMetrics.MetricDetails,
+      FilteredMetrics.State as MetricsState,
       MetricMeasurements.Coefficient,
       MetricMeasurements.BinaryRepresentation,
       Measurements.MeasurementId,
@@ -171,10 +171,10 @@ class MetricReader(private val readContext: ReadContext) {
     JOIN MeasurementPrimitiveReportingSetBases USING (MeasurementConsumerId, MeasurementId)
     JOIN PrimitiveReportingSetBases USING (MeasurementConsumerId, PrimitiveReportingSetBasisId)
     JOIN ReportingSets AS PrimitiveReportingSets
-      ON Metrics.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
+      ON FilteredMetrics.MeasurementConsumerId = PrimitiveReportingSets.MeasurementConsumerId
       AND PrimitiveReportingSetId = PrimitiveReportingSets.ReportingSetId
     LEFT JOIN PrimitiveReportingSetBasisFilters
-      ON Metrics.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
+      ON FilteredMetrics.MeasurementConsumerId = PrimitiveReportingSetBasisFilters.MeasurementConsumerId
       AND PrimitiveReportingSetBases.PrimitiveReportingSetBasisId = PrimitiveReportingSetBasisFilters.PrimitiveReportingSetBasisId
     """
       .trimIndent()
@@ -193,18 +193,47 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           WITH CreateMetricRequestIds AS MATERIALIZED (
-            SELECT *
+            SELECT
+              CreateMetricRequestId
             FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
             AS c(CreateMetricRequestId)
-          ), Metrics AS (
-            SELECT *
+          ), FilteredMetrics AS (
+            SELECT
+              CmmsMeasurementConsumerId,
+              MeasurementConsumerId,
+              CreateMetricRequestId,
+              MetricId,
+              ExternalMetricId,
+              ReportingSetId,
+              TimeIntervalStart,
+              TimeIntervalEndExclusive,
+              MetricType,
+              DifferentialPrivacyEpsilon,
+              DifferentialPrivacyDelta,
+              FrequencyDifferentialPrivacyEpsilon,
+              FrequencyDifferentialPrivacyDelta,
+              MaximumFrequency,
+              MaximumFrequencyPerUser,
+              MaximumWatchDurationPerUser,
+              VidSamplingIntervalStart,
+              VidSamplingIntervalWidth,
+              SingleDataProviderDifferentialPrivacyEpsilon,
+              SingleDataProviderDifferentialPrivacyDelta,
+              SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+              SingleDataProviderFrequencyDifferentialPrivacyDelta,
+              SingleDataProviderVidSamplingIntervalStart,
+              SingleDataProviderVidSamplingIntervalWidth,
+              CreateTime,
+              MetricDetails,
+              State,
+              CmmsModelLineName
             FROM MeasurementConsumers
             JOIN Metrics USING (MeasurementConsumerId)
             JOIN CreateMetricRequestIds USING (CreateMetricRequestId)
             WHERE MeasurementConsumers.MeasurementConsumerId = $1
           )
           $baseSqlSelect
-          FROM Metrics
+          FROM FilteredMetrics
           $baseSqlJoins
         """
           .trimIndent()
@@ -252,7 +281,8 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           WITH CmmsMeasurementIds AS MATERIALIZED (
-            SELECT *
+            SELECT
+              CmmsMeasurementId
             FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
             AS c(CmmsMeasurementId)
           ), MeasurementIds AS (
@@ -262,7 +292,7 @@ class MetricReader(private val readContext: ReadContext) {
             FROM Measurements
             JOIN CmmsMeasurementIds USING (CmmsMeasurementId)
             WHERE MeasurementConsumerId = $1
-          ), Metrics AS (
+          ), FilteredMetrics AS (
             SELECT
               CmmsMeasurementConsumerId,
               Metrics.MeasurementConsumerId,
@@ -298,7 +328,7 @@ class MetricReader(private val readContext: ReadContext) {
             JOIN MeasurementIds USING (MeasurementConsumerId, MeasurementId)
           )
           $baseSqlSelect
-          FROM Metrics
+          FROM FilteredMetrics
           $baseSqlJoins
         """
           .trimIndent()
@@ -377,7 +407,11 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           WITH ReportingMetricKeys AS MATERIALIZED (
-            SELECT *
+            SELECT
+              ReportingSetId,
+              TimeIntervalStart,
+              TimeIntervalEndExclusive,
+              MetricCalculationSpecId
             FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
             AS c(ReportingSetId, TimeIntervalStart, TimeIntervalEndExclusive, MetricCalculationSpecId)
           )
@@ -521,21 +555,52 @@ class MetricReader(private val readContext: ReadContext) {
       StringBuilder(
         """
           WITH MeasurementConsumerForMetrics AS (
-            SELECT *
+            SELECT
+              MeasurementConsumerId,
+              CmmsMeasurementConsumerId
             FROM MeasurementConsumers
             WHERE CmmsMeasurementConsumerId = $1
           ), ExternalMetricIds AS MATERIALIZED (
-            SELECT *
+            SELECT
+              ExternalMetricId
             FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
             AS c(ExternalMetricId)
-          ), Metrics AS (
-            SELECT *
+          ), FilteredMetrics AS (
+            SELECT
+              CmmsMeasurementConsumerId,
+              MeasurementConsumerId,
+              CreateMetricRequestId,
+              MetricId,
+              ExternalMetricId,
+              ReportingSetId,
+              TimeIntervalStart,
+              TimeIntervalEndExclusive,
+              MetricType,
+              DifferentialPrivacyEpsilon,
+              DifferentialPrivacyDelta,
+              FrequencyDifferentialPrivacyEpsilon,
+              FrequencyDifferentialPrivacyDelta,
+              MaximumFrequency,
+              MaximumFrequencyPerUser,
+              MaximumWatchDurationPerUser,
+              VidSamplingIntervalStart,
+              VidSamplingIntervalWidth,
+              SingleDataProviderDifferentialPrivacyEpsilon,
+              SingleDataProviderDifferentialPrivacyDelta,
+              SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+              SingleDataProviderFrequencyDifferentialPrivacyDelta,
+              SingleDataProviderVidSamplingIntervalStart,
+              SingleDataProviderVidSamplingIntervalWidth,
+              CreateTime,
+              MetricDetails,
+              State,
+              CmmsModelLineName
             FROM MeasurementConsumerForMetrics
             JOIN Metrics USING (MeasurementConsumerId)
             JOIN ExternalMetricIds USING (ExternalMetricId)
           )
           $baseSqlSelect
-          FROM Metrics
+          FROM FilteredMetrics
           $baseSqlJoins
         """
           .trimIndent()
@@ -573,14 +638,42 @@ class MetricReader(private val readContext: ReadContext) {
       """
         $baseSqlSelect
         FROM (
-          SELECT *
+          SELECT
+            CmmsMeasurementConsumerId,
+            MeasurementConsumerId,
+            CreateMetricRequestId,
+            MetricId,
+            ExternalMetricId,
+            ReportingSetId,
+            TimeIntervalStart,
+            TimeIntervalEndExclusive,
+            MetricType,
+            DifferentialPrivacyEpsilon,
+            DifferentialPrivacyDelta,
+            FrequencyDifferentialPrivacyEpsilon,
+            FrequencyDifferentialPrivacyDelta,
+            MaximumFrequency,
+            MaximumFrequencyPerUser,
+            MaximumWatchDurationPerUser,
+            VidSamplingIntervalStart,
+            VidSamplingIntervalWidth,
+            SingleDataProviderDifferentialPrivacyEpsilon,
+            SingleDataProviderDifferentialPrivacyDelta,
+            SingleDataProviderFrequencyDifferentialPrivacyEpsilon,
+            SingleDataProviderFrequencyDifferentialPrivacyDelta,
+            SingleDataProviderVidSamplingIntervalStart,
+            SingleDataProviderVidSamplingIntervalWidth,
+            CreateTime,
+            MetricDetails,
+            State,
+            CmmsModelLineName
           FROM MeasurementConsumers
             JOIN Metrics USING (MeasurementConsumerId)
           WHERE CmmsMeasurementConsumerId = $1
             AND ExternalMetricId > $2
           ORDER BY ExternalMetricId ASC
           LIMIT $3
-        ) AS Metrics
+        ) AS FilteredMetrics
         $baseSqlJoins
         ORDER BY ExternalMetricId ASC
       """
