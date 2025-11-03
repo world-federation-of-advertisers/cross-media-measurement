@@ -128,18 +128,42 @@ class RequisitionGrouperByReportId(
   override suspend fun createGroupedRequisitions(
     requisitions: List<Requisition>
   ): List<GroupedRequisitions> {
+    val createGroupedStartTime = System.currentTimeMillis()
+    logger.info("Creating grouped requisitions for ${requisitions.size} requisitions")
+
+    val groupByReportStartTime = System.currentTimeMillis()
+    val requisitionsByReport = requisitions.groupBy { getReportId(it) }
+    logger.info("Grouping by report ID took ${System.currentTimeMillis() - groupByReportStartTime}ms, ${requisitionsByReport.size} reports")
+
     val groupedRequisitions = mutableListOf<GroupedRequisitions>()
-    for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
+    for ((reportId, requisitionsByReportId) in requisitionsByReport) {
+      val reportStartTime = System.currentTimeMillis()
+      logger.info("Processing report: $reportId with ${requisitionsByReportId.size} requisitions")
+
+      val listMetadataStartTime = System.currentTimeMillis()
       val requisitionsMetadata: List<RequisitionMetadata> =
         listRequisitionMetadataByReportId(reportId)
+      logger.info("Listing metadata for report $reportId took ${System.currentTimeMillis() - listMetadataStartTime}ms, found ${requisitionsMetadata.size} metadata entries")
+
       val groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
         requisitionsMetadata.groupBy { it.groupId }
-      groupedRequisitions.addAll(
-        recoverUnpersistedGroupedRequisitions(groupIdToRequisitionMetadata, requisitionsByReportId)
-      )
+
+      val recoverStartTime = System.currentTimeMillis()
+      val recoveredGroups = recoverUnpersistedGroupedRequisitions(groupIdToRequisitionMetadata, requisitionsByReportId)
+      logger.info("Recovering unpersisted groups for report $reportId took ${System.currentTimeMillis() - recoverStartTime}ms, recovered ${recoveredGroups.size} groups")
+      groupedRequisitions.addAll(recoveredGroups)
+
+      val newGroupsStartTime = System.currentTimeMillis()
       getNewGroupedRequisitions(groupIdToRequisitionMetadata, reportId, requisitionsByReportId)
-        ?.let { groupedRequisitions.add(it) }
+        ?.let {
+          logger.info("Creating new grouped requisitions for report $reportId took ${System.currentTimeMillis() - newGroupsStartTime}ms")
+          groupedRequisitions.add(it)
+        }
+
+      logger.info("Total processing time for report $reportId: ${System.currentTimeMillis() - reportStartTime}ms")
     }
+
+    logger.info("Total createGroupedRequisitions took ${System.currentTimeMillis() - createGroupedStartTime}ms, created ${groupedRequisitions.size} groups")
     return groupedRequisitions
   }
 
@@ -205,13 +229,21 @@ class RequisitionGrouperByReportId(
     requisitions: List<Requisition>,
     groupId: String,
   ): GroupedRequisitions? {
+    val methodStartTime = System.currentTimeMillis()
     if (requisitions.isEmpty()) return null
+
+    val mappingStartTime = System.currentTimeMillis()
     val requisitionsGroupedByReportId =
       requisitions.map { req ->
+        val reqStartTime = System.currentTimeMillis()
         val measurementSpec: MeasurementSpec = req.measurementSpec.unpack()
+
+        val eventGroupStartTime = System.currentTimeMillis()
         val eventGroupMapEntries =
           getEventGroupMapEntries(requisitionValidator.getRequisitionSpec(req))
-        groupedRequisitions {
+        logger.info("getEventGroupMapEntries for requisition ${req.name} took ${System.currentTimeMillis() - eventGroupStartTime}ms, found ${eventGroupMapEntries.size} event groups")
+
+        val result = groupedRequisitions {
           modelLine = measurementSpec.modelLine
           this.requisitions +=
             GroupedRequisitionsKt.requisitionEntry { requisition = Any.pack(req) }
@@ -223,8 +255,17 @@ class RequisitionGrouperByReportId(
               }
             }
         }
+        logger.info("Processing requisition ${req.name} took ${System.currentTimeMillis() - reqStartTime}ms")
+        result
       }
-    return mergeGroupedRequisitions(requisitionsGroupedByReportId, groupId)
+    logger.info("Mapping ${requisitions.size} requisitions took ${System.currentTimeMillis() - mappingStartTime}ms")
+
+    val mergeStartTime = System.currentTimeMillis()
+    val merged = mergeGroupedRequisitions(requisitionsGroupedByReportId, groupId)
+    logger.info("Merging grouped requisitions took ${System.currentTimeMillis() - mergeStartTime}ms")
+
+    logger.info("groupValidRequisitions took ${System.currentTimeMillis() - methodStartTime}ms")
+    return merged
   }
 
   /**
@@ -286,25 +327,46 @@ class RequisitionGrouperByReportId(
     reportId: String,
     requisitionsByReportId: List<Requisition>,
   ): GroupedRequisitions? {
+    val methodStartTime = System.currentTimeMillis()
+
     val existingCmmsRequisitionName: Set<String> =
       groupIdToRequisitionMetadata.values.flatten().map { it.cmmsRequisition }.toSet()
     val unregisteredRequisitionsByReportId: List<Requisition> =
       requisitionsByReportId.filter { it.name !in existingCmmsRequisitionName }
-    if (unregisteredRequisitionsByReportId.isEmpty()) return null
+    if (unregisteredRequisitionsByReportId.isEmpty()) {
+      logger.info("No new requisitions for report $reportId")
+      return null
+    }
+
+    logger.info("Found ${unregisteredRequisitionsByReportId.size} unregistered requisitions for report $reportId")
     val requisitionGroupId = UUID.randomUUID().toString()
+
+    val validationStartTime = System.currentTimeMillis()
     val reportValidationOutcome =
       validateRequisitionsByReport(reportId, unregisteredRequisitionsByReportId)
+    logger.info("Validation for report $reportId took ${System.currentTimeMillis() - validationStartTime}ms")
+
     val groupedRequisitions =
       if (reportValidationOutcome.refusal != null) {
+        val refusalStartTime = System.currentTimeMillis()
         reportValidationOutcome.requisitions.forEach { requisition ->
           // Refuse to Cmms first, then update Requisition Metadata Storage
           refuseRequisitionToCmms(requisition, reportValidationOutcome.refusal)
         }
+        logger.info("Refusing ${reportValidationOutcome.requisitions.size} requisitions to Cmms took ${System.currentTimeMillis() - refusalStartTime}ms")
         null
       } else {
-        groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
+        val groupValidStartTime = System.currentTimeMillis()
+        val result = groupValidRequisitions(reportValidationOutcome.requisitions, requisitionGroupId)
+        logger.info("Grouping valid requisitions for report $reportId took ${System.currentTimeMillis() - groupValidStartTime}ms")
+        result
       }
+
+    val syncStartTime = System.currentTimeMillis()
     syncRequisitionMetadata(reportValidationOutcome, requisitionGroupId)
+    logger.info("Syncing requisition metadata for report $reportId took ${System.currentTimeMillis() - syncStartTime}ms")
+
+    logger.info("getNewGroupedRequisitions for report $reportId took ${System.currentTimeMillis() - methodStartTime}ms")
     return groupedRequisitions
   }
 

@@ -64,8 +64,19 @@ abstract class RequisitionGrouper(
    * @return A list of grouped requisitions, excluding any refused entries.
    */
   suspend fun groupRequisitions(requisitions: List<Requisition>): List<GroupedRequisitions> {
+    val startTime = System.currentTimeMillis()
+    logger.info("Starting groupRequisitions for ${requisitions.size} requisitions")
+
+    val mapStartTime = System.currentTimeMillis()
     val mappedRequisitions = requisitions.mapNotNull { mapRequisition(it) }
-    return createGroupedRequisitions(mappedRequisitions)
+    logger.info("Mapping requisitions took ${System.currentTimeMillis() - mapStartTime}ms, ${mappedRequisitions.size} valid requisitions")
+
+    val createStartTime = System.currentTimeMillis()
+    val result = createGroupedRequisitions(mappedRequisitions)
+    logger.info("createGroupedRequisitions took ${System.currentTimeMillis() - createStartTime}ms")
+
+    logger.info("Total groupRequisitions took ${System.currentTimeMillis() - startTime}ms")
+    return result
   }
 
   /**
@@ -116,7 +127,11 @@ abstract class RequisitionGrouper(
   protected suspend fun getEventGroupMapEntries(
     requisitionSpec: RequisitionSpec
   ): Map<String, EventGroupDetails> {
+    val methodStartTime = System.currentTimeMillis()
     val eventGroupMap = mutableMapOf<String, EventGroupDetails>()
+    val eventGroupCount = requisitionSpec.events.eventGroupsList.size
+    logger.info("Processing ${eventGroupCount} event group entries")
+
     for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
       val eventGroupName = eventGroupEntry.key
       if (eventGroupName in eventGroupMap) {
@@ -133,13 +148,16 @@ abstract class RequisitionGrouper(
             }
             .build()
       } else {
+        val fetchStartTime = System.currentTimeMillis()
         eventGroupMap[eventGroupName] = eventGroupDetails {
           val eventGroup = getEventGroup(eventGroupName)
+          logger.info("Fetching event group $eventGroupName took ${System.currentTimeMillis() - fetchStartTime}ms")
           this.eventGroupReferenceId = eventGroup.eventGroupReferenceId
           this.collectionIntervals += eventGroupEntry.value.collectionInterval
         }
       }
     }
+    logger.info("getEventGroupMapEntries took ${System.currentTimeMillis() - methodStartTime}ms for ${eventGroupCount} entries, created ${eventGroupMap.size} unique event groups")
     return eventGroupMap
   }
 

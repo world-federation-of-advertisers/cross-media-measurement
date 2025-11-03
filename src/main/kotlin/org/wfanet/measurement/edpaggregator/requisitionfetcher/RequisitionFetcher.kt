@@ -63,10 +63,12 @@ class RequisitionFetcher(
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   suspend fun fetchAndStoreRequisitions() {
+    val workflowStartTime = System.currentTimeMillis()
     logger.info("Executing requisitionFetchingWorkflow for $dataProviderName...")
 
     var requisitionsCount = 0
 
+    val listingStartTime = System.currentTimeMillis()
     val requisitions: Flow<Requisition> =
       requisitionsStub
         .listResources { pageToken: String ->
@@ -88,15 +90,28 @@ class RequisitionFetcher(
           ResourceList(response.requisitionsList, response.nextPageToken)
         }
         .flattenConcat()
-    logger.info("Fetched ${requisitions.toList().size} requisitions...")
+
+    val toListStartTime = System.currentTimeMillis()
+    logger.info("Listing requisitions flow took ${toListStartTime - listingStartTime}ms")
+
+    val requisitionsList = requisitions.toList()
+    logger.info("Converting flow to list took ${System.currentTimeMillis() - toListStartTime}ms")
+    logger.info("Fetched ${requisitionsList.size} requisitions...")
+
+    val groupingStartTime = System.currentTimeMillis()
     val groupedRequisition: List<GroupedRequisitions> =
-      requisitionGrouper.groupRequisitions(requisitions.toList())
+      requisitionGrouper.groupRequisitions(requisitionsList)
+    logger.info("Grouping requisitions took ${System.currentTimeMillis() - groupingStartTime}ms")
     logger.info("GroupedRequisitions: $groupedRequisition")
+
+    val storageStartTime = System.currentTimeMillis()
     val storedRequisitions: Int = storeRequisitions(groupedRequisition)
+    logger.info("Storing requisitions took ${System.currentTimeMillis() - storageStartTime}ms")
 
     logger.info {
       "$storedRequisitions unfulfilled grouped requisitions have been persisted to storage for $dataProviderName"
     }
+    logger.info("Total fetchAndStoreRequisitions took ${System.currentTimeMillis() - workflowStartTime}ms")
   }
 
   /**

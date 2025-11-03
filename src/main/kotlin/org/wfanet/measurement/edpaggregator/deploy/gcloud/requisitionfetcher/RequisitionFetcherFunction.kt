@@ -65,14 +65,26 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class RequisitionFetcherFunction : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
+    val functionStartTime = System.currentTimeMillis()
+    logger.info("RequisitionFetcherFunction started")
 
     val errors = mutableListOf<String>()
     for (dataProviderConfig in requisitionFetcherConfig.configsList) {
+      val dataProviderStartTime = System.currentTimeMillis()
+      logger.info("Processing data provider: ${dataProviderConfig.dataProvider}")
 
       try {
+        val validateStartTime = System.currentTimeMillis()
         validateConfig(dataProviderConfig)
+        logger.info("Config validation took ${System.currentTimeMillis() - validateStartTime}ms for ${dataProviderConfig.dataProvider}")
+
+        val createFetcherStartTime = System.currentTimeMillis()
         val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
+        logger.info("RequisitionFetcher creation took ${System.currentTimeMillis() - createFetcherStartTime}ms for ${dataProviderConfig.dataProvider}")
+
+        val fetchStartTime = System.currentTimeMillis()
         runBlocking { requisitionFetcher.fetchAndStoreRequisitions() }
+        logger.info("Fetch and store took ${System.currentTimeMillis() - fetchStartTime}ms for ${dataProviderConfig.dataProvider}")
       } catch (e: IllegalArgumentException) {
         val errorMsg = "Invalid config for data provider: ${dataProviderConfig.dataProvider}"
         errors.add(errorMsg)
@@ -84,6 +96,8 @@ class RequisitionFetcherFunction : HttpFunction {
         logger.log(Level.SEVERE, errorMsg, e)
       }
 
+      logger.info("Total time for data provider ${dataProviderConfig.dataProvider}: ${System.currentTimeMillis() - dataProviderStartTime}ms")
+
       if (errors.isNotEmpty()) {
         response.setStatusCode(500)
         response.writer.write("Completed with errors:\n" + errors.joinToString("\n"))
@@ -92,6 +106,8 @@ class RequisitionFetcherFunction : HttpFunction {
         response.writer.write("All requisitions fetched successfully")
       }
     }
+
+    logger.info("RequisitionFetcherFunction completed in ${System.currentTimeMillis() - functionStartTime}ms")
   }
 
   /**
