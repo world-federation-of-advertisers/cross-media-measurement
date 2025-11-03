@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -55,7 +54,6 @@ abstract class TrusTeeMillDaemon : Runnable {
     storageClient: StorageClient,
     kmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
   ) {
-    DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
     val duchyName = flags.duchy.duchyName
 
     val clientCerts =

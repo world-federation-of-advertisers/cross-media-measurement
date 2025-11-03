@@ -67,9 +67,9 @@ abstract class MillFlags {
   @CommandLine.Option(
     names = ["--duchy-computation-control-target"],
     description = ["Key-value pair of Duchy ID to ComputationControl service target."],
-    required = true,
+    required = false,
   )
-  lateinit var computationControlServiceTargets: Map<String, String>
+  var computationControlServiceTargets: Map<String, String> = emptyMap()
     private set
 
   @CommandLine.Option(
