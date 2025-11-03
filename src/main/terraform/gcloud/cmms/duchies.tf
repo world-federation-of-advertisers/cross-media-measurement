@@ -33,14 +33,14 @@ locals {
 
   aggregator_cs_cert = {
     secret_id         = "aggregator-cs-cert",
-    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_cert.pem"),
-    is_binary_format  = false
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_cert.der"),
+    is_binary_format  = true
   }
 
   aggregator_cs_private = {
     secret_id         = "aggregator-cs-private",
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_private.der"),
-    is_binary_format  = false
+    is_binary_format  = true
   }
 
   aggregator_trustee_config = {

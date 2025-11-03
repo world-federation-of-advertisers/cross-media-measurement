@@ -130,7 +130,7 @@ resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
 
   name          = "${var.name}-trustee-mill-subnet"
   region        = data.google_client_config.default.region
-  network       = var.trustee_mill_private_subnetwork_cidr_range
+  network       = var.trustee_mill_subnetwork_network
   ip_cidr_range = var.trustee_mill_subnetwork_cidr_range
   private_ip_google_access = true
 }

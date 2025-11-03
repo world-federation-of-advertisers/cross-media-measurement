@@ -62,16 +62,16 @@ variable "dashboard_json_files" {
   ]
 }
 
-variable "trustee_mill_private_subnetwork_cidr_range" {
-  description = "The range of IP addresses belonging to this subnetwork."
-  type        = string
-  default     = "192.168.0.0/16"
-}
-
-variable "trustee_mill_subnetwork_cidr_range" {
+variable "trustee_mill_subnetwork_network" {
   description = "The network this subnet belongs to"
   type        = string
   default     = "default"
+}
+
+variable "trustee_mill_subnetwork_cidr_range" {
+  description = "The range of IP addresses belonging to this subnetwork."
+  type        = string
+  default     = "192.168.0.0/16"
 }
 
 variable "trustee_config" {
