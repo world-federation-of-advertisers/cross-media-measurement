@@ -106,6 +106,7 @@ variable "disk_image_family" {
 variable "config_storage_bucket" {
   description = "Configuration storage bucket."
   type        = string
+  default     = null
 }
 
 variable "subnetwork_name" {

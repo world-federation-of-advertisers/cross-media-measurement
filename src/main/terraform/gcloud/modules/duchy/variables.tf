@@ -62,6 +62,18 @@ variable "dashboard_json_files" {
   ]
 }
 
+variable "trustee_mill_private_subnetwork_cidr_range" {
+  description = "The range of IP addresses belonging to this subnetwork."
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "trustee_mill_subnetwork_cidr_range" {
+  description = "The network this subnet belongs to"
+  type        = string
+  default     = "default"
+}
+
 variable "trustee_config" {
   description = "Config for TrusTEE MIG mill"
   type = object({
@@ -72,7 +84,7 @@ variable "trustee_config" {
     replicas                      = number
     machine_type                  = string
     docker_image                  = string
-    edpa_tee_signed_image_repo    = string
+    signed_image_repo             = string
     mig_distribution_policy_zones = list(string)
     terraform_service_account     = string
     disk_image_family             = string

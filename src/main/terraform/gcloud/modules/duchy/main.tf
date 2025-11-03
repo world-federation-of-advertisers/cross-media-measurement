@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
@@ -124,6 +125,16 @@ resource "google_monitoring_dashboard" "dashboards" {
   })
 }
 
+resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
+  count = var.trustee_config != null ? 1 : 0
+
+  name          = "${var.name}-trustee-mill-subnet"
+  region        = data.google_client_config.default.region
+  network       = var.trustee_mill_private_subnetwork_cidr_range
+  ip_cidr_range = var.trustee_mill_subnetwork_cidr_range
+  private_ip_google_access = true
+}
+
 module "trustee_mill" {
   count = var.trustee_config != null ? 1 : 0
   
@@ -145,8 +156,7 @@ module "trustee_mill" {
   disk_image_family             = var.trustee_config.disk_image_family
   tee_cmd                       = var.trustee_config.app_flags
   secrets_to_access             = local.trustee_secrets_to_access
-  config_storage_bucket         = module.config_files_bucket.storage_bucket.name
-  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
+  subnetwork_name               = google_compute_subnetwork.trustee_mill_subnetwork[0].name
 }
 
 module "secrets" {
