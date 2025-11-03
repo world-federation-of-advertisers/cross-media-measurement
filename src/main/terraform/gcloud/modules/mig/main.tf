@@ -113,6 +113,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     {
         "google-logging-enabled"    = "true"
         "google-monitoring-enabled" = "true"
+        "tee-container-log-redirect" = "true"
     },
     local.metadata_map
   )
