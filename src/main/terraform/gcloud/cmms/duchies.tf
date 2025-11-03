@@ -63,7 +63,7 @@ locals {
     terraform_service_account     = var.terraform_service_account
 
     app_flags                     = [
-                                      "--computations-service-target=", "35.223.49.72:8443",
+                                      "--computations-service-target", "35.223.49.72:8443",
                                       "--computations-service-cert-host", "localhost",
                                       "--duchy-name", "aggregator",
                                       "--tls-cert-file", "/var/run/secrets/files/aggregator_tls.pem",
@@ -76,7 +76,7 @@ locals {
                                       "--kingdom-system-api-cert-host", "localhost",
                                       "--google-cloud-storage-project", "halo-cmm-dev",
                                       "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
-                                      "--work-lock-duration=", "10m",
+                                      "--work-lock-duration", "10m",
                                       "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
                                       "--polling-interval", "5s",
                                     ]
