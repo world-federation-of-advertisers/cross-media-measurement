@@ -122,20 +122,20 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The DataWatcher needs environment variables to operate. These variables are provided using the [data\_availability\_env\_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable.
+The DataWatcher needs environment variables to operate. These variables are provided using the [data_availability_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable.
 
-* CERT\_FILE\_PATH \- the data\_watcher\_tls.pem file. **Must match the path defined in DataWatcher secret mapping.**
-* PRIVATE\_KEY\_FILE\_PATH \- the data\_watcher\_tls.key file. **Must match the path defined in DataWatcher secret mapping.**
-* CERT\_COLLECTION\_FILE\_PATH \- the secure\_computation\_root.pem file. **Must match the path defined in DataWatcher secret mapping.**
-* CONTROL\_PLANE\_TARGET \- the grpc target of Secure Computation API
-* CONTROL\_PLANE\_CERT\_HOST
-* EDPA\_CONFIG\_STORAGE\_BUCKET \- [The config bucket](#edp-aggregator-storage-config), where the DataWatcher configuration are pulled from
-* GOOGLE\_PROJECT\_ID \- The Google project id where the EDPA\_CONFIG\_STORAGE\_BUCKET is deployed
+* CERT_FILE_PATH - the data_watcher_tls.pem file. **Must match the path defined in DataWatcher secret mapping.**
+* PRIVATE_KEY_FILE_PATH - the data_watcher_tls.key file. **Must match the path defined in DataWatcher secret mapping.**
+* CERT_COLLECTION_FILE_PATH - the secure_computation_root.pem file. **Must match the path defined in DataWatcher secret mapping.**
+* CONTROL_PLANE_TARGET - the grpc target of Secure Computation API
+* CONTROL_PLANE_CERT_HOST
+* EDPA_CONFIG_STORAGE_BUCKET - [The config bucket](#edp-aggregator-storage-config), where the DataWatcher configuration are pulled from
+* GOOGLE_PROJECT_ID - The Google project id where the EDPA_CONFIG_STORAGE_BUCKET is deployed
 
 This is an example of DataWatcher env variable:
 
-| CERT\_FILE\_PATH=/secrets/cert/data\_watcher\_tls.pem,PRIVATE\_KEY\_FILE\_PATH=/secrets/key/data\_watcher\_tls.key,CERT\_COLLECTION\_FILE\_PATH=/secrets/ca/secure\_computation\_root.pem,CONTROL\_PLANE\_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL\_PLANE\_CERT\_HOST=data-watcher.secure-computation.dev.halo-cmm.org,GOOGLE\_PROJECT\_ID=halo-cmm-dev,EDPA\_CONFIG\_STORAGE\_BUCKET=gs://edpa-configs-storage-dev-bucket |
-| :---- |
+| CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket |
+|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ##### Secret Mappings
 
@@ -143,17 +143,17 @@ This is an example of DataWatcher env variable:
 
 When the Cloud Function starts, the specified secrets are automatically fetched from Secret Manager and made available as files in local memory at the configured mount paths.
 
-This secret mapping is set using the [data\_watcher\_secret\_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L160) terraform variable.
+This secret mapping is set using the [data_watcher_secret_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L160) terraform variable.
 
 This is an example of DataWatcher secret mapping:
 
-| /secrets/key/data\_watcher\_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data\_watcher\_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure\_computation\_root.pem=securecomputation-root-ca:latest |
-| :---- |
+| /secrets/key/data_watcher_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest |
+|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 **Important:**
 
-* /secrets/key/data\_watcher\_tls.key must be the same value used for PRIVATE\_KEY\_FILE\_PATH in the [DataWatcher env var](#heading=h.6d22lnx49yj6).
-* /secrets/ca/secure\_computation\_root.pem must be the same value used for CERT\_COLLECTION\_FILE\_PATH in the [DataWatcher env var](#heading=h.6d22lnx49yj6).
+* /secrets/key/data_watcher_tls.key must be the same value used for PRIVATE_KEY_FILE_PATH in the [DataWatcher env var](#heading=h.6d22lnx49yj6).
+* /secrets/ca/secure_computation_root.pem must be the same value used for CERT_COLLECTION_FILE_PATH in the [DataWatcher env var](#heading=h.6d22lnx49yj6).
 
 ##### DataWatcher config file
 
@@ -351,21 +351,21 @@ watched_paths {
 
 ```
 
-The local file path for this config file is set using the [data\_watcher\_config\_file\_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L111) terraform variable.
+The local file path for this config file is set using the [data_watcher_config_file_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L111) terraform variable.
 
 ###### *Variable definition for the EventGroupSync watched path*
 
 This configuration is passed from the **DataWatcher** to the **EventGroupSync** function when the DataWatcher triggers it. The EventGroupSync relies on this configuration to determine how to connect to CMMS, where to read input data, and where to write synchronized results.
 
 * **identifier:** "event-groups" In case of multiple “watched path” for event groups for different EDPs, the same identifier can be used.
-* **source\_path\_regex:** indicates the path to watch. In this case the path where the edp can upload the event groups.
+* **source_path_regex:** indicates the path to watch. In this case the path where the edp can upload the event groups.
 
 The **`http_endpoint_sink`** block defines the target function to invoke and the parameters required for synchronization.
 
-* **endpoint\_uri:**  The URL of the Cloud Function to be invoked, here pointing to the deployed **`event-group-sync`** function.
-* **app\_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
+* **endpoint_uri:**  The URL of the Cloud Function to be invoked, here pointing to the deployed **`event-group-sync`** function.
+* **app_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
 
-Within **app\_params**, the key fields are:
+Within **app_params**, the key fields are:
 
 * **dataProvider**: The CMMS data provider identifier associated with this EDP.
 * **eventGroupsBlobUri**: The URI of the Event Group protobuf file stored in the EDP Aggregator Storage bucket.
@@ -384,33 +384,33 @@ This configuration is passed from the **DataWatcher** to the **Results Fulfiller
 
 * **Identifier**: "results-fulfiller" In case of multiple “watched path” for results fulfiller for different EDPs, the same identifier can be used.
 *  identifies that this configuration handles requisition fulfillment.
-* **source\_path\_regex**: A regular expression that matches new files written under the EDP’s requisitions folder. When a file path matches this regex, the DataWatcher forwards the event to the Results Fulfiller via the control-plane queue.
+* **source_path_regex**: A regular expression that matches new files written under the EDP’s requisitions folder. When a file path matches this regex, the DataWatcher forwards the event to the Results Fulfiller via the control-plane queue.
 
-The **control\_plane\_queue\_sink** block defines the queue and parameters that the DataWatcher uses to submit work items for processing.
+The **control_plane_queue_sink** block defines the queue and parameters that the DataWatcher uses to submit work items for processing.
 
 * **queue**: The name of the Cloud Pub/Sub  queue where the work item is sent. In this example, it is "results-fulfiller-queue".
-* **app\_params**: A structured payload, that conforms to [this protofub definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto), containing all the configuration details required by the Results Fulfiller to process the requisition.
+* **app_params**: A structured payload, that conforms to [this protofub definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto), containing all the configuration details required by the Results Fulfiller to process the requisition.
 
-Within **app\_params**, the main configuration fields are:
+Within **app_params**, the main configuration fields are:
 
-* **data\_provider**: The CMMS data provider resource name.
-* **storage\_params**: Configuration for reading and writing data to Cloud Storage:
+* **data_provider**: The CMMS data provider resource name.
+* **storage_params**: Configuration for reading and writing data to Cloud Storage:
 
-    * **labeled\_impressions\_blob\_details\_uri\_prefix**: The base URI prefix for impression data.
-    * **gcs\_project\_id**: The Google Cloud project ID where the storage bucket resides.
+    * **labeled_impressions_blob_details_uri_prefix**: The base URI prefix for impression data.
+    * **gcs_project_id**: The Google Cloud project ID where the storage bucket resides.
 
-* **consent\_params**: Paths and metadata related to encryption, signing, and consent management:
+* **consent_params**: Paths and metadata related to encryption, signing, and consent management:
 
-    * **result\_cs\_cert\_der\_resource\_path**: Path to the DER-encoded certificate used for result signing, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **result\_cs\_private\_key\_der\_resource\_path**: Path to the DER-encoded private key corresponding to the result certificate, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **private\_encryption\_key\_resource\_path:** Path to the Tink keyset file containing the private encryption key, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **edp\_certificate\_name**: The fully qualified resource name of the EDP’s certificate in CMMS, must match the [event group secret mapping](#secret-mappings). //TODO
+    * **result_cs_cert_der_resource_path**: Path to the DER-encoded certificate used for result signing, must match the [event group secret mapping](#secret-mappings). //TODO
+    * **result_cs_private_key_der_resource_path**: Path to the DER-encoded private key corresponding to the result certificate, must match the [event group secret mapping](#secret-mappings). //TODO
+    * **private_encryption_key_resource_path:** Path to the Tink keyset file containing the private encryption key, must match the [event group secret mapping](#secret-mappings). //TODO
+    * **edp_certificate_name**: The fully qualified resource name of the EDP’s certificate in CMMS, must match the [event group secret mapping](#secret-mappings). //TODO
 
-* **cmms\_connection**: TLS connection details for secure communication with CMMS:
+* **cmms_connection**: TLS connection details for secure communication with CMMS:
 
-    * **client\_cert\_resource\_path**: Path to the edp cert file, which must match the [event group secret mapping](#secret-mappings). //TODO
-    * **client\_private\_key\_resource\_path**: Path to the edp key file, which must match the [event group secret mapping](#secret-mappings). // TODO
-* **noise\_params**: Configuration for differential privacy noise generation, as defined in [this protobuf message](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/0e509a5f5a64acddc8761acf50c1369398347cd9/src/main/proto/wfa/measurement/internal/duchy/noise_mechanism.proto#L23).
+    * **client_cert_resource_path**: Path to the edp cert file, which must match the [event group secret mapping](#secret-mappings). //TODO
+    * **client_private_key_resource_path**: Path to the edp key file, which must match the [event group secret mapping](#secret-mappings). // TODO
+* **noise_params**: Configuration for differential privacy noise generation, as defined in [this protobuf message](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/0e509a5f5a64acddc8761acf50c1369398347cd9/src/main/proto/wfa/measurement/internal/duchy/noise_mechanism.proto#L23).
 
 ### EventGroupSync Function
 
@@ -436,13 +436,13 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The EventGroupSync needs environment variables to operate. These variables are provided using the [event\_group\_env\_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
+The EventGroupSync needs environment variables to operate. These variables are provided using the [event_group_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
 
-* KINGDOM\_TARGET \- the grpc target of the Kingdom public API**.**
+* KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
 
 This is an example of EventGroupSync env variable:
 
-| KINGDOM\_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443 |
+| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443 |
 | :---- |
 
 ##### Secret Mappings
@@ -451,20 +451,20 @@ This is an example of EventGroupSync env variable:
 
 When the Cloud Function starts, the specified secrets are automatically fetched from Secret Manager and made available as files in local memory at the configured mount paths.
 
-This secret mapping is set using the [event\_group\_secret\_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L180) terraform variable.
+This secret mapping is set using the [event_group_secret_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L180) terraform variable.
 
 This is an example of EventGroup secret mapping for two different EDP:
 
-| /secrets/key-edp2/edpa\_meta\_tls.key=edpa\_meta-tls-key:latest,/secrets/cert-edp2/edpa\_meta\_tls.pem=edpa\_meta-tls-pem:latest,/secrets/key/edp7\_tls.key=edp7-tls-key:latest,/secrets/cert/edp7\_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom\_root.pem=trusted-root-ca:latest |
+| /secrets/key-edp2/edpa_meta_tls.key=edpa_meta-tls-key:latest,/secrets/cert-edp2/edpa_meta_tls.pem=edpa_meta-tls-pem:latest,/secrets/key/edp7_tls.key=edp7-tls-key:latest,/secrets/cert/edp7_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom_root.pem=trusted-root-ca:latest |
 | :---- |
 
 Each EDP needs the tls.key and tls.pem file.
 
 **Important:**
 
-* /secrets/key/edp7\_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/edp7\_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/kingdom\_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
+* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
 
 ### RequisitionFetcher Function
 
@@ -472,7 +472,7 @@ A Google Cloud Function automatically triggered by Cloud Scheduler to pull requi
 
 To enable Requisitions synchronization for a new EDP, a new [**data provider requisition config**](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto) entry must be added,
 
-The local file path for this config file is set using the [requisition\_fetcher\_config\_file\_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L117) terraform variable.
+The local file path for this config file is set using the [requisition_fetcher_config_file_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L117) terraform variable.
 
 **Permissions:**
 
@@ -489,17 +489,17 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The EventGroupSync needs environment variables to operate. These variables are provided using the [event\_group\_env\_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
+The EventGroupSync needs environment variables to operate. These variables are provided using the [event_group_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L175) terraform variable.
 
-* KINGDOM\_TARGET \- the grpc target of the Kingdom public API**.**
-* EDPA\_CONFIG\_STORAGE\_BUCKET \- the EDPA Config storage bucket**.**
-* GOOGLE\_PROJECT\_ID \- the GCP where the cloud function is deployed**.**
-* GRPC\_REQUEST\_INTERVAL \- throttle used to rate limit api requests**.**
-* METADATA\_STORAGE\_TARGET \- the grpc target of the EDP Aggregator API**.**
+* KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
+* EDPA_CONFIG_STORAGE_BUCKET \- the EDPA Config storage bucket**.**
+* GOOGLE_PROJECT_ID \- the GCP where the cloud function is deployed**.**
+* GRPC_REQUEST_INTERVAL \- throttle used to rate limit api requests**.**
+* METADATA_STORAGE_TARGET \- the grpc target of the EDP Aggregator API**.**
 
 This is an example of Requisition Fetcher  env variable:
 
-| KINGDOM\_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,EDPA\_CONFIG\_STORAGE\_BUCKET=gs://edpa-configs-storage-dev-bucket,GOOGLE\_PROJECT\_ID=halo-cmm-dev,GRPC\_REQUEST\_INTERVAL=1s,METADATA\_STORAGE\_TARGET=34.27.41.70:8443,METADATA\_STORAGE\_CERT\_HOST=localhost |
+| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket,GOOGLE_PROJECT_ID=halo-cmm-dev,GRPC_REQUEST_INTERVAL=1s,METADATA_STORAGE_TARGET=34.27.41.70:8443,METADATA_STORAGE_CERT_HOST=localhost |
 | :---- |
 
 ##### Secret Mappings
@@ -508,11 +508,11 @@ This is an example of Requisition Fetcher  env variable:
 
 When the Cloud Function starts, the specified secrets are automatically fetched from Secret Manager and made available as files in local memory at the configured mount paths.
 
-This secret mapping is set using the [requisition\_fetcher\_secret\_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L170) terraform variable.
+This secret mapping is set using the [requisition_fetcher_secret_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L170) terraform variable.
 
 This is an example of Requisition Fetcher secret mapping for two different EDP:
 
-| /secrets/key-edp2/edpa\_meta\_tls.key=edpa\_meta-tls-key:latest,/secrets/cert-edp2/edpa\_meta\_tls.pem=edpa\_meta-tls-pem:latest,/secrets/key/edp7\_tls.key=edp7-tls-key:latest,/secrets/cert/edp7\_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom\_root.pem=trusted-root-ca:latest,/secrets/private/edp7\_enc\_private.tink=edp7-enc-private:latest,/secrets/private-edp2/edpa\_meta\_enc\_private.tink=edpa\_meta-enc-private:latest,/secrets/cert\_requisiton\_fetcher/requisition\_fetcher\_tls.pem=edpa-requisition-fetcher-tls-pem:latest,/secrets/key\_requisiton\_fetcher/requisition\_fetcher\_tls.key=edpa-requisition-fetcher-tls-key:latest,/secrets/ca/cert\_metadata\_storage/edp\_aggregator\_root.pem=edpaggregator-root-ca:latest |
+| /secrets/key-edp2/edpa_meta_tls.key=edpa_meta-tls-key:latest,/secrets/cert-edp2/edpa_meta_tls.pem=edpa_meta-tls-pem:latest,/secrets/key/edp7_tls.key=edp7-tls-key:latest,/secrets/cert/edp7_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom_root.pem=trusted-root-ca:latest,/secrets/private/edp7_enc_private.tink=edp7-enc-private:latest,/secrets/private-edp2/edpa_meta_enc_private.tink=edpa_meta-enc-private:latest,/secrets/cert_requisiton_fetcher/requisition_fetcher_tls.pem=edpa-requisition-fetcher-tls-pem:latest,/secrets/key_requisiton_fetcher/requisition_fetcher_tls.key=edpa-requisition-fetcher-tls-key:latest,/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem=edpaggregator-root-ca:latest |
 | :---- |
 
 Each EDP needs the tls.key and tls.pem file.
@@ -552,25 +552,25 @@ The above example is for a single EDP. To add a second one, a new “config” o
 Each **`configs`** entry describes how the RequisitionFetcher should operate for a specific EDP.
 In this example, the configuration defines the setup for **EDP `edp7`**.
 
-* **data\_provider**: The CMMS data provider identifier associated with this EDP.
-* **requisition\_storage**: Defines the Cloud Storage location where fetched requisitions are stored:
+* **data_provider**: The CMMS data provider identifier associated with this EDP.
+* **requisition_storage**: Defines the Cloud Storage location where fetched requisitions are stored:
 
     * **`project_id`**: The Google Cloud project ID containing the bucket.
     * **`bucket_name`**: The name of the Cloud Storage bucket where requisition files are written.
 
-* **storage\_path\_prefix**: The relative path within the storage bucket where new requisition files are stored. For **`edp7`**, requisitions are placed under **`edp7/requisitions`**.
-* **cmms\_connection**: TLS configuration for secure communication with the CMMS API:
+* **storage_path_prefix**: The relative path within the storage bucket where new requisition files are stored. For **`edp7`**, requisitions are placed under **`edp7/requisitions`**.
+* **cmms_connection**: TLS configuration for secure communication with the CMMS API:
 
     * **`cert_file_path`**: Path to the EDP’s TLS certificate file mounted from Secret Manager, must match the [requisition fetcher secret mapping](#secret-mappings-1).
     * **`private_key_file_path`**: Path to the EDP’s private key file. This must correspond to the secret stored at **`/secrets/key/edp7_tls.key`**, , must match the [requisition fetcher secret mapping](#secret-mappings-1).
     * **`cert_collection_file_path`**: Path to the root CA certificate used to validate CMMS’s TLS certificate, , must match the [requisition fetcher secret mapping](#secret-mappings-1).
 
-* **edp\_private\_key\_path**: Path to the Tink keyset file containing the EDP’s private encryption key, used to securely handle and decrypt fetched requisitions, , must match the [requisition fetcher secret mapping](#secret-mappings-1).
-* **requisition\_metadata\_storage\_connection**: TLS configuration for secure communication with the Edp Aggregator API (AKA metadata storage. This section is identical for config objects listed in the RequisitionFetcher config file):
+* **edp_private_key_path**: Path to the Tink keyset file containing the EDP’s private encryption key, used to securely handle and decrypt fetched requisitions, , must match the [requisition fetcher secret mapping](#secret-mappings-1).
+* **requisition_metadata_storage_connection**: TLS configuration for secure communication with the Edp Aggregator API (AKA metadata storage. This section is identical for config objects listed in the RequisitionFetcher config file):
 
-    * **`cert_file_path`**: Path to the Requisition Fetcher’s TLS certificate file. This must match to the secret mapped at /secrets/key\_requisiton\_fetcher/requisition\_fetcher\_tls.pem in the [requisition fetcher secret mapping](#secret-mappings-1).
-    * **`private_key_file_path`**: Path to the Requisition Fetcher’s private key file. This must match to the secret mapped at /secrets/key\_requisiton\_fetcher/requisition\_fetcher\_tls.key in the [requisition fetcher secret mapping](#secret-mappings-1).
-    * **`cert_collection_file_path`**: Path to the root CA certificate used to validate Edp Aggregator API (metadata storage)’s TLS certificate. This must match to the secret mapped at /secrets/ca/cert\_metadata\_storage/edp\_aggregator\_root.pem in the [requisition fetcher secret mapping](#secret-mappings-1).
+    * **`cert_file_path`**: Path to the Requisition Fetcher’s TLS certificate file. This must match to the secret mapped at /secrets/key_requisiton_fetcher/requisition_fetcher_tls.pem in the [requisition fetcher secret mapping](#secret-mappings-1).
+    * **`private_key_file_path`**: Path to the Requisition Fetcher’s private key file. This must match to the secret mapped at /secrets/key_requisiton_fetcher/requisition_fetcher_tls.key in the [requisition fetcher secret mapping](#secret-mappings-1).
+    * **`cert_collection_file_path`**: Path to the root CA certificate used to validate Edp Aggregator API (metadata storage)’s TLS certificate. This must match to the secret mapped at /secrets/ca/cert_metadata_storage/edp_aggregator_root.pem in the [requisition fetcher secret mapping](#secret-mappings-1).
 
 ### Data Availability Sync
 
@@ -596,14 +596,14 @@ The corresponding IAM permissions are defined in the [EDP Aggregator Terraform m
 
 ##### Environment Variables
 
-The DataAvailabilitySync needs environment variables to operate. These variables are provided using the [data\_availability\_env\_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable.
+The DataAvailabilitySync needs environment variables to operate. These variables are provided using the [data_availability_env_var](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L185) terraform variable.
 
-* KINGDOM\_TARGET \- the grpc target of the Kingdom public API**.**
-* IMPRESSION\_METADATA\_TARGET \- the grpc target of the Edp Aggregator API (Metadata storage)**.**
+* KINGDOM_TARGET \- the grpc target of the Kingdom public API**.**
+* IMPRESSION_METADATA_TARGET \- the grpc target of the Edp Aggregator API (Metadata storage)**.**
 
 This is an example of DataAvailabilitySync env variable:
 
-| KINGDOM\_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,IMPRESSION\_METADATA\_TARGET=system.edp-aggregator.dev.halo-cmm.org:8443 |
+| KINGDOM_TARGET=v2alpha.kingdom.dev.halo-cmm.org:8443,IMPRESSION_METADATA_TARGET=system.edp-aggregator.dev.halo-cmm.org:8443 |
 | :---- |
 
 ##### Secret Mappings
@@ -612,23 +612,23 @@ This is an example of DataAvailabilitySync env variable:
 
 When the Cloud Function starts, the specified secrets are automatically fetched from Secret Manager and made available as files in local memory at the configured mount paths.
 
-This secret mapping is set using the [data\_availability\_secret\_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L190) terraform variable.
+This secret mapping is set using the [data_availability_secret_mapping](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L190) terraform variable.
 
 This is an example of DataAvailability secret mapping for two different EDP:
 
-| /secrets/key/edp7\_tls.key=edp7-tls-key:latest,/secrets/cert/edp7\_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom\_root.pem=trusted-root-ca:latest,/secrets/cert/data\_availability/data\_availability\_tls.pem=edpa-data-availability-tls-pem:latest,/secrets/key/data\_availability/data\_availability\_tls.key=edpa-data-availability-tls-key:latest,/secrets/ca/metadata\_storage/edp\_aggregator\_root.pem=edpaggregator-root-ca:latest,/secrets/key\_edpa\_meta/edpa\_meta\_tls.key=edpa\_meta-tls-key:latest,/secrets/cert\_edpa\_meta/edpa\_meta\_tls.pem=edpa\_meta-tls-pem:latest |
+| /secrets/key/edp7_tls.key=edp7-tls-key:latest,/secrets/cert/edp7_tls.pem=edp7-tls-pem:latest,/secrets/ca/kingdom_root.pem=trusted-root-ca:latest,/secrets/cert/data_availability/data_availability_tls.pem=edpa-data-availability-tls-pem:latest,/secrets/key/data_availability/data_availability_tls.key=edpa-data-availability-tls-key:latest,/secrets/ca/metadata_storage/edp_aggregator_root.pem=edpaggregator-root-ca:latest,/secrets/key_edpa_meta/edpa_meta_tls.key=edpa_meta-tls-key:latest,/secrets/cert_edpa_meta/edpa_meta_tls.pem=edpa_meta-tls-pem:latest |
 | :---- |
 
 Each EDP needs the tls.key and tls.pem file. The data availability leaf certs (key and cert) need to be signed with the metadata storage root certificate.
 
 **Important:**
 
-* /secrets/key/edp7\_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/edp7\_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/kingdom\_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/key/data\_availability/data\_availability\_tls.key must be the same value used for **privateKeyFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
-* /secrets/cert/data\_availability/data\_availability\_tls.pem must be the same value used for **certFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
-* /secrets/ca/metadata\_storage/edp\_aggregator\_root.pem must be the same value used for **certCollectionFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/key/edp7_tls.key must be the same value used for **privateKeyFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/cert/edp7_tls.pem must be the same value used for **certFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
+* /secrets/ca/kingdom_root.pem must be the same value used for **certCollectionFilePath** in the **cmmsConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/key/data_availability/data_availability_tls.key must be the same value used for **privateKeyFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
+* /secrets/cert/data_availability/data_availability_tls.pem must be the same value used for **certFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the  [DataWatcher config file](#datawatcher-config-file).
+* /secrets/ca/metadata_storage/edp_aggregator_root.pem must be the same value used for **certCollectionFilePath** in the **impressionMetadataStorageConnection** definition of the watched path corresponding to the EDP’s Event Group configuration defined in the [DataWatcher config file](#datawatcher-config-file).
 
 The Data Availability needs to access Gcloud secrets as [defined here](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/modules/edp-aggregator/main.tf#L112-L120).
 
@@ -667,25 +667,25 @@ event_data_provider_config: {
 ```
 
 
-In this example, the configuration defines the setup for **EDP `edp7`**. To onboard a new EDP a new **event\_data\_provider\_config**  object must be added to the config file.
+In this example, the configuration defines the setup for **EDP `edp7`**. To onboard a new EDP a new **event_data_provider_config**  object must be added to the config file.
 
-* **data\_provider**: The CMMS data provider identifier associated with this EDP.
-* **kms\_config**:
-    * **kms\_audience:** The EDP workload identity proivider
-    * **service\_account:** The edp service account with KMS access
-* **tls\_config:**
-    * **tls\_key\_secret\_id:** the secret ID where the EDP cert key is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
-    * **tls\_key\_local\_path:** the EDP cert key path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **cmms\_connection** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
-    * **tls\_pem\_secret\_id:** the secret ID where the EDP cert is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
-    * **tls\_pem\_local\_path:** the EDP cert path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **cmms\_connection** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
-* **consent\_signaling\_config:**
-    * **cert\_der\_secret\_id:** the secret ID where the EDP cert der is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
-    * **cert\_der\_local\_path:** the EDP cert der path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent\_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
-    * **enc\_private\_der\_secret\_id:** the secret ID where the EDP private der is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
-    * **enc\_private\_der\_local\_path:** the EDP private der path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent\_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
-    * **enc\_private\_secret\_id:** the secret ID where the EDP enc privateis stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
-    * **enc\_private\_local\_path:** the EDP enc private
-    *  path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent\_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
+* **data_provider**: The CMMS data provider identifier associated with this EDP.
+* **kms_config**:
+    * **kms_audience:** The EDP workload identity proivider
+    * **service_account:** The edp service account with KMS access
+* **tls_config:**
+    * **tls_key_secret_id:** the secret ID where the EDP cert key is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
+    * **tls_key_local_path:** the EDP cert key path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **cmms_connection** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
+    * **tls_pem_secret_id:** the secret ID where the EDP cert is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
+    * **tls_pem_local_path:** the EDP cert path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **cmms_connection** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
+* **consent_signaling_config:**
+    * **cert_der_secret_id:** the secret ID where the EDP cert der is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
+    * **cert_der_local_path:** the EDP cert der path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
+    * **enc_private_der_secret_id:** the secret ID where the EDP private der is stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
+    * **enc_private_der_local_path:** the EDP private der path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
+    * **enc_private_secret_id:** the secret ID where the EDP enc privateis stored. Must match the secrets naming as explain in the [Secret ID section](#secrets-ids).
+    * **enc_private_local_path:** the EDP enc private
+    *  path where the file is stored in the Resutls Fulfiller memory. Must match the value in the **consent_params** of the results fulfiller watched path in the [Data Watcher config file.](#datawatcher-config-file)
 
 ###
 
@@ -744,8 +744,8 @@ gcloud functions deploy datawatcher \\
 \--runtime=\<runtime\> \\
 \--region=\<region\> \\
 \--trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \\
-\--trigger-event-filters="bucket=\<bucket\_name\>" \\
-\--trigger-service-account=\<service\_account\>
+\--trigger-event-filters="bucket=\<bucket_name\>" \\
+\--trigger-service-account=\<service_account\>
 
 For **multiple buckets**, a single trigger cannot be  configured to listen to more than one bucket. Instead, there must be **one trigger per bucket**.
 
@@ -857,79 +857,79 @@ To deploy the Terraform infrastructure:
 
 During **terraform plan**, the following variables must be provided:
 
-* **secure\_computation\_storage\_bucket\_name**:
+* **secure_computation_storage_bucket_name**:
   The EDP Aggregator bucket (shared across multiple EDPs).
-* **edpa\_config\_files\_bucket\_name**:
+* **edpa_config_files_bucket_name**:
   Bucket that stores Cloud Function configuration files (one per deployment).
-* **terraform\_service\_account**:
+* **terraform_service_account**:
   Service account used to run Terraform. Required to allow Terraform to create the Cloud Function service accounts.
-* **data\_watcher\_config\_file\_path**:
+* **data_watcher_config_file_path**:
   Path to the local DataWatcher config file to upload to the Config Storage bucket.
-* **requisition\_fetcher\_config\_file\_path**:
+* **requisition_fetcher_config_file_path**:
   Path to the local RequisitionFetcher config file to upload to the Config Storage bucket.
-* **event\_data\_provider\_configs\_file\_path**
+* **event_data_provider_configs_file_path**
   Path to the local EventDataProvider config file to upload to the Config Storage bucket. This is used by the \`ResultsFulfiller\` to impersonate edps against the kingdom.
-* **storage\_bucket\_location**:
+* **storage_bucket_location**:
   Region for deploying the storage buckets.
-* **kingdom\_public\_api\_target**:
+* **kingdom_public_api_target**:
   Endpoint URL for the Kingdom public API. **(\*)**
-* **secure\_computation\_public\_api\_target**:
+* **secure_computation_public_api_target**:
   Endpoint URL for the Secure Computation public API.
-* **image\_tag**:
+* **image_tag**:
   Image tag for the Results Fulfiller TEE app. In the CMMS example, this assumes the image is hosted publicly on GitHub Container Registry.
-* **data\_watcher\_function\_name**:
+* **data_watcher_function_name**:
   Name of the DataWatcher function
-* **requisition\_fetcher\_function\_name**:
+* **requisition_fetcher_function_name**:
   Name of the RequisitionFetcher function
-* **event\_group\_sync\_function\_name**:
+* **event_group_sync_function_name**:
   Name of the EventGroupSync function
-* **data\_watcher\_env\_var**
+* **data_watcher_env_var**
   Env variables needed for the DataWatcher to operate
-* **data\_watcher\_secret\_mapping**
+* **data_watcher_secret_mapping**
   Google Secrets ids that are mounted and made available to the Cloud function at run time
-* **requisition\_fetcher\_env\_var**
+* **requisition_fetcher_env_var**
   Env variables needed for the RequisitionFetcher to operate
-* **requisition\_fetcher\_secret\_mapping**
+* **requisition_fetcher_secret_mapping**
   Google Secrets ids that are mounted and made available to the Cloud function at run time
-* **event\_group\_env\_var**
+* **event_group_env_var**
   Env variables needed for the EventGroup Sync to operate
-* **event\_group\_secret\_mapping**
+* **event_group_secret_mapping**
   Google Secrets ids that are mounted and made available to the Cloud function at run time
-* **data\_watcher\_uber\_jar\_path**
-  DataWatcher Uber jar (bazel build //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction\_deploy.jar)
-* **requisition\_fetcher\_uber\_jar\_path**
-  DataWatcher Uber jar (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction\_deploy.jar)
-* **event\_group\_uber\_jar\_path**
-  DataWatcher Uber jar  (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction\_deploy.jar)
-* **results\_fulfiller\_event\_proto\_descriptor\_path**
+* **data_watcher_uber_jar_path**
+  DataWatcher Uber jar (bazel build //src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction_deploy.jar)
+* **requisition_fetcher_uber_jar_path**
+  DataWatcher Uber jar (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:RequisitionFetcherFunction_deploy.jar)
+* **event_group_uber_jar_path**
+  DataWatcher Uber jar  (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:EventGroupSyncFunction_deploy.jar)
+* **results_fulfiller_event_proto_descriptor_path**
   Local path of the compiled proto message of event template
-* **results\_fulfiller\_event\_proto\_descriptor\_blob\_uri**
-  Google storage blob uri where the event proto descriptor is stored and can be pulled from. This variable is passed as flag to the ResultsFulfiller Application. Eg. gs://edpa-configs-storage-dev-bucket/results\_fulfiller\_event\_proto\_descriptor.pb
-* **results\_fulfiller\_event\_template\_type\_name**
-  Type name of the proto resource used as event template. Eg. wfa.measurement.api.v2alpha.event\_templates.testing.TestEvent
-* **results\_fulfiller\_population\_spec\_blob\_uri**
+* **results_fulfiller_event_proto_descriptor_blob_uri**
+  Google storage blob uri where the event proto descriptor is stored and can be pulled from. This variable is passed as flag to the ResultsFulfiller Application. Eg. gs://edpa-configs-storage-dev-bucket/results_fulfiller_event_proto_descriptor.pb
+* **results_fulfiller_event_template_type_name**
+  Type name of the proto resource used as event template. Eg. wfa.measurement.api.v2alpha.event_templates.testing.TestEvent
+* **results_fulfiller_population_spec_blob_uri**
   Google storage blob uri where the population spec file is stored and can be pulled from. This variable is passed as flag to the ResultsFulfiller Application
-* **results\_fulfiller\_population\_spec\_file\_path**
+* **results_fulfiller_population_spec_file_path**
   File path to a [population spec proto file](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/blob/main/src/main/proto/wfa/measurement/api/v2alpha/population_spec.proto).
-* **duchy\_worker1\_id**
+* **duchy_worker1_id**
   ID of the 1st duchy worker
-* **duchy\_worker1\_target**
+* **duchy_worker1_target**
   Endpoint URL for the worker1 duchy API.
-* **duchy\_worker2\_id**
+* **duchy_worker2_id**
   ID of the 2nd duchy worker
-* **duchy\_worker2\_target**
+* **duchy_worker2_target**
   Endpoint URL for the worker2 duchy API.
-* **results\_fulfiller\_trusted\_root\_ca\_collection\_file\_path**
+* **results_fulfiller_trusted_root_ca_collection_file_path**
   Single file path containing trusted root CA certs for:
     * Kingdom
     * Duchy worker1
     * Duchy worker2
-* **data\_availability\_env\_var**
+* **data_availability_env_var**
 * Env variables needed for the DataAvailability Sync to operate
-* **data\_availability\_secret\_mapping**
+* **data_availability_secret_mapping**
 * Google Secrets ids that are mounted and made available to the Cloud function at run time
-* **data\_availability\_uber\_jar\_path**
-* **DataAvailability Uber jar** (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction\_deploy.jar)
+* **data_availability_uber_jar_path**
+* **DataAvailability Uber jar** (bazel build //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction_deploy.jar)
 
 
 **(\*)** This assumes that Secure Computation API have been already deployed.
@@ -958,7 +958,7 @@ Populating a cluster is generally done by applying a K8s Kustomization. You can 
 
 To generate the dev Kustomization, run the following (substituting your own values):
 
-| bazel build //src/main/k8s/dev:secure\_computation.tar \\   \--define google\_cloud\_project=halo-kingdom-demo \\   \--define spanner\_instance=halo-cmms \\   \--define kingdom\_public\_api\_address\_name=kingdom-v2alpha \\   \--define kingdom\_system\_api\_address\_name=kingdom-system-v1alpha \\   \--define container\_registry=ghcr.io \\   \--define image\_repo\_prefix=world-federation-of-advertisers \\   \--define image\_tag=0.5.2 |
+| bazel build //src/main/k8s/dev:secure_computation.tar \\   \--define google_cloud_project=halo-kingdom-demo \\   \--define spanner_instance=halo-cmms \\   \--define kingdom_public_api_address_name=kingdom-v2alpha \\   \--define kingdom_system_api_address_name=kingdom-system-v1alpha \\   \--define container_registry=ghcr.io \\   \--define image_repo_prefix=world-federation-of-advertisers \\   \--define image_tag=0.5.2 |
 | :---- |
 
 Extract the generated archive to some directory. It is recommended that you extract it to a secure location, as you will be adding sensitive information to it in the following step. It is also recommended that you persist this directory so that you can use it to apply updates.
@@ -973,35 +973,35 @@ We use K8s secrets to hold sensitive information, such as private keys.
 
 First, prepare all the files we want to include in the Kubernetes secret. The dev configuration assumes the files have the following names:
 
-1. **all\_root\_certs.pem**
+1. **all_root_certs.pem**
    This makes up the trusted root CA store. It's the concatenation of the root CA certificates for all the entities that the Secure Computation server interacts with, including:
     * All Measurement Consumers
     * Any entity which produces Measurement results (e.g. the Aggregator Duchy and Data Providers)
     * The Kingdom
-2. Supposing your root certs are all in a single folder and end with \_root.pem, you can concatenate them all with a simple shell command:
+2. Supposing your root certs are all in a single folder and end with _root.pem, you can concatenate them all with a simple shell command:
 
 ####
 
-| cat \*\_root.pem \> all\_root\_certs.pem |
+| cat \*_root.pem \> all_root_certs.pem |
 | :---- |
 
 ####
 
 Note: This assumes that all your root certificate PEM files end in newline.
 
-3. **secure\_computation\_root.pem**
+3. **secure_computation_root.pem**
    The Secure Computation server's root CA certificate.
-4. **secure\_computation\_tls.pem**
+4. **secure_computation_tls.pem**
    The Secure Computation server's TLS certificate.
-5. **secure\_computation\_tls.key**
+5. **secure_computation_tls.key**
    The private key for the Secure Computation server's TLS certificate.
-6. **data\_watcher\_tls.pem**
+6. **data_watcher_tls.pem**
    The Data Watcher Cloud Function’s TLS certificate.
-7. **data\_watcher\_tls.key**
+7. **data_watcher_tls.key**
    The private key for the Data Watcher Cloud Function’'s TLS certificate.
-8. **edpa\_tee\_app\_tls.pem**
+8. **edpa_tee_app_tls.pem**
    The EDPA Tee App’s TLS certificate.
-9. **edpa\_tee\_app\_tls.key**
+9. **edpa_tee_app_tls.key**
    The private key for the EDPA Tee App’s TLS certificate.
 
 #### Testing keys
@@ -1017,22 +1017,22 @@ There are some [testing keys](https://github.com/world-federation-of-advertisers
 
 ####
 
-Extract the generated archive to the src/main/k8s/dev/secure\_computation\_secrets/ path within the Kustomization directory.
+Extract the generated archive to the src/main/k8s/dev/secure_computation_secrets/ path within the Kustomization directory.
 
 ### Customize the K8s ConfigMap
 
 Configuration that may frequently change is stored in a K8s configMap. The dev configuration uses one named config-files.
 
-* queues\_config.textproto
+* queues_config.textproto
     * [QueuesConfig](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/securecomputation/queues_config.proto) \[[Example](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha/queues_config.textproto)\]
 
-Place these files into the src/main/k8s/dev/secure\_computation\_config\_files/ path within the Kustomization directory.
+Place these files into the src/main/k8s/dev/secure_computation_config_files/ path within the Kustomization directory.
 
 ### Apply the K8s Kustomization
 
 Use kubectl to apply the Kustomization. From the Kustomization directory run:
 
-| kubectl apply \-k src/main/k8s/dev/secure\_computation |
+| kubectl apply \-k src/main/k8s/dev/secure_computation |
 | :---- |
 
 Now all Kingdom components should be successfully deployed to your GKE cluster. You can verify by running:
@@ -1054,7 +1054,7 @@ You should see something like the following:
 
 ####
 
-| NAME                                      TYPE          CLUSTER\_IP   EXTERNAL\_IP     PORTS secure-computation-internal-api-server    ClusterIp     10.92.9.75   \<none\>          8443/TCP secure-computation-public-api-server      LoadBalancer  10.92.11.73  34.55.81.140    8443:31298/TCP |
+| NAME                                      TYPE          CLUSTER_IP   EXTERNAL_IP     PORTS secure-computation-internal-api-server    ClusterIp     10.92.9.75   \<none\>          8443/TCP secure-computation-public-api-server      LoadBalancer  10.92.11.73  34.55.81.140    8443:31298/TCP |
 | :---- |
 
 ####
@@ -1082,7 +1082,7 @@ Populating a cluster is generally done by applying a K8s Kustomization. You can 
 
 To generate the dev Kustomization, run the following (substituting your own values):
 
-| bazel build //src/main/k8s/dev:edp\_aggregator.tar \\   \--define google\_cloud\_project=halo-kingdom-demo \\   \--define spanner\_instance=halo-cmms \\   \--define kingdom\_public\_api\_address\_name=kingdom-v2alpha \\   \--define kingdom\_system\_api\_address\_name=kingdom-system-v1alpha \\   \--define container\_registry=ghcr.io \\   \--define image\_repo\_prefix=world-federation-of-advertisers \\   \--define image\_tag=0.5.2 |
+| bazel build //src/main/k8s/dev:edp_aggregator.tar \\   \--define google_cloud_project=halo-kingdom-demo \\   \--define spanner_instance=halo-cmms \\   \--define kingdom_public_api_address_name=kingdom-v2alpha \\   \--define kingdom_system_api_address_name=kingdom-system-v1alpha \\   \--define container_registry=ghcr.io \\   \--define image_repo_prefix=world-federation-of-advertisers \\   \--define image_tag=0.5.2 |
 | :---- |
 
 Extract the generated archive to some directory. It is recommended that you extract it to a secure location, as you will be adding sensitive information to it in the following step. It is also recommended that you persist this directory so that you can use it to apply updates.
@@ -1097,41 +1097,41 @@ We use K8s secrets to hold sensitive information, such as private keys.
 
 First, prepare all the files we want to include in the Kubernetes secret. The dev configuration assumes the files have the following names:
 
-10. **all\_root\_certs.pem**
+10. **all_root_certs.pem**
     This makes up the trusted root CA store. It's the concatenation of the root CA certificates for all the entities that the Secure Computation server interacts with, including:
     * All Measurement Consumers
     * Any entity which produces Measurement results (e.g. the Aggregator Duchy and Data Providers)
     * The Kingdom
-11. Supposing your root certs are all in a single folder and end with \_root.pem, you can concatenate them all with a simple shell command:
+11. Supposing your root certs are all in a single folder and end with _root.pem, you can concatenate them all with a simple shell command:
 
 ####
 
-| cat \*\_root.pem \> all\_root\_certs.pem |
+| cat \*_root.pem \> all_root_certs.pem |
 | :---- |
 
 ####
 
     Note: This assumes that all your root certificate PEM files end in newline.
 
-12. **metadata\_storage\_root.pem**
+12. **metadata_storage_root.pem**
     The Metada storage server's root CA certificate.
-13. **secure\_computation\_root.pem**
+13. **secure_computation_root.pem**
     The Secure Computation server's root CA certificate.
-14. **edp\_aggregator\_tls.pem**
+14. **edp_aggregator_tls.pem**
     The Metadata storage server's TLS certificate.
-15. **edp\_aggregator\_tls.key**
+15. **edp_aggregator_tls.key**
     The private key for the Metadata Storage server's TLS certificate.
-16. **requisition\_fetcher\_tls.pem**
+16. **requisition_fetcher_tls.pem**
     The Requisition Fetcher Cloud Function’s TLS certificate.
-17. **requisition\_fetcher\_tls.key**
+17. **requisition_fetcher_tls.key**
     The private key for the Requisition Fetcher Cloud Function’'s TLS certificate.
-18. **edpa\_tee\_app\_tls.pem**
+18. **edpa_tee_app_tls.pem**
     The EDPA Tee App’s TLS certificate.
-19. **edpa\_tee\_app\_tls.key**
+19. **edpa_tee_app_tls.key**
     The private key for the EDPA Tee App’s TLS certificate.
-20. **data\_availability\_tls.pem**
+20. **data_availability_tls.pem**
     The Data Availability Cloud Function’s TLS certificate.
-21. **data\_availability\_tls.key**
+21. **data_availability_tls.key**
     The private key for the Data Availability Cloud Function’'s TLS certificate.
 
 #### Testing keys
@@ -1147,13 +1147,13 @@ There are some [testing keys](https://github.com/world-federation-of-advertisers
 
 ####
 
-Extract the generated archive to the src/main/k8s/dev/edp\_aggregator\_secrets/ path within the Kustomization directory.
+Extract the generated archive to the src/main/k8s/dev/edp_aggregator_secrets/ path within the Kustomization directory.
 
 ### Apply the K8s Kustomization
 
 Use kubectl to apply the Kustomization. From the Kustomization directory run:
 
-| kubectl apply \-k src/main/k8s/dev/edp\_aggregator |
+| kubectl apply \-k src/main/k8s/dev/edp_aggregator |
 | :---- |
 
 Now all Kingdom components should be successfully deployed to your GKE cluster. You can verify by running:
@@ -1175,7 +1175,7 @@ You should see something like the following:
 
 ####
 
-| NAME                                      TYPE          CLUSTER\_IP   EXTERNAL\_IP     PORTS edp-aggregator-internal-api-server    ClusterIp     10.92.9.75   \<none\>          8443/TCP edp-aggregator-public-api-server      LoadBalancer  10.92.11.73  34.55.81.140    8443:31298/TCP |
+| NAME                                      TYPE          CLUSTER_IP   EXTERNAL_IP     PORTS edp-aggregator-internal-api-server    ClusterIp     10.92.9.75   \<none\>          8443/TCP edp-aggregator-public-api-server      LoadBalancer  10.92.11.73  34.55.81.140    8443:31298/TCP |
 | :---- |
 
 # Secrets IDs
@@ -1183,11 +1183,11 @@ You should see something like the following:
 Edp certs are uploaded to Google Secrets using secrets.
 These use an automatic naming resolution that follow this pattern:
 
-* \[edp\_name\]-cert-der
-* \[edp\_name\]-private-der
-* \[edp\_name\]-enc-private
-* \[edp\_name\]-tls-key
-* \[edp\_name\]-tls-pem
+* \[edp_name\]-cert-der
+* \[edp_name\]-private-der
+* \[edp_name\]-enc-private
+* \[edp_name\]-tls-key
+* \[edp_name\]-tls-pem
 
 Where the EDP name is defined [in terraform](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/edp_aggregator.tf#L17). For an EDP called **edp7** secret ids will be:
 
@@ -1209,10 +1209,10 @@ Once all infrastructure has been deployed, you can verify the setup by running t
 
 3. **Generate and encrypt synthetic data** using the Data Provider KMS. You can use the [**SyntheticDataGenerator CLI**](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c925d452f37785f822d80c4ca49b7dcfa03fbd03/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateSyntheticData.kt) for this. Example command:
 
-| bazel \--host\_jvm\_args=-Xmx20g run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData \-- \--event-group-reference-id=event-group-reference-id/edpa-eg-reference-id-1 \--output-bucket=secure-computation-storage-dev-bucket \--schema=gs:// \--kms-type=GCP \--kek-uri=gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/edp-key-ring/cryptoKeys/edp-kek \--population-spec-resource-path=small\_population\_spec.textproto \--data-spec-resource-path=small\_data\_spec.textproto |
+| bazel \--host_jvm_args=-Xmx20g run //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData \-- \--event-group-reference-id=event-group-reference-id/edpa-eg-reference-id-1 \--output-bucket=secure-computation-storage-dev-bucket \--schema=gs:// \--kms-type=GCP \--kek-uri=gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/edp-key-ring/cryptoKeys/edp-kek \--population-spec-resource-path=small_population_spec.textproto \--data-spec-resource-path=small_data_spec.textproto |
 | :---- |
 
-(\*) Note that \--event-group-reference-id must follow the pattern: event-group-reference-id/\<value\_you\_want\_to\_use\_here\>
+(\*) Note that \--event-group-reference-id must follow the pattern: event-group-reference-id/\<value_you_want_to_use_here\>
 (\*\*) \--kek-uri points to the EDP key encryption key
 
 4. **Launch the Cloud Test**, which consists of the following steps:
@@ -1274,4 +1274,4 @@ For easier debugging, it is recommended to use a **debug base image** with loggi
 * **\--model-line** with an existing value from the DB
 * **\--kek-uri** with the kek uri of edp 7
 
-The command can temporary be run using this branch: [marcopremier/update\_synthetic\_data\_generation](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/marcopremier/update_synthetic_data_generation).
+The command can temporary be run using this branch: [marcopremier/update_synthetic_data_generation](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/marcopremier/update_synthetic_data_generation).
