@@ -43,6 +43,7 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
     ],
 )
