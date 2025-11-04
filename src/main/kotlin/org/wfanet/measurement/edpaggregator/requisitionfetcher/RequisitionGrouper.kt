@@ -163,7 +163,7 @@ abstract class RequisitionGrouper(
           cmmsEventGroupMap[name] =
             eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
         }
-        cmmsEventGroupMap.getValue(name) // throws if missing (safer than !!)
+        cmmsEventGroupMap.getValue(name)
       }
   }
 

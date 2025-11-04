@@ -292,7 +292,6 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
       val groupedRequisitions: List<GroupedRequisitions> = runBlocking {
         requisitionGrouper.groupRequisitions(listOf(TestRequisitionData.REQUISITION, requisition2))
       }
-
       assertThat(groupedRequisitions).hasSize(2)
       val groupedRequisition = groupedRequisitions[0]
       assertThat(groupedRequisition.eventGroupMapList.single())
