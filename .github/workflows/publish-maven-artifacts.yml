@@ -21,6 +21,8 @@ on:
         description: Base artifact version, which will be suffixed with "-SNAPSHOT"
         required: true
 
+permissions: read-all
+
 jobs:
   publish-artifacts:
     name: Publish Maven artifacts

@@ -21,6 +21,9 @@ on:
         description: "Tag of container images"
         type: string
         required: true
+
+permissions: read-all
+
 jobs:
   push-images:
     runs-on: ubuntu-22.04

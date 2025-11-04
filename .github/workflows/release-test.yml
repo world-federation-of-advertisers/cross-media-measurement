@@ -19,6 +19,8 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   build-test:
     name: Build and test

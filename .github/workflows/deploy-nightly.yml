@@ -19,9 +19,14 @@ on:
     - cron: '19 6 * * 1,2,3,4,5'  # Sun-Thu night in America/Los_Angeles.
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   deploy-nightly:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: write    
     steps:
     - id: compute-next-nightly-tag
       # Computes a monotonically increasing "nightly/YYYYMMDD.N" tag based on existing tags in the repo.
