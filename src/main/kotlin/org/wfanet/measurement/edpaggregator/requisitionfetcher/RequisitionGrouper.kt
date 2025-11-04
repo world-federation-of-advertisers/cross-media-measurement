@@ -50,6 +50,7 @@ abstract class RequisitionGrouper(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val throttler: Throttler,
+  private val cmmsEventGroupMap: MutableMap<String, CmmsEventGroup> = mutableMapOf(),
 ) {
 
   /**
@@ -162,15 +163,26 @@ abstract class RequisitionGrouper(
   }
 
   /**
-   * Retrieves an [CmmsEventGroup] resource from the Cmms using throttled gRPC access.
+   * Returns the [CmmsEventGroup] for the given resource name.
+   *
+   * This method uses a local cache to avoid repeated lookups. If the event group is already cached,
+   * the cached value is returned immediately. Otherwise, the event group is retrieved from CMMS
+   * using a throttled gRPC request, stored in the cache, and then returned.
+   *
+   * The call suspends while waiting for throttler capacity and the remote gRPC request to complete.
    *
    * @param name The full resource name of the event group.
-   * @return The resolved [CmmsEventGroup] object.
+   * @return The corresponding [CmmsEventGroup], either cached or freshly fetched.
    */
   private suspend fun getEventGroup(name: String): CmmsEventGroup {
-    return throttler.onReady {
-      eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
-    }
+    return cmmsEventGroupMap[name]
+      ?: run {
+        throttler.onReady {
+          cmmsEventGroupMap[name] =
+            eventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
+        }
+        cmmsEventGroupMap.getValue(name)
+      }
   }
 
   /**
