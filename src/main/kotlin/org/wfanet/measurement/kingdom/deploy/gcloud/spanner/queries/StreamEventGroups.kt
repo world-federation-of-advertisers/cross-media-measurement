@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -52,6 +53,7 @@ class StreamEventGroups(
     }
 
   private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
+    bind(TIMESTAMP_MAX).to(Timestamp.MAX_VALUE)
     val conjuncts = buildList {
       if (filter.externalDataProviderId != 0L) {
         add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
@@ -93,14 +95,24 @@ class StreamEventGroups(
         bind(MEDIA_TYPES).toInt64Array(filter.mediaTypesIntersectList)
       }
       if (filter.hasDataAvailabilityStartTimeOnOrAfter()) {
-        add("DataAvailabilityStartTime >= @$DATA_AVAILABILITY_START_TIME")
-        bind(DATA_AVAILABILITY_START_TIME)
+        add("DataAvailabilityStartTime >= @$DATA_AVAILABILITY_START_TIME_GTE")
+        bind(DATA_AVAILABILITY_START_TIME_GTE)
           .to(filter.dataAvailabilityStartTimeOnOrAfter.toGcloudTimestamp())
       }
       if (filter.hasDataAvailabilityEndTimeOnOrBefore()) {
-        add("DataAvailabilityEndTime <= @$DATA_AVAILABILITY_END_TIME")
-        bind(DATA_AVAILABILITY_END_TIME)
+        add("IFNULL(DataAvailabilityEndTime, @$TIMESTAMP_MAX) <= @$DATA_AVAILABILITY_END_TIME_LTE")
+        bind(DATA_AVAILABILITY_END_TIME_LTE)
           .to(filter.dataAvailabilityEndTimeOnOrBefore.toGcloudTimestamp())
+      }
+      if (filter.hasDataAvailabilityStartTimeOnOrBefore()) {
+        add("DataAvailabilityStartTime <= @$DATA_AVAILABILITY_START_TIME_LTE")
+        bind(DATA_AVAILABILITY_START_TIME_LTE)
+          .to(filter.dataAvailabilityStartTimeOnOrBefore.toGcloudTimestamp())
+      }
+      if (filter.hasDataAvailabilityEndTimeOnOrAfter()) {
+        add("IFNULL(DataAvailabilityEndTime, @$TIMESTAMP_MAX) >= @$DATA_AVAILABILITY_END_TIME_GTE")
+        bind(DATA_AVAILABILITY_END_TIME_GTE)
+          .to(filter.dataAvailabilityEndTimeOnOrAfter.toGcloudTimestamp())
       }
       if (filter.metadataSearchQuery.isNotEmpty()) {
         add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
@@ -128,7 +140,6 @@ class StreamEventGroups(
         when (orderBy.field) {
           StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED -> {
             add(tieBreaker)
-            Unit
           }
           StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
             val operator = if (orderBy.descending) "<" else ">"
@@ -146,7 +157,6 @@ class StreamEventGroups(
             )
             bind(After.DATA_AVAILABILITY_START_TIME)
               .to(filter.after.dataAvailabilityStartTime.toGcloudTimestamp())
-            Unit
           }
           StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
         }
@@ -178,8 +188,11 @@ class StreamEventGroups(
     const val EXTERNAL_DATA_PROVIDER_IDS = "externalDataProviderIds"
     const val DELETED_STATE = "deletedState"
     const val MEDIA_TYPES = "mediaTypes"
-    const val DATA_AVAILABILITY_START_TIME = "dataAvailabilityStartTime"
-    const val DATA_AVAILABILITY_END_TIME = "dataAvailabilityEndTime"
+    const val DATA_AVAILABILITY_START_TIME_LTE = "dataAvailabilityStartTimeLte"
+    const val DATA_AVAILABILITY_END_TIME_GTE = "dataAvailabilityEndTimeGte"
+    const val DATA_AVAILABILITY_START_TIME_GTE = "dataAvailabilityStartTimeGte"
+    const val DATA_AVAILABILITY_END_TIME_LTE = "dataAvailabilityEndTimeLte"
     const val METADATA_SEARCH_QUERY = "metadataSearchQuery"
+    const val TIMESTAMP_MAX = "timestampMax"
   }
 }

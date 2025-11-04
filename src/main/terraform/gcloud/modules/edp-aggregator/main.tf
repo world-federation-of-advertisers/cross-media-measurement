@@ -85,6 +85,8 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { data_availability_tls_key                     = var.data_availability_tls_key },
+    { data_availability_tls_pem                     = var.data_availability_tls_pem },
     { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
     { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
@@ -94,7 +96,6 @@ locals {
   )
 
   data_watcher_secrets_access = [
-    "metadata_storage_root_ca",
     "secure_computation_root_ca",
     "data_watcher_tls_key",
     "data_watcher_tls_pem",
@@ -107,6 +108,16 @@ locals {
       "${edp_name}_enc_private",
     ]
   ])
+
+  data_availability_sync_secrets_access = concat(
+    [
+      "metadata_storage_root_ca",
+      "trusted_root_ca_collection",
+      "data_availability_tls_key",
+      "data_availability_tls_pem",
+    ],
+    local.edp_tls_keys
+  )
 
   requisition_fetcher_secrets_access = concat(
     [
@@ -122,11 +133,6 @@ locals {
     ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
-
-  data_availability_sync_secrets_access = concat(
-      ["trusted_root_ca_collection"],
-      local.edp_tls_keys
-    )
 
   cloud_function_secret_pairs = tomap({
     data_watcher            = local.data_watcher_secrets_access,
@@ -334,6 +340,13 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectAdmin"
@@ -364,6 +377,13 @@ resource "google_storage_bucket_iam_member" "results_fulfiller_config_storage_vi
 resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   depends_on = [module.event_group_sync_cloud_function]
   service  = var.event_group_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service  = var.data_availability_sync_function_name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
@@ -475,4 +495,25 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
+}
+
+resource "google_project_iam_member" "telemetry_log_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/logging.logWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_metric_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_trace_agent" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/cloudtrace.agent"
+  member   = "serviceAccount:${each.value}"
 }

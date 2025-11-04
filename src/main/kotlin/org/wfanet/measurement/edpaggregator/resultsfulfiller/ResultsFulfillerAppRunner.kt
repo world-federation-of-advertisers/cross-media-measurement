@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
@@ -320,8 +321,9 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val requisitionMetadataClient =
       RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val impressionMetadataClient =
+      ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
     val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
-
     val duchiesMap = buildDuchyMap()
 
     val requisitionStubFactory =
@@ -341,6 +343,7 @@ class ResultsFulfillerAppRunner : Runnable {
         parser = parser,
         workItemsClient = workItemsClient,
         requisitionMetadataStub = requisitionMetadataClient,
+        impressionMetadataStub = impressionMetadataClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,

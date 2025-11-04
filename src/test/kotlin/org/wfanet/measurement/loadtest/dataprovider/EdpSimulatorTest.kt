@@ -42,6 +42,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.crypto.ElGamalPublicKey
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadata
@@ -90,6 +92,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
@@ -100,6 +103,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.verifyAndCapture
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
@@ -119,6 +123,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyL
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusTeeFulfillRequisitionRequestBuilder
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
+import org.wfanet.measurement.internal.kingdom.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.loadtest.common.sampleVids
 import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
@@ -171,6 +176,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -230,6 +236,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MEASUREMENT_CONSUMER_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -263,6 +270,56 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
               mediaTypes += MEDIA_TYPES
               eventGroupMetadata = EVENT_GROUP_METADATA
               dataAvailabilityInterval = DATA_AVAILABILITY_INTERVAL
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `run updates DataProvider`() {
+    val throttlerMock = mock<Throttler> {} // Prevent `run` from suspending forever.
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        EDP_DISPLAY_NAME,
+        MC_NAME,
+        certificatesStub,
+        modelLinesStub,
+        dataProvidersStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStubMap,
+        SYNTHETIC_DATA_TIME_ZONE,
+        listOf(EventGroupOptions("", SYNTHETIC_DATA_SPEC, MEDIA_TYPES, EVENT_GROUP_METADATA)),
+        syntheticGeneratorEventQuery,
+        throttlerMock,
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES,
+        VID_INDEX_MAP,
+        random = Random(RANDOM_SEED),
+      )
+
+    runBlocking { simulator.run() }
+
+    verifyProtoArgument(
+        dataProvidersServiceMock,
+        DataProvidersGrpcKt.DataProvidersCoroutineImplBase::replaceDataAvailabilityIntervals,
+      )
+      .ignoringRepeatedFieldOrderOfFields(
+        ReplaceDataAvailabilityIntervalsRequest.DATA_AVAILABILITY_INTERVALS_FIELD_NUMBER
+      )
+      .isEqualTo(
+        replaceDataAvailabilityIntervalsRequest {
+          name = EDP_DATA.name
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = MODEL_LINE_NAME
+              value = DATA_AVAILABILITY_INTERVAL
+            }
+          dataAvailabilityIntervals +=
+            DataProviderKt.dataAvailabilityMapEntry {
+              key = MODEL_LINE_2_NAME
+              value = DATA_AVAILABILITY_INTERVAL
             }
         }
       )
@@ -308,6 +365,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         "measurementConsumers/differentMcId",
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -348,6 +406,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -403,6 +462,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -472,6 +532,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -553,6 +614,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -609,6 +671,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -654,6 +717,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -707,6 +771,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -808,6 +873,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
+          modelLinesStub,
           dataProvidersStub,
           eventGroupsStub,
           requisitionsStub,
@@ -938,6 +1004,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
+          modelLinesStub,
           dataProvidersStub,
           eventGroupsStub,
           requisitionsStub,
@@ -1088,6 +1155,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
           EDP_DISPLAY_NAME,
           MC_NAME,
           certificatesStub,
+          modelLinesStub,
           dataProvidersStub,
           eventGroupsStub,
           requisitionsStub,
@@ -1196,6 +1264,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1255,6 +1324,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1316,6 +1386,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1388,6 +1459,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1457,6 +1529,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1526,6 +1599,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1593,6 +1667,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1660,6 +1735,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1727,6 +1803,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1794,6 +1871,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1858,6 +1936,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -1916,6 +1995,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2021,6 +2101,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2093,6 +2174,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2165,6 +2247,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2224,6 +2307,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2290,6 +2374,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2356,6 +2441,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2423,6 +2509,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2487,6 +2574,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2552,6 +2640,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2620,6 +2709,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2683,6 +2773,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,
@@ -2743,6 +2834,7 @@ class EdpSimulatorTest : AbstractEdpSimulatorTest() {
         EDP_DISPLAY_NAME,
         MC_NAME,
         certificatesStub,
+        modelLinesStub,
         dataProvidersStub,
         eventGroupsStub,
         requisitionsStub,

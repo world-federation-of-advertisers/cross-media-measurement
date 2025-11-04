@@ -24,33 +24,50 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
 service ReportResults {
-  // Add a batch of noisy result values to a ReportResult.
-  //
-  // This method will create the hierarchy of rows as necessary. If they
-  // already exist existing rows will be reused. This method will only add
-  // noisy results. If noisy results already exist for the
-  // NoisyReportResultValue indicate then an error will be thrown.
-  rpc AddNoisyResultValues(AddNoisyResultValuesRequest)
+  // Creates a `ReportResult`.
+  rpc CreateReportResult(CreateReportResultRequest) returns (ReportResult);
+
+  // Adds denoised result values to a `ReportResult`.
+  rpc AddDenoisedResultValues(AddDenoisedResultValuesRequest)
       returns (google.protobuf.Empty);
-  // Add a batch of denoised result to a ReportResult. This method should not
-  // need to create any intermediate artifacts as noisy result values should
-  // already exist.
-  rpc AddDenoisedResults(AddDenoisedResultValuesRequest)
-      returns (google.protobuf.Empty);
+
   // Gets all of the noisy result values associated with a particular report
   // result.
   rpc GetNoisyResultValues(GetNoisyResultValuesRequest) returns (ReportResult);
 }
 
-message AddNoisyResultValuesRequest {
+// Request message for the `CreateReportResult` method.
+message CreateReportResultRequest {
+  // The `ReportResult` to create. The `external_report_result_id` will be
+  // ignored and the system will assign a value.
   ReportResult report_result = 1;
 }
 
+// Request message for the `AddDenoisedResultValues` method.
 message AddDenoisedResultValuesRequest {
-  ReportResult report_result = 1;
+  // The CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+
+  // The external ID of the ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+
+  message DenoisedReportingSetResult {
+    message ReportingWindowEntry {
+      ReportResult.ReportingSetResult.ReportingWindow key = 1;
+      ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues
+          value = 2;
+    }
+    // Map of `ReportingWindow` to `ReportResultValues`.
+    repeated ReportingWindowEntry reporting_window_results = 1;
+  }
+
+  // Map of external `ReportingSet` ID to `ReportingSetResult`.
+  map<string, DenoisedReportingSetResult> reporting_set_results = 4;
 }
 
 message GetNoisyResultValuesRequest {
+  // The CMMS MeasurementConsumer ID. Required.
   string cmms_measurement_consumer_id = 1;
+  // The external ID of the ReportResult. Required.
   fixed64 external_report_result_id = 2;
 }
