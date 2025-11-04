@@ -20,6 +20,8 @@ on:
       - main
       - 'releases/**'
 
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
