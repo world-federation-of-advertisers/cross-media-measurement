@@ -32,7 +32,6 @@ on:
 
 permissions: read-all
 
-# DO_NOT_SUBMIT: permissions?
 jobs:
   compute-notes-start-commitish:
     runs-on: ubuntu-22.04
