@@ -2076,32 +2076,32 @@ class Report:
       metric_report = self._metric_reports[metric]
 
       # Check if the whole campaign measurements follow the CI model.
-      union_measurement = metric_report.get_whole_campaign_reach_measurement(
-          edp_combination)
-      component_measurements = [
-          metric_report.get_whole_campaign_reach_measurement(single_edp)
-          for single_edp in edps
-      ]
-
-      if not is_union_reach_consistent(union_measurement,
-                                       component_measurements,
-                                       self._population_size):
-        return False
-
-      # Check if the cumulative measurements follow the CI model.
-      for period in range(self._num_periods):
-        union_measurement = metric_report.get_weekly_cumulative_reach_measurement(
-            edp_combination, period)
+      if edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+        union_measurement = metric_report.get_whole_campaign_reach_measurement(
+            edp_combination)
         component_measurements = [
-            metric_report.get_weekly_cumulative_reach_measurement(
-                single_edp, period)
+            metric_report.get_whole_campaign_reach_measurement(single_edp)
             for single_edp in edps
         ]
 
-        if not is_union_reach_consistent(union_measurement,
-                                         component_measurements,
-                                         self._population_size):
+        if not is_union_reach_consistent(
+            union_measurement, component_measurements, self._population_size):
           return False
+
+      # Check if the cumulative measurements follow the CI model.
+      if edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
+        for period in range(self._num_periods):
+          union_measurement = metric_report.get_weekly_cumulative_reach_measurement(
+              edp_combination, period)
+          component_measurements = [
+              metric_report.get_weekly_cumulative_reach_measurement(
+                  single_edp, period)
+              for single_edp in edps
+          ]
+
+          if not is_union_reach_consistent(
+              union_measurement, component_measurements, self._population_size):
+            return False
 
     return True
 
