@@ -139,37 +139,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByResourceIds(
   }
 }
 
-suspend fun AsyncDatabaseClient.ReadContext.getImpressionMetadataByCreateRequestId(
-  dataProviderResourceId: String,
-  createRequestId: String,
-): ImpressionMetadataResult? {
-  val sql = buildString {
-    appendLine(ImpressionMetadataEntity.BASE_SQL)
-    appendLine(
-      """
-      WHERE DataProviderResourceId = @dataProviderResourceId
-        AND CreateRequestId = @createRequestId
-      """
-        .trimIndent()
-    )
-  }
-
-  val row: Struct =
-    executeQuery(
-        statement(sql) {
-          bind("dataProviderResourceId").to(dataProviderResourceId)
-          bind("createRequestId").to(createRequestId)
-        }
-      )
-      .singleOrNullIfEmpty() ?: return null
-
-  return ImpressionMetadataEntity.buildImpressionMetadataResult(row)
-}
-
 /**
  * Finds existing [ImpressionMetadata] for a list of create requests.
  *
- * @param createImpressionMetadataRequests the list of [CreateImpressionMetadataRequest]
  * @param dataProviderResourceId the resource ID of the parent DataProvider
  * @return a [Map] of create request ID to [ImpressionMetadataResult]
  */

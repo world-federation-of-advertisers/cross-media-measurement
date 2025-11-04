@@ -45,10 +45,10 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -731,10 +731,6 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `deleteImpressionMetadata throws INVALID_ARGUMENT when already deleted`() = runBlocking {
-    service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
-    )
   fun `deleteImpressionMetadata throws INVALID_ARGUMENT when dataProviderResourceId is missing`() =
     runBlocking {
       val request = deleteImpressionMetadataRequest { impressionMetadataResourceId = "not-found" }
@@ -806,13 +802,6 @@ abstract class ImpressionMetadataServiceTest {
           createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
         )
 
-    val deleted =
-      service.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
-          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
-        }
-      )
       val deleteRequest = deleteImpressionMetadataRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID

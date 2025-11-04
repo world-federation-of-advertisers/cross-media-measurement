@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
@@ -28,12 +27,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
-import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ImpressionMetadataResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ModelLineBoundResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.batchCreateImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
@@ -42,10 +41,10 @@ import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataN
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest
@@ -57,10 +56,8 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken
@@ -76,7 +73,7 @@ class SpannerImpressionMetadataService(
   ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
     if (request.impressionMetadataResourceId.isEmpty()) {
@@ -86,11 +83,12 @@ class SpannerImpressionMetadataService(
 
     return try {
       databaseClient.singleUse().use { txn ->
-        txn.getImpressionMetadataByResourceId(
-                request.dataProviderResourceId,
-                request.impressionMetadataResourceId,
-            )
-            .impressionMetadata
+        txn
+          .getImpressionMetadataByResourceId(
+            request.dataProviderResourceId,
+            request.impressionMetadataResourceId,
+          )
+          .impressionMetadata
       }
     } catch (e: ImpressionMetadataNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -98,7 +96,7 @@ class SpannerImpressionMetadataService(
   }
 
   override suspend fun createImpressionMetadata(
-      request: CreateImpressionMetadataRequest
+    request: CreateImpressionMetadataRequest
   ): ImpressionMetadata {
     try {
       validateImpressionMetadataRequest(request, "")
@@ -478,7 +476,6 @@ class SpannerImpressionMetadataService(
   }
 
   companion object {
-    private const val IMPRESSION_METADATA_PREFIX = "imp-"
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
   }

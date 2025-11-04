@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -30,10 +31,10 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundEx
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
@@ -44,17 +45,16 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse as InternalBatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateImpressionMetadataResponse as InternalBatchCreateImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.BatchDeleteImpressionMetadataResponse as InternalBatchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsResponse as InternalComputeModelLineBoundsResponse
-import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateImpressionMetadataRequest as InternalCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.DeleteImpressionMetadataRequest as InternalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
@@ -62,8 +62,8 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageT
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse as InternalListImpressionMetadataResponse
-import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest as internalBatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest as internalComputeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
@@ -275,6 +275,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
@@ -348,6 +349,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
             ImpressionMetadataNotFoundException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
