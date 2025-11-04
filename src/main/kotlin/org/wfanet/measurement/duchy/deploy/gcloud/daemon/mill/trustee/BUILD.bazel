@@ -16,6 +16,7 @@ kt_jvm_library(
     name = "gcs_trus_tee_mill_daemon",
     srcs = ["GcsTrusTeeMillDaemon.kt"],
     deps = [
+        "//imports/java/com/google/cloud/secretmanager",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:trus_tee_mill_daemon",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "@wfa_common_jvm//imports/java/picocli",

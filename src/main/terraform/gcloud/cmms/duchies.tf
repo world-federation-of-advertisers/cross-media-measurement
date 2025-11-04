@@ -62,24 +62,35 @@ locals {
     aggregator_cs_private         = local.aggregator_cs_private
     terraform_service_account     = var.terraform_service_account
 
-    app_flags                     = [
-                                      "--computations-service-target", "35.223.49.72:8443",
-                                      "--computations-service-cert-host", "localhost",
-                                      "--duchy-name", "aggregator",
-                                      "--tls-cert-file", "/var/run/secrets/files/aggregator_tls.pem",
-                                      "--tls-key-file", "/var/run/secrets/files/aggregator_tls.key",
-                                      "--cert-collection-file", "/var/run/secrets/files/all_root_certs.pem",
-                                      "--consent-signaling-certificate-der-file", "/var/run/secrets/files/aggregator_cs_cert.der",
-                                      "--consent-signaling-private-key-der-file", "/var/run/secrets/files/aggregator_cs_private.der",
-                                      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/TgZwIV_vGjs",
-                                      "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
-                                      "--kingdom-system-api-cert-host", "localhost",
-                                      "--google-cloud-storage-project", "halo-cmm-dev",
-                                      "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
-                                      "--work-lock-duration", "10m",
-                                      "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
-                                      "--polling-interval", "5s",
-                                    ]
+    app_flags = [
+      "--gcp-project-id", data.google_client_config.default.project,
+      "--tls-cert-secret-id", local.aggregator_tls_cert.secret_id,
+      "--tls-key-secret-id", local.aggregator_tls_key.secret_id,
+      "--cert-collection-secret-id", local.aggregator_cert_collection.secret_id,
+      "--cs-cert-secret-id", local.aggregator_cs_cert.secret_id,
+      "--cs-private-key-secret-id", local.aggregator_cs_private.secret_id,
+
+      "--tls-cert-file", "/tmp/secrets/aggregator_tls.pem",
+      "--tls-key-file", "/tmp/secrets/aggregator_tls.key",
+      "--cert-collection-file", "/tmp/secrets/all_root_certs.pem",
+      "--consent-signaling-certificate-der-file", "/tmp/secrets/aggregator_cs_cert.der",
+      "--consent-signaling-private-key-der-file", "/tmp/secrets/aggregator_cs_private.der",
+      "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
+
+      "--computations-service-target", "35.223.49.72:8443",
+      "--computations-service-cert-host", "localhost",
+      "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
+      "--kingdom-system-api-cert-host", "localhost",
+
+      "--duchy-name", "aggregator",
+      "--work-lock-duration", "10m",
+      "--polling-interval", "5s",
+
+      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/TgZwIV_vGjs",
+
+      "--google-cloud-storage-project", data.google_client_config.default.project,
+      "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
+    ]
   }
 }
 
