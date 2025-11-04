@@ -666,7 +666,7 @@ class BasicReportsReportsJob(
       .NoisyMetricSetKt
       .histogramResult {
         for (bin: MetricResult.HistogramResult.Bin in source.binsList) {
-          binResults[bin.label] =
+          binResults[bin.label.toInt()] =
             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
               .NoisyMetricSetKt
               .HistogramResultKt
