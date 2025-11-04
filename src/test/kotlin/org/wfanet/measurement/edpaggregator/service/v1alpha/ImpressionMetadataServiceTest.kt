@@ -51,10 +51,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -1047,9 +1047,9 @@ class ImpressionMetadataServiceTest {
     val created = createImpressionMetadata(IMPRESSION_METADATA)
 
     val response =
-        service.listImpressionMetadata(
-            listImpressionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
-        )
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+      )
 
     assertThat(response).isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
   }
