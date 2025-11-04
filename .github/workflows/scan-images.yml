@@ -44,9 +44,13 @@ on:
         type: string
         required: true
 
+permissions: read-all
+
 jobs:
   scan-images:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
     strategy:
       matrix:
         # List of images from https://github.com/orgs/world-federation-of-advertisers/packages?repo_name=cross-media-measurement

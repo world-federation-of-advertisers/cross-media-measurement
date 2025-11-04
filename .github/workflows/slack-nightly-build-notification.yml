@@ -26,6 +26,8 @@ on:
         type: boolean
         required: true
 
+permissions: read-all
+
 jobs:
   send-notification:
     runs-on: ubuntu-22.04

@@ -19,6 +19,9 @@ on:
     - cron: '0 5 * * *'  # Night in America/Los_Angeles, before deploy-nightly.
   workflow_dispatch:
 
+permissions: read-all
+
+# DO_NOT_SUBMIT: permissions?
 jobs:
   update-trivy-cache:
     runs-on: ubuntu-latest
