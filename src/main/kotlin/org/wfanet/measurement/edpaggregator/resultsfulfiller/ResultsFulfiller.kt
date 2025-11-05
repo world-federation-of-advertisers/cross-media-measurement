@@ -126,10 +126,35 @@ class ResultsFulfiller(
       groupedRequisitions.eventGroupMapList.associate {
         it.eventGroup to it.details.eventGroupReferenceId
       }
-    // Get requisitions metadata for the groupId of the grouped requisitions
-    val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    totalRequisitions.addAndGet(requisitions.size)
+    // Filter requisitions that are not in the requisitions metadata storage or have been either
+    // fulfilled or refused already
+    val requisitionMetadataByName = listRequisitionMetadata().associateBy { it.cmmsRequisition }
+
+    val filteredRequisitions =
+      requisitions.filter { req ->
+        val metadata = requisitionMetadataByName[req.name]
+
+        when {
+          metadata == null -> {
+            logger.info { "Requisition metadata not found for requisition: ${req.name}" }
+            false
+          }
+          metadata.state == RequisitionMetadata.State.FULFILLED ||
+            metadata.state == RequisitionMetadata.State.REFUSED -> {
+            logger.info { "Requisition already completed (${metadata.state}) for: ${req.name}" }
+            false
+          }
+          else -> true
+        }
+      }
+
+    val updatedRequisitionMetadata: List<RequisitionMetadata> =
+      requisitionMetadataByName.values.map { metadata ->
+        signalRequisitionStartProcessing(metadata)
+      }
+
+    totalRequisitions.addAndGet(filteredRequisitions.size)
 
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
@@ -156,7 +181,7 @@ class ResultsFulfiller(
           eventSource = eventSource,
           vidIndexMap = vidIndexMap,
           populationSpec = populationSpec,
-          requisitions = requisitions,
+          requisitions = filteredRequisitions,
           eventGroupReferenceIdMap = eventGroupReferenceIdMap,
           config = pipelineConfiguration,
           eventDescriptor = eventDescriptor,
@@ -165,11 +190,10 @@ class ResultsFulfiller(
         e.printStackTrace()
         throw e
       }
-    val elapsedMs = frequencyVectorStart.elapsedNow().inWholeMilliseconds
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
 
     var processedCount = 0
-    requisitions
+    filteredRequisitions
       .asFlow()
       .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
       .flatMapMerge(concurrency = parallelism) {
@@ -177,8 +201,14 @@ class ResultsFulfiller(
         flow {
           val start = TimeSource.Monotonic.markNow()
           try {
-            fulfillSingleRequisition(req, frequencyVector, populationSpec, requisitionsMetadata)
-            val elapsedMs = start.elapsedNow().inWholeMilliseconds
+
+            fulfillSingleRequisition(
+              req,
+              frequencyVector,
+              populationSpec,
+              updatedRequisitionMetadata,
+            )
+
             fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
             processedCount++
             emit(Unit)
@@ -208,15 +238,6 @@ class ResultsFulfiller(
     requisitionsMetadata: List<RequisitionMetadata>,
   ) {
 
-    // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
-
-    require(requisitionMetadata != null) {
-      "Requisition metadata not found for requisition: ${requisition.name}"
-    }
-
-    val updateRequisitionMetadata = signalRequisitionStartProcessing(requisitionMetadata)
-
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val freqBytes = frequencyVector.getByteArray()
     val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
@@ -244,7 +265,13 @@ class ResultsFulfiller(
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    signalRequisitionFulfilled(updateRequisitionMetadata)
+    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
+
+    require(requisitionMetadata != null) {
+      "Requisition metadata not found for requisition: ${requisition.name}"
+    }
+
+    signalRequisitionFulfilled(requisitionMetadata)
 
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }

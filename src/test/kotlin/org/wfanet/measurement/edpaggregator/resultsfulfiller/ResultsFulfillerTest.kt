@@ -152,7 +152,8 @@ class ResultsFulfillerTest {
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { startProcessingRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { startProcessingRequisitionMetadata(any()) }
+        .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
       onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }
 
