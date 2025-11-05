@@ -214,7 +214,7 @@ class ResultsFulfiller(
   ): Boolean {
     val metadata = metadataByName[name]
 
-    require(metadata != null) { "Requisition metadata not found for requisition: $name" }
+    requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
 
     return metadata.state != RequisitionMetadata.State.FULFILLED &&
       metadata.state != RequisitionMetadata.State.REFUSED
