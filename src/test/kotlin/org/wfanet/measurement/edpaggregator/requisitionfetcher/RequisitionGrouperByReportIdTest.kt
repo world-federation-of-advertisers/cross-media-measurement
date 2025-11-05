@@ -645,6 +645,57 @@ class RequisitionGrouperByReportIdTest : AbstractRequisitionGrouperTest() {
     }
 
   @Test
+  fun `existing metadata in queued or processing state prevents creation of new grouped requisitions`() =
+    runBlocking {
+      val storageClient = FileSystemStorageClient(tempFolder.root)
+
+      val queuedBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-id"
+      val processingBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-id"
+      val blobKey = "$STORAGE_PATH_PREFIX/group-id"
+      val defaultGroupedRequisitions = GroupedRequisitions.getDefaultInstance()
+
+      storageClient.writeBlob(blobKey, Any.pack(defaultGroupedRequisitions).toByteString())
+
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.QUEUED
+              cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/foo-queued"
+              blobUri = queuedBlobUri
+              blobTypeUrl = "blob-type"
+              groupId = "group-id"
+              report = "report-name"
+            }
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.PROCESSING
+              cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/foo-processing"
+              blobUri = processingBlobUri
+              blobTypeUrl = "blob-type"
+              groupId = "group-id"
+              report = "report-name"
+            }
+          }
+        )
+
+      val requisition1 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo-queued"
+        }
+
+      val requisition2 =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo-processing"
+        }
+
+      val result = requisitionGrouper.groupRequisitions(listOf(requisition1, requisition2))
+
+      assertThat(result).isEmpty()
+
+      assertThat(createRequisitionMetadataRequests).isEmpty()
+    }
+
+  @Test
   fun `requisition metadata with no blob associated, correctly returns GroupedRequisitions`() =
     runBlocking {
       val firstBlobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/an-existing-group-id"
