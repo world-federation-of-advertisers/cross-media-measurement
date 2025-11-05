@@ -30,8 +30,9 @@ on:
         type: string
         description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
 
-permissions:
-  contents: read
+# DO_NOT_SUBMIT: add TODO?
+# permissions:
+#  contents: read
 
 jobs:
   compute-notes-start-commitish:
