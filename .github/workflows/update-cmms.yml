@@ -50,10 +50,15 @@ on:
         description: "Tag of existing published images (skips push)"
         type: string
 
+permissions: read-all
+
 jobs:
   publish-images:
     uses: ./.github/workflows/maybe-push-images.yml
     secrets: inherit
+    permissions:
+      id-token: write
+      packages: write
     with:
       existing-image-tag: ${{ inputs.existing-image-tag }}
 
@@ -61,6 +66,8 @@ jobs:
     uses: ./.github/workflows/scan-images.yml
     needs: [publish-images]
     if: inputs.existing-image-tag == ''
+    permissions:
+      security-events: write
     with:
       container-registry: ghcr.io
       image-repo-prefix: ${{ github.repository_owner }}
@@ -70,6 +77,8 @@ jobs:
     uses: ./.github/workflows/terraform-cmms.yml
     needs: [publish-images]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
@@ -79,6 +88,8 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -88,6 +99,8 @@ jobs:
     uses: ./.github/workflows/configure-population-fulfiller.yml
     needs: [publish-images, update-kingdom]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -97,6 +110,8 @@ jobs:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
     needs: [ publish-images, terraform ]
     secrets: inherit
+    permissions:
+      id-token: write    
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -106,6 +121,8 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       duchy-name: aggregator
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -116,6 +133,8 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       duchy-name: worker1
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -126,6 +145,8 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       duchy-name: worker2
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -136,6 +157,8 @@ jobs:
     uses: ./.github/workflows/configure-simulators.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -145,6 +168,8 @@ jobs:
     uses: ./.github/workflows/configure-edp-aggregator.yml
     needs: [publish-images, terraform]
     secrets: inherit
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
@@ -157,6 +182,8 @@ jobs:
     uses: ./.github/workflows/configure-reporting-v2.yml
     secrets: inherit
     needs: [ publish-images, terraform ]
+    permissions:
+      id-token: write
     with:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}

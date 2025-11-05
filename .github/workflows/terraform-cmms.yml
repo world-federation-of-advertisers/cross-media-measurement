@@ -47,12 +47,13 @@ on:
         type: string
         required: true
 
-permissions:
-  id-token: write
+permissions: read-all
 
 jobs:
   terraform:
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
     environment: ${{ inputs.environment }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms

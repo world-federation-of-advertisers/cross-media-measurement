@@ -31,12 +31,13 @@ on:
           - qa
           - head
 
-permissions:
-  id-token: write
+permissions: read-all
 
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4

@@ -47,8 +47,7 @@ on:
         type: boolean
         default: false
 
-permissions:
-  id-token: write
+permissions: read-all
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
@@ -58,6 +57,8 @@ env:
 jobs:
   update-kingdom:
     runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
