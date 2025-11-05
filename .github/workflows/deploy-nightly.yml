@@ -19,12 +19,14 @@ on:
     - cron: '19 6 * * 1,2,3,4,5'  # Sun-Thu night in America/Los_Angeles.
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   deploy-nightly:
     runs-on: ubuntu-22.04
     permissions:
+      contents: read
       contents: write
       actions: write    
     steps:

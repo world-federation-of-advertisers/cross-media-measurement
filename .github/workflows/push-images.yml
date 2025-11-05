@@ -22,7 +22,8 @@ on:
         type: string
         required: true
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   push-images:

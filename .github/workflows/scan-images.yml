@@ -44,12 +44,14 @@ on:
         type: string
         required: true
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   scan-images:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     strategy:
       matrix:

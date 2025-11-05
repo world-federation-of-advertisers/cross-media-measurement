@@ -47,7 +47,8 @@ on:
         type: boolean
         default: false
 
-permissions: read-all
+permissions:
+  contents: read
 
 env:
   KUSTOMIZATION_PATH: "k8s/edp_aggregator"
@@ -56,6 +57,7 @@ jobs:
   update-edp-aggregator-services:
     runs-on: ubuntu-22.04
     permissions:
+      contents: read
       id-token: write
     environment: ${{ inputs.environment }}
     steps:

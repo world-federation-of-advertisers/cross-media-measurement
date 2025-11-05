@@ -31,7 +31,8 @@ on:
         - qa
         - head
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   run-tests:

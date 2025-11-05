@@ -46,7 +46,8 @@ on:
         description: "Release notes"
         value: ${{ jobs.generate-release-notes.outputs.summary }}
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   generate-release-notes:

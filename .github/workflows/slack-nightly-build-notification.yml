@@ -26,7 +26,8 @@ on:
         type: boolean
         required: true
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   send-notification:

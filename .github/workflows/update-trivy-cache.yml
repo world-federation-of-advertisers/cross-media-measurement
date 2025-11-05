@@ -19,7 +19,8 @@ on:
     - cron: '0 5 * * *'  # Night in America/Los_Angeles, before deploy-nightly.
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   update-trivy-cache:

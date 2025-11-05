@@ -26,7 +26,8 @@ on:
         description: "Tag of container images"
         value: ${{ jobs.get-image-tag.outputs.image-tag }}
 
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   get-image-tag:
@@ -56,6 +57,7 @@ jobs:
     needs: [get-image-tag]
     secrets: inherit
     permissions:
+      contents: read
       packages: write
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
@@ -66,6 +68,7 @@ jobs:
     needs: [ get-image-tag ]
     secrets: inherit
     permissions:
+      contents: read
       packages: write    
     with:
       package-version: ${{ needs.get-image-tag.outputs.image-tag }}
@@ -75,6 +78,7 @@ jobs:
     needs: [get-image-tag, push-images]
     secrets: inherit
     permissions:
+      contents: read
       id-token: write
       packages: write    
     with:
@@ -89,6 +93,7 @@ jobs:
     if: ${{ github.event_name == 'release' }}
     secrets: inherit
     permissions:
+      contents: read
       id-token: write
       packages: write    
     with:
