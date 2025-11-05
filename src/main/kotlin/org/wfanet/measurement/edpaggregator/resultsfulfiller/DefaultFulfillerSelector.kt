@@ -68,9 +68,10 @@ class DefaultFulfillerSelector(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
+    frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
+    val frequencyData = frequencyDataBytes.toUnsignedIntArray()
     val vec = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
@@ -174,5 +175,9 @@ class DefaultFulfillerSelector(
       dataProviderCertificateKey,
       requisitionsStub,
     )
+  }
+
+  private fun ByteArray.toUnsignedIntArray(): IntArray {
+    return IntArray(size) { index -> this[index].toInt() and 0xFF }
   }
 }
