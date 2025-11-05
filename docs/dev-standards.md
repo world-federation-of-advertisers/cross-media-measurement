@@ -7,9 +7,7 @@ Originally by efoxepstein@google.com, sanjayvas@google.com / August 2021
 This guide lays out the standards and practices for developers contributing to
 repositories owned by the WFA.
 
-## Code Review
-
-### Commit Message Format
+## Commit Message Format
 
 The final commit message must adhere strictly to the format below. This enables
 tooling to parse commit messages.
@@ -78,6 +76,29 @@ Note that it is **critical** to ensure that GitHub's line wrapping behavior does
 not interfere with the parseability of the commit message. Remove any line
 wrapping that GitHub introduces into PR title and the final commit message.
 
+## Code Review
+
+### What Do Code Reviewers Look For?
+
+Code reviews should look at:
+
+*   **Design**: Is the code well-designed and appropriate for your system?
+*   **Functionality**: Does the code behave as the author likely intended? Is
+    the way the code behaves good for its users?
+*   **Complexity**: Could the code be made simpler? Would another developer be
+    able to easily understand and use this code when they come across it in the
+    future?
+*   **Tests**: Does the code have correct and well-designed automated tests?
+*   **Naming**: Did the author choose clear names for variables, classes,
+    methods, etc.?
+*   **Comments**: Are the comments clear and useful?
+*   **Style**: Does the code follow our [style guides](code-style.md)?
+*   **Documentation**: Did the author also update relevant documentation?
+
+See
+[How to do a code review](https://google.github.io/eng-practices/review/reviewer/)
+for more information.
+
 ### Use Reviewable
 
 Use https://reviewable.io for code reviews. GitHub’s code review tool does not
@@ -123,8 +144,12 @@ sacrificing code quality):
 
 *   Don’t block PRs needlessly.
 
-    *   Consider proactively suggesting that the author add a TODO and file a
-        GitHub issue instead of fixing some non-pressing problems.
+    *   If a PR exposes surrounding problems that it would be impractical to
+        address immediately, consider proactively suggesting that the author add
+        a TODO and file a GitHub issue instead.
+        *   See
+            [Cleaning It Up Later](https://google.github.io/eng-practices/review/reviewer/pushback.html#later)
+            for more detailed guidance.
     *   Consider preemptively approving PRs as you post comments if it’s
         straightforward for the PR author to fix the issues and you don’t feel
         the need to verify the fixes – in such situations, it is acceptable for
