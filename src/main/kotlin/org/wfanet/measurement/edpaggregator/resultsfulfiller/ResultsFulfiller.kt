@@ -141,6 +141,9 @@ class ResultsFulfiller(
       }
 
     totalRequisitions.addAndGet(filteredRequisitions.size)
+    logger.info {
+      "Starting fulfillment for ${filteredRequisitions.size} requisitions (${requisitions.size - filteredRequisitions.size} filtered out)"
+    }
 
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
@@ -149,6 +152,9 @@ class ResultsFulfiller(
     val populationSpec = modelInfo.populationSpec
     val vidIndexMap = modelInfo.vidIndexMap
 
+    logger.info {
+      "Creating event source for model line: $modelLine with ${groupedRequisitions.eventGroupMapList.size} event groups"
+    }
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionDataSourceProvider,
@@ -160,6 +166,9 @@ class ResultsFulfiller(
         batchSize = pipelineConfiguration.batchSize,
       )
 
+    logger.info {
+      "Starting event processing pipeline to compute frequency vectors for ${filteredRequisitions.size} requisitions"
+    }
     val frequencyVectorStart = TimeSource.Monotonic.markNow()
     val frequencyVectorMap =
       try {
@@ -177,6 +186,9 @@ class ResultsFulfiller(
         throw e
       }
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
+    logger.info {
+      "Frequency vector computation completed in ${frequencyVectorStart.elapsedNow().inWholeMilliseconds}ms. Starting individual requisition fulfillment with parallelism=$parallelism"
+    }
 
     var processedCount = 0
     filteredRequisitions
@@ -187,6 +199,7 @@ class ResultsFulfiller(
         flow {
           val start = TimeSource.Monotonic.markNow()
           try {
+            logger.info { "Starting fulfillment for requisition: ${req.name}" }
 
             fulfillSingleRequisition(
               req,
@@ -197,14 +210,20 @@ class ResultsFulfiller(
 
             fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
             processedCount++
+            logger.info {
+              "Completed fulfillment for requisition: ${req.name} in ${start.elapsedNow().inWholeMilliseconds}ms (${processedCount}/${filteredRequisitions.size})"
+            }
             emit(Unit)
           } catch (t: Throwable) {
+            logger.severe { "Failed to fulfill requisition: ${req.name} - ${t.message}" }
             t.printStackTrace()
             throw t
           }
         }
       }
       .collect()
+
+    logger.info { "All ${filteredRequisitions.size} requisitions fulfilled successfully" }
 
     logFulfillmentStats()
   }
@@ -234,9 +253,12 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     requisitionsMetadata: List<RequisitionMetadata>,
   ) {
-
+    logger.fine { "Processing requisition ${requisition.name}: Unpacking measurement spec" }
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
     val frequencyDataBytes = frequencyVector.getByteArray()
+    logger.fine {
+      "Processing requisition ${requisition.name}: Decrypting requisition spec (frequency data size: ${frequencyDataBytes.size} bytes)"
+    }
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -248,6 +270,7 @@ class ResultsFulfiller(
         throw Exception("RequisitionSpec decryption failed", e)
       }
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
+    logger.fine { "Processing requisition ${requisition.name}: Selecting fulfiller" }
     val buildStart = TimeSource.Monotonic.markNow()
     val fulfiller =
       fulfillerSelector.selectFulfiller(
@@ -258,8 +281,14 @@ class ResultsFulfiller(
         populationSpec,
       )
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
+    logger.info {
+      "Processing requisition ${requisition.name}: Sending fulfillment request (build took ${buildStart.elapsedNow().inWholeMilliseconds}ms)"
+    }
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+    logger.fine {
+      "Processing requisition ${requisition.name}: Fulfillment request sent in ${sendStart.elapsedNow().inWholeMilliseconds}ms"
+    }
 
     val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
 
@@ -267,7 +296,9 @@ class ResultsFulfiller(
       "Requisition metadata not found for requisition: ${requisition.name}"
     }
 
+    logger.fine { "Processing requisition ${requisition.name}: Signaling fulfillment to metadata service" }
     signalRequisitionFulfilled(requisitionMetadata)
+    logger.fine { "Processing requisition ${requisition.name}: Fulfillment signaled successfully" }
 
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }
