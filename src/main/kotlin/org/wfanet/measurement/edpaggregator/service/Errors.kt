@@ -182,15 +182,15 @@ class RequisitionMetadataInvalidStateException(
   )
 
 class DataProviderMismatchException(
-  expectedDataProviderResourceName: String,
+  parentDataProviderResourceName: String,
   actualDataProviderResourceName: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.DATA_PROVIDER_MISMATCH,
-    "DataProvider from parent $actualDataProviderResourceName does not match DataProvider $actualDataProviderResourceName",
+    "DataProvider $actualDataProviderResourceName does not match parent DataProvider $parentDataProviderResourceName",
     mapOf(
-      Errors.Metadata.PARENT to expectedDataProviderResourceName,
+      Errors.Metadata.PARENT to parentDataProviderResourceName,
       Errors.Metadata.DATA_PROVIDER to actualDataProviderResourceName,
     ),
     cause,
@@ -249,7 +249,24 @@ class ImpressionMetadataNotFoundException(
     "ImpressionMetadata $impressionMetadataResourceName not found",
     mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
     cause,
-  )
+  ) {
+  companion object : Factory<ImpressionMetadataNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.IMPRESSION_METADATA_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): ImpressionMetadataNotFoundException {
+      val impressionMetadataKey =
+        ImpressionMetadataKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+          internalMetadata.getValue(InternalErrors.Metadata.IMPRESSION_METADATA_RESOURCE_ID),
+        )
+      return ImpressionMetadataNotFoundException(impressionMetadataKey.toName(), cause)
+    }
+  }
+}
 
 class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
@@ -257,4 +274,19 @@ class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable
     "ImpressionMetadata with blobUri $blobUri already exists",
     mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
-  )
+  ) {
+  companion object : Factory<ImpressionMetadataAlreadyExistsException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): ImpressionMetadataAlreadyExistsException {
+      return ImpressionMetadataAlreadyExistsException(
+        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
+        cause,
+      )
+    }
+  }
+}

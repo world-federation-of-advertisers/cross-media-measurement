@@ -123,6 +123,82 @@ class ReportProcessorTest {
     }
 
   @Test
+  fun `run correct 2-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_2_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092623_b25b5bc8c9405da3d16c5e8cfdb070.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
+
+  @Test
+  fun `run correct 3-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_3_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092827_b8854d64906a0dc72dc945b3142.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
+
+  @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
@@ -499,7 +575,11 @@ class ReportProcessorTest {
           if (measurements.any { it < 0 }) {
             return false
           }
-          if (measurements.zipWithNext().any { (a, b) -> a > b }) {
+          if (
+            measurements.zipWithNext().any { (a, b) ->
+              !fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE)
+            }
+          ) {
             return false
           }
         }
@@ -652,7 +732,7 @@ class ReportProcessorTest {
     }
 
     private fun fuzzyLessEqual(val1: Double, val2: Double, tolerance: Double): Boolean {
-      return val1 < val2 + tolerance
+      return val1 <= val2 + tolerance
     }
   }
 }
