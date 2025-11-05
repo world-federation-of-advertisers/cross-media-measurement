@@ -122,6 +122,7 @@ jobs:
     needs: [compute-notes-start-commitish, compute-milestone-name, compute-release-target]
     uses: ./.github/workflows/generate-release-notes.yml
     permissions:
+      contents: read
       issues: read
       pull-requests: read
     with:
