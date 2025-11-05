@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -50,8 +51,9 @@ abstract class RequisitionGrouper(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val throttler: Throttler,
-  private val cmmsEventGroupMap: MutableMap<String, CmmsEventGroup> = mutableMapOf(),
 ) {
+
+  private val cmmsEventGroupMap: MutableMap<String, CmmsEventGroup> = ConcurrentHashMap()
 
   /**
    * Groups a list of [Requisition]s into [GroupedRequisitions]s suitable for execution.
