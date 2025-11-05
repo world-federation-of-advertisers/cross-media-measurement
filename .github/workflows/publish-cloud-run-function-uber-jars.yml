@@ -28,10 +28,14 @@ on:
         type: string
         required: true
 
+permissions: read-all
+
 jobs:
   publish-artifacts:
     name: Publish Uber‑JAR to GitHub Packages
     runs-on: ubuntu-22.04
+    permissions:
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
