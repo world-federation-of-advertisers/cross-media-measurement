@@ -453,6 +453,49 @@ abstract class RequisitionMetadataServiceTest {
   }
 
   @Test
+  fun `batchCreateRequisitionMetadata throws ALREADY_EXISTS for existing cmmsRequisition`() =
+    runBlocking {
+      val duplicateCmmsRequisition = "duplicate-cmms-requisition"
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          requests += createRequisitionMetadataRequest {
+            requisitionMetadata =
+              REQUISITION_METADATA.copy { cmmsRequisition = duplicateCmmsRequisition }
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+
+      val conflictingRequest = createRequisitionMetadataRequest {
+        requisitionMetadata =
+          REQUISITION_METADATA_2.copy { cmmsRequisition = duplicateCmmsRequisition }
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += conflictingRequest
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] =
+              REQUISITION_METADATA.dataProviderResourceId
+            metadata[Errors.Metadata.CMMS_REQUISITION.key] = duplicateCmmsRequisition
+          }
+        )
+    }
+
+  @Test
   fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
     runBlocking {
       val request = createRequisitionMetadataRequest {

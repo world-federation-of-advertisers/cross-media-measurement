@@ -45,7 +45,6 @@ import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
-import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
@@ -255,7 +254,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter != null) {
-      if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+      if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
         conjuncts.add("State = @state")
       }
       if (filter.groupId.isNotEmpty()) {
@@ -286,7 +285,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
       bind("dataProviderResourceId").to(dataProviderResourceId)
 
       if (filter != null) {
-        if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+        if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
           bind("state").to(filter.state.number.toLong())
         }
         if (filter.groupId.isNotEmpty()) {
