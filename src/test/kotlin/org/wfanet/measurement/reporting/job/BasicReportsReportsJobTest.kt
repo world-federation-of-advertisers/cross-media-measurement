@@ -1627,7 +1627,7 @@ class BasicReportsReportsJobTest {
                             }
                           bins +=
                             MetricResultKt.HistogramResultKt.bin {
-                              label = "3+"
+                              label = "3"
                               binResult = MetricResultKt.HistogramResultKt.binResult { value = 6.0 }
                               resultUnivariateStatistics = univariateStatistics {
                                 standardDeviation = 1.0
@@ -1722,7 +1722,7 @@ class BasicReportsReportsJobTest {
                               .NoisyReportResultValuesKt
                               .NoisyMetricSetKt
                               .histogramResult {
-                                binResults["1"] =
+                                binResults[1] =
                                   ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                                     .NoisyReportResultValuesKt
                                     .NoisyMetricSetKt
@@ -1735,7 +1735,7 @@ class BasicReportsReportsJobTest {
                                           .NoisyMetricSetKt
                                           .univariateStatistics { standardDeviation = 1.0 }
                                     }
-                                binResults["2"] =
+                                binResults[2] =
                                   ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                                     .NoisyReportResultValuesKt
                                     .NoisyMetricSetKt
@@ -1748,7 +1748,7 @@ class BasicReportsReportsJobTest {
                                           .NoisyMetricSetKt
                                           .univariateStatistics { standardDeviation = 1.0 }
                                     }
-                                binResults["3+"] =
+                                binResults[3] =
                                   ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
                                     .NoisyReportResultValuesKt
                                     .NoisyMetricSetKt
