@@ -203,7 +203,7 @@ abstract class MillBase(
    * @return whether a work item was claimed
    */
   suspend fun claimAndProcessWork(): Boolean {
-    logger.fine("@Mill $millId: Polling available work...")
+    logger.info("@Mill $millId: Polling available work...")
 
     val claimWorkRequest = claimWorkRequest {
       computationType = this@MillBase.computationType
