@@ -45,10 +45,18 @@ class SetCmmsMeasurementIds(private val request: BatchSetCmmsMeasurementIdsReque
         valuesStartIndex = 2,
         paramCount = 2,
         """
-        UPDATE Measurements AS m SET CmmsMeasurementId = c.CmmsMeasurementId, State = $1
-        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-        AS c(CmmsMeasurementId, CmmsCreateMeasurementRequestId)
-        WHERE MeasurementConsumerId = $2 AND m.CmmsCreateMeasurementRequestId = c.CmmsCreateMeasurementRequestId::uuid
+        WITH MeasurementIds AS MATERIALIZED (
+          SELECT
+            CmmsMeasurementId,
+            CmmsCreateMeasurementRequestId
+          FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+          AS c(CmmsMeasurementId, CmmsCreateMeasurementRequestId)
+        )
+        UPDATE Measurements AS m SET
+        CmmsMeasurementId = MeasurementIds.CmmsMeasurementId,
+        State = $1
+        FROM MeasurementIds
+        WHERE MeasurementConsumerId = $2 AND m.CmmsCreateMeasurementRequestId = MeasurementIds.CmmsCreateMeasurementRequestId::uuid
         """,
       ) {
         bind("$1", Measurement.State.PENDING)
