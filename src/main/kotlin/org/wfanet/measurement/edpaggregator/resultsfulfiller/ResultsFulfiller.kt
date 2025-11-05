@@ -129,25 +129,11 @@ class ResultsFulfiller(
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
     // fulfilled or refused already
-    val requisitionMetadataByName = listRequisitionMetadata().associateBy { it.cmmsRequisition }
+    val requisitionMetadataByName: Map<String, RequisitionMetadata> =
+      listRequisitionMetadata().associateBy { it.cmmsRequisition }
 
     val filteredRequisitions =
-      requisitions.filter { req ->
-        val metadata = requisitionMetadataByName[req.name]
-
-        when {
-          metadata == null -> {
-            logger.info { "Requisition metadata not found for requisition: ${req.name}" }
-            false
-          }
-          metadata.state == RequisitionMetadata.State.FULFILLED ||
-            metadata.state == RequisitionMetadata.State.REFUSED -> {
-            logger.info { "Requisition already completed (${metadata.state}) for: ${req.name}" }
-            false
-          }
-          else -> true
-        }
-      }
+      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
 
     val updatedRequisitionMetadata: List<RequisitionMetadata> =
       requisitionMetadataByName.values.map { metadata ->
@@ -221,6 +207,17 @@ class ResultsFulfiller(
       .collect()
 
     logFulfillmentStats()
+  }
+
+  private fun Requisition.shouldBeProcessed(
+    metadataByName: Map<String, RequisitionMetadata>
+  ): Boolean {
+    val metadata = metadataByName[name]
+
+    require(metadata != null) { "Requisition metadata not found for requisition: $name" }
+
+    return metadata.state != RequisitionMetadata.State.FULFILLED &&
+      metadata.state != RequisitionMetadata.State.REFUSED
   }
 
   /**
