@@ -191,37 +191,39 @@ class ResultsFulfiller(
     }
 
     var processedCount = 0
-    filteredRequisitions
-      .asFlow()
-      .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-      .flatMapMerge(concurrency = parallelism) {
-        (req: Requisition, frequencyVector: StripedByteFrequencyVector) ->
-        flow {
-          val start = TimeSource.Monotonic.markNow()
-          try {
-            logger.info { "Starting fulfillment for requisition: ${req.name}" }
+    withContext(Dispatchers.IO) {
+      filteredRequisitions
+        .asFlow()
+        .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
+        .flatMapMerge(concurrency = parallelism) {
+          (req: Requisition, frequencyVector: StripedByteFrequencyVector) ->
+          flow {
+            val start = TimeSource.Monotonic.markNow()
+            try {
+              logger.info { "Starting fulfillment for requisition: ${req.name}" }
 
-            fulfillSingleRequisition(
-              req,
-              frequencyVector,
-              populationSpec,
-              updatedRequisitionMetadata,
-            )
+              fulfillSingleRequisition(
+                req,
+                frequencyVector,
+                populationSpec,
+                updatedRequisitionMetadata,
+              )
 
-            fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
-            processedCount++
-            logger.info {
-              "Completed fulfillment for requisition: ${req.name} in ${start.elapsedNow().inWholeMilliseconds}ms (${processedCount}/${filteredRequisitions.size})"
+              fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
+              processedCount++
+              logger.info {
+                "Completed fulfillment for requisition: ${req.name} in ${start.elapsedNow().inWholeMilliseconds}ms (${processedCount}/${filteredRequisitions.size})"
+              }
+              emit(Unit)
+            } catch (t: Throwable) {
+              logger.severe { "Failed to fulfill requisition: ${req.name} - ${t.message}" }
+              t.printStackTrace()
+              throw t
             }
-            emit(Unit)
-          } catch (t: Throwable) {
-            logger.severe { "Failed to fulfill requisition: ${req.name} - ${t.message}" }
-            t.printStackTrace()
-            throw t
           }
         }
-      }
-      .collect()
+        .collect()
+    }
 
     logger.info { "All ${filteredRequisitions.size} requisitions fulfilled successfully" }
 
@@ -261,11 +263,7 @@ class ResultsFulfiller(
     }
     val signedRequisitionSpec: SignedMessage =
       try {
-        withContext(Dispatchers.IO) {
-          val result =
-            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-          result
-        }
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
       } catch (e: GeneralSecurityException) {
         throw Exception("RequisitionSpec decryption failed", e)
       }
@@ -285,7 +283,7 @@ class ResultsFulfiller(
       "Processing requisition ${requisition.name}: Sending fulfillment request (build took ${buildStart.elapsedNow().inWholeMilliseconds}ms)"
     }
     val sendStart = TimeSource.Monotonic.markNow()
-    withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+    fulfiller.fulfillRequisition()
     logger.fine {
       "Processing requisition ${requisition.name}: Fulfillment request sent in ${sendStart.elapsedNow().inWholeMilliseconds}ms"
     }
