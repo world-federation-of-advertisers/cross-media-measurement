@@ -33,6 +33,8 @@ object Errors {
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
+    REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+    REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_STATE_INVALID,
     DATA_PROVIDER_MISMATCH,
     ETAG_MISMATCH,
@@ -160,6 +162,68 @@ class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
     emptyMap(),
     cause,
   )
+
+class RequisitionMetadataAlreadyExistsByBlobUriException(
+  dataProviderResourceName: String,
+  blobUri: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+    "RequisitionMetadata with blob uri $blobUri for DataProvider with resource Name $dataProviderResourceName not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.BLOB_URI to blobUri,
+    ),
+    cause,
+  ) {
+  companion object : Factory<RequisitionMetadataAlreadyExistsByBlobUriException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RequisitionMetadataAlreadyExistsByBlobUriException {
+      return RequisitionMetadataAlreadyExistsByBlobUriException(
+        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
+        cause,
+      )
+    }
+  }
+}
+
+class RequisitionMetadataAlreadyExistsByCmmsRequisitionException(
+  dataProviderResourceName: String,
+  cmmsRequisition: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+    "RequisitionMetadata with cmms requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName not found",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
+      Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
+    ),
+    cause,
+  ) {
+  companion object : Factory<RequisitionMetadataAlreadyExistsByCmmsRequisitionException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RequisitionMetadataAlreadyExistsByCmmsRequisitionException {
+      return RequisitionMetadataAlreadyExistsByCmmsRequisitionException(
+        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        internalMetadata.getValue(InternalErrors.Metadata.CMMS_REQUISITION),
+        cause,
+      )
+    }
+  }
+}
 
 class RequisitionMetadataInvalidStateException(
   dataProviderResourceName: String,
