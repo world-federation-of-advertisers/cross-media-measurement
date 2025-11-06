@@ -29,9 +29,10 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
-import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsByBlobUriException
+import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundByCmmsRequisitionException
@@ -230,18 +231,22 @@ class RequisitionMetadataService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-            ImpressionMetadataAlreadyExistsException.fromInternal(e)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS ->
+            RequisitionMetadataAlreadyExistsException(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI ->
+            RequisitionMetadataAlreadyExistsByBlobUriException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION ->
+            RequisitionMetadataAlreadyExistsByCmmsRequisitionException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.ETAG_MISMATCH,
