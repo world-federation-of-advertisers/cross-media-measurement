@@ -353,8 +353,15 @@ class ResultsFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Utilize all cpu cores but keep one free for GC and system work. */
+    // Memory-based parallelism limit to prevent OOM with large frequency vectors
+    // With 360M byte arrays converted to IntArray (4x memory), each requisition uses ~2GB
+    // For 80GB heap with conservative overhead accounting, limit to 15 concurrent requisitions
+    // This allows ~32GB for requisition processing, leaving ~48GB for JVM overhead and GC
+    private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
+
+    /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */
     private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
-      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+      ((Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1)
+        .coerceAtMost(MAX_FULFILLMENT_PARALLELISM)
   }
 }
