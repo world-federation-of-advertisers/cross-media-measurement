@@ -22,12 +22,18 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
-import kotlin.text.trimIndent
+import io.grpc.Status
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
+import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByBlobUriException
+import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataAlreadyExistsByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.internal.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -35,12 +41,15 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
-import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
+
+private const val REQUISITION_METADATA_RESOURCE_ID_PREFIX = "req"
 
 data class RequisitionMetadataResult(
   val requisitionMetadata: RequisitionMetadata,
@@ -129,6 +138,110 @@ suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisit
   return RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
 }
 
+/**
+ * Finds existing [RequisitionMetadata] for a list of blob URIs.
+ *
+ * @param dataProviderResourceId the resource ID of the parent DataProvider
+ * @param blobUris the list of blob URIs to check
+ * @return a [Map] of blob URI to [RequisitionMetadataResult]
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByBlobUris(
+  dataProviderResourceId: String,
+  blobUris: List<String>,
+): Map<String, RequisitionMetadataResult> {
+  val sql = buildString {
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND BlobUri IN UNNEST(@blobUris)
+      """
+        .trimIndent()
+    )
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("blobUris").toStringArray(blobUris)
+    }
+
+  return executeQuery(query, Options.tag("action=getRequisitionMetadataByBlobUris"))
+    .map { RequisitionMetadataEntity.buildRequisitionMetadataResult(it) }
+    .toList()
+    .associateBy { it.requisitionMetadata.blobUri }
+}
+
+/**
+ * Finds existing [RequisitionMetadata] for a list of cmms Requisitions.
+ *
+ * @param dataProviderResourceId the resource ID of the parent DataProvider
+ * @param cmmsRequisitions the list of cmms Requisitions to check
+ * @return a [Map] of blob URI to [RequisitionMetadataResult]
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCmmsRequisitions(
+  dataProviderResourceId: String,
+  cmmsRequisitions: List<String>,
+): Map<String, RequisitionMetadataResult> {
+  val sql = buildString {
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND CmmsRequisition IN UNNEST(@cmmsRequisitions)
+      """
+        .trimIndent()
+    )
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("cmmsRequisitions").toStringArray(cmmsRequisitions)
+    }
+
+  return executeQuery(query, Options.tag("action=getRequisitionMetadataByCmmsRequisitions"))
+    .map { RequisitionMetadataEntity.buildRequisitionMetadataResult(it) }
+    .toList()
+    .associateBy { it.requisitionMetadata.cmmsRequisition }
+}
+
+/**
+ * Finds existing [RequisitionMetadata] for a list of create request Ids.
+ *
+ * @param dataProviderResourceId the resource ID of the parent DataProvider
+ * @param cmmsRequisitions the list of create request IDs to check
+ * @return a [Map] of blob URI to [RequisitionMetadataResult]
+ */
+suspend fun AsyncDatabaseClient.ReadContext.getRequisitionMetadataByCreateRequestIds(
+  dataProviderResourceId: String,
+  createRequestIds: List<String>,
+): Map<String, RequisitionMetadataResult> {
+  val sql = buildString {
+    appendLine(RequisitionMetadataEntity.BASE_SQL)
+    appendLine(
+      """
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND CreateRequestId IN UNNEST(@createRequestIds)
+      """
+        .trimIndent()
+    )
+  }
+
+  val query =
+    statement(sql) {
+      bind("dataProviderResourceId").to(dataProviderResourceId)
+      bind("createRequestIds").toStringArray(createRequestIds)
+    }
+
+  return buildMap {
+    executeQuery(query, Options.tag("action=getRequisitionMetadataByRequestIds")).collect { row ->
+      val result = RequisitionMetadataEntity.buildRequisitionMetadataResult(row)
+      put(row.getString("CreateRequestId"), result)
+    }
+  }
+}
+
 fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
   dataProviderResourceId: String,
   filter: ListRequisitionMetadataRequest.Filter?,
@@ -141,7 +254,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
     val conjuncts = mutableListOf("DataProviderResourceId = @dataProviderResourceId")
 
     if (filter != null) {
-      if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+      if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
         conjuncts.add("State = @state")
       }
       if (filter.groupId.isNotEmpty()) {
@@ -172,7 +285,7 @@ fun AsyncDatabaseClient.ReadContext.readRequisitionMetadata(
       bind("dataProviderResourceId").to(dataProviderResourceId)
 
       if (filter != null) {
-        if (filter.state != RequisitionMetadataState.REQUISITION_METADATA_STATE_UNSPECIFIED) {
+        if (filter.state != State.REQUISITION_METADATA_STATE_UNSPECIFIED) {
           bind("state").to(filter.state.number.toLong())
         }
         if (filter.groupId.isNotEmpty()) {
@@ -278,11 +391,11 @@ suspend fun AsyncDatabaseClient.ReadContext.fetchLatestCmmsCreateTime(
 ): Timestamp {
   val sql =
     """
-      SELECT CmmsCreateTime FROM RequisitionMetadata
-      WHERE DataProviderResourceId = @dataProviderResourceId
-      ORDER BY CmmsCreateTime DESC
-      LIMIT 1
-      """
+    SELECT CmmsCreateTime FROM RequisitionMetadata
+    WHERE DataProviderResourceId = @dataProviderResourceId
+    ORDER BY CmmsCreateTime DESC
+    LIMIT 1
+    """
       .trimIndent()
 
   val row: Struct =
@@ -292,28 +405,141 @@ suspend fun AsyncDatabaseClient.ReadContext.fetchLatestCmmsCreateTime(
   return row.getTimestamp("CmmsCreateTime").toProto()
 }
 
+/**
+ * Buffers a batch of [RequisitionMetadata] to be inserted in a single transaction.
+ *
+ * This will check for existence prior to insertion. If an entity with the same create_request_id
+ * already exists, it will be returned instead.
+ *
+ * For newly-created entities, the `create_time`, `update_time`, and "etag" fields will not be set
+ * in the returned [RequisitionMetadata]. The caller is responsible for populating these from the
+ * commit timestamp.
+ *
+ * @return a list of [RequisitionMetadata], containing both the newly created and existing entities.
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadata(
+  requests: List<CreateRequisitionMetadataRequest>
+): List<RequisitionMetadata> {
+  if (requests.isEmpty()) {
+    return emptyList()
+  }
+
+  val dataProviderResourceId = requests.first().requisitionMetadata.dataProviderResourceId
+
+  val existingRequestIdToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
+    getRequisitionMetadataByCreateRequestIds(dataProviderResourceId, requests.map { it.requestId })
+
+  val existingBlobUriToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
+    getRequisitionMetadataByBlobUris(
+      dataProviderResourceId,
+      requests.map { it.requisitionMetadata.blobUri },
+    )
+
+  val existingCmmsRequisitionToRequisitionMetadata: Map<String, RequisitionMetadataResult> =
+    getRequisitionMetadataByCmmsRequisitions(
+      dataProviderResourceId,
+      requests.map { it.requisitionMetadata.cmmsRequisition },
+    )
+
+  val creations: List<RequisitionMetadata> =
+    requests
+      .filter { !existingRequestIdToRequisitionMetadata.containsKey(it.requestId) }
+      .map { request ->
+        val requisitionMetadata = request.requisitionMetadata
+
+        if (existingBlobUriToRequisitionMetadata.containsKey(requisitionMetadata.blobUri)) {
+          throw RequisitionMetadataAlreadyExistsByBlobUriException(
+              requisitionMetadata.dataProviderResourceId,
+              requisitionMetadata.blobUri,
+            )
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        }
+
+        if (
+          existingCmmsRequisitionToRequisitionMetadata.containsKey(
+            requisitionMetadata.cmmsRequisition
+          )
+        ) {
+          throw RequisitionMetadataAlreadyExistsByCmmsRequisitionException(
+              requisitionMetadata.dataProviderResourceId,
+              requisitionMetadata.cmmsRequisition,
+            )
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        }
+
+        val requisitionMetadataId =
+          IdGenerator.Default.generateNewId { id ->
+            requisitionMetadataExists(requisitionMetadata.dataProviderResourceId, id)
+          }
+
+        val requisitionMetadataResourceId =
+          requisitionMetadata.requisitionMetadataResourceId.ifBlank {
+            "$REQUISITION_METADATA_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+          }
+
+        val initialState =
+          if (requisitionMetadata.refusalMessage.isNotEmpty()) {
+            State.REQUISITION_METADATA_STATE_REFUSED
+          } else {
+            State.REQUISITION_METADATA_STATE_STORED
+          }
+
+        insertRequisitionMetadata(
+          requisitionMetadataId,
+          requisitionMetadataResourceId,
+          initialState,
+          requisitionMetadata,
+          request.requestId,
+        )
+
+        val actionId = IdGenerator.Default.generateId()
+        insertRequisitionMetadataAction(
+          requisitionMetadata.dataProviderResourceId,
+          requisitionMetadataId,
+          actionId,
+          State.REQUISITION_METADATA_STATE_UNSPECIFIED,
+          initialState,
+        )
+
+        requisitionMetadata.copy {
+          state = initialState
+          this.requisitionMetadataResourceId = requisitionMetadataResourceId
+          clearCreateTime()
+          clearUpdateTime()
+          clearEtag()
+        }
+      }
+
+  val newCreationIterator = creations.iterator()
+
+  return requests.map {
+    existingRequestIdToRequisitionMetadata[it.requestId]?.requisitionMetadata
+      ?: newCreationIterator.next()
+  }
+}
+
 private object RequisitionMetadataEntity {
   val BASE_SQL =
     """
-  SELECT
-    DataProviderResourceId,
-    RequisitionMetadataResourceId,
-    RequisitionMetadataId,
-    CreateRequestId,
-    CmmsRequisition,
-    BlobUri,
-    BlobTypeUrl,
-    GroupId,
-    CmmsCreateTime,
-    Report,
-    State,
-    WorkItem,
-    CreateTime,
-    UpdateTime,
-    RefusalMessage,
-  FROM
-    RequisitionMetadata
-  """
+    SELECT
+      DataProviderResourceId,
+      RequisitionMetadataResourceId,
+      RequisitionMetadataId,
+      CreateRequestId,
+      CmmsRequisition,
+      BlobUri,
+      BlobTypeUrl,
+      GroupId,
+      CmmsCreateTime,
+      Report,
+      State,
+      WorkItem,
+      CreateTime,
+      UpdateTime,
+      RefusalMessage,
+    FROM
+      RequisitionMetadata
+    """
       .trimIndent()
 
   fun buildRequisitionMetadataResult(struct: Struct): RequisitionMetadataResult {
