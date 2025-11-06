@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.kotlin.unpack
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -53,6 +54,18 @@ class DefaultFulfillerSelector(
   private val kAnonymityParams: KAnonymityParams?,
 ) : FulfillerSelector {
 
+  companion object {
+    private val logger = Logger.getLogger(DefaultFulfillerSelector::class.java.name)
+  }
+
+  private fun getMemoryStats(): String {
+    val runtime = Runtime.getRuntime()
+    val usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+    val totalMemoryMB = runtime.totalMemory() / (1024 * 1024)
+    val maxMemoryMB = runtime.maxMemory() / (1024 * 1024)
+    return "Memory: ${usedMemoryMB}MB used / ${totalMemoryMB}MB total / ${maxMemoryMB}MB max"
+  }
+
   /**
    * Selects the appropriate fulfiller based on requisition protocol configuration.
    *
@@ -71,8 +84,11 @@ class DefaultFulfillerSelector(
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
+    logger.info { "selectFulfiller: Start (frequencyDataBytes size: ${frequencyDataBytes.size} bytes) - ${getMemoryStats()}" }
     val frequencyData = frequencyDataBytes.toUnsignedIntArray()
+    logger.info { "selectFulfiller: After toUnsignedIntArray (frequencyData size: ${frequencyData.size} ints) - ${getMemoryStats()}" }
     val vec = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
+    logger.info { "selectFulfiller: After createFrequencyVectorBuilderFromArray - ${getMemoryStats()}" }
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       buildDirectMeasurementFulfiller(
@@ -147,6 +163,7 @@ class DefaultFulfillerSelector(
     frequencyData: IntArray,
     kAnonymityParams: KAnonymityParams?,
   ): DirectMeasurementFulfiller {
+    logger.info { "buildDirectMeasurementFulfiller: Start - ${getMemoryStats()}" }
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
     val directProtocolConfig =
@@ -154,6 +171,7 @@ class DefaultFulfillerSelector(
     val noiseMechanism =
       noiserSelector.selectNoiseMechanism(directProtocolConfig.noiseMechanismsList)
 
+    logger.info { "buildDirectMeasurementFulfiller: Before buildMeasurementResult - ${getMemoryStats()}" }
     val result =
       DirectMeasurementResultFactory.buildMeasurementResult(
         directProtocolConfig,
@@ -163,6 +181,7 @@ class DefaultFulfillerSelector(
         maxPopulation,
         kAnonymityParams = kAnonymityParams,
       )
+    logger.info { "buildDirectMeasurementFulfiller: After buildMeasurementResult - ${getMemoryStats()}" }
     return DirectMeasurementFulfiller(
       requisition.name,
       requisition.dataProviderCertificate,

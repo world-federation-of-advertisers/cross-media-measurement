@@ -191,7 +191,7 @@ class ResultsFulfiller(
     }
 
     var processedCount = 0
-    withContext(Dispatchers.IO) {
+    withContext(Dispatchers.Default) {
       filteredRequisitions
         .asFlow()
         .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
@@ -255,11 +255,16 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     requisitionsMetadata: List<RequisitionMetadata>,
   ) {
-    logger.fine { "Processing requisition ${requisition.name}: Unpacking measurement spec" }
+    logger.info { "Processing requisition ${requisition.name}: Start - ${getMemoryStats()}" }
+    logger.info { "Processing requisition ${requisition.name}: Unpacking measurement spec" }
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
+    logger.info { "Processing requisition ${requisition.name}: After unpacking - ${getMemoryStats()}" }
     val frequencyDataBytes = frequencyVector.getByteArray()
-    logger.fine {
-      "Processing requisition ${requisition.name}: Decrypting requisition spec (frequency data size: ${frequencyDataBytes.size} bytes)"
+    logger.info {
+      "Processing requisition ${requisition.name}: After getByteArray (frequency data size: ${frequencyDataBytes.size} bytes) - ${getMemoryStats()}"
+    }
+    logger.info {
+      "Processing requisition ${requisition.name}: Decrypting requisition spec"
     }
     val signedRequisitionSpec: SignedMessage =
       try {
@@ -267,8 +272,10 @@ class ResultsFulfiller(
       } catch (e: GeneralSecurityException) {
         throw Exception("RequisitionSpec decryption failed", e)
       }
+    logger.info { "Processing requisition ${requisition.name}: After decryption - ${getMemoryStats()}" }
     val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
-    logger.fine { "Processing requisition ${requisition.name}: Selecting fulfiller" }
+    logger.info { "Processing requisition ${requisition.name}: After requisition spec unpack - ${getMemoryStats()}" }
+    logger.info { "Processing requisition ${requisition.name}: Selecting fulfiller" }
     val buildStart = TimeSource.Monotonic.markNow()
     val fulfiller =
       fulfillerSelector.selectFulfiller(
@@ -278,13 +285,14 @@ class ResultsFulfiller(
         frequencyDataBytes,
         populationSpec,
       )
+    logger.info { "Processing requisition ${requisition.name}: After selectFulfiller - ${getMemoryStats()}" }
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
     logger.info {
       "Processing requisition ${requisition.name}: Sending fulfillment request (build took ${buildStart.elapsedNow().inWholeMilliseconds}ms)"
     }
     val sendStart = TimeSource.Monotonic.markNow()
     fulfiller.fulfillRequisition()
-    logger.fine {
+    logger.info {
       "Processing requisition ${requisition.name}: Fulfillment request sent in ${sendStart.elapsedNow().inWholeMilliseconds}ms"
     }
 
@@ -294,11 +302,22 @@ class ResultsFulfiller(
       "Requisition metadata not found for requisition: ${requisition.name}"
     }
 
-    logger.fine { "Processing requisition ${requisition.name}: Signaling fulfillment to metadata service" }
+    logger.info { "Processing requisition ${requisition.name}: Signaling fulfillment to metadata service" }
     signalRequisitionFulfilled(requisitionMetadata)
-    logger.fine { "Processing requisition ${requisition.name}: Fulfillment signaled successfully" }
+    logger.info { "Processing requisition ${requisition.name}: Fulfillment signaled successfully" }
 
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
+  }
+
+  /**
+   * Returns memory statistics in a formatted string.
+   */
+  private fun getMemoryStats(): String {
+    val runtime = Runtime.getRuntime()
+    val usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+    val totalMemoryMB = runtime.totalMemory() / (1024 * 1024)
+    val maxMemoryMB = runtime.maxMemory() / (1024 * 1024)
+    return "Memory: ${usedMemoryMB}MB used / ${totalMemoryMB}MB total / ${maxMemoryMB}MB max"
   }
 
   /**
@@ -321,6 +340,7 @@ class ResultsFulfiller(
       |    - Build: ${if (totalRequisitions.get() > 0) (buildTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
       |    - Send: ${if (totalRequisitions.get() > 0) (sendTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
       |    - Total: ${if (totalRequisitions.get() > 0) (fulfillmentTime.get() / 1_000_000) / totalRequisitions.get() else 0}ms
+      |  ${getMemoryStats()}
       |==============================
       """
         .trimMargin()
@@ -381,8 +401,15 @@ class ResultsFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Utilize all cpu cores but keep one free for GC and system work. */
+    // Memory-based parallelism limit to prevent OOM with large frequency vectors
+    // With 360M byte arrays converted to IntArray (4x memory), each requisition uses ~2GB
+    // For 80GB heap with conservative overhead accounting, limit to 15 concurrent requisitions
+    // This allows ~32GB for requisition processing, leaving ~48GB for JVM overhead and GC
+    private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
+
+    /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */
     private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
-      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+      ((Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1)
+        .coerceAtMost(MAX_FULFILLMENT_PARALLELISM)
   }
 }

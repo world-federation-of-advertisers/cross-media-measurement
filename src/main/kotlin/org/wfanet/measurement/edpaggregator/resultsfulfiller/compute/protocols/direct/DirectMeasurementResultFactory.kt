@@ -28,6 +28,14 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 object DirectMeasurementResultFactory {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+  private fun getMemoryStats(): String {
+    val runtime = Runtime.getRuntime()
+    val usedMemoryMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+    val totalMemoryMB = runtime.totalMemory() / (1024 * 1024)
+    val maxMemoryMB = runtime.maxMemory() / (1024 * 1024)
+    return "Memory: ${usedMemoryMB}MB used / ${totalMemoryMB}MB total / ${maxMemoryMB}MB max"
+  }
+
   /**
    * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
    *
@@ -46,9 +54,11 @@ object DirectMeasurementResultFactory {
     maxPopulation: Int?,
     kAnonymityParams: KAnonymityParams?,
   ): Measurement.Result {
+    logger.info { "buildMeasurementResult: Start - ${getMemoryStats()}" }
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        logger.info { "buildMeasurementResult: Creating DirectReachAndFrequencyResultBuilder - ${getMemoryStats()}" }
         val reachAndFrequencyResultBuilder =
           DirectReachAndFrequencyResultBuilder(
             directProtocolConfig,
@@ -61,6 +71,7 @@ object DirectMeasurementResultFactory {
             maxPopulation,
             kAnonymityParams,
           )
+        logger.info { "buildMeasurementResult: After builder creation, calling buildMeasurementResult - ${getMemoryStats()}" }
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
