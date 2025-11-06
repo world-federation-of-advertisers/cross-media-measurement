@@ -8,7 +8,6 @@ spanner_emulator_test(
     srcs = ["ImpressionMetadataServiceTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.ImpressionMetadataServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_impression_metadata_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
