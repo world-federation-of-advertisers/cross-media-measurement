@@ -29,8 +29,9 @@ build --tool_java_language_version=17
 # Target Java 11.
 build --java_language_version=11
 
-# Pass environment variables.
-test --test_env TESTCONTAINERS_RYUK_DISABLED=true
+# Pass environment variables for tests.
+common --test_env TESTCONTAINERS_RYUK_DISABLED=true
+common --test_env DOCKER_HOST
 
 # Configuration for remote cache.
 build --noremote_upload_local_results  # Do not upload by default

@@ -87,7 +87,6 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
