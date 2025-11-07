@@ -2278,7 +2278,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =

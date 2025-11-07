@@ -216,7 +216,6 @@ class ReportingUserSimulator(
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =

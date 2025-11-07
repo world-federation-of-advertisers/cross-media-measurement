@@ -315,7 +315,6 @@ class BasicReportsServiceTest {
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =
@@ -464,7 +463,6 @@ class BasicReportsServiceTest {
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
               nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -757,7 +755,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative =
@@ -798,7 +795,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative =
@@ -1012,7 +1008,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative =
@@ -1044,7 +1039,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative =
@@ -1270,7 +1264,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative =
@@ -1311,7 +1304,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative =
@@ -1501,7 +1493,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative =
@@ -1693,7 +1684,6 @@ class BasicReportsServiceTest {
               DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = false
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -1710,7 +1700,6 @@ class BasicReportsServiceTest {
               DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = false
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative =
@@ -1742,7 +1731,6 @@ class BasicReportsServiceTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
@@ -6498,7 +6486,6 @@ class BasicReportsServiceTest {
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =
@@ -6629,7 +6616,6 @@ class BasicReportsServiceTest {
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
           dimensionSpec = dimensionSpec {}
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -8833,7 +8819,6 @@ class BasicReportsServiceTest {
           }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
               nonCumulative =

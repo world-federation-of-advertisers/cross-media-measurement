@@ -51,9 +51,7 @@ message DimensionSpec {
 
 // Specifies a set of metrics to be computed
 message ResultGroupMetricSpec {
-  // If specified the total population for the specified groupings and
-  // filters that are associated with calculation spec is reported.
-  bool population_size = 1;
+  reserved 1;
 
   // Specifies the set of basic metrics that can be computed for any aspect of
   // the reporting_unit (e.g. the whole thing, a single component,

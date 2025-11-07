@@ -263,7 +263,6 @@ fun DimensionSpec.toInternal(): InternalDimensionSpec {
 fun ResultGroupMetricSpec.toInternal(): InternalResultGroupMetricSpec {
   val source = this
   return internalResultGroupMetricSpec {
-    populationSize = source.populationSize
     if (source.hasReportingUnit()) {
       reportingUnit =
         InternalResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
@@ -473,7 +472,6 @@ fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
 fun InternalResultGroupMetricSpec.toResultGroupMetricSpec(): ResultGroupMetricSpec {
   val source = this
   return resultGroupMetricSpec {
-    populationSize = source.populationSize
     if (source.hasReportingUnit()) {
       reportingUnit =
         ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {

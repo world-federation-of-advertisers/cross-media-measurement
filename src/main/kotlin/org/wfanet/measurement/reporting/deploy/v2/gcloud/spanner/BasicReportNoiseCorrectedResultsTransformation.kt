@@ -390,9 +390,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
         metricSet =
           ResultGroupKt.metricSet {
-            if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
-              populationSize = reportingWindowResults.value.populationSize
-            }
+            populationSize = reportingWindowResults.value.populationSize
 
             if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
               reportingUnit =
@@ -481,13 +479,6 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
           val reportingWindowResultValues: ReportingWindowResultValues =
             reportingWindowResultMap.getOrPut(key) { value }
-
-          if (
-            reportingWindowResultValues.populationSize == 0 &&
-              reportingSetResult.value.populationSize > 0
-          ) {
-            reportingWindowResultValues.populationSize = reportingSetResult.value.populationSize
-          }
 
           reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
               reportingSetResult.key.externalReportingSetId] =
@@ -705,7 +696,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
   )
 
   private data class ReportingWindowResultValues(
-    var populationSize: Int,
+    val populationSize: Int,
     val reportResultValuesByExternalReportingSetId:
       MutableMap<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   )

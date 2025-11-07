@@ -1835,7 +1835,6 @@ class BasicReportTransformationsTest {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
-            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
