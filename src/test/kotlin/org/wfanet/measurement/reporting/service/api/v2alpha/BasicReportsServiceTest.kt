@@ -1779,6 +1779,9 @@ class BasicReportsServiceTest {
                       }
                   }
                 metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
+                metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
                       multipleDataProviderParams =
