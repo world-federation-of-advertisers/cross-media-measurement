@@ -114,8 +114,8 @@ message ReportResult {
               double value = 1;
               UnivariateStatistics univariate_statistics = 2;
             }
-            // Map of bin label to `BinResult`.
-            map<string, BinResult> bin_results = 1;
+            // Map of bin to the result for that bin.
+            map<int32, BinResult> bin_results = 1;
           }
 
           message ImpressionCountResult {
@@ -124,6 +124,10 @@ message ReportResult {
           }
 
           ReachResult reach = 1;
+          // Histogram where each bin is the frequency `k` and each result value
+          // is the `k` reach of that bin. The largest bin represents the
+          // maximum frequency, where the result value is the `k+` reach of that
+          // bin.
           HistogramResult frequency_histogram = 2;
           ImpressionCountResult impression_count = 3;
         }
@@ -152,6 +156,16 @@ message ReportResult {
     }
     // Map of `ReportingWindow` to `ReportingWindowResult`.
     repeated ReportingWindowEntry reporting_window_results = 2;
+
+    // Fingerprint of `ReportingSetResultKey.metric_frequency_spec`.
+    // Output-only.
+    fixed64 metric_frequency_spec_fingerprint = 3;
+
+    // Fingerprint of `ReportingSetResultKey.groupings`. Output-only.
+    fixed64 grouping_dimension_fingerprint = 4;
+
+    // Fingerprint of `ReportingSetResultKey.event_filters`. Output-only.
+    fixed64 filter_fingerprint = 5;
   }
   message ReportingSetResultEntry {
     ReportingSetResultKey key = 1;
