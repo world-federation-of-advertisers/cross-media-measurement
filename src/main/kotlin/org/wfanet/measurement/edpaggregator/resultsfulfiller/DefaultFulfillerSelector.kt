@@ -68,10 +68,17 @@ class DefaultFulfillerSelector(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
+    frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-    val vec = createFrequencyVectorBuilderFromArray(measurementSpec, populationSpec, frequencyData)
+    val vec =
+      FrequencyVectorBuilder(
+        populationSpec = populationSpec,
+        measurementSpec = measurementSpec,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+        kAnonymityParams = kAnonymityParams,
+      )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       buildDirectMeasurementFulfiller(
@@ -111,30 +118,6 @@ class DefaultFulfillerSelector(
     } else {
       throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
     }
-  }
-
-  /**
-   * Converts raw frequency data to a frequency vector builder.
-   *
-   * @param measurementSpec measurement configuration for vector validation
-   * @param populationSpec population bounds for index range checking
-   * @param frequencyData array where frequencyData[i] = frequency for VID i
-   * @return builder ready for protocol-specific finalization
-   */
-  private fun createFrequencyVectorBuilderFromArray(
-    measurementSpec: MeasurementSpec,
-    populationSpec: PopulationSpec,
-    frequencyData: IntArray,
-  ): FrequencyVectorBuilder {
-    val builder = FrequencyVectorBuilder(populationSpec, measurementSpec, strict = false)
-
-    for (index in frequencyData.indices) {
-      val frequency = frequencyData[index]
-      if (frequency > 0) {
-        builder.incrementBy(index, frequency)
-      }
-    }
-    return builder
   }
 
   /** Builds a Direct protocol fulfiller. */

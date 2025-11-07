@@ -182,6 +182,50 @@ class FrequencyVectorBuilder(
     }
   }
 
+  /**
+   * Constructor that initializes the frequency vector from a ByteArray.
+   *
+   * Each byte is treated as an unsigned value (0-255) representing the frequency for that VID
+   * index. This constructor is more memory-efficient than first converting to IntArray as it avoids
+   * intermediate array allocation. It applies VID sampling by directly copying the primary and
+   * wrapped ranges in batch operations.
+   *
+   * @param populationSpec specification of the population being measured
+   * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
+   * @param frequencyDataBytes byte array where each byte is an unsigned frequency value
+   * @param strict If false the constructor ignores indexes that are out of bounds
+   * @param kAnonymityParams the kAnonymityParams used for maximumFrequencyPerUser
+   * @throws IllegalArgumentException if the frequencyDataBytes size doesn't match population size
+   */
+  constructor(
+    populationSpec: PopulationSpec,
+    measurementSpec: MeasurementSpec,
+    frequencyDataBytes: ByteArray,
+    strict: Boolean = true,
+    kAnonymityParams: KAnonymityParams? = null,
+  ) : this(populationSpec, measurementSpec, strict, kAnonymityParams) {
+    // Batch copy primary range
+    var destIndex = 0
+    for (sourceIndex in primaryRange) {
+      if (sourceIndex < frequencyDataBytes.size) {
+        val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
+        frequencyData[destIndex] = minOf(frequency, maxFrequency)
+      }
+      destIndex++
+    }
+
+    // Batch copy wrapped range if it exists
+    if (!wrappedRange.isEmpty()) {
+      for (sourceIndex in wrappedRange) {
+        if (sourceIndex < frequencyDataBytes.size) {
+          val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
+          frequencyData[destIndex] = minOf(frequency, maxFrequency)
+        }
+        destIndex++
+      }
+    }
+  }
+
   /** Build a FrequencyVector. */
   fun build(): FrequencyVector = frequencyVector { data += frequencyData.asList() }
 
