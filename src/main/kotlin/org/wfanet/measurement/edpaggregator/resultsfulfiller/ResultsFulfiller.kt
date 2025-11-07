@@ -27,13 +27,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flatMapMerge
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -47,14 +41,8 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.*
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
@@ -236,8 +224,7 @@ class ResultsFulfiller(
   ) {
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val freqBytes = frequencyVector.getByteArray()
-    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    val frequencyDataBytes = frequencyVector.getByteArray()
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -255,7 +242,7 @@ class ResultsFulfiller(
         requisition,
         measurementSpec,
         requisitionSpec,
-        frequencyData,
+        frequencyDataBytes,
         populationSpec,
       )
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
