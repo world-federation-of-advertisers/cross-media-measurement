@@ -357,7 +357,14 @@ java_image(
     base = "@java_image_base_root",
     binary = ":ResultsFulfiller",
     labels = {
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET",
+        # Environment variables allowed to be overridden in TEE launch policy:
+        # - EDPA_CONFIG_STORAGE_BUCKET: Specifies the storage bucket for EDP aggregator configuration
+        # - JAVA_TOOL_OPTIONS: JVM configuration options, required to set JVM heap size
+        # - OTEL_SERVICE_NAME: OpenTelemetry service name for distributed tracing identification
+        # - OTEL_METRICS_EXPORTER: Configures the exporter for OpenTelemetry metrics
+        # - OTEL_TRACES_EXPORTER: Configures the exporter for OpenTelemetry traces
+        # Note: OpenTelemetry variables are automatically configured by the SDK
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

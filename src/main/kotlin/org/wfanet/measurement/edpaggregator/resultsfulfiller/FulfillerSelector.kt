@@ -32,7 +32,7 @@ interface FulfillerSelector {
    * @param requisition The requisition to fulfill
    * @param measurementSpec The measurement specification
    * @param requisitionSpec The requisition specification
-   * @param frequencyData The frequency data array
+   * @param frequencyDataBytes The frequency data as unsigned byte counts per VID
    * @param populationSpec The population specification
    * @return The selected MeasurementFulfiller
    */
@@ -40,7 +40,7 @@ interface FulfillerSelector {
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
+    frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller
 }
