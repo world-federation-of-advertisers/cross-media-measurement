@@ -609,7 +609,7 @@ private fun MutableMap<
  * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec]
  */
 private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
-  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
+  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
 ) {
   if (basicMetricSetSpec.reach) {
     this.includeReach = true
