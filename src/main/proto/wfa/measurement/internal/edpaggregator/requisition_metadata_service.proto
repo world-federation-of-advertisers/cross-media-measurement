@@ -84,7 +84,7 @@ message BatchCreateRequisitionMetadataRequest {
   // To create a resource in the REFUSED state, provide a non-empty
   // `refusal_message` in the RequisitionMetadata object. Otherwise, it will be
   // created in the STORED state.
-  repeated RequisitionMetadata requisitions = 2;
+  repeated CreateRequisitionMetadataRequest requests = 2;
 }
 
 message BatchCreateRequisitionMetadataResponse {

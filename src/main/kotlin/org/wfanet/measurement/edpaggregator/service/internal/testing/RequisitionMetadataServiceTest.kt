@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.Errors
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
@@ -43,6 +44,8 @@ import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResp
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest
@@ -310,6 +313,328 @@ abstract class RequisitionMetadataServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `batchCreateRequisitionMetadata returns multiple requisition metadata`() = runBlocking {
+    val request1 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val response =
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request1
+          requests += request2
+        }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchCreateRequisitionMetadataResponse {
+          requisitionMetadata += request1.requisitionMetadata
+          requisitionMetadata += request2.requisitionMetadata
+        }
+      )
+    assertThat(response.requisitionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `batchCreateRequisitionMetadata without subrequests returns default response`() =
+    runBlocking {
+      val response =
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          }
+        )
+
+      assertThat(response)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(BatchCreateRequisitionMetadataResponse.getDefaultInstance())
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata is idempotent and creates new items in same request`() =
+    runBlocking {
+      val idempotentRequest = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+      val initialResponse =
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest
+          }
+        )
+
+      assertThat(initialResponse)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          batchCreateRequisitionMetadataResponse {
+            requisitionMetadata += idempotentRequest.requisitionMetadata
+          }
+        )
+
+      val existingRequisitionMetadata = initialResponse.requisitionMetadataList.single()
+
+      val newRequest = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA_2
+        requestId = UUID.randomUUID().toString()
+      }
+      val secondResponse =
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += idempotentRequest // Idempotent request
+            requests += newRequest // New request
+          }
+        )
+
+      assertThat(secondResponse)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          batchCreateRequisitionMetadataResponse {
+            requisitionMetadata += REQUISITION_METADATA
+            requisitionMetadata += newRequest.requisitionMetadata
+          }
+        )
+
+      val newRequisitionMetadata = secondResponse.requisitionMetadataList.last()
+      assertThat(newRequisitionMetadata.updateTime.toInstant())
+        .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws ALREADY_EXISTS for existing blobUri`() = runBlocking {
+    val duplicateBlobUri = "duplicate-blob-uri"
+    service.batchCreateRequisitionMetadata(
+      batchCreateRequisitionMetadataRequest {
+        requests += createRequisitionMetadataRequest {
+          requisitionMetadata = REQUISITION_METADATA.copy { blobUri = duplicateBlobUri }
+          requestId = UUID.randomUUID().toString()
+        }
+      }
+    )
+
+    val conflictingRequest = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA_2.copy { blobUri = duplicateBlobUri }
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += conflictingRequest
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI.name
+          metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] =
+            REQUISITION_METADATA.dataProviderResourceId
+          metadata[Errors.Metadata.BLOB_URI.key] = duplicateBlobUri
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws ALREADY_EXISTS for existing cmmsRequisition`() =
+    runBlocking {
+      val duplicateCmmsRequisition = "duplicate-cmms-requisition"
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          requests += createRequisitionMetadataRequest {
+            requisitionMetadata =
+              REQUISITION_METADATA.copy { cmmsRequisition = duplicateCmmsRequisition }
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+
+      val conflictingRequest = createRequisitionMetadataRequest {
+        requisitionMetadata =
+          REQUISITION_METADATA_2.copy { cmmsRequisition = duplicateCmmsRequisition }
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += conflictingRequest
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] =
+              REQUISITION_METADATA.dataProviderResourceId
+            metadata[Errors.Metadata.CMMS_REQUISITION.key] = duplicateCmmsRequisition
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA.copy { dataProviderResourceId = "different-dp" }
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID // Mismatch with request inside
+              requests += request
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.DATA_PROVIDER_MISMATCH.name
+            metadata[Errors.Metadata.DATA_PROVIDER_RESOURCE_ID.key] = "different-dp"
+            metadata[Errors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID.key] =
+              REQUISITION_METADATA.dataProviderResourceId
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate cmms requisition in the batch requests`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request
+              requests +=
+                request.copy {
+                  requisitionMetadata = requisitionMetadata.copy { blobUri = "different-blob-uri" }
+                  requestId = UUID.randomUUID().toString()
+                }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.1.requisition_metadata.cmms_requisition"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch requests`() =
+    runBlocking {
+      val request = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request
+              requests +=
+                request.copy {
+                  requisitionMetadata =
+                    requisitionMetadata.copy { cmmsRequisition = "different-cmms-requisition" }
+                  requestId = UUID.randomUUID().toString()
+                }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.requisition_metadata.blob_uri"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate request id in the batch requests`() =
+    runBlocking {
+      val requestId = UUID.randomUUID().toString()
+      val request1 = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA
+        this.requestId = requestId
+      }
+
+      val request2 = createRequisitionMetadataRequest {
+        requisitionMetadata = REQUISITION_METADATA_2
+        this.requestId = requestId
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              requests += request1
+              requests += request2
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
 
   @Test
   fun `getRequisitionMetadata returns a requisition metadata`() = runBlocking {
@@ -1223,6 +1548,7 @@ abstract class RequisitionMetadataServiceTest {
     private val CMMS_REQUISITION_3 = "dataProviders/data-provider-1/requisitions/requisition-3"
     private val CMMS_REQUISITION_4 = "dataProviders/data-provider-1/requisitions/requisition-4"
     private val BLOB_URI = "path/to/blob"
+    private val BLOB_URI_2 = "path/to/blob2"
     private val BLOB_TYPE_URL = "blob.type.url"
     private val GROUP_ID = "group-1"
     private val GROUP_ID_2 = "group-2"
@@ -1248,7 +1574,7 @@ abstract class RequisitionMetadataServiceTest {
       dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID_2
       cmmsRequisition = CMMS_REQUISITION_2
-      blobUri = BLOB_URI
+      blobUri = BLOB_URI_2
       blobTypeUrl = BLOB_TYPE_URL
       groupId = GROUP_ID
       cmmsCreateTime = CMMS_CREATE_TIME
