@@ -17,8 +17,7 @@ import unittest
 
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
-    _create_report_summary_for_group,
-    report_result_to_report_summary_v2)
+    _create_report_summary_for_group, report_result_to_report_summary_v2)
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
     report_summary_v2_pb2)
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
@@ -47,18 +46,19 @@ class ReportConversionTest(unittest.TestCase):
             'edp1_edp2_edp3': ['edp1', 'edp2', 'edp3'],
         }
 
-    def test_create_report_summary_for_group_with_empty_results_raises_error(self):
-         with self.assertRaisesRegex(ValueError, "No results found for group"):
-             _create_report_summary_for_group(
-                 cmms_measurement_consumer_id="test-mc-id",
-                 external_report_result_id=123,
-                 group_key=(456, 789),
-                 results_for_group=[],
-                 primitive_reporting_sets_by_reporting_set_id={
-                     "1": ["EDP1"],
-                     "2": ["EDP2"],
-                 },
-           )
+    def test_create_report_summary_for_group_with_empty_results_raises_error(
+            self):
+        with self.assertRaisesRegex(ValueError, "No results found for group"):
+            _create_report_summary_for_group(
+                cmms_measurement_consumer_id="test-mc-id",
+                external_report_result_id=123,
+                group_key=(456, 789),
+                results_for_group=[],
+                primitive_reporting_sets_by_reporting_set_id={
+                    "1": ["EDP1"],
+                    "2": ["EDP2"],
+                },
+            )
 
     def test_empty_edp_combinations_map_raises_error(self):
         with self.assertRaisesRegex(
@@ -248,6 +248,69 @@ class ReportConversionTest(unittest.TestCase):
         ):
             report_result_to_report_summary_v2(report_result,
                                                self.edp_combinations)
+
+    def test_validate_report_result_non_cumulative_with_total_spec_fails(self):
+        ami_report_textproto = """
+          cmms_measurement_consumer_id: "abcd"
+          external_report_result_id: 123
+          report_start { year: 2025 month: 10 day: 1 }
+          reporting_set_results {
+            key {
+              external_reporting_set_id: "edp1"
+              venn_diagram_region_type: UNION
+              external_impression_qualification_filter_id: "ami"
+              metric_frequency_spec { total: true }
+              groupings {
+                path: "person.age_group"
+                value { enum_value: "YEARS_18_TO_34" }
+              }
+              groupings {
+                path: "person.gender"
+                value { enum_value: "MALE" }
+              }
+              event_filters {
+                terms {
+                  path: "banner_ad.viewable"
+                  value { bool_value: true }
+                }
+              }
+            }
+            value {
+              population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
+              filter_fingerprint: 5
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    non_cumulative_results {
+                      reach {
+                        value: 5000
+                        univariate_statistics { standard_deviation: 200 }
+                      }
+                      impression_count { value: 50000 }
+                      frequency_histogram {
+                        bin_results { key: 1 value { value: 2500 } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        """
+        report_result = text_format.Parse(ami_report_textproto,
+                                          report_result_pb2.ReportResult())
+        with self.assertRaisesRegex(
+                ValueError,
+                "Non cumulative results cannot have metric frequency spec of TOTAL.",
+        ):
+            report_result_to_report_summary_v2(
+                report_result, self.edp_combinations)
 
     def test_report_result_with_only_ami_total_measurements(self):
         """Tests conversion for a report with only non-cumulative total measurements."""

@@ -157,6 +157,12 @@ def _validate_report_result(
                     "non-cumulative start date.")
             if not window_entry.key.HasField("end"):
                 raise ValueError("ReportingWindow must have an end date.")
+            if key.metric_frequency_spec.WhichOneof(
+                "selector") == 'total' and window_entry.value.noisy_report_result_values.HasField(
+                    "non_cumulative_results"):
+                raise ValueError(
+                    "Non cumulative results cannot have metric frequency spec of TOTAL."
+                )
 
 
 def _group_reporting_set_results(
@@ -373,6 +379,7 @@ def _process_reporting_windows(
                 noisy_values.non_cumulative_results, report_summary_set_result,
                 is_cumulative, window_entry.key.end, window_result)
 
+
 def _copy_window_results(
     metric_frequency_type: ReportSummaryWindowResult.MetricFrequencyType,
     noisy_metric_set: NoisyMetricSet,
@@ -450,7 +457,7 @@ def _copy_window_results(
 
 
 def _get_population(
-    results_for_group: list[ReportResult.ReportingSetResultEntry]) -> int:
+        results_for_group: list[ReportResult.ReportingSetResultEntry]) -> int:
     """Gets the population for a group of results.
 
     This function iterates through a list of `ReportingSetResultEntry` that
