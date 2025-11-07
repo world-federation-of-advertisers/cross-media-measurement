@@ -1894,6 +1894,9 @@ class BasicReportsServiceTest {
                     increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                   }
                 metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
+                metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
                       multipleDataProviderParams =
