@@ -55,6 +55,6 @@ message BlobDetails {
   // Requisition fulfillment for the ModelLine indicated by model_line.
   google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
 
-  // When the data is valid. Used for deletion purposes.
+  // The timestamp when the associated blob becomes invalid and must be deleted.
   google.protobuf.Timestamp expiry = 6 [(google.api.field_behavior) = REQUIRED];
 }
