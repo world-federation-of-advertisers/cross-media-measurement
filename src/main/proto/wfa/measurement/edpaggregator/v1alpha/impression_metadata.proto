@@ -86,4 +86,8 @@ message ImpressionMetadata {
   // The timestamp when this metadata entry was last updated (e.g., deleted).
   google.protobuf.Timestamp update_time = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this data becomes invalid and must be deleted.
+  google.protobuf.Timestamp expiry = 10
+  [(google.api.field_behavior) = REQUIRED];
 }

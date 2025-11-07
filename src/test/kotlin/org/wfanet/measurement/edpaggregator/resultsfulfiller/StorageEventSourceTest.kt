@@ -253,7 +253,8 @@ class StorageEventSourceTest {
           "interval": {
             "startTime": "2025-01-01T00:00:00Z",
             "endTime": "2025-01-02T00:00:00Z"
-          }
+          },
+          "expiry": "2025-01-02T00:00:00Z"
         }
       """
             .trimIndent()
@@ -543,7 +544,9 @@ class StorageEventSourceTest {
       )
 
     val batches = eventSource.generateEventBatches().toList()
-
+    for (batch in batches) {
+      assertThat(batch.eventGroupReferenceId).isEqualTo("event-group-1")
+    }
     // Verify the total number of events emitted
     val totalEvents = batches.flatMap { it.events }.size
     // With deduplication: 3 unique dates × 5 events per date = 15 events
