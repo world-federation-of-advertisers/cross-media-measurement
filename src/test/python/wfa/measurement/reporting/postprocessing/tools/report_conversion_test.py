@@ -17,9 +17,10 @@ import unittest
 
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
-    report_result_to_report_summary_v2, )
+    _create_report_summary_for_group,
+    report_result_to_report_summary_v2)
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
-    report_summary_v2_pb2, )
+    report_summary_v2_pb2)
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
 from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
 
@@ -45,6 +46,19 @@ class ReportConversionTest(unittest.TestCase):
             'edp1_edp2': ['edp1', 'edp2'],
             'edp1_edp2_edp3': ['edp1', 'edp2', 'edp3'],
         }
+
+    def test_create_report_summary_for_group_with_empty_results_raises_error(self):
+         with self.assertRaisesRegex(ValueError, "No results found for group"):
+             _create_report_summary_for_group(
+                 cmms_measurement_consumer_id="test-mc-id",
+                 external_report_result_id=123,
+                 group_key=(456, 789),
+                 results_for_group=[],
+                 primitive_reporting_sets_by_reporting_set_id={
+                     "1": ["EDP1"],
+                     "2": ["EDP2"],
+                 },
+           )
 
     def test_empty_edp_combinations_map_raises_error(self):
         with self.assertRaisesRegex(

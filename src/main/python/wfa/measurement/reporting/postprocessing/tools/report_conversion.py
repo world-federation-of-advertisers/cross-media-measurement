@@ -65,7 +65,7 @@ def report_result_to_report_summary_v2(
     for group_key, results_for_group in grouped_results.items():
         report_summary = _create_report_summary_for_group(
             report_result.cmms_measurement_consumer_id,
-            str(report_result.external_report_result_id),
+            report_result.external_report_result_id,
             group_key,
             results_for_group,
             primitive_reporting_sets_by_reporting_set_id,
@@ -187,8 +187,8 @@ def _group_reporting_set_results(
 
 def _create_report_summary_for_group(
     cmms_measurement_consumer_id: str,
-    external_report_result_id: str,
-    group_key: frozenset[tuple[str, Any]],
+    external_report_result_id: int,
+    group_key: tuple[int, int],
     results_for_group: list[ReportResult.ReportingSetResultEntry],
     primitive_reporting_sets_by_reporting_set_id: dict[str, list[str]],
 ) -> ReportSummaryV2:
@@ -214,10 +214,12 @@ def _create_report_summary_for_group(
     report_summary.cmms_measurement_consumer_id = cmms_measurement_consumer_id
     report_summary.external_report_result_id = str(external_report_result_id)
 
+    # Verifies that there is at least one result for this group.
+    if len(results_for_group) == 0:
+        raise ValueError(f"No results found for group: {group_key}.")
+
     # Since all results in results_for_group share the same grouping key, we get
     # the groupings and event filters from the first result.
-    if len(results_for_group) == 0:
-        raise ValueError
     report_summary.groupings.extend(results_for_group[0].key.groupings)
     report_summary.event_filters.extend(results_for_group[0].key.event_filters)
 
@@ -457,7 +459,7 @@ def _copy_window_results(
 
 
 def _get_population(
-        results_for_group: list[ReportResult.ReportingSetResultEntry]) -> int:
+    results_for_group: list[ReportResult.ReportingSetResultEntry]) -> int:
     """Gets the population for a group of results.
 
     This function iterates through a list of `ReportingSetResultEntry` that
