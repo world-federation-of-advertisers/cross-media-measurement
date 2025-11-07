@@ -19,6 +19,7 @@ import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
@@ -146,8 +147,12 @@ class RequisitionMetadataNotFoundByCmmsRequisitionException(
       internalMetadata: Map<InternalErrors.Metadata, String>,
       cause: Throwable,
     ): RequisitionMetadataNotFoundByCmmsRequisitionException {
+      val dataProviderKey =
+        DataProviderKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID)
+        )
       return RequisitionMetadataNotFoundByCmmsRequisitionException(
-        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        dataProviderKey.toName(),
         internalMetadata.getValue(InternalErrors.Metadata.CMMS_REQUISITION),
         cause,
       )
@@ -170,7 +175,7 @@ class RequisitionMetadataAlreadyExistsByBlobUriException(
 ) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
-    "RequisitionMetadata with blob uri $blobUri for DataProvider with resource Name $dataProviderResourceName not found",
+    "RequisitionMetadata with blob uri $blobUri for DataProvider with resource Name $dataProviderResourceName already exists",
     mapOf(
       Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
       Errors.Metadata.BLOB_URI to blobUri,
@@ -185,8 +190,12 @@ class RequisitionMetadataAlreadyExistsByBlobUriException(
       internalMetadata: Map<InternalErrors.Metadata, String>,
       cause: Throwable,
     ): RequisitionMetadataAlreadyExistsByBlobUriException {
+      val dataProviderKey =
+        DataProviderKey(
+          internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID)
+        )
       return RequisitionMetadataAlreadyExistsByBlobUriException(
-        internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+        dataProviderKey.toName(),
         internalMetadata.getValue(InternalErrors.Metadata.BLOB_URI),
         cause,
       )
@@ -201,7 +210,7 @@ class RequisitionMetadataAlreadyExistsByCmmsRequisitionException(
 ) :
   ServiceException(
     Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
-    "RequisitionMetadata with cmms requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName not found",
+    "RequisitionMetadata with cmms requisition $cmmsRequisition for DataProvider with resource Name $dataProviderResourceName already exists",
     mapOf(
       Errors.Metadata.DATA_PROVIDER to dataProviderResourceName,
       Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
