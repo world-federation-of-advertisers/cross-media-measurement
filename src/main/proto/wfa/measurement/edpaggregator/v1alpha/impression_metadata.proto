@@ -88,6 +88,6 @@ message ImpressionMetadata {
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The timestamp when the associated blob becomes invalid and must be deleted.
-  google.protobuf.Timestamp expiry = 10
-  [(google.api.field_behavior) = REQUIRED];
+  google.protobuf.Timestamp expiry_time = 10
+      [(google.api.field_behavior) = REQUIRED];
 }

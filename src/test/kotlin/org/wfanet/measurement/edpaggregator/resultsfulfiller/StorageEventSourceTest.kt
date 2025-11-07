@@ -254,7 +254,7 @@ class StorageEventSourceTest {
             "startTime": "2025-01-01T00:00:00Z",
             "endTime": "2025-01-02T00:00:00Z"
           },
-          "expiry": "2025-01-02T00:00:00Z"
+          "expiryTime": "2025-01-02T00:00:00Z"
         }
       """
             .trimIndent()

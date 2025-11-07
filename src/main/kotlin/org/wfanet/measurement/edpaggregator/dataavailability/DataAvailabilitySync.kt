@@ -268,7 +268,7 @@ class DataAvailabilitySync(
             eventGroupReferenceId = blobDetails.eventGroupReferenceId
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
-            expiry = blobDetails.expiry
+            expiryTime = blobDetails.expiryTime
           }
           impressionMetadataMap
             .getOrPut(blobDetails.modelLine) { mutableListOf() }

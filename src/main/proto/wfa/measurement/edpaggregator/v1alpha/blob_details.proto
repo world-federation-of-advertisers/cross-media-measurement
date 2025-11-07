@@ -56,5 +56,5 @@ message BlobDetails {
   google.type.Interval interval = 5 [(google.api.field_behavior) = REQUIRED];
 
   // The timestamp when the associated blob becomes invalid and must be deleted.
-  google.protobuf.Timestamp expiry = 6 [(google.api.field_behavior) = REQUIRED];
+  google.protobuf.Timestamp expiry_time = 6 [(google.api.field_behavior) = REQUIRED];
 }
