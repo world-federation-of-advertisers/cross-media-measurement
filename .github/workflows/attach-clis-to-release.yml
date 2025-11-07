@@ -18,6 +18,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   attach-clis-to-release:
     name: Attach CLIs to release

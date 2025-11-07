@@ -27,13 +27,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flatMapMerge
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -47,14 +41,8 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.*
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
@@ -126,10 +114,21 @@ class ResultsFulfiller(
       groupedRequisitions.eventGroupMapList.associate {
         it.eventGroup to it.details.eventGroupReferenceId
       }
-    // Get requisitions metadata for the groupId of the grouped requisitions
-    val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    totalRequisitions.addAndGet(requisitions.size)
+    // Filter requisitions that are not in the requisitions metadata storage or have been either
+    // fulfilled or refused already
+    val requisitionMetadataByName: Map<String, RequisitionMetadata> =
+      listRequisitionMetadata().associateBy { it.cmmsRequisition }
+
+    val filteredRequisitions =
+      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+
+    val updatedRequisitionMetadata: List<RequisitionMetadata> =
+      requisitionMetadataByName.values.map { metadata ->
+        signalRequisitionStartProcessing(metadata)
+      }
+
+    totalRequisitions.addAndGet(filteredRequisitions.size)
 
     val modelLine = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLine)
@@ -156,7 +155,7 @@ class ResultsFulfiller(
           eventSource = eventSource,
           vidIndexMap = vidIndexMap,
           populationSpec = populationSpec,
-          requisitions = requisitions,
+          requisitions = filteredRequisitions,
           eventGroupReferenceIdMap = eventGroupReferenceIdMap,
           config = pipelineConfiguration,
           eventDescriptor = eventDescriptor,
@@ -165,11 +164,10 @@ class ResultsFulfiller(
         e.printStackTrace()
         throw e
       }
-    val elapsedMs = frequencyVectorStart.elapsedNow().inWholeMilliseconds
     frequencyVectorTime.addAndGet(frequencyVectorStart.elapsedNow().inWholeNanoseconds)
 
     var processedCount = 0
-    requisitions
+    filteredRequisitions
       .asFlow()
       .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
       .flatMapMerge(concurrency = parallelism) {
@@ -177,8 +175,14 @@ class ResultsFulfiller(
         flow {
           val start = TimeSource.Monotonic.markNow()
           try {
-            fulfillSingleRequisition(req, frequencyVector, populationSpec, requisitionsMetadata)
-            val elapsedMs = start.elapsedNow().inWholeMilliseconds
+
+            fulfillSingleRequisition(
+              req,
+              frequencyVector,
+              populationSpec,
+              updatedRequisitionMetadata,
+            )
+
             fulfillmentTime.addAndGet(start.elapsedNow().inWholeNanoseconds)
             processedCount++
             emit(Unit)
@@ -191,6 +195,17 @@ class ResultsFulfiller(
       .collect()
 
     logFulfillmentStats()
+  }
+
+  private fun Requisition.shouldBeProcessed(
+    metadataByName: Map<String, RequisitionMetadata>
+  ): Boolean {
+    val metadata = metadataByName[name]
+
+    requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
+
+    return metadata.state != RequisitionMetadata.State.FULFILLED &&
+      metadata.state != RequisitionMetadata.State.REFUSED
   }
 
   /**
@@ -208,18 +223,8 @@ class ResultsFulfiller(
     requisitionsMetadata: List<RequisitionMetadata>,
   ) {
 
-    // Update the Requisition status on the ImpressionMetadataStorage
-    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
-
-    require(requisitionMetadata != null) {
-      "Requisition metadata not found for requisition: ${requisition.name}"
-    }
-
-    val updateRequisitionMetadata = signalRequisitionStartProcessing(requisitionMetadata)
-
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val freqBytes = frequencyVector.getByteArray()
-    val frequencyData: IntArray = freqBytes.map { it.toInt() and 0xFF }.toIntArray()
+    val frequencyDataBytes = frequencyVector.getByteArray()
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -237,14 +242,20 @@ class ResultsFulfiller(
         requisition,
         measurementSpec,
         requisitionSpec,
-        frequencyData,
+        frequencyDataBytes,
         populationSpec,
       )
     buildTime.addAndGet(buildStart.elapsedNow().inWholeNanoseconds)
     val sendStart = TimeSource.Monotonic.markNow()
     withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
 
-    signalRequisitionFulfilled(updateRequisitionMetadata)
+    val requisitionMetadata = requisitionsMetadata.find { it.cmmsRequisition == requisition.name }
+
+    require(requisitionMetadata != null) {
+      "Requisition metadata not found for requisition: ${requisition.name}"
+    }
+
+    signalRequisitionFulfilled(requisitionMetadata)
 
     sendTime.addAndGet(sendStart.elapsedNow().inWholeNanoseconds)
   }
@@ -329,8 +340,16 @@ class ResultsFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Utilize all cpu cores but keep one free for GC and system work. */
+    // Memory-based parallelism limit to prevent OOM with large frequency vectors
+    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
+    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
+    // For 15 parallel fulfillments we end up at ~8GB in total.
+    private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
+
+    /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */
     private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
-      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+      ((Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1).coerceAtMost(
+        MAX_FULFILLMENT_PARALLELISM
+      )
   }
 }
