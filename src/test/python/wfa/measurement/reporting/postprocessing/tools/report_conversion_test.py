@@ -17,7 +17,7 @@ import unittest
 
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
-    get_report_summary_v2_from_report_result, )
+    report_result_to_report_summary_v2, )
 from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
     report_summary_v2_pb2, )
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
@@ -50,7 +50,7 @@ class ReportConversionTest(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 'Cannot find the data providers for reporting set'):
-            get_report_summary_v2_from_report_result(self.report_result, {})
+            report_result_to_report_summary_v2(self.report_result, {})
 
     def test_report_result_missing_edp_combination_key_raises_error(self):
         """Tests that a ValueError is raised for a missing key in edp_combinations."""
@@ -59,44 +59,44 @@ class ReportConversionTest(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 'Cannot find the data providers for reporting set edp1'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     invalid_edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               invalid_edp_combinations)
 
     def test_report_result_missing_cmms_measurement_consumer_id_raises_error(
             self):
         self.report_result.ClearField('cmms_measurement_consumer_id')
         with self.assertRaisesRegex(
                 ValueError, 'must have a cmms_measurement_consumer_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_external_report_result_id_raises_error(
             self):
         self.report_result.ClearField('external_report_result_id')
         with self.assertRaisesRegex(ValueError,
                                     'must have an external_report_result_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_report_start_raises_error(self):
         self.report_result.ClearField('report_start')
         with self.assertRaisesRegex(ValueError,
                                     'must have a report_start date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_reporting_set_result_key_raises_error(self):
         self.report_result.reporting_set_results[0].ClearField('key')
         with self.assertRaisesRegex(ValueError, 'must have a key'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_reporting_set_result_value_raises_error(
             self):
         self.report_result.reporting_set_results[0].ClearField('value')
         with self.assertRaisesRegex(ValueError, 'must have a value'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_external_reporting_set_id_raises_error(
             self):
@@ -104,8 +104,8 @@ class ReportConversionTest(unittest.TestCase):
             'external_reporting_set_id')
         with self.assertRaisesRegex(ValueError,
                                     'must have an external_reporting_set_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_unspecified_venn_diagram_region_type_raises_error(
             self):
@@ -115,8 +115,8 @@ class ReportConversionTest(unittest.TestCase):
                 VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED)
         with self.assertRaisesRegex(ValueError,
                                     'must have a venn_diagram_region_type'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_impression_qualification_filter_raises_error(
             self):
@@ -124,16 +124,16 @@ class ReportConversionTest(unittest.TestCase):
             'impression_qualification_filter')
         with self.assertRaisesRegex(
                 ValueError, 'must have an impression_qualification_filter'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_metric_frequency_spec_raises_error(self):
         self.report_result.reporting_set_results[0].key.ClearField(
             'metric_frequency_spec')
         with self.assertRaisesRegex(ValueError,
                                     'must have a metric_frequency_spec'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_window_start_raises_error(self):
         self.report_result.reporting_set_results[
@@ -141,15 +141,15 @@ class ReportConversionTest(unittest.TestCase):
                 'non_cumulative_start')
         with self.assertRaisesRegex(ValueError,
                                     'must have a non-cumulative start date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_window_end_raises_error(self):
         self.report_result.reporting_set_results[
             0].value.reporting_window_results[0].key.ClearField('end')
         with self.assertRaisesRegex(ValueError, 'must have an end date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_missing_noisy_report_result_values_raises_error(
             self):
@@ -158,8 +158,8 @@ class ReportConversionTest(unittest.TestCase):
                 'noisy_report_result_values')
         with self.assertRaisesRegex(ValueError,
                                     'Missing noisy_report_result_values'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(self.report_result,
+                                               self.edp_combinations)
 
     def test_report_result_with_mismatched_population_raises_error(self):
         mismatched_population_report_result_textproto = """
@@ -179,6 +179,8 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
                 value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
@@ -198,6 +200,8 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 20000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
                 value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
@@ -212,10 +216,11 @@ class ReportConversionTest(unittest.TestCase):
                 ValueError,
                 'Inconsistent population sizes found within the same result group.'
         ):
-            get_report_summary_v2_from_report_result(report_result,
-                                                     self.edp_combinations)
+            report_result_to_report_summary_v2(report_result,
+                                               self.edp_combinations)
 
-    def test_get_report_summary_v2_from_empty_report_results(self):
+    def test_get_report_summary_v2_from_empty_report_results_raises_error(
+            self):
         report_result = report_result_pb2.ReportResult()
         report_result.cmms_measurement_consumer_id = 'faked_id'
         report_result.external_report_result_id = 1
@@ -223,10 +228,12 @@ class ReportConversionTest(unittest.TestCase):
         report_result.report_start.month = 1
         report_result.report_start.day = 1
 
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
-
-        self.assertEqual(report_summaries, [])
+        with self.assertRaisesRegex(
+                ValueError,
+                'The report result must have at least one reporting set result.'
+        ):
+            report_result_to_report_summary_v2(report_result,
+                                               self.edp_combinations)
 
     def test_report_result_with_only_ami_total_measurements(self):
         """Tests conversion for a report with only non-cumulative total measurements."""
@@ -257,6 +264,9 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
+              filter_fingerprint: 5
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -264,14 +274,14 @@ class ReportConversionTest(unittest.TestCase):
                 }
                 value {
                   noisy_report_result_values {
-                    non_cumulative_results {
+                    cumulative_results {
                       reach {
                         value: 5000
                         univariate_statistics { standard_deviation: 200 }
                       }
                       impression_count { value: 50000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 2500 } }
+                        bin_results { key: 1 value { value: 2500 } }
                       }
                     }
                   }
@@ -302,30 +312,30 @@ class ReportConversionTest(unittest.TestCase):
             impression_filter: "ami"
             set_operation: "union"
             data_providers: "edp1"
-            non_cumulative_results {
+            whole_campaign_result {
               metric_frequency_type: TOTAL
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_non_cumulative_edp1_ami_2025_10_15"
+                metric: "reach_whole_campaign_edp1_ami_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_non_cumulative_edp1_ami_2025_10_15"
+                metric: "impression_whole_campaign_edp1_ami_2025_10_15"
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
+                metric: "frequency_whole_campaign_edp1_ami_2025_10_15"
               }
             }
           }
         """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_ami_report_summary_textproto,
@@ -350,6 +360,7 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -357,14 +368,14 @@ class ReportConversionTest(unittest.TestCase):
                 }
                 value {
                   noisy_report_result_values {
-                    non_cumulative_results {
+                    cumulative_results {
                       reach {
                         value: 5000
                         univariate_statistics { standard_deviation: 200 }
                       }
                       impression_count { value: 50000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 2500 } }
+                        bin_results { key: 1 value { value: 2500 } }
                       }
                     }
                   }
@@ -381,30 +392,30 @@ class ReportConversionTest(unittest.TestCase):
             impression_filter: "custom"
             set_operation: "union"
             data_providers: "edp1"
-            non_cumulative_results {
+            whole_campaign_result {
               metric_frequency_type: TOTAL
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_non_cumulative_edp1_custom_2025_10_15"
+                metric: "reach_whole_campaign_edp1_custom_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_non_cumulative_edp1_custom_2025_10_15"
+                metric: "impression_whole_campaign_edp1_custom_2025_10_15"
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
+                metric: "frequency_whole_campaign_edp1_custom_2025_10_15"
               }
             }
           }
         """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_custom_report_summary_textproto,
@@ -430,6 +441,7 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -441,7 +453,7 @@ class ReportConversionTest(unittest.TestCase):
                       reach { value: 2000 }
                       impression_count { value: 20000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1000 } }
+                        bin_results { key: 1 value { value: 1000 } }
                       }
                     }
                   }
@@ -461,7 +473,7 @@ class ReportConversionTest(unittest.TestCase):
                       }
                       impression_count { value: 30000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1500 } }
+                        bin_results { key: 1 value { value: 1500 } }
                       }
                     }
                   }
@@ -490,7 +502,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1000 }
                 }
                 metric: "frequency_non_cumulative_edp1_ami_2025_10_08"
@@ -509,7 +521,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1500 }
                 }
                 metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
@@ -519,7 +531,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_ami_summary_textproto,
@@ -558,6 +570,9 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
+              filter_fingerprint: 5
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -569,7 +584,7 @@ class ReportConversionTest(unittest.TestCase):
                       reach { value: 2000 }
                       impression_count { value: 20000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1000 } }
+                        bin_results { key: 1 value { value: 1000 } }
                       }
                     }
                   }
@@ -589,7 +604,7 @@ class ReportConversionTest(unittest.TestCase):
                       }
                       impression_count { value: 30000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1500 } }
+                        bin_results { key: 1 value { value: 1500 } }
                       }
                     }
                   }
@@ -632,7 +647,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1000 }
                 }
                 metric: "frequency_non_cumulative_edp1_custom_2025_10_08"
@@ -651,7 +666,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1500 }
                 }
                 metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
@@ -661,7 +676,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_custom_summary_textproto,
@@ -686,6 +701,7 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -745,7 +761,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         report_result = text_format.Parse(ami_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_ami_summary_textproto,
@@ -769,6 +785,7 @@ class ReportConversionTest(unittest.TestCase):
             }
             value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -828,7 +845,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         report_result = text_format.Parse(custom_report_textproto,
                                           report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             report_result, self.edp_combinations)
         expected_report_summary = text_format.Parse(
             expected_custom_summary_textproto,
@@ -841,7 +858,7 @@ class ReportConversionTest(unittest.TestCase):
     def test_get_report_summary_v2_from_a_large_sample_report_result(self):
         """Tests that the full report result is parsed into a summary correctly."""
 
-        report_summaries = get_report_summary_v2_from_report_result(
+        report_summaries = report_result_to_report_summary_v2(
             self.report_result, self.edp_combinations)
 
         # Checks that there are two demographic groups in the sample report result.
@@ -904,30 +921,30 @@ class ReportConversionTest(unittest.TestCase):
         expected_reporting_set_result_18_34.data_providers.extend(
             ['edp1', 'edp2', 'edp3'])
         # There are only non-cumulative whole campaign measurements.
-        non_cumulative = (
-            expected_reporting_set_result_18_34.non_cumulative_results.add())
-        non_cumulative.metric_frequency_type = (
+        whole_campaign = (
+            expected_reporting_set_result_18_34.whole_campaign_result)
+        whole_campaign.metric_frequency_type = (
             ReportSummaryWindowResult.MetricFrequencyType.TOTAL)
-        non_cumulative.reach.value = 19030737
-        non_cumulative.reach.standard_deviation = 10000.0
-        non_cumulative.reach.metric = (
-            'reach_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
-        non_cumulative.impression_count.value = 35936915
-        non_cumulative.impression_count.standard_deviation = 10000.0
-        non_cumulative.impression_count.metric = (
-            'impression_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
-        non_cumulative.frequency.metric = (
-            'frequency_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.reach.value = 19030737
+        whole_campaign.reach.standard_deviation = 10000.0
+        whole_campaign.reach.metric = (
+            'reach_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.impression_count.value = 35936915
+        whole_campaign.impression_count.standard_deviation = 10000.0
+        whole_campaign.impression_count.metric = (
+            'impression_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.frequency.metric = (
+            'frequency_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
         freq_bins = {
-            '1': (9822316, 10000.0),
-            '2': (4911158, 10000.0),
-            '3': (2455579, 10000.0),
-            '4': (1227790, 10000.0),
-            '5': (613894, 10000.0),
+            1: (9822316, 10000.0),
+            2: (4911158, 10000.0),
+            3: (2455579, 10000.0),
+            4: (1227790, 10000.0),
+            5: (613894, 10000.0),
         }
         for k, v in freq_bins.items():
-            non_cumulative.frequency.bins[k].value = v[0]
-            non_cumulative.frequency.bins[k].standard_deviation = v[1]
+            whole_campaign.frequency.bins[k].value = v[0]
+            whole_campaign.frequency.bins[k].standard_deviation = v[1]
 
         self.assertIn(expected_reporting_set_result_18_34,
                       report_summary_18_34.report_summary_set_results)
@@ -963,11 +980,11 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative1.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_08'
         non_cumulative1.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_08'
         freq_bins1 = {
-            '1': (5165486, 10000.0),
-            '2': (2582743, 10000.0),
-            '3': (1291372, 10000.0),
-            '4': (645686, 10000.0),
-            '5': (322843, 10000.0),
+            1: (5165486, 10000.0),
+            2: (2582743, 10000.0),
+            3: (1291372, 10000.0),
+            4: (645686, 10000.0),
+            5: (322843, 10000.0),
         }
         for k, v in freq_bins1.items():
             non_cumulative1.frequency.bins[k].value = v[0]
@@ -995,11 +1012,11 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative2.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_15'
         non_cumulative2.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_15'
         freq_bins2 = {
-            '1': (1265549, 10000.0),
-            '2': (632775, 10000.0),
-            '3': (316388, 10000.0),
-            '4': (158194, 10000.0),
-            '5': (79095, 10000.0),
+            1: (1265549, 10000.0),
+            2: (632775, 10000.0),
+            3: (316388, 10000.0),
+            4: (158194, 10000.0),
+            5: (79095, 10000.0),
         }
         for k, v in freq_bins2.items():
             non_cumulative2.frequency.bins[k].value = v[0]

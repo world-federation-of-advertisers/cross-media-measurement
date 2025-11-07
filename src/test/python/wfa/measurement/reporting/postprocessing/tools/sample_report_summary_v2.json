@@ -26,44 +26,6 @@
       ],
       "nonCumulativeResults": [
         {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "11978894",
-            "standardDeviation": 10000,
-            "metric": "m_003"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "6182655",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "3091328",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "1545664",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "772832",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "386415",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_004"
-          },
-          "impressionCount": {
-            "value": "22870892",
-            "standardDeviation": 10000,
-            "metric": "m_005"
-          }
-        },
-        {
           "metricFrequencyType": "WEEKLY",
           "reach": {
             "value": "10008130",
@@ -139,7 +101,45 @@
             "metric": "m_011"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "11978894",
+          "standardDeviation": 10000,
+          "metric": "m_003"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "6182655",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "3091328",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "1545664",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "772832",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "386415",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_004"
+        },
+        "impressionCount": {
+          "value": "22870892",
+          "standardDeviation": 10000,
+          "metric": "m_005"
+        }
+      }
     },
     {
       "impressionFilter": "ami",
@@ -164,37 +164,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "6000000",
-            "metric": "m_014"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "3096774"
-              },
-              "2": {
-                "value": "1548387"
-              },
-              "3": {
-                "value": "774194"
-              },
-              "4": {
-                "value": "387097"
-              },
-              "5": {
-                "value": "193548"
-              }
-            },
-            "metric": "m_015"
-          },
-          "impressionCount": {
-            "value": "11216125",
-            "metric": "m_016"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -257,7 +226,38 @@
             "metric": "m_022"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "6000000",
+          "metric": "m_014"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "3096774"
+            },
+            "2": {
+              "value": "1548387"
+            },
+            "3": {
+              "value": "774194"
+            },
+            "4": {
+              "value": "387097"
+            },
+            "5": {
+              "value": "193548"
+            }
+          },
+          "metric": "m_015"
+        },
+        "impressionCount": {
+          "value": "11216125",
+          "metric": "m_016"
+        }
+      }
     },
     {
       "impressionFilter": "ami",
@@ -282,37 +282,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "1000000",
-            "metric": "m_025"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "516129"
-              },
-              "2": {
-                "value": "258065"
-              },
-              "3": {
-                "value": "129033"
-              },
-              "4": {
-                "value": "64517"
-              },
-              "5": {
-                "value": "32256"
-              }
-            },
-            "metric": "m_026"
-          },
-          "impressionCount": {
-            "value": "1844136",
-            "metric": "m_027"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -375,7 +344,38 @@
             "metric": "m_033"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "1000000",
+          "metric": "m_025"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "516129"
+            },
+            "2": {
+              "value": "258065"
+            },
+            "3": {
+              "value": "129033"
+            },
+            "4": {
+              "value": "64517"
+            },
+            "5": {
+              "value": "32256"
+            }
+          },
+          "metric": "m_026"
+        },
+        "impressionCount": {
+          "value": "1844136",
+          "metric": "m_027"
+        }
+      }
     },
     {
       "impressionFilter": "ami",
@@ -384,21 +384,19 @@
         "EDP_ONE",
         "EDP_TWO"
       ],
-      "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "16686873",
-            "standardDeviation": 10000,
-            "metric": "m_034"
-          },
-          "impressionCount": {
-            "value": "34113188",
-            "standardDeviation": 10000,
-            "metric": "m_035"
-          }
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "16686873",
+          "standardDeviation": 10000,
+          "metric": "m_034"
+        },
+        "impressionCount": {
+          "value": "34113188",
+          "standardDeviation": 10000,
+          "metric": "m_035"
         }
-      ]
+      }
     },
     {
       "impressionFilter": "ami",
@@ -427,44 +425,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "19021738",
-            "standardDeviation": 10000,
-            "metric": "m_038"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "9817671",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "4908836",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "2454418",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "1227209",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "613604",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_039"
-          },
-          "impressionCount": {
-            "value": "35926461",
-            "standardDeviation": 10000,
-            "metric": "m_040"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -541,7 +501,45 @@
             "metric": "m_046"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "19021738",
+          "standardDeviation": 10000,
+          "metric": "m_038"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "9817671",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "4908836",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "2454418",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "1227209",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "613604",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_039"
+        },
+        "impressionCount": {
+          "value": "35926461",
+          "standardDeviation": 10000,
+          "metric": "m_040"
+        }
+      }
     },
     {
       "impressionFilter": "mrc",
@@ -568,44 +566,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "11382243",
-            "standardDeviation": 10000,
-            "metric": "m_049"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "5874706",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "2937353",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "1468677",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "734339",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "367168",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_050"
-          },
-          "impressionCount": {
-            "value": "21696322",
-            "standardDeviation": 10000,
-            "metric": "m_051"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -682,7 +642,45 @@
             "metric": "m_057"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "11382243",
+          "standardDeviation": 10000,
+          "metric": "m_049"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "5874706",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "2937353",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "1468677",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "734339",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "367168",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_050"
+        },
+        "impressionCount": {
+          "value": "21696322",
+          "standardDeviation": 10000,
+          "metric": "m_051"
+        }
+      }
     },
     {
       "impressionFilter": "mrc",
@@ -707,37 +705,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "5700000",
-            "metric": "m_060"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "2941935"
-              },
-              "2": {
-                "value": "1470968"
-              },
-              "3": {
-                "value": "735484"
-              },
-              "4": {
-                "value": "367742"
-              },
-              "5": {
-                "value": "183871"
-              }
-            },
-            "metric": "m_061"
-          },
-          "impressionCount": {
-            "value": "10645760",
-            "metric": "m_062"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -800,7 +767,38 @@
             "metric": "m_068"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "5700000",
+          "metric": "m_060"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "2941935"
+            },
+            "2": {
+              "value": "1470968"
+            },
+            "3": {
+              "value": "735484"
+            },
+            "4": {
+              "value": "367742"
+            },
+            "5": {
+              "value": "183871"
+            }
+          },
+          "metric": "m_061"
+        },
+        "impressionCount": {
+          "value": "10645760",
+          "metric": "m_062"
+        }
+      }
     },
     {
       "impressionFilter": "mrc",
@@ -825,37 +823,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "950000",
-            "metric": "m_071"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "490323"
-              },
-              "2": {
-                "value": "245162"
-              },
-              "3": {
-                "value": "122581"
-              },
-              "4": {
-                "value": "61291"
-              },
-              "5": {
-                "value": "30643"
-              }
-            },
-            "metric": "m_072"
-          },
-          "impressionCount": {
-            "value": "1751669",
-            "metric": "m_073"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -918,7 +885,38 @@
             "metric": "m_079"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "950000",
+          "metric": "m_071"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "490323"
+            },
+            "2": {
+              "value": "245162"
+            },
+            "3": {
+              "value": "122581"
+            },
+            "4": {
+              "value": "61291"
+            },
+            "5": {
+              "value": "30643"
+            }
+          },
+          "metric": "m_072"
+        },
+        "impressionCount": {
+          "value": "1751669",
+          "metric": "m_073"
+        }
+      }
     },
     {
       "impressionFilter": "mrc",
@@ -946,44 +944,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "15908881",
-            "standardDeviation": 10000,
-            "metric": "m_082"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "8211035",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "4105518",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "2052759",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "1026380",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "513189",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_083"
-          },
-          "impressionCount": {
-            "value": "32337826",
-            "standardDeviation": 10000,
-            "metric": "m_084"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -1060,7 +1020,45 @@
             "metric": "m_090"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "15908881",
+          "standardDeviation": 10000,
+          "metric": "m_082"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "8211035",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "4105518",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "2052759",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "1026380",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "513189",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_083"
+        },
+        "impressionCount": {
+          "value": "32337826",
+          "standardDeviation": 10000,
+          "metric": "m_084"
+        }
+      }
     },
     {
       "impressionFilter": "custom",
@@ -1087,44 +1085,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "12017026",
-            "standardDeviation": 10000,
-            "metric": "m_093"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "6202336",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "3101168",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "1550584",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "775292",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "387646",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_094"
-          },
-          "impressionCount": {
-            "value": "22871159",
-            "standardDeviation": 10000,
-            "metric": "m_095"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -1201,7 +1161,45 @@
             "metric": "m_101"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "12017026",
+          "standardDeviation": 10000,
+          "metric": "m_093"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "6202336",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "3101168",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "1550584",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "775292",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "387646",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_094"
+        },
+        "impressionCount": {
+          "value": "22871159",
+          "standardDeviation": 10000,
+          "metric": "m_095"
+        }
+      }
     },
     {
       "impressionFilter": "custom",
@@ -1226,37 +1224,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "6000000",
-            "metric": "m_104"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "3096774"
-              },
-              "2": {
-                "value": "1548387"
-              },
-              "3": {
-                "value": "774194"
-              },
-              "4": {
-                "value": "387097"
-              },
-              "5": {
-                "value": "193548"
-              }
-            },
-            "metric": "m_105"
-          },
-          "impressionCount": {
-            "value": "11216125",
-            "metric": "m_106"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -1319,7 +1286,38 @@
             "metric": "m_112"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "6000000",
+          "metric": "m_104"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "3096774"
+            },
+            "2": {
+              "value": "1548387"
+            },
+            "3": {
+              "value": "774194"
+            },
+            "4": {
+              "value": "387097"
+            },
+            "5": {
+              "value": "193548"
+            }
+          },
+          "metric": "m_105"
+        },
+        "impressionCount": {
+          "value": "11216125",
+          "metric": "m_106"
+        }
+      }
     },
     {
       "impressionFilter": "custom",
@@ -1344,37 +1342,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "1000000",
-            "metric": "m_115"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "516129"
-              },
-              "2": {
-                "value": "258065"
-              },
-              "3": {
-                "value": "129033"
-              },
-              "4": {
-                "value": "64517"
-              },
-              "5": {
-                "value": "32256"
-              }
-            },
-            "metric": "m_116"
-          },
-          "impressionCount": {
-            "value": "1844136",
-            "metric": "m_117"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -1437,7 +1404,38 @@
             "metric": "m_123"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "1000000",
+          "metric": "m_115"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "516129"
+            },
+            "2": {
+              "value": "258065"
+            },
+            "3": {
+              "value": "129033"
+            },
+            "4": {
+              "value": "64517"
+            },
+            "5": {
+              "value": "32256"
+            }
+          },
+          "metric": "m_116"
+        },
+        "impressionCount": {
+          "value": "1844136",
+          "metric": "m_117"
+        }
+      }
     },
     {
       "impressionFilter": "custom",
@@ -1466,44 +1464,6 @@
         }
       ],
       "nonCumulativeResults": [
-        {
-          "metricFrequencyType": "TOTAL",
-          "reach": {
-            "value": "19030737",
-            "standardDeviation": 10000,
-            "metric": "m_126"
-          },
-          "frequency": {
-            "bins": {
-              "1": {
-                "value": "9822316",
-                "standardDeviation": 10000
-              },
-              "2": {
-                "value": "4911158",
-                "standardDeviation": 10000
-              },
-              "3": {
-                "value": "2455579",
-                "standardDeviation": 10000
-              },
-              "4": {
-                "value": "1227790",
-                "standardDeviation": 10000
-              },
-              "5": {
-                "value": "613894",
-                "standardDeviation": 10000
-              }
-            },
-            "metric": "m_127"
-          },
-          "impressionCount": {
-            "value": "35936915",
-            "standardDeviation": 10000,
-            "metric": "m_128"
-          }
-        },
         {
           "metricFrequencyType": "WEEKLY",
           "reach": {
@@ -1580,7 +1540,45 @@
             "metric": "m_134"
           }
         }
-      ]
+      ],
+      "wholeCampaignResult": {
+        "metricFrequencyType": "TOTAL",
+        "reach": {
+          "value": "19030737",
+          "standardDeviation": 10000,
+          "metric": "m_126"
+        },
+        "frequency": {
+          "bins": {
+            "1": {
+              "value": "9822316",
+              "standardDeviation": 10000
+            },
+            "2": {
+              "value": "4911158",
+              "standardDeviation": 10000
+            },
+            "3": {
+              "value": "2455579",
+              "standardDeviation": 10000
+            },
+            "4": {
+              "value": "1227790",
+              "standardDeviation": 10000
+            },
+            "5": {
+              "value": "613894",
+              "standardDeviation": 10000
+            }
+          },
+          "metric": "m_127"
+        },
+        "impressionCount": {
+          "value": "35936915",
+          "standardDeviation": 10000,
+          "metric": "m_128"
+        }
+      }
     }
   ]
 }
