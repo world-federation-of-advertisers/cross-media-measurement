@@ -240,7 +240,13 @@ class ResultsFulfillerApp(
   }
 
   companion object {
+    private val cpuCount = Runtime.getRuntime().availableProcessors()
     private val DEFAULT_PIPELINE_CONFIGURATION =
-      PipelineConfiguration(batchSize = 256, channelCapacity = 128, threadPoolSize = 4, workers = 4)
+      PipelineConfiguration(
+        batchSize = 256,
+        channelCapacity = 64,
+        threadPoolSize = cpuCount,
+        workers = cpuCount,
+      )
   }
 }
