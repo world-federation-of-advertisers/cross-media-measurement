@@ -340,8 +340,16 @@ class ResultsFulfiller(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    /** Utilize all cpu cores but keep one free for GC and system work. */
+    // Memory-based parallelism limit to prevent OOM with large frequency vectors
+    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
+    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
+    // For 15 parallel fulfillments we end up at ~8GB in total.
+    private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
+
+    /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */
     private val DEFAULT_FULFILLMENT_PARALLELISM: Int =
-      (Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1
+      ((Runtime.getRuntime().availableProcessors()).coerceAtLeast(2) - 1).coerceAtMost(
+        MAX_FULFILLMENT_PARALLELISM
+      )
   }
 }
