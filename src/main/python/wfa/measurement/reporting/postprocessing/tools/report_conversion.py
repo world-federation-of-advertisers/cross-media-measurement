@@ -296,7 +296,7 @@ def _add_report_summary_set_result_metadata(
         report_summary_set_result.impression_filter = "custom"
     else:
         raise ValueError(
-            f"Unknown impression filter type: {impression_filter_oneof}.")
+            f"Unsupported impression filter type: {impression_filter_oneof}.")
 
     # Get set operation
     if key.venn_diagram_region_type == ReportResult.VennDiagramRegionType.UNION:
@@ -305,7 +305,7 @@ def _add_report_summary_set_result_metadata(
         report_summary_set_result.set_operation = "primitive"
     else:
         raise ValueError(
-            f"Unknown venn diagram region type: {key.venn_diagram_region_type}."
+            f"Unsupported venn diagram region type: {key.venn_diagram_region_type}."
         )
 
     # Get data providers
@@ -337,12 +337,13 @@ def _process_reporting_windows(
     sorted_windows = sorted(value.reporting_window_results,
                             key=lambda x: _proto_date_to_datetime(x.key.end))
 
-    whole_campaign_non_cumulative = []
     for window_entry in sorted_windows:
         noisy_values = window_entry.value.noisy_report_result_values
 
-        # Processes cumulative result.
+        # Processes cumulative results. The whole campaign result has the
+        # metric_frequency_spec_type of TOTAL.
         if noisy_values.HasField("cumulative_results"):
+            is_cumulative = True
             metric_frequency_spec_type = key.metric_frequency_spec.WhichOneof(
                 "selector")
             if metric_frequency_spec_type == "total":
@@ -350,37 +351,27 @@ def _process_reporting_windows(
                 _copy_window_results(
                     ReportSummaryWindowResult.MetricFrequencyType.TOTAL,
                     noisy_values.cumulative_results, report_summary_set_result,
-                    False, window_entry.key.end, window_result)
+                    is_cumulative, window_entry.key.end, window_result)
             elif metric_frequency_spec_type == "weekly":
                 window_result = report_summary_set_result.cumulative_results.add(
                 )
                 _copy_window_results(
                     ReportSummaryWindowResult.MetricFrequencyType.WEEKLY,
                     noisy_values.cumulative_results, report_summary_set_result,
-                    True, window_entry.key.end, window_result)
+                    is_cumulative, window_entry.key.end, window_result)
             else:
-                raise ValueError(f"Unknown metric frequency type: "
+                raise ValueError(f"Unsupported metric frequency type: "
                                  f"{metric_frequency_spec_type}")
 
-        # Processes non-cumulative result. If the result is weekly non
-        # cumulative metrics, append it the non_cumulative_results. If it is a
-        # total campaign result, store the pair (result, end date), and append
-        # it to the non_cumulative_results once all the weekly non cumulative
-        # results have been processed.
+        # Processes non-cumulative result.
         if noisy_values.HasField("non_cumulative_results"):
+            is_cumulative = False
             window_result = report_summary_set_result.non_cumulative_results.add(
             )
             _copy_window_results(
                 ReportSummaryWindowResult.MetricFrequencyType.WEEKLY,
                 noisy_values.non_cumulative_results, report_summary_set_result,
-                False, window_entry.key.end, window_result)
-
-    for result, end_date in whole_campaign_non_cumulative:
-        window_result = report_summary_set_result.non_cumulative_results.add()
-        _copy_window_results(
-            ReportSummaryWindowResult.MetricFrequencyType.TOTAL, result,
-            report_summary_set_result, False, end_date, window_result)
-
+                is_cumulative, window_entry.key.end, window_result)
 
 def _copy_window_results(
     metric_frequency_type: ReportSummaryWindowResult.MetricFrequencyType,
@@ -421,7 +412,7 @@ def _copy_window_results(
             metric_name_parts.append("non_cumulative")
     else:
         raise ValueError(
-            f"Unknown metric frequency type: {metric_frequency_type}")
+            f"Unsupported metric frequency type: {metric_frequency_type}")
 
     metric_name_parts.extend(report_summary_set_result.data_providers)
     metric_name_parts.append(report_summary_set_result.impression_filter)
