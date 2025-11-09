@@ -390,7 +390,9 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
         metricSet =
           ResultGroupKt.metricSet {
-            populationSize = reportingWindowResults.value.populationSize
+            if (resultGroupSpec.resultGroupMetricSpec.populationSize) {
+              populationSize = reportingWindowResults.value.populationSize
+            }
 
             if (resultGroupSpec.resultGroupMetricSpec.hasReportingUnit()) {
               reportingUnit =

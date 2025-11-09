@@ -136,6 +136,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -498,6 +499,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -576,6 +578,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }

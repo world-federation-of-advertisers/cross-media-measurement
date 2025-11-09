@@ -75,6 +75,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -352,6 +353,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -377,6 +379,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -712,6 +715,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -886,6 +890,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -1033,6 +1038,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -1323,6 +1329,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
@@ -1802,6 +1809,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
@@ -2154,6 +2162,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
                 cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
