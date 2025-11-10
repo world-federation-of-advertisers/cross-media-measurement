@@ -16,6 +16,11 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:InvokeRequisitionFetcherFunction",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher/testing:config",
     ],
+    jvm_flags = [
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     tags = [
         "cpu:2",
         "no-remote-exec",

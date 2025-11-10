@@ -14,21 +14,24 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import kotlinx.coroutines.Dispatchers
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.deploy.gcloud.service.SpannerDuchyDataServices
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessDuchy
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 
-/** [TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using GCS and Spanner. */
+/**
+ * [org.junit.rules.TestRule] which provides [InProcessDuchy.DuchyDependencies] factories using
+ * Spanner.
+ */
 class SpannerDuchyDependencyProviderRule(
   emulatorDatabaseAdmin: SpannerDatabaseAdmin,
   duchies: Iterable<String>,
@@ -38,6 +41,8 @@ class SpannerDuchyDependencyProviderRule(
       SpannerEmulatorDatabaseRule(emulatorDatabaseAdmin, Schemata.DUCHY_CHANGELOG_PATH)
     }
 
+  private val temporaryFolder = TemporaryFolder()
+
   private fun buildDuchyDependencies(
     duchyId: String,
     logEntryClient: ComputationLogEntriesCoroutineStub,
@@ -45,7 +50,7 @@ class SpannerDuchyDependencyProviderRule(
     val computationsDatabase =
       computationsDatabaseRules[duchyId]
         ?: error("Missing Computations Spanner database for duchy $duchyId")
-    val storageClient = GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
+    val storageClient = FileSystemStorageClient(temporaryFolder.root)
 
     val duchyDataServices =
       SpannerDuchyDataServices.create(
@@ -63,7 +68,7 @@ class SpannerDuchyDependencyProviderRule(
     get() = ::buildDuchyDependencies
 
   override fun apply(base: Statement, description: Description): Statement {
-    return chainRulesSequentially(computationsDatabaseRules.values.toList())
+    return chainRulesSequentially(computationsDatabaseRules.values + temporaryFolder)
       .apply(base, description)
   }
 }
