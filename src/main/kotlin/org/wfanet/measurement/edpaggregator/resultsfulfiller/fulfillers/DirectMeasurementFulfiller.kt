@@ -83,11 +83,8 @@ class DirectMeasurementFulfiller(
         }
       )
     } catch (e: StatusException) {
-      val requisition = requisitionsStub.getRequisition(
-        getRequisitionRequest {
-          name = requisitionName
-        }
-      )
+      val requisition =
+        requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
       if (requisition.state === Requisition.State.UNFULFILLED) {
         throw Exception("Error fulfilling direct requisition $requisitionName", e)
       }

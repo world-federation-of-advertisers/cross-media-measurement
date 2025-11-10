@@ -20,13 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.SecureRandom
 import kotlin.random.Random
 import kotlin.test.assertFails
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -49,29 +47,29 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.requisition
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.testing.Requisitions.HMSS_REQUISITION
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.grpc.testing.mockService
 
 @RunWith(JUnit4::class)
 class HMShuffleMeasurementFulfillerTest {
@@ -94,28 +92,26 @@ class HMShuffleMeasurementFulfillerTest {
 
   private val requisitionFulfillmentMock = FakeRequisitionFulfillmentService()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionFulfillmentMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionFulfillmentMock) }
 
-  private val unfulfilledRequisitionsServiceMock: RequisitionsCoroutineImplBase =
-    mockService {
-      onBlocking { getRequisition(any()) }.thenReturn(requisition {
-        state = Requisition.State.UNFULFILLED
-      })
-    }
+  private val unfulfilledRequisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { getRequisition(any()) }
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+  }
   private val terminalRequisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
-    onBlocking { getRequisition(any()) }.thenReturn(requisition {
-      state = Requisition.State.WITHDRAWN
-    })
+    onBlocking { getRequisition(any()) }
+      .thenReturn(requisition { state = Requisition.State.WITHDRAWN })
   }
 
   @get:Rule
-  val unfulfilledGrpcTestServerRule =
-    GrpcTestServerRule { addService(unfulfilledRequisitionsServiceMock) }
+  val unfulfilledGrpcTestServerRule = GrpcTestServerRule {
+    addService(unfulfilledRequisitionsServiceMock)
+  }
 
   @get:Rule
-  val terminalGrpcTestServerRule =
-    GrpcTestServerRule { addService(terminalRequisitionsServiceMock) }
+  val terminalGrpcTestServerRule = GrpcTestServerRule {
+    addService(terminalRequisitionsServiceMock)
+  }
 
   private val unfulfilledRequisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(unfulfilledGrpcTestServerRule.channel)
@@ -137,9 +133,9 @@ class HMShuffleMeasurementFulfillerTest {
         dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
         dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
         requisitionFulfillmentStubMap =
-        mapOf(
-          "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
-        ),
+          mapOf(
+            "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+          ),
         requisitionsStub = unfulfilledRequisitionsStub,
       )
     fulfiller.fulfillRequisition()
@@ -235,9 +231,9 @@ class HMShuffleMeasurementFulfillerTest {
           EDP_SIGNING_KEY,
           DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap =
-          mapOf(
-            "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
-          ),
+            mapOf(
+              "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+            ),
           requisitionsStub = unfulfilledRequisitionsStub,
           KAnonymityParams(minImpressions = 1, minUsers = 1),
           maxPopulation = null,
@@ -287,9 +283,9 @@ class HMShuffleMeasurementFulfillerTest {
           EDP_SIGNING_KEY,
           DATA_PROVIDER_CERTIFICATE_KEY,
           requisitionFulfillmentStubMap =
-          mapOf(
-            "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
-          ),
+            mapOf(
+              "duchies/worker2" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+            ),
           requisitionsStub = unfulfilledRequisitionsStub,
           KAnonymityParams(minImpressions = 1000, minUsers = 1000),
           maxPopulation = null,
@@ -379,10 +375,10 @@ class HMShuffleMeasurementFulfillerTest {
 
   private val EMPTY_FREQUENCY_VECTOR: FrequencyVector =
     FrequencyVectorBuilder(
-      measurementSpec = MEASUREMENT_SPEC,
-      populationSpec = POPULATION_SPEC,
-      strict = false,
-    )
+        measurementSpec = MEASUREMENT_SPEC,
+        populationSpec = POPULATION_SPEC,
+        strict = false,
+      )
       .build()
 
   private fun echoFrequencyVector(data: ByteArray): ByteArray {

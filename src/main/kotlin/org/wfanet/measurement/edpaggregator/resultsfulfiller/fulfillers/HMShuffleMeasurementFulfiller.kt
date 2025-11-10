@@ -22,21 +22,20 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
-import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.shareshuffle.FulfillRequisitionRequestBuilder
-import io.grpc.StatusRuntimeException
 
 class HMShuffleMeasurementFulfiller(
   private val requisition: Requisition,
@@ -53,13 +52,13 @@ class HMShuffleMeasurementFulfiller(
     logger.info("Fulfilling requisition ${requisition.name}...")
     val requests: Flow<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder.build(
-        requisition,
-        requisitionNonce,
-        sampledFrequencyVector,
-        dataProviderCertificateKey,
-        dataProviderSigningKeyHandle,
-        generateSecretShares,
-      )
+          requisition,
+          requisitionNonce,
+          sampledFrequencyVector,
+          dataProviderCertificateKey,
+          dataProviderSigningKeyHandle,
+          generateSecretShares,
+        )
         .asFlow()
     try {
       val duchyId = getDuchyWithoutPublicKey(requisition)
@@ -67,11 +66,8 @@ class HMShuffleMeasurementFulfiller(
       requisitionFulfillmentStub.fulfillRequisition(requests)
       logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
     } catch (e: StatusException) {
-      val requisition = requisitionsStub.getRequisition(
-        getRequisitionRequest {
-          name = requisition.name
-        }
-      )
+      val requisition =
+        requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
       if (requisition.state === Requisition.State.UNFULFILLED) {
         throw Exception("Error fulfilling requisition ${requisition.name}", e)
       }
@@ -153,10 +149,10 @@ class HMShuffleMeasurementFulfiller(
         )
       return if (reachValue == 0L) {
         FrequencyVectorBuilder(
-          measurementSpec = measurementSpec,
-          populationSpec = populationSpec,
-          strict = false,
-        )
+            measurementSpec = measurementSpec,
+            populationSpec = populationSpec,
+            strict = false,
+          )
           .build()
       } else {
         frequencyVectorBuilder.build()
