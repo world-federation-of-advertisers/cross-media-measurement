@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.telemetry
 
 import com.google.cloud.functions.HttpRequest
+import io.cloudevents.CloudEvent
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
@@ -61,9 +62,30 @@ object Tracing {
     }
   }
 
+  /**
+   * Installs W3C trace context for the current thread using the provided CloudEvent.
+   *
+   * Use this overload for purely synchronous work. For suspending work, combine it with the
+   * [CoroutineContext.trace] overloads to ensure coroutine context propagation.
+   */
+  inline fun <T> withW3CTraceContext(event: CloudEvent, block: () -> T): T {
+    val parentContext = extractW3CContext(event)
+    val scope = parentContext.makeCurrent()
+    return try {
+      block()
+    } finally {
+      scope.close()
+    }
+  }
+
   @PublishedApi
   internal fun extractW3CContext(request: HttpRequest): Context {
     return w3cPropagator.extract(Context.current(), request, CloudFunctionsHttpRequestGetter)
+  }
+
+  @PublishedApi
+  internal fun extractW3CContext(event: CloudEvent): Context {
+    return w3cPropagator.extract(Context.current(), event, CloudEventGetter)
   }
 
   /**
@@ -182,6 +204,24 @@ object Tracing {
         .firstOrNull { entry -> entry.key.equals(key, ignoreCase = true) }
         ?.value
         ?.firstOrNull()
+    }
+  }
+
+  /**
+   * Extracts W3C trace context from CloudEvent extensions.
+   *
+   * CloudEvents use `traceparent` and `tracestate` as extension attributes to carry W3C Trace
+   * Context information, as defined in the CloudEvents Distributed Tracing Extension spec:
+   * https://github.com/cloudevents/spec/blob/main/cloudevents/extensions/distributed-tracing.md
+   */
+  private object CloudEventGetter : TextMapGetter<CloudEvent> {
+    override fun keys(carrier: CloudEvent): Iterable<String> {
+      return carrier.extensionNames
+    }
+
+    override fun get(carrier: CloudEvent?, key: String): String? {
+      if (carrier == null) return null
+      return carrier.getExtension(key)?.toString()
     }
   }
 }
