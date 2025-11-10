@@ -65,3 +65,10 @@ variable "uber_jar_path" {
   type        = string
   nullable    = false
 }
+
+variable "uploaded_config_generation" {
+  description = "The GCS generation of the uploaded config file. Changes only when file is re-uploaded."
+  type        = string
+  nullable    = true
+  default     = null
+}

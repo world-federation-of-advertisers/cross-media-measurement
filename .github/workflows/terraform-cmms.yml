@@ -179,7 +179,7 @@ jobs:
         ABSOLUTE_PROTO_DESCRIPTORS_PATH="$(realpath "$RELATIVE_PROTO_DESCRIPTORS_PATH")"
         echo "event_proto_descriptors_path=$ABSOLUTE_PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
 
-    - name: terraform init
+    - name: terraform init -upgrade
       env:
         TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
