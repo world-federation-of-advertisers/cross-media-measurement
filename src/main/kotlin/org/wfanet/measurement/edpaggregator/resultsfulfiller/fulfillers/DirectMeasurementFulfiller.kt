@@ -24,9 +24,11 @@ import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.encryptResult
 import org.wfanet.measurement.consent.client.dataprovider.signResult
@@ -81,7 +83,14 @@ class DirectMeasurementFulfiller(
         }
       )
     } catch (e: StatusException) {
-      throw Exception("Error fulfilling direct requisition $requisitionName", e)
+      val requisition = requisitionsStub.getRequisition(
+        getRequisitionRequest {
+          name = requisitionName
+        }
+      )
+      if (requisition.state === Requisition.State.UNFULFILLED) {
+        throw Exception("Error fulfilling direct requisition $requisitionName", e)
+      }
     }
   }
 }

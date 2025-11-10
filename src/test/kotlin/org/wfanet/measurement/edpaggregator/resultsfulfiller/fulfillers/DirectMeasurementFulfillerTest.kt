@@ -22,6 +22,8 @@ import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import io.grpc.Status
+import io.grpc.StatusException
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -32,12 +34,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
+import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import kotlin.test.assertFails
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -51,12 +56,49 @@ class DirectMeasurementFulfillerTest {
 
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+    onBlocking { getRequisition(any()) }.thenReturn(requisition {
+      state = Requisition.State.UNFULFILLED
+    })
+  }
+  private val throwingUnfulfilledRequisitionsServiceMock: RequisitionsCoroutineImplBase =
+    mockService {
+      onBlocking { fulfillDirectRequisition(any()) }
+        .thenAnswer {
+          throw StatusException(Status.INTERNAL)
+        }
+      onBlocking { getRequisition(any()) }.thenReturn(requisition {
+        state = Requisition.State.UNFULFILLED
+      })
+    }
+  private val throwingTerminalRequisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { fulfillDirectRequisition(any()) }
+      .thenAnswer {
+        throw StatusException(Status.INTERNAL)
+      }
+    onBlocking { getRequisition(any()) }.thenReturn(requisition {
+      state = Requisition.State.WITHDRAWN
+    })
   }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
+
+  @get:Rule
+  val throwingUnfulfilledGrpcTestServerRule =
+    GrpcTestServerRule { addService(throwingUnfulfilledRequisitionsServiceMock) }
+
+  @get:Rule
+  val throwingTerminalGrpcTestServerRule =
+    GrpcTestServerRule { addService(throwingTerminalRequisitionsServiceMock) }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val throwingUnfulfilledRequisitionsStub: RequisitionsCoroutineStub by lazy {
+    RequisitionsCoroutineStub(throwingUnfulfilledGrpcTestServerRule.channel)
+  }
+  private val throwingTerminalRequisitionsStub: RequisitionsCoroutineStub by lazy {
+    RequisitionsCoroutineStub(throwingTerminalGrpcTestServerRule.channel)
   }
 
   @Test
@@ -81,9 +123,9 @@ class DirectMeasurementFulfillerTest {
 
       // Verify the stub was called with the correct parameters
       verifyProtoArgument(
-          requisitionsServiceMock,
-          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-        )
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
         .comparingExpectedFieldsOnly()
         .isEqualTo(
           fulfillDirectRequisitionRequest {
@@ -92,6 +134,51 @@ class DirectMeasurementFulfillerTest {
             certificate = DATA_PROVIDER_CERTIFICATE_NAME
           }
         )
+    }
+
+  @Test
+  fun `fulfillRequisition rethrows unfulfilled state requisitions`() {
+
+    val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
+    val directMeasurementFulfiller =
+      DirectMeasurementFulfiller(
+        requisitionName = REQUISITION_NAME,
+        requisitionDataProviderCertificateName = DATA_PROVIDER_CERTIFICATE_NAME,
+        measurementResult = result,
+        requisitionNonce = NONCE,
+        measurementEncryptionPublicKey = MC_PUBLIC_KEY,
+        directProtocolConfig = DIRECT_PROTOCOL,
+        directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+        dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        requisitionsStub = throwingUnfulfilledRequisitionsStub,
+      )
+    assertFails {
+      runBlocking {
+        directMeasurementFulfiller.fulfillRequisition()
+      }
+    }
+  }
+
+  @Test
+  fun `fulfillRequisition does not throw an exception for terminal state requisitions`() =
+    runBlocking {
+      val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
+      val directMeasurementFulfiller =
+        DirectMeasurementFulfiller(
+          requisitionName = REQUISITION_NAME,
+          requisitionDataProviderCertificateName = DATA_PROVIDER_CERTIFICATE_NAME,
+          measurementResult = result,
+          requisitionNonce = NONCE,
+          measurementEncryptionPublicKey = MC_PUBLIC_KEY,
+          directProtocolConfig = DIRECT_PROTOCOL,
+          directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+          dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          requisitionsStub = throwingTerminalRequisitionsStub,
+        )
+
+      directMeasurementFulfiller.fulfillRequisition()
     }
 
   companion object {
