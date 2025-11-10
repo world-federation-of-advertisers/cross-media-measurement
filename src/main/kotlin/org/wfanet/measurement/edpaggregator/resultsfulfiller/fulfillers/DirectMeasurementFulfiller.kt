@@ -74,20 +74,21 @@ class DirectMeasurementFulfiller(
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
     try {
-      requisitionsStub.fulfillDirectRequisition(
-        fulfillDirectRequisitionRequest {
-          name = requisitionName
-          encryptedResult = signedEncryptedResult
-          nonce = requisitionNonce
-          certificate = dataProviderCertificateKey.toName()
-        }
-      )
-    } catch (e: StatusException) {
       val requisition =
         requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
       if (requisition.state === Requisition.State.UNFULFILLED) {
-        throw Exception("Error fulfilling direct requisition $requisitionName", e)
+        requisitionsStub.fulfillDirectRequisition(
+          fulfillDirectRequisitionRequest {
+            name = requisitionName
+            encryptedResult = signedEncryptedResult
+            nonce = requisitionNonce
+            certificate = dataProviderCertificateKey.toName()
+            etag = requisition.etag
+          }
+        )
       }
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling direct requisition $requisitionName", e)
     }
   }
 }

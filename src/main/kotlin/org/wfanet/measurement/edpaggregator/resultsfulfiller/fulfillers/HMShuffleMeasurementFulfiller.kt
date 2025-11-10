@@ -50,27 +50,28 @@ class HMShuffleMeasurementFulfiller(
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
-    val requests: Flow<FulfillRequisitionRequest> =
-      FulfillRequisitionRequestBuilder.build(
-          requisition,
-          requisitionNonce,
-          sampledFrequencyVector,
-          dataProviderCertificateKey,
-          dataProviderSigningKeyHandle,
-          generateSecretShares,
-        )
-        .asFlow()
+    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
     try {
-      val duchyId = getDuchyWithoutPublicKey(requisition)
-      val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
-      requisitionFulfillmentStub.fulfillRequisition(requests)
-      logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
-    } catch (e: StatusException) {
-      val requisition =
+      val getRequisitionResponse =
         requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
-      if (requisition.state === Requisition.State.UNFULFILLED) {
-        throw Exception("Error fulfilling requisition ${requisition.name}", e)
+      if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
+        val requests: Flow<FulfillRequisitionRequest> =
+          FulfillRequisitionRequestBuilder.build(
+              requisition,
+              requisitionNonce,
+              sampledFrequencyVector,
+              dataProviderCertificateKey,
+              dataProviderSigningKeyHandle,
+              getRequisitionResponse.etag,
+              generateSecretShares,
+            )
+            .asFlow()
+        requisitionFulfillmentStub.fulfillRequisition(requests)
+        logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
       }
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
   }
 
