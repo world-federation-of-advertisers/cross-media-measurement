@@ -1791,6 +1791,9 @@ class BasicReportsServiceTest {
                       }
                   }
                 metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
+                metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
                       multipleDataProviderParams =
@@ -1905,6 +1908,9 @@ class BasicReportsServiceTest {
                     count = 1
                     increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                   }
+                metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
                 metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
