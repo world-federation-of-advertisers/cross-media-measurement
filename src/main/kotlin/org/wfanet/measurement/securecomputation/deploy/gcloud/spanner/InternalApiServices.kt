@@ -23,12 +23,25 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.Services
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
+/**
+ * Factory for creating internal API services for the Secure Computation system.
+ *
+ * This class is responsible for constructing the core gRPC services that handle work item
+ * management operations.
+ */
 class InternalApiServices(
   private val workItemPublisher: WorkItemPublisher,
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) {
+  /**
+   * Builds the core internal API services.
+   *
+   * @return A [Services] instance containing:
+   *     - WorkItemsService: Manages work item lifecycle (create, get, fail, etc.)
+   *     - WorkItemAttemptsService: Tracks work item execution attempts
+   */
   fun build(coroutineContext: CoroutineContext): Services {
     return Services(
       SpannerWorkItemsService(
