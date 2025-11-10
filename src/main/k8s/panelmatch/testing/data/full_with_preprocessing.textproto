@@ -202,7 +202,6 @@ steps {
   party: DATA_PROVIDER
 
   preprocess_events_step {}
-
   input_labels { key: "unprocessed-event-data" value: "edp-event-data" }
   input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
   input_labels { key: "identifier-pepper" value: "edp-identifier-hash-pepper" }
