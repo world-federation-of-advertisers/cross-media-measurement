@@ -18,9 +18,11 @@ from absl import logging
 
 from noiseninja.noised_measurements import OrderedSets
 
-from report.report import Report
-from report.report import fuzzy_less_equal
-from report.report import get_edps_from_edp_combination
+from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
+    Report,
+    fuzzy_less_equal,
+    get_edps_from_edp_combination,
+)
 
 
 def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
