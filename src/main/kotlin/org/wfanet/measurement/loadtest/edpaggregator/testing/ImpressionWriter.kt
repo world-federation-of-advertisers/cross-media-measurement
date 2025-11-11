@@ -98,7 +98,7 @@ class ImpressionsWriter(
 
       val impressionsBlobKey =
         if (impressionsBasePath != null) {
-          "$impressionsBasePath/$ds/$eventGroupReferenceId/impressions"
+          "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
         } else {
           "ds/$ds/$eventGroupPath/impressions"
         }
@@ -119,7 +119,7 @@ class ImpressionsWriter(
       )
       val impressionsMetaDataBlobKey =
         if (impressionsBasePath != null) {
-          "$impressionsBasePath/$ds/$eventGroupReferenceId/metadata.binpb"
+          "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"
         } else {
           "ds/$ds/$eventGroupPath/metadata.binpb"
         }

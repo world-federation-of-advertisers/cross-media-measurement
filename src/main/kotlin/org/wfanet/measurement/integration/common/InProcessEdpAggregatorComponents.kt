@@ -54,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -397,7 +396,7 @@ class InProcessEdpAggregatorComponents(
     while (day.isBefore(endExclusive)) {
       val ds = day.toString()
 
-      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata.binpb"
 
       val impressionsFileUri = "file:///$impressionsMetadataBucket/$impressionMetadataBlobKey"
       val perDayInterval = dailyInterval(day)
@@ -498,11 +497,11 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
-      val modelLineName = ModelLineKey.fromName(modelLineInfoMap.keys.first())?.modelLineId
+      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
-          "model-line/$modelLineName}/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          "model-line/$modelLineName/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
@@ -510,11 +509,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(
-        events,
-        "some-model-line",
-        "edp/$edpAggregatorShortName",
-      )
+      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
     }
   }
 
