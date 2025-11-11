@@ -27,3 +27,17 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "BigQueryServiceFactoryTest",
+    timeout = "short",
+    srcs = ["BigQueryServiceFactoryTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.authorizedview.BigQueryServiceFactoryTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/authorizedview",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
