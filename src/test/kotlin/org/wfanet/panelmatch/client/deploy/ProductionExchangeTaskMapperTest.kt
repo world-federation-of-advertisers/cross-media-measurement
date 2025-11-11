@@ -26,11 +26,13 @@ import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.deploy.testing.TestProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.PreprocessEventsTask
+import org.wfanet.panelmatch.client.exchangetasks.ReadEncryptedEventsFromBigQueryTask
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.preprocessEventsStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.readEncryptedEventsFromBigQueryStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
@@ -103,6 +105,26 @@ class ProductionExchangeTaskMapperTest {
 
     // AUTHORIZED_VIEW protocol should use PreprocessEventsTask
     assertThat(exchangeTask).isInstanceOf(PreprocessEventsTask::class.java)
+  }
+
+  @Test
+  fun `map readEncryptedEventsFromBigQuery task`() = runBlockingTest {
+    val workflow = exchangeWorkflow {
+      steps += inputStep("input" to "data")
+      steps += step {
+        this.readEncryptedEventsFromBigQueryStep = readEncryptedEventsFromBigQueryStep {
+          projectId = "test-project"
+          datasetId = "test-dataset"
+          tableOrViewId = "test-view"
+        }
+        outputLabels.put("encrypted-event-data", "encrypted-events")
+      }
+    }
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, workflow, workflow.getSteps(1))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+
+    // Verify that the correct task type is created for the readEncryptedEventsFromBigQuery step
+    assertThat(exchangeTask).isInstanceOf(ReadEncryptedEventsFromBigQueryTask::class.java)
   }
 
   companion object {
