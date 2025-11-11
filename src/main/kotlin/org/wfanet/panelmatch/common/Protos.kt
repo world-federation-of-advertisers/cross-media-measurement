@@ -20,10 +20,18 @@ import java.io.InputStream
 import java.time.Duration
 
 /** Reads length-delimited [T] messages from a [ByteString]. */
+@Deprecated(
+  message = "Use MesosRecordIoStorageClient for streaming reads",
+  replaceWith = ReplaceWith("MesosRecordIoStorageClient"),
+)
 fun <T : MessageLite> ByteString.parseDelimitedMessages(prototype: T): Iterable<T> =
   newInput().parseDelimitedMessages(prototype)
 
 /** Reads length-delimited [T] messages from an [InputStream]. */
+@Deprecated(
+  message = "Use MesosRecordIoStorageClient for streaming reads",
+  replaceWith = ReplaceWith("MesosRecordIoStorageClient"),
+)
 fun <T : MessageLite> InputStream.parseDelimitedMessages(prototype: T): Iterable<T> = Iterable {
   iterator {
     this@parseDelimitedMessages.use { inputStream ->
@@ -38,6 +46,10 @@ fun <T : MessageLite> InputStream.parseDelimitedMessages(prototype: T): Iterable
 }
 
 /** Serializes a [MessageLite] with its length. */
+@Deprecated(
+  message = "Use MesosRecordIoStorageClient for streaming writes",
+  replaceWith = ReplaceWith("MesosRecordIoStorageClient"),
+)
 fun MessageLite.toDelimitedByteString(): ByteString {
   val outputStream = ByteString.newOutput()
   writeDelimitedTo(outputStream)
