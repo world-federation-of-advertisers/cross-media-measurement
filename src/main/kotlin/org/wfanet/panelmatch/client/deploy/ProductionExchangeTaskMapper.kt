@@ -34,6 +34,7 @@ import org.wfanet.panelmatch.client.exchangetasks.AssignJoinKeyIdsTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.exchangetasks.DecryptAndMatchEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
@@ -468,6 +469,6 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_AND_MATCH_EVENTS_STEP)
-    throw NotImplementedError("Decrypt and Match Events task - Not Implemented")
+    return DecryptAndMatchEventsTask()
   }
 }
