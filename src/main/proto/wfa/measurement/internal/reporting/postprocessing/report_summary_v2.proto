@@ -49,7 +49,7 @@ message ReportSummaryV2 {
     message FrequencyResult {
       message BinResult {
         string label = 1;
-        int64 value = 2;
+        double value = 2;
         double standard_deviation = 3;
       }
       repeated BinResult bins = 1;
