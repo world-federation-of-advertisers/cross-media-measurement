@@ -42,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -95,7 +96,7 @@ import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.deploy.gcloud.SecureComputationServicesProviderRule
-import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShardFlow
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -491,16 +492,18 @@ class InProcessEdpAggregatorComponents(
     }
 
     mappedEventGroups.forEach { mappedEventGroup ->
-      val events: Sequence<LabeledEventDateShard<TestEvent>> =
-        SyntheticDataGeneration.generateEvents(
+      val events: Flow<LabeledEventDateShardFlow<TestEvent>> =
+        SyntheticDataGeneration.generateEventsFlow(
           TestEvent.getDefaultInstance(),
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
+      // Use the model line from the modelLineInfoMap - using the first (and only) model line
+      val modelLine = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          "model-line/$modelLine/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
