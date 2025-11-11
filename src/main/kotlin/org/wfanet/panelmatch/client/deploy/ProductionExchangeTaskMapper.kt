@@ -47,6 +47,7 @@ import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.PreprocessEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
 import org.wfanet.panelmatch.client.exchangetasks.ReadEncryptedEventsFromBigQueryTask
+import org.wfanet.panelmatch.client.exchangetasks.WriteToBigQueryTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
@@ -421,12 +422,48 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.writeKeysToBigQuery(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_KEYS_TO_BIG_QUERY_STEP)
-    throw NotImplementedError("Write Keys to Big Query task - Not Implemented")
+    requireNotNull(bigQueryServiceFactory) { "bigQueryServiceFactory must be set for BigQuery tasks" }
+    val writeStep = step.writeKeysToBigQueryStep
+    return WriteToBigQueryTask.forJoinKeys(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      bigQueryServiceFactory = bigQueryServiceFactory,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN_NAME
+        },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN_NAME
+        },
+    )
   }
 
   override suspend fun ExchangeContext.writeEventsToBigQuery(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_EVENTS_TO_BIG_QUERY_STEP)
-    throw NotImplementedError("Write Events to Big Query task - Not Implemented")
+    requireNotNull(bigQueryServiceFactory) { "bigQueryServiceFactory must be set for BigQuery tasks" }
+    val writeStep = step.writeEventsToBigQueryStep
+    return WriteToBigQueryTask.forEncryptedEvents(
+      projectId = writeStep.projectId,
+      datasetId = writeStep.datasetId,
+      tableId = writeStep.tableId,
+      exchangeDate = exchangeDateKey.date,
+      bigQueryServiceFactory = bigQueryServiceFactory,
+      keyColumnName =
+        writeStep.keyColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_JOIN_KEY_COLUMN_NAME
+        },
+      dataColumnName =
+        writeStep.eventDataColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EVENT_DATA_COLUMN_NAME
+        },
+      dateColumnName =
+        writeStep.dateColumnName.ifEmpty {
+          WriteToBigQueryTask.DEFAULT_ENCRYPTED_EXCHANGE_DATE_COLUMN_NAME
+        },
+    )
   }
 
   override suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask {
