@@ -35,7 +35,6 @@ locals {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
     }
   )
->>>>>>> georgi/resultsfulfiller-telemetry-terraform
 }
 
 resource "google_service_account" "mig_service_account" {
