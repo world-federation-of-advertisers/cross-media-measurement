@@ -52,6 +52,7 @@ import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQuerie
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.CopyOptions
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflow.Step.PreprocessEventsStep
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -78,6 +79,7 @@ open class ProductionExchangeTaskMapper(
   private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
 ) : ExchangeTaskMapper() {
+
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
   }
@@ -98,24 +100,35 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.preprocessEvents(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.PREPROCESS_EVENTS_STEP)
-    val eventPreprocessor = JniEventPreprocessor()
-    val deterministicCommutativeCipherKeyProvider =
-      ::HardCodedDeterministicCommutativeCipherKeyProvider
-    val hkdfPepperProvider = ::HardCodedHkdfPepperProvider
-    val identifierHashPepperProvider = ::HardCodedIdentifierHashPepperProvider
-    val preprocessingParameters: PreprocessingParameters =
-      requireNotNull(taskContext.get(PreprocessingParameters::class)) {
-        "PreprocessingParameters must be set in taskContext"
+    val preProcessStep = step.preprocessEventsStep
+
+    return when (preProcessStep.protocol) {
+      PreprocessEventsStep.PreprocessProtocol.UNRECOGNIZED,
+      PreprocessEventsStep.PreprocessProtocol.PREPROCESSOR_PROTOCOL_UNSPECIFIED,
+      PreprocessEventsStep.PreprocessProtocol.PRIVATE_MEMBERSHIP -> {
+        val eventPreprocessor = JniEventPreprocessor()
+        val deterministicCommutativeCipherKeyProvider =
+          ::HardCodedDeterministicCommutativeCipherKeyProvider
+        val hkdfPepperProvider = ::HardCodedHkdfPepperProvider
+        val identifierHashPepperProvider = ::HardCodedIdentifierHashPepperProvider
+        val preprocessingParameters: PreprocessingParameters =
+          requireNotNull(taskContext.get(PreprocessingParameters::class)) {
+            "PreprocessingParameters must be set in taskContext"
+          }
+        val outputsManifests = mapOf("preprocessed-event-data" to preprocessingParameters.fileCount)
+        return apacheBeamTaskFor(outputsManifests, emptyList()) {
+          preprocessEvents(
+            eventPreprocessor = eventPreprocessor,
+            deterministicCommutativeCipherKeyProvider = deterministicCommutativeCipherKeyProvider,
+            identifierPepperProvider = identifierHashPepperProvider,
+            hkdfPepperProvider = hkdfPepperProvider,
+            maxByteSize = preprocessingParameters.maxByteSize,
+          )
+        }
       }
-    val outputsManifests = mapOf("preprocessed-event-data" to preprocessingParameters.fileCount)
-    return apacheBeamTaskFor(outputsManifests, emptyList()) {
-      preprocessEvents(
-        eventPreprocessor = eventPreprocessor,
-        deterministicCommutativeCipherKeyProvider = deterministicCommutativeCipherKeyProvider,
-        identifierPepperProvider = identifierHashPepperProvider,
-        hkdfPepperProvider = hkdfPepperProvider,
-        maxByteSize = preprocessingParameters.maxByteSize,
-      )
+      PreprocessEventsStep.PreprocessProtocol.AUTHORIZED_VIEW -> {
+        throw NotImplementedError("Preprocess for authorized view data - Not Implemented")
+      }
     }
   }
 
@@ -370,5 +383,25 @@ open class ProductionExchangeTaskMapper(
       skipReadInput,
       execute,
     )
+  }
+
+  override suspend fun ExchangeContext.readEncryptedEventsFromBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.READ_ENCRYPTED_EVENTS_FROM_BIG_QUERY_STEP)
+    throw NotImplementedError("Read Encrypted Events from Big Query task - Not Implemented")
+  }
+
+  override suspend fun ExchangeContext.writeKeysToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_KEYS_TO_BIG_QUERY_STEP)
+    throw NotImplementedError("Write Keys to Big Query task - Not Implemented")
+  }
+
+  override suspend fun ExchangeContext.writeEventsToBigQuery(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.WRITE_EVENTS_TO_BIG_QUERY_STEP)
+    throw NotImplementedError("Write Events to Big Query task - Not Implemented")
+  }
+
+  override suspend fun ExchangeContext.decryptAndMatchEvents(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_AND_MATCH_EVENTS_STEP)
+    throw NotImplementedError("Decrypt and Match Events task - Not Implemented")
   }
 }

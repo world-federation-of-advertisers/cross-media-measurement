@@ -79,4 +79,16 @@ class FakeExchangeTaskMapper(
 
   override suspend fun ExchangeContext.assignJoinKeyIds() =
     createExchangeTask("assign-join-key-ids")
+
+  override suspend fun ExchangeContext.readEncryptedEventsFromBigQuery() =
+    createExchangeTask("read-encrypted-events-from-bigquery")
+
+  override suspend fun ExchangeContext.writeKeysToBigQuery() =
+    createExchangeTask("write-keys-to-bigquery")
+
+  override suspend fun ExchangeContext.writeEventsToBigQuery() =
+    createExchangeTask("write-events-to-bigquery")
+
+  override suspend fun ExchangeContext.decryptAndMatchEvents() =
+    createExchangeTask("decrypt-and-match-events")
 }
