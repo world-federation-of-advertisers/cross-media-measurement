@@ -228,8 +228,12 @@ class ResultsFulfiller(
   ): Boolean {
     val metadata = metadataByName[name]
     requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
+    require(metadata.cmmsRequisition.isNotBlank()) {
+      "cmmsRequisition field is empty in metadata for requisition: $name, metadata.name: ${metadata.name}"
+    }
+    logger.info("Checking requisition state for: ${metadata.cmmsRequisition}")
     val requisition =
-      requisitionsStub.getRequisition(getRequisitionRequest { metadata.cmmsRequisition })
+      requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
     return when (requisition.state) {
       Requisition.State.FULFILLED -> {
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
@@ -370,6 +374,12 @@ class ResultsFulfiller(
 
   // List requisitions metadata for the goup id being processed.
   private suspend fun listRequisitionMetadata(): List<RequisitionMetadata> {
+    require(dataProvider.isNotBlank()) {
+      "dataProvider resource name is empty or unspecified for group id: ${groupedRequisitions.groupId}"
+    }
+    logger.info(
+      "Listing requisition metadata for dataProvider: $dataProvider, groupId: ${groupedRequisitions.groupId}"
+    )
     val requisitionsMetadata: Flow<RequisitionMetadata> =
       requisitionMetadataStub
         .listResources { pageToken: String ->
@@ -387,7 +397,7 @@ class ResultsFulfiller(
               requisitionMetadataStub.listRequisitionMetadata(request)
             } catch (e: StatusException) {
               throw Exception(
-                "Error listing requisition metadata for group id: ${groupedRequisitions.groupId}",
+                "Error listing requisition metadata for group id: ${groupedRequisitions.groupId}, dataProvider: $dataProvider",
                 e,
               )
             }
@@ -400,6 +410,9 @@ class ResultsFulfiller(
   private suspend fun signalRequisitionStartProcessing(
     requisitionMetadata: RequisitionMetadata
   ): RequisitionMetadata {
+    require(requisitionMetadata.name.isNotBlank()) {
+      "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
+    }
     val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
@@ -412,6 +425,9 @@ class ResultsFulfiller(
   private suspend fun signalRequisitionFulfilled(
     requisitionMetadata: RequisitionMetadata
   ): RequisitionMetadata {
+    require(requisitionMetadata.name.isNotBlank()) {
+      "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
+    }
     val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
@@ -423,6 +439,9 @@ class ResultsFulfiller(
     requisitionMetadata: RequisitionMetadata,
     refusalMessage: String,
   ): RequisitionMetadata {
+    require(requisitionMetadata.name.isNotBlank()) {
+      "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
+    }
     val refuseRequisitionMetadataRequest = refuseRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
