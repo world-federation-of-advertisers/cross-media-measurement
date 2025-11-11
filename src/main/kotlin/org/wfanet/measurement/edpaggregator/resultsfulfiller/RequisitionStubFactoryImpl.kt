@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import io.grpc.ClientInterceptors
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.nio.file.Paths
 import java.time.Duration
@@ -35,6 +37,7 @@ class RequisitionStubFactoryImpl(
   private val duchies: Map<String, DuchyInfo>,
   private val channelShutdownTimeout: Duration = Duration.ofSeconds(3),
   private val trustedCertCollection: File,
+  private val grpcTelemetry: GrpcTelemetry,
 ) : RequisitionStubFactory {
 
   override fun buildRequisitionsStub(
@@ -57,8 +60,10 @@ class RequisitionStubFactoryImpl(
               .toFile(),
           trustedCertCollectionFile = trustedCertCollection,
         )
-      buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
-        .withShutdownTimeout(channelShutdownTimeout)
+      val channel =
+        buildMutualTlsChannel(cmmsTarget, signingCerts, cmmsCertHost)
+          .withShutdownTimeout(channelShutdownTimeout)
+      ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
     }
     return RequisitionsCoroutineStub(publicChannel)
   }
@@ -85,8 +90,10 @@ class RequisitionStubFactoryImpl(
                   .toFile(),
               trustedCertCollectionFile = trustedCertCollection,
             )
-          buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
-            .withShutdownTimeout(channelShutdownTimeout)
+          val channel =
+            buildMutualTlsChannel(duchyInfo.target, signingCerts, duchyInfo.certHost)
+              .withShutdownTimeout(channelShutdownTimeout)
+          ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
         }
         duchyResourceName to RequisitionFulfillmentCoroutineStub(publicChannel)
       }
