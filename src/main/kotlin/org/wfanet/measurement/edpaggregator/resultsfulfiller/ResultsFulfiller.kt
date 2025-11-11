@@ -144,6 +144,9 @@ class ResultsFulfiller(
 
     val filteredRequisitions =
       requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+    if (filteredRequisitions.isEmpty()) {
+      return
+    }
 
     val reportId: String =
       requireNotNull(requisitionsMetadata.first().report) {

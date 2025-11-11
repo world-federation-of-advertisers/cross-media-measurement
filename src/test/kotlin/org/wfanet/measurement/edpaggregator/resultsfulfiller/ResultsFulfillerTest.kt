@@ -57,7 +57,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -206,8 +205,6 @@ class ResultsFulfillerTest {
 
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
-    onBlocking { getRequisition(any()) }
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
@@ -615,7 +612,6 @@ class ResultsFulfillerTest {
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
   }
 
-  @Ignore
   @Test
   fun `fulfillRequisitions emits telemetry`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -712,7 +708,6 @@ class ResultsFulfillerTest {
     val metricsByName = collectMetrics().associateBy { it.name }
 
     val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
-    println(metricsByName)
     val processedMetrics =
       metricsByName.getValue("edpa.results_fulfiller.requisitions_processed").longSumData.points
     assertThat(processedMetrics).hasSize(1)
@@ -805,6 +800,8 @@ class ResultsFulfillerTest {
           }
         }
       )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
