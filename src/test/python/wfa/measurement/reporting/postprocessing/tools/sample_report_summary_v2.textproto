@@ -1,0 +1,1987 @@
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_id: "rs_1"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 9992500
+      standard_deviation: 10000.0
+      metric: "m_001"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 11998422
+      standard_deviation: 10000.0
+      metric: "m_002"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 10008130
+      standard_deviation: 10000.0
+      metric: "m_006"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 5165486
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 2582743
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1291372
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 645686
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 322843
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_007"
+    }
+    impression_count {
+      value: 18379493
+      standard_deviation: 10000.0
+      metric: "m_008"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 2452001
+      standard_deviation: 10000.0
+      metric: "m_009"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1265549
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 632775
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 316388
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 158194
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 79095
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_010"
+    }
+    impression_count {
+      value: 4471035
+      standard_deviation: 10000.0
+      metric: "m_011"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 11978894
+      standard_deviation: 10000.0
+      metric: "m_003"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 6182655
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 3091328
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1545664
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 772832
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 386415
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_004"
+    }
+    impression_count {
+      value: 22870892
+      standard_deviation: 10000.0
+      metric: "m_005"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_2"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 5000000
+      metric: "m_012"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 6000000
+      metric: "m_013"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 5000000
+      metric: "m_017"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 2580645
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1290323
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 645162
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 322581
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 161289
+        }
+      }
+      metric: "m_018"
+    }
+    impression_count {
+      value: 9193546
+      metric: "m_019"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 1100000
+      metric: "m_020"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 567742
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 283871
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 141936
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 70968
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 35483
+        }
+      }
+      metric: "m_021"
+    }
+    impression_count {
+      value: 2022579
+      metric: "m_022"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 6000000
+      metric: "m_014"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 3096774
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1548387
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 774194
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 387097
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 193548
+        }
+      }
+      metric: "m_015"
+    }
+    impression_count {
+      value: 11216125
+      metric: "m_016"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_id: "rs_3"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 800000
+      metric: "m_023"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 1000000
+      metric: "m_024"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 800000
+      metric: "m_028"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 412903
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 206452
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 103226
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 51613
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 25806
+        }
+      }
+      metric: "m_029"
+    }
+    impression_count {
+      value: 1470967
+      metric: "m_030"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 202952
+      metric: "m_031"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 104749
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 52375
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 26188
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 13094
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 6546
+        }
+      }
+      metric: "m_032"
+    }
+    impression_count {
+      value: 373169
+      metric: "m_033"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 1000000
+      metric: "m_025"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 516129
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 258065
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 129033
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 64517
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 32256
+        }
+      }
+      metric: "m_026"
+    }
+    impression_count {
+      value: 1844136
+      metric: "m_027"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_4"
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 16686873
+      standard_deviation: 10000.0
+      metric: "m_034"
+    }
+    impression_count {
+      value: 34113188
+      standard_deviation: 10000.0
+      metric: "m_035"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_THREE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_5"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 15830545
+      standard_deviation: 10000.0
+      metric: "m_036"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 19010669
+      standard_deviation: 10000.0
+      metric: "m_037"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 15829304
+      standard_deviation: 10000.0
+      metric: "m_041"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 8169963
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 4084982
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 2042491
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 1021246
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 510622
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_042"
+    }
+    impression_count {
+      value: 29046331
+      standard_deviation: 10000.0
+      metric: "m_043"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 3761510
+      standard_deviation: 10000.0
+      metric: "m_044"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1941425
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 970713
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 485357
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 242679
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 121336
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_045"
+    }
+    impression_count {
+      value: 6904573
+      standard_deviation: 10000.0
+      metric: "m_046"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 19021738
+      standard_deviation: 10000.0
+      metric: "m_038"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 9817671
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 4908836
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 2454418
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 1227209
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 613604
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_039"
+    }
+    impression_count {
+      value: 35926461
+      standard_deviation: 10000.0
+      metric: "m_040"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_id: "rs_6"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 9501618
+      standard_deviation: 10000.0
+      metric: "m_047"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 11389309
+      standard_deviation: 10000.0
+      metric: "m_048"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 9503446
+      standard_deviation: 10000.0
+      metric: "m_052"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 4905004
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 2452502
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1226251
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 613126
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 306563
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_053"
+    }
+    impression_count {
+      value: 17473517
+      standard_deviation: 10000.0
+      metric: "m_054"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 2289252
+      standard_deviation: 10000.0
+      metric: "m_055"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1181549
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 590775
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 295388
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 147694
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 73846
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_056"
+    }
+    impression_count {
+      value: 4236753
+      standard_deviation: 10000.0
+      metric: "m_057"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 11382243
+      standard_deviation: 10000.0
+      metric: "m_049"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 5874706
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 2937353
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1468677
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 734339
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 367168
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_050"
+    }
+    impression_count {
+      value: 21696322
+      standard_deviation: 10000.0
+      metric: "m_051"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_7"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 4750000
+      metric: "m_058"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 5700000
+      metric: "m_059"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 4750000
+      metric: "m_063"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 2451613
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1225807
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 612904
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 306452
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 153224
+        }
+      }
+      metric: "m_064"
+    }
+    impression_count {
+      value: 8733867
+      metric: "m_065"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 1039801
+      metric: "m_066"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 536671
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 268336
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 134168
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 67084
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 33542
+        }
+      }
+      metric: "m_067"
+    }
+    impression_count {
+      value: 1911893
+      metric: "m_068"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 5700000
+      metric: "m_060"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 2941935
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1470968
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 735484
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 367742
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 183871
+        }
+      }
+      metric: "m_061"
+    }
+    impression_count {
+      value: 10645760
+      metric: "m_062"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_id: "rs_8"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 760000
+      metric: "m_069"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 950000
+      metric: "m_070"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 760000
+      metric: "m_074"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 392258
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 196129
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 98065
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 49033
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 24515
+        }
+      }
+      metric: "m_075"
+    }
+    impression_count {
+      value: 1397418
+      metric: "m_076"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 192662
+      metric: "m_077"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 99438
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 49719
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 24860
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 12430
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 6215
+        }
+      }
+      metric: "m_078"
+    }
+    impression_count {
+      value: 354251
+      metric: "m_079"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 950000
+      metric: "m_071"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 490323
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 245162
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 122581
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 61291
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 30643
+        }
+      }
+      metric: "m_072"
+    }
+    impression_count {
+      value: 1751669
+      metric: "m_073"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_9"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 13427250
+      standard_deviation: 10000.0
+      metric: "m_080"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 15920317
+      standard_deviation: 10000.0
+      metric: "m_081"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 13426464
+      standard_deviation: 10000.0
+      metric: "m_085"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 6929788
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 3464894
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1732447
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 866224
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 433111
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_086"
+    }
+    impression_count {
+      value: 26215389
+      standard_deviation: 10000.0
+      metric: "m_087"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 3278136
+      standard_deviation: 10000.0
+      metric: "m_088"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1691941
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 845971
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 422986
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 211493
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 105745
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_089"
+    }
+    impression_count {
+      value: 6135862
+      standard_deviation: 10000.0
+      metric: "m_090"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 15908881
+      standard_deviation: 10000.0
+      metric: "m_082"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 8211035
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 4105518
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 2052759
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 1026380
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 513189
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_083"
+    }
+    impression_count {
+      value: 32337826
+      standard_deviation: 10000.0
+      metric: "m_084"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_id: "rs_10"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 9984642
+      standard_deviation: 10000.0
+      metric: "m_091"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 12020226
+      standard_deviation: 10000.0
+      metric: "m_092"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 10000981
+      standard_deviation: 10000.0
+      metric: "m_096"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 5161797
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 2580899
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1290450
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 645225
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 322610
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_097"
+    }
+    impression_count {
+      value: 18382797
+      standard_deviation: 10000.0
+      metric: "m_098"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 2441042
+      standard_deviation: 10000.0
+      metric: "m_099"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1259893
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 629947
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 314974
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 157487
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 78741
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_100"
+    }
+    impression_count {
+      value: 4488362
+      standard_deviation: 10000.0
+      metric: "m_101"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 12017026
+      standard_deviation: 10000.0
+      metric: "m_093"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 6202336
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 3101168
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 1550584
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 775292
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 387646
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_094"
+    }
+    impression_count {
+      value: 22871159
+      standard_deviation: 10000.0
+      metric: "m_095"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_11"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 5000000
+      metric: "m_102"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 6000000
+      metric: "m_103"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 5000000
+      metric: "m_107"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 2580645
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1290323
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 645162
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 322581
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 161289
+        }
+      }
+      metric: "m_108"
+    }
+    impression_count {
+      value: 9193546
+      metric: "m_109"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 1100000
+      metric: "m_110"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 567742
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 283871
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 141936
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 70968
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 35483
+        }
+      }
+      metric: "m_111"
+    }
+    impression_count {
+      value: 2022579
+      metric: "m_112"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 6000000
+      metric: "m_104"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 3096774
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 1548387
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 774194
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 387097
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 193548
+        }
+      }
+      metric: "m_105"
+    }
+    impression_count {
+      value: 11216125
+      metric: "m_106"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_id: "rs_12"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 800000
+      metric: "m_113"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 1000000
+      metric: "m_114"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 800000
+      metric: "m_118"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 412903
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 206452
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 103226
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 51613
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 25806
+        }
+      }
+      metric: "m_119"
+    }
+    impression_count {
+      value: 1470967
+      metric: "m_120"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 202952
+      metric: "m_121"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 104749
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 52375
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 26188
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 13094
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 6546
+        }
+      }
+      metric: "m_122"
+    }
+    impression_count {
+      value: 373169
+      metric: "m_123"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 1000000
+      metric: "m_115"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 516129
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 258065
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 129033
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 64517
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 32256
+        }
+      }
+      metric: "m_116"
+    }
+    impression_count {
+      value: 1844136
+      metric: "m_117"
+    }
+  }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_THREE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_id: "rs_13"
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 15799013
+      standard_deviation: 10000.0
+      metric: "m_124"
+    }
+  }
+  cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 19015392
+      standard_deviation: 10000.0
+      metric: "m_125"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 15819974
+      standard_deviation: 10000.0
+      metric: "m_129"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 8165148
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 4082574
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 2041287
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 1020644
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 510321
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_130"
+    }
+    impression_count {
+      value: 29052805
+      standard_deviation: 10000.0
+      metric: "m_131"
+    }
+  }
+  non_cumulative_results {
+    metric_frequency_type: WEEKLY
+    reach {
+      value: 3751542
+      standard_deviation: 10000.0
+      metric: "m_132"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 1936280
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 968140
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 484070
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 242035
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 121017
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_133"
+    }
+    impression_count {
+      value: 6884110
+      standard_deviation: 10000.0
+      metric: "m_134"
+    }
+  }
+  whole_campaign_result {
+    metric_frequency_type: TOTAL
+    reach {
+      value: 19030737
+      standard_deviation: 10000.0
+      metric: "m_126"
+    }
+    frequency {
+      bins {
+        key: 1
+        value {
+          value: 9822316
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 2
+        value {
+          value: 4911158
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 3
+        value {
+          value: 2455579
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 4
+        value {
+          value: 1227790
+          standard_deviation: 10000.0
+        }
+      }
+      bins {
+        key: 5
+        value {
+          value: 613894
+          standard_deviation: 10000.0
+        }
+      }
+      metric: "m_127"
+    }
+    impression_count {
+      value: 35936915
+      standard_deviation: 10000.0
+      metric: "m_128"
+    }
+  }
+}
