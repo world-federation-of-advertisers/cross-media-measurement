@@ -32,6 +32,7 @@ variable "requisition_fulfiller_config" {
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
       app_flags                     = list(string)
+      java_tool_options             = string
     })
   })
 }

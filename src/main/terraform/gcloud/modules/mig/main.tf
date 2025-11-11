@@ -17,17 +17,25 @@ data "google_project" "project" {}
 locals {
 
   metadata_map = merge(
-      {
-        "tee-container-log-redirect" = "true"
-        "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
-        "tee-image-reference"        = var.docker_image
-        "tee-cmd"                    = jsonencode(var.tee_cmd)
-        "tee-env-JAVA_TOOL_OPTIONS"  = "-Xmx400G"
-      },
-      var.config_storage_bucket == null ? {} : {
-        "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
-      }
-    )
+    {
+      "tee-signed-image-repos"        = var.edpa_tee_signed_image_repo
+      "tee-image-reference"           = var.docker_image
+      "tee-cmd"                       = jsonencode(var.tee_cmd),
+      "tee-env-JAVA_TOOL_OPTIONS"     = "-Xmx400G"
+      "tee-env-OTEL_SERVICE_NAME"     = "edpa.results_fulfiller",
+      "tee-env-OTEL_METRICS_EXPORTER" = "google_cloud",
+      "tee-env-OTEL_TRACES_EXPORTER"  = "google_cloud",
+      "tee-env-OTEL_SERVICE_NAME"     = "edpa.results_fulfiller",
+      "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+    },
+    var.config_storage_bucket == null ? {} : {
+      "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
+    },
+    var.java_tool_options == "" ? {} : {
+      "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
+    }
+  )
+>>>>>>> georgi/resultsfulfiller-telemetry-terraform
 }
 
 resource "google_service_account" "mig_service_account" {

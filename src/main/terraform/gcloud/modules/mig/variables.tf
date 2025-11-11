@@ -97,6 +97,12 @@ variable "tee_cmd" {
   type        = list(string)
 }
 
+variable "java_tool_options" {
+  description = "JAVA_TOOL_OPTIONS override for the workload TEE environment."
+  type        = string
+  default     = ""
+}
+
 variable "disk_image_family" {
   description = "The boot disk image family."
   type        = string
