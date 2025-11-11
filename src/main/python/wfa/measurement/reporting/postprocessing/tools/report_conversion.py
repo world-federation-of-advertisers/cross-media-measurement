@@ -293,16 +293,12 @@ def _add_report_summary_set_result_metadata(
     key = reporting_set_result_entry.key
     report_summary_set_result = report_summary.report_summary_set_results.add()
 
-    # Get impression filter
-    impression_filter_oneof = key.WhichOneof("impression_qualification_filter")
-    if impression_filter_oneof == "external_impression_qualification_filter_id":
-        report_summary_set_result.impression_filter = (
-            key.external_impression_qualification_filter_id)
-    elif impression_filter_oneof == "custom":
+    # Get impression filter.
+    if key.custom:
         report_summary_set_result.impression_filter = "custom"
     else:
-        raise ValueError(
-            f"Unsupported impression filter type: {impression_filter_oneof}.")
+        report_summary_set_result.impression_filter = (
+            key.external_impression_qualification_filter_id)
 
     # Get set operation
     if key.venn_diagram_region_type == ReportResult.VennDiagramRegionType.UNION:
