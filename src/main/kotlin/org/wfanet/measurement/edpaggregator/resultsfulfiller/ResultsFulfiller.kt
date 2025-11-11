@@ -229,7 +229,7 @@ class ResultsFulfiller(
     val metadata = metadataByName[name]
     requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
     val requisition =
-      requisitionsStub.getRequisition(getRequisitionRequest { metadata.cmmsRequisition })
+      requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
     return when (requisition.state) {
       Requisition.State.FULFILLED -> {
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
