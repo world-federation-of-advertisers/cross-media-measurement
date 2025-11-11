@@ -14,15 +14,27 @@
 
 package org.wfanet.panelmatch.client.storage.gcloud
 
-import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import org.junit.After
+import org.junit.ClassRule
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageClientTest
 
-private const val BUCKET = "some-test-bucket"
-
 class GcsVerifiedStorageClientTest : VerifiedStorageClientTest() {
   override val underlyingClient: StorageClient by lazy {
-    GcsStorageClient(LocalStorageHelper.getOptions().service, BUCKET)
+    storageEmulator.createBucket(BUCKET)
+    GcsStorageClient(storageEmulator.storage, BUCKET)
+  }
+
+  @After
+  fun deleteBucket() {
+    storageEmulator.deleteBucketRecursive(BUCKET)
+  }
+
+  companion object {
+    private const val BUCKET = "some-test-bucket"
+
+    @get:JvmStatic @get:ClassRule val storageEmulator = StorageEmulatorRule()
   }
 }

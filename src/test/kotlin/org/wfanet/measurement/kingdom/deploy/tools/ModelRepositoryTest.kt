@@ -548,8 +548,8 @@ class ModelRepositoryTest {
           pageToken = LIST_MODEL_LINES_PAGE_TOKEN.toByteArray().base64UrlEncode()
           filter =
             ListModelLinesRequestKt.filter {
-              types += ModelLine.Type.DEV
-              types += ModelLine.Type.PROD
+              typeIn += ModelLine.Type.DEV
+              typeIn += ModelLine.Type.PROD
             }
         }
       )

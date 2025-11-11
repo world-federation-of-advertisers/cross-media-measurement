@@ -27,6 +27,19 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.data.MetricData
+import io.opentelemetry.sdk.metrics.export.MetricReader
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.data.SpanData
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -42,6 +55,8 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -97,6 +112,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -126,12 +142,16 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -142,13 +162,55 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 
 @RunWith(JUnit4::class)
 class ResultsFulfillerTest {
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var metricExporter: InMemoryMetricExporter
+  private lateinit var metricReader: MetricReader
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    metricExporter = InMemoryMetricExporter.create()
+    metricReader = PeriodicMetricReader.create(metricExporter)
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    if (this::openTelemetry.isInitialized) {
+      openTelemetry.close()
+    }
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
+
+  private fun collectMetrics(): List<MetricData> {
+    metricReader.forceFlush()
+    return metricExporter.finishedMetricItems
+  }
+
+  private fun collectSpans(): List<SpanData> {
+    return spanExporter.finishedSpanItems
+  }
+
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { startProcessingRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { startProcessingRequisitionMetadata(any()) }
+        .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
       onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }
 
@@ -183,12 +245,16 @@ class ResultsFulfillerTest {
     }
   }
 
+  private val impressionMetadataServiceMock =
+    mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionFulfillmentMock)
     addService(requisitionMetadataServiceMock)
+    addService(impressionMetadataServiceMock)
   }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
@@ -205,7 +271,27 @@ class ResultsFulfillerTest {
     RequisitionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val impressionMetadataStub:
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub by lazy {
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1L))
+
+  private fun createImpressionMetadataList(
+    dates: List<LocalDate>,
+    eventGroupRef: String,
+  ): List<ImpressionMetadata> {
+    return dates.map { date ->
+      impressionMetadata {
+        state = ImpressionMetadata.State.ACTIVE
+        blobUri =
+          "file:///$IMPRESSIONS_METADATA_BUCKET/ds/$date/model-line/some-model-line/event-group-reference-id/$eventGroupRef/metadata"
+      }
+    }
+  }
 
   @Test
   fun `runWork processes direct requisition successfully`() = runBlocking {
@@ -219,6 +305,13 @@ class ResultsFulfillerTest {
           eventTime = TIME_RANGE.start.toProtoTime()
         }
       }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
 
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
       .thenReturn(
@@ -234,6 +327,7 @@ class ResultsFulfillerTest {
           }
         }
       )
+
     // Set up KMS
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -249,10 +343,10 @@ class ResultsFulfillerTest {
       listOf(DIRECT_REQUISITION),
     )
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        zoneIdForDates = ZoneOffset.UTC,
       )
 
     val fulfillerSelector =
@@ -276,7 +370,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
@@ -324,6 +418,157 @@ class ResultsFulfillerTest {
   }
 
   @Test
+  fun `fulfillRequisitions emits telemetry`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      listOf(
+        LABELED_IMPRESSION.copy {
+          vid = 42
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      )
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "telemetry-prefix"
+            blobTypeUrl = "telemetry-blob-type-url"
+            groupId = "telemetry-group-id"
+            report = "reports/telemetry-report"
+          }
+        }
+      )
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "telemetry"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_REQUISITION),
+    )
+
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = EDP_NAME,
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val metricsByName = collectMetrics().associateBy { it.name }
+
+    val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
+    val processedMetrics =
+      metricsByName.getValue("edpa.results_fulfiller.requisitions_processed").longSumData.points
+    assertThat(processedMetrics).hasSize(1)
+    val processedPoint = processedMetrics.single()
+    assertThat(processedPoint.value).isEqualTo(1)
+    assertThat(processedPoint.attributes.get(statusKey)).isEqualTo("success")
+
+    val requisitionLatency =
+      metricsByName
+        .getValue("edpa.results_fulfiller.requisition_fulfillment_latency")
+        .histogramData
+        .points
+    assertThat(requisitionLatency).isNotEmpty()
+    assertThat(requisitionLatency.single().count).isAtLeast(1)
+
+    val reportLatency =
+      metricsByName
+        .getValue("edpa.results_fulfiller.report_fulfillment_latency")
+        .histogramData
+        .points
+    assertThat(reportLatency).isNotEmpty()
+    assertThat(reportLatency.single().count).isAtLeast(1)
+
+    val frequencyVector =
+      metricsByName
+        .getValue("edpa.results_fulfiller.frequency_vector_duration")
+        .histogramData
+        .points
+    assertThat(frequencyVector).isNotEmpty()
+    assertThat(frequencyVector.single().sum).isGreaterThan(0.0)
+
+    val sendDuration =
+      metricsByName.getValue("edpa.results_fulfiller.send_duration").histogramData.points
+    assertThat(sendDuration).isNotEmpty()
+    assertThat(sendDuration.single().sum).isGreaterThan(0.0)
+
+    val networkDurations =
+      metricsByName.getValue("edpa.results_fulfiller.network_tasks_duration").histogramData.points
+    assertThat(networkDurations).isNotEmpty()
+    assertThat(networkDurations.sumOf { it.count }).isAtLeast(2)
+
+    val spans = collectSpans()
+    val reportSpan = spans.first { it.name == "report_fulfillment" }
+    val reportFinishedEvent = reportSpan.events.first { it.name == "report_processing_finished" }
+    val reportIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.report_id")
+    val groupIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
+    val statusAttr = AttributeKey.stringKey("edpa.results_fulfiller.status")
+    assertThat(reportFinishedEvent.attributes.get(reportIdAttr))
+      .isEqualTo("reports/telemetry-report")
+    val expectedGroupId = groupedRequisitions.groupId
+    assertThat(reportFinishedEvent.attributes.get(groupIdAttr)).isEqualTo(expectedGroupId)
+    assertThat(reportFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
+    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.OK)
+
+    val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+    val requisitionFinishedEvent =
+      requisitionSpan.events.first { it.name == "requisition_processing_finished" }
+    val requisitionAttr = AttributeKey.stringKey("edpa.results_fulfiller.cmms_requisition")
+    assertThat(requisitionFinishedEvent.attributes.get(requisitionAttr)).isEqualTo(REQUISITION_NAME)
+    assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr))
+      .isEqualTo("reports/telemetry-report")
+    assertThat(requisitionFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
+    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.OK)
+  }
+
+  @Test
   fun `runWork processes HM Shuffle requisitions successfully`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -367,10 +612,10 @@ class ResultsFulfillerTest {
     )
 
     val impressionsMetadataService =
-      StorageImpressionMetadataService(
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        impressionsBlobDetailsUriPrefix = IMPRESSIONS_METADATA_FILE_URI_PREFIX,
-        zoneIdForDates = ZoneOffset.UTC,
       )
 
     val fulfillerSelector =
@@ -397,7 +642,7 @@ class ResultsFulfillerTest {
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-        impressionMetadataService = impressionsMetadataService,
+        impressionDataSourceProvider = impressionsMetadataService,
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,

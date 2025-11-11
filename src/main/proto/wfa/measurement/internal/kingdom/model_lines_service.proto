@@ -62,6 +62,8 @@ message StreamModelLinesRequest {
     fixed64 external_model_provider_id = 1;
     fixed64 external_model_suite_id = 2;
     repeated ModelLine.Type type = 3;
+    google.type.Interval active_interval_contains = 5;
+
     AfterFilter after = 4;
   }
   Filter filter = 1;

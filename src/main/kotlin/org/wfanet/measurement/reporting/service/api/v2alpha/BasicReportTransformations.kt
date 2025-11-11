@@ -43,7 +43,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 /** [MetricCalculationSpec] fields for equality check */
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
-  val groupings: List<MetricCalculationSpec.Grouping>,
+  val groupings: Set<MetricCalculationSpec.Grouping>,
   val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec?,
   val trailingWindow: MetricCalculationSpec.TrailingWindow?,
 )
@@ -53,7 +53,6 @@ private data class MetricCalculationSpecInfo(
   var includeFrequency: Boolean = false,
   var includeReach: Boolean = false,
   var includeImpressionCount: Boolean = false,
-  var includePopulation: Boolean = false,
 )
 
 /**
@@ -228,9 +227,7 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
       metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
     }
 
-    if (source.value.includePopulation) {
-      metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-    }
+    metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
   }
 }
 
@@ -339,7 +336,6 @@ private fun MutableMap<
       primitiveReportingSets.first(),
       primitiveReportingSetNames,
       campaignGroupName,
-      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 
@@ -353,7 +349,6 @@ private fun MutableMap<
       primitiveReportingSets,
       primitiveReportingSetNames,
       campaignGroupName,
-      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 }
@@ -371,7 +366,6 @@ private fun MutableMap<
  * @param firstComponentReportingSet Primitive [ReportingSet] for first component in [ReportingUnit]
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
  * @param campaignGroupName resource name of CampaignGroup [ReportingSet]
- * @param includePopulation whether to include the population
  */
 private fun MutableMap<
   ReportingSet,
@@ -386,7 +380,6 @@ private fun MutableMap<
   firstComponentReportingSet: ReportingSet,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
-  includePopulation: Boolean,
 ) {
   val metricCalculationSpecInfoMap = computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
@@ -397,7 +390,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative, includePopulation)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative)
     }
   }
 
@@ -408,7 +401,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative, includePopulation)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative)
     }
   }
 
@@ -467,7 +460,6 @@ private fun MutableMap<
  *   components
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
  * @param campaignGroupName resource name of CampaignGroup [ReportingSet]
- * @param includePopulation whether to include the population
  */
 private fun MutableMap<
   ReportingSet,
@@ -482,7 +474,6 @@ private fun MutableMap<
   primitiveReportingSets: List<ReportingSet>,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
-  includePopulation: Boolean,
 ) {
   for (primitiveReportingSet in primitiveReportingSets) {
     val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
@@ -494,7 +485,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative, includePopulation)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative)
       }
     }
 
@@ -505,7 +496,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative, includePopulation)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative)
       }
     }
   }
@@ -616,11 +607,9 @@ private fun MutableMap<
  * Set which [MetricSpec]s will be needed
  *
  * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec]
- * @param includePopulation whether to include the population
  */
 private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
-  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
-  includePopulation: Boolean,
+  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
 ) {
   if (basicMetricSetSpec.reach) {
     this.includeReach = true
@@ -628,7 +617,6 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
 
   if (basicMetricSetSpec.percentReach) {
     this.includeReach = true
-    this.includePopulation = true
   }
 
   if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
@@ -639,15 +627,10 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
   if (basicMetricSetSpec.percentKPlusReach || basicMetricSetSpec.grps) {
     this.includeFrequency = true
     this.includeReach = true
-    this.includePopulation = true
   }
 
   if (basicMetricSetSpec.impressions) {
     this.includeImpressionCount = true
-  }
-
-  if (includePopulation) {
-    this.includePopulation = true
   }
 }
 
@@ -702,7 +685,7 @@ private fun createMetricCalculationSpecInfoKey(
 
   return MetricCalculationSpecInfoKey(
     filter = metricCalculationSpecFilter,
-    groupings = groupings,
+    groupings = groupings.toSet(),
     metricFrequencySpec = metricFrequencySpec,
     trailingWindow = trailingWindow,
   )

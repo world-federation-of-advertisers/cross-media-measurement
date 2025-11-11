@@ -41,19 +41,20 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
-import org.wfanet.measurement.internal.reporting.v2.ReportResult.MetricFrequencyType
 import org.wfanet.measurement.internal.reporting.v2.ReportResult.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportResult.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.addNoisyResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
@@ -64,6 +65,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.createImpressionQual
 import org.wfanet.measurement.reporting.service.api.v2alpha.createMetricCalculationSpecFilters
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.toImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -163,8 +165,8 @@ class BasicReportsReportsJob(
                     eventTemplateFieldsByPath,
                     eventTemplateFieldByPredicate,
                   )
-                reportResultsStub.addNoisyResultValues(
-                  addNoisyResultValuesRequest { this.reportResult = reportResult }
+                reportResultsStub.createReportResult(
+                  createReportResultRequest { this.reportResult = reportResult }
                 )
               }
               Report.State.FAILED -> {
@@ -226,11 +228,10 @@ class BasicReportsReportsJob(
       for (reportingSetResultInfoEntry:
         Map.Entry<ReportingSetResultInfoKey, ReportingSetResultInfo> in
         reportingSetResultInfoByReportingSetResultInfoKey.entries) {
-        reportingSetResults +=
-          ReportResultKt.reportingSetResult {
+        val key =
+          ReportResultKt.reportingSetResultKey {
             externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId
             vennDiagramRegionType = reportingSetResultInfoEntry.value.vennDiagramRegionType
-
             val filterInfo = filterInfoByFilter.getValue(reportingSetResultInfoEntry.key.filter)
             if (filterInfo.externalImpressionQualificationFilterId != null) {
               externalImpressionQualificationFilterId =
@@ -238,82 +239,95 @@ class BasicReportsReportsJob(
             } else {
               custom = true
             }
-
-            metricFrequencyType = reportingSetResultInfoEntry.value.metricFrequencyType
-
+            metricFrequencySpec = reportingSetResultInfoEntry.value.metricFrequencySpec
             groupings +=
-              reportingSetResultInfoEntry.key.groupingPredicates.map {
-                eventTemplateFieldByPredicate.getValue(it)
-              }
-
-            eventFilters += filterInfo.dimensionSpecFilters
-
-            populationSize = reportingSetResultInfoEntry.value.populationSize
-            for (reportingWindowResultInfoEntry:
-              MutableMap.MutableEntry<Date, ReportingWindowResultInfo> in
-              reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                  if (reportingWindowResultInfoEntry.value.startDate != null) {
-                    windowStartDate = reportingWindowResultInfoEntry.value.startDate!!
-                  }
-                  windowEndDate = reportingWindowResultInfoEntry.key
-                  noisyReportResultValues =
-                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                      .noisyReportResultValues {
-                        val cumulativeResults: MetricResults? =
-                          reportingWindowResultInfoEntry.value.cumulativeResults
-                        if (cumulativeResults != null) {
-                          this.cumulativeResults =
-                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                              .NoisyReportResultValuesKt
-                              .noisyMetricSet {
-                                val reach: MetricResult.ReachResult? = cumulativeResults.reach
-                                if (reach != null) {
-                                  this.reach = reach.toNoisyMetricSetReachResult()
-                                }
-                                val frequencyHistogram: MetricResult.HistogramResult? =
-                                  cumulativeResults.frequencyHistogram
-                                if (frequencyHistogram != null) {
-                                  this.frequencyHistogram =
-                                    frequencyHistogram.toNoisyMetricSetHistogramResult()
-                                }
-                                val impressionCount: MetricResult.ImpressionCountResult? =
-                                  cumulativeResults.impressionCount
-                                if (impressionCount != null) {
-                                  this.impressionCount =
-                                    impressionCount.toNoisyMetricSetImpressionCountResult()
-                                }
-                              }
-                        }
-                        val nonCumulativeResults: MetricResults? =
-                          reportingWindowResultInfoEntry.value.nonCumulativeResults
-                        if (nonCumulativeResults != null) {
-                          this.nonCumulativeResults =
-                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                              .NoisyReportResultValuesKt
-                              .noisyMetricSet {
-                                val reach: MetricResult.ReachResult? = nonCumulativeResults.reach
-                                if (reach != null) {
-                                  this.reach = reach.toNoisyMetricSetReachResult()
-                                }
-                                val frequencyHistogram: MetricResult.HistogramResult? =
-                                  nonCumulativeResults.frequencyHistogram
-                                if (frequencyHistogram != null) {
-                                  this.frequencyHistogram =
-                                    frequencyHistogram.toNoisyMetricSetHistogramResult()
-                                }
-                                val impressionCount: MetricResult.ImpressionCountResult? =
-                                  nonCumulativeResults.impressionCount
-                                if (impressionCount != null) {
-                                  this.impressionCount =
-                                    impressionCount.toNoisyMetricSetImpressionCountResult()
-                                }
-                              }
-                        }
-                      }
+              Normalization.sortGroupings(
+                reportingSetResultInfoEntry.key.groupingPredicates.map {
+                  eventTemplateFieldByPredicate.getValue(it)
                 }
-            }
+              )
+            eventFilters += Normalization.normalizeEventFilters(filterInfo.dimensionSpecFilters)
+          }
+        reportingSetResults +=
+          ReportResultKt.reportingSetResultEntry {
+            this.key = key
+            value =
+              ReportResultKt.reportingSetResult {
+                populationSize = reportingSetResultInfoEntry.value.populationSize
+                for (reportingWindowResultInfoEntry: Map.Entry<Date, ReportingWindowResultInfo> in
+                  reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
+                  val window =
+                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                      if (reportingWindowResultInfoEntry.value.startDate != null) {
+                        nonCumulativeStart = reportingWindowResultInfoEntry.value.startDate!!
+                      }
+                      end = reportingWindowResultInfoEntry.key
+                    }
+                  reportingWindowResults +=
+                    ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                      this.key = window
+                      value =
+                        ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                          noisyReportResultValues =
+                            ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                              .noisyReportResultValues {
+                                val cumulativeResults: MetricResults? =
+                                  reportingWindowResultInfoEntry.value.cumulativeResults
+                                if (cumulativeResults != null) {
+                                  this.cumulativeResults =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .noisyMetricSet {
+                                        val reach: MetricResult.ReachResult? =
+                                          cumulativeResults.reach
+                                        if (reach != null) {
+                                          this.reach = reach.toNoisyMetricSetReachResult()
+                                        }
+                                        val frequencyHistogram: MetricResult.HistogramResult? =
+                                          cumulativeResults.frequencyHistogram
+                                        if (frequencyHistogram != null) {
+                                          this.frequencyHistogram =
+                                            frequencyHistogram.toNoisyMetricSetHistogramResult()
+                                        }
+                                        val impressionCount: MetricResult.ImpressionCountResult? =
+                                          cumulativeResults.impressionCount
+                                        if (impressionCount != null) {
+                                          this.impressionCount =
+                                            impressionCount.toNoisyMetricSetImpressionCountResult()
+                                        }
+                                      }
+                                }
+                                val nonCumulativeResults: MetricResults? =
+                                  reportingWindowResultInfoEntry.value.nonCumulativeResults
+                                if (nonCumulativeResults != null) {
+                                  this.nonCumulativeResults =
+                                    ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .noisyMetricSet {
+                                        val reach: MetricResult.ReachResult? =
+                                          nonCumulativeResults.reach
+                                        if (reach != null) {
+                                          this.reach = reach.toNoisyMetricSetReachResult()
+                                        }
+                                        val frequencyHistogram: MetricResult.HistogramResult? =
+                                          nonCumulativeResults.frequencyHistogram
+                                        if (frequencyHistogram != null) {
+                                          this.frequencyHistogram =
+                                            frequencyHistogram.toNoisyMetricSetHistogramResult()
+                                        }
+                                        val impressionCount: MetricResult.ImpressionCountResult? =
+                                          nonCumulativeResults.impressionCount
+                                        if (impressionCount != null) {
+                                          this.impressionCount =
+                                            impressionCount.toNoisyMetricSetImpressionCountResult()
+                                        }
+                                      }
+                                }
+                              }
+                        }
+                    }
+                }
+              }
           }
       }
     }
@@ -354,8 +368,6 @@ class BasicReportsReportsJob(
         val metricCalculationSpecInfo: MetricCalculationSpecInfo =
           metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
 
-        val metricFrequencyType: MetricFrequencyType =
-          metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencyType()
         val vennDiagramRegionType: VennDiagramRegionType =
           vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
 
@@ -365,12 +377,13 @@ class BasicReportsReportsJob(
               ReportingSetResultInfoKey(
                 externalReportingSetId = externalReportingSetId,
                 filter = resultAttribute.filter,
-                groupingPredicates = resultAttribute.groupingPredicatesList,
+                groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
               )
             ) {
               ReportingSetResultInfo(
                 vennDiagramRegionType = vennDiagramRegionType,
-                metricFrequencyType = metricFrequencyType,
+                metricFrequencySpec =
+                  metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
                 populationSize = 0,
                 reportingWindowResultInfoByEndDate = mutableMapOf(),
               )
@@ -485,17 +498,20 @@ class BasicReportsReportsJob(
       }
   }
 
-  /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencyType] */
-  private fun MetricCalculationSpec.MetricFrequencySpec.toMetricFrequencyType():
-    MetricFrequencyType {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case enums cannot be null.
-    return when (this.frequencyCase) {
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY -> MetricFrequencyType.WEEKLY
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET ->
-        MetricFrequencyType.TOTAL
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY,
-      MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY ->
-        MetricFrequencyType.METRIC_FREQUENCY_TYPE_UNSPECIFIED
+  /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencySpec] */
+  private fun MetricCalculationSpec.MetricFrequencySpec.toMetricFrequencySpec():
+    MetricFrequencySpec {
+    val source = this
+
+    return metricFrequencySpec {
+      when (source.frequencyCase) {
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.WEEKLY ->
+          weekly = source.weekly.dayOfWeek
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.FREQUENCY_NOT_SET -> total = true
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.DAILY,
+        MetricCalculationSpec.MetricFrequencySpec.FrequencyCase.MONTHLY ->
+          error("Unsupported frequency type ${source.frequencyCase}")
+      }
     }
   }
 
@@ -649,19 +665,19 @@ class BasicReportsReportsJob(
     return ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
       .NoisyMetricSetKt
       .histogramResult {
-        bins +=
-          source.binsList.map {
+        for (bin: MetricResult.HistogramResult.Bin in source.binsList) {
+          binResults[bin.label.toInt()] =
             ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
               .NoisyMetricSetKt
               .HistogramResultKt
               .binResult {
-                value = it.binResult.value
-                if (it.hasResultUnivariateStatistics()) {
+                value = bin.binResult.value
+                if (bin.hasResultUnivariateStatistics()) {
                   univariateStatistics =
-                    it.resultUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
+                    bin.resultUnivariateStatistics.toNoisyMetricSetUnivariateStatistics()
                 }
               }
-          }
+        }
       }
   }
 
@@ -686,12 +702,12 @@ class BasicReportsReportsJob(
   private data class ReportingSetResultInfoKey(
     val externalReportingSetId: String,
     val filter: String,
-    val groupingPredicates: List<String>,
+    val groupingPredicates: Set<String>,
   )
 
   private data class ReportingSetResultInfo(
     val vennDiagramRegionType: VennDiagramRegionType,
-    val metricFrequencyType: MetricFrequencyType,
+    val metricFrequencySpec: MetricFrequencySpec,
     var populationSize: Int,
     val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>,
   )

@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.123.0",
+    version = "0.126.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -47,7 +47,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.83.0",
+    version = "0.86.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -238,10 +238,28 @@ maven.install(
     artifacts = [
         "com.google.crypto.tink:tink-awskms:1.11.0",
         "com.google.crypto.tink:tink-gcpkms:1.9.0",
-        "com.squareup.okhttp3:okhttp:4.12.0",
+        "com.squareup.okhttp3:okhttp",
+        "com.squareup.okhttp3:okhttp-tls",
         "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
-        "io.opentelemetry.semconv:opentelemetry-semconv:1.22.0-alpha",
-        "com.google.privacy.differentialprivacy:differentialprivacy:4.0.0",
+
+        # OpenTelemetry SDK metrics (sdk is available from common-jvm, but sdk-metrics is not exposed)
+        "io.opentelemetry:opentelemetry-sdk-metrics",
+        "io.opentelemetry:opentelemetry-sdk-logs",
+        "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure",
+
+        # OpenTelemetry instrumentation (only alpha versions available)
+        "io.opentelemetry.instrumentation:opentelemetry-grpc-1.6:2.0.0-alpha",
+        "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry-java8:2.0.0-alpha",
+        "io.opentelemetry.instrumentation:opentelemetry-java-http-client:2.0.0-alpha",
+        "io.opentelemetry.semconv:opentelemetry-semconv:1.28.0-alpha",
+
+        # Google Cloud OpenTelemetry exporters
+        "com.google.cloud.opentelemetry:exporter-metrics:0.33.0",
+        "com.google.cloud.opentelemetry:exporter-trace:0.33.0",
+
+        # OpenTelemetry logging exporter (console/stdout - Google Cloud will collect from stdout)
+        "io.opentelemetry:opentelemetry-exporter-logging",
+        "io.opentelemetry:opentelemetry-extension-kotlin",
         "io.kubernetes:client-java:" + K8S_CLIENT_VERSION,
         "io.kubernetes:client-java-extended:" + K8S_CLIENT_VERSION,
         "joda-time:joda-time:2.10.10",
@@ -278,6 +296,7 @@ maven.install(
         "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
+        "com.squareup.okhttp3:okhttp-bom:4.12.0",
         "org.apache.beam:beam-sdks-java-bom:" + APACHE_BEAM_VERSION,
         "org.projectnessie.cel:cel-bom:0.5.0",
     ],
@@ -374,6 +393,13 @@ oci.pull(
     image = "gcr.io/distroless/base",
     platforms = ["linux/amd64"],
 )
+oci.pull(
+    name = "py_image_base",
+    # Digest of `nonroot` tag.
+    digest = "sha256:1a7c3d2445f783c51be174c8913624dc5bea2cd7ff1f94b9a229a16f0e40fa34",
+    image = "gcr.io/distroless/python3-debian12",
+    platforms = ["linux/amd64"],
+)
 
 # TODO(world-federation-of-advertisers/cross-media-measurement#2729): Remove root Java image when Confidential Spaces properly supports nonroot images.
 oci.pull(
@@ -387,8 +413,11 @@ use_repo(
     oci,
     "go_image_base",
     "go_image_base_linux_amd64",
+    "java_image_base_root",
+    "java_image_base_root_linux_amd64",
+    "py_image_base",
+    "py_image_base_linux_amd64",
 )
-use_repo(oci, "java_image_base_root", "java_image_base_root_linux_amd64")
 
 # TODO(bazel-contrib/rules_oci#235): Replace this custom extension once rules_oci adds blzmod support for cosign.
 cosign = use_extension("//build/cosign:extensions.bzl", "cosign")

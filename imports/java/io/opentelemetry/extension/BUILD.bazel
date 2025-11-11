@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "kotlin",
+    actual = "@maven//:io_opentelemetry_opentelemetry_extension_kotlin",
+)
