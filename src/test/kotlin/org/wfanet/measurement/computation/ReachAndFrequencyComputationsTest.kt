@@ -127,8 +127,7 @@ class ReachAndFrequencyComputationsTest {
         kAnonymityParams =
           KAnonymityParams(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
       )
-    assertThat(reach).isAtMost(min(200, 170 + tolerance))
-    assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
+    assertThat(reach).isEqualTo(170)
   }
 
   @Test
@@ -257,10 +256,7 @@ class ReachAndFrequencyComputationsTest {
         vidSamplingIntervalWidth = 1.0f,
       )
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
-    assertThat(distribution.keys).isEqualTo(expected.keys)
-    for ((k, v) in distribution) {
-      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
-    }
+    assertThat(distribution).isEqualTo(expected)
   }
 
   companion object {
