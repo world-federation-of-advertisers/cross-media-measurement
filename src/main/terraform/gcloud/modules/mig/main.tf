@@ -19,15 +19,17 @@ locals {
   metadata_map = merge(
     {
       "tee-container-log-redirect"    = "true",
-      "tee-signed-image-repos"        = var.edpa_tee_signed_image_repo
-      "tee-image-reference"           = var.docker_image
-      "tee-cmd"                       = jsonencode(var.tee_cmd),
-      "tee-env-JAVA_TOOL_OPTIONS"     = "-Xmx400G"
-      "tee-env-OTEL_SERVICE_NAME"     = "edpa.results_fulfiller",
-      "tee-env-OTEL_METRICS_EXPORTER" = "google_cloud_monitoring",
-      "tee-env-OTEL_TRACES_EXPORTER"  = "google_cloud_trace",
-      "tee-env-OTEL_LOGS_EXPORTER"    = "logging",
+       "tee-env-JAVA_TOOL_OPTIONS"     = "-Xmx400G",
+      "tee-signed-image-repos"                        = var.edpa_tee_signed_image_repo
+      "tee-image-reference"                           = var.docker_image
+      "tee-cmd"                                       = jsonencode(var.tee_cmd),
+      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
+      "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
+      "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
+      "tee-env-OTEL_LOGS_EXPORTER"                    = "logging",
+      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
       "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+      "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
