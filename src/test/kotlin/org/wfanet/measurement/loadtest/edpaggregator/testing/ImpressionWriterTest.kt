@@ -125,14 +125,14 @@ class ImpressionWriterTest {
           BlobDetails.parseFrom(
             storageClient
               .getBlob(
-                "some-metadata-bucket/edp/edp-test/$date/some-event-group-path/metadata.binpb"
+                "some-metadata-bucket/edp/edp-test/ds/$date/some-event-group-path/metadata.binpb"
               )!!
               .read()
               .flatten()
           )
         assertThat(blobDetails.blobUri)
           .isEqualTo(
-            "file:///some-impression-bucket/edp/edp-test/$date/some-event-group-path/impressions"
+            "file:///some-impression-bucket/edp/edp-test/ds/$date/some-event-group-path/impressions"
           )
         val encryptedDek = blobDetails.encryptedDek
         assertThat(encryptedDek.kekUri).isEqualTo(kekUri)
@@ -143,7 +143,7 @@ class ImpressionWriterTest {
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
         val impressions =
           MesosRecordIoStorageClient(decryptionClient)
-            .getBlob("edp/edp-test/$date/some-event-group-path/impressions")!!
+            .getBlob("edp/edp-test/ds/$date/some-event-group-path/impressions")!!
             .read()
             .toList()
         assertThat(impressions.size).isEqualTo(3)
