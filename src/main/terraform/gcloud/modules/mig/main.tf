@@ -25,6 +25,7 @@ locals {
       "tee-env-OTEL_SERVICE_NAME"     = "edpa.results_fulfiller",
       "tee-env-OTEL_METRICS_EXPORTER" = "google_cloud",
       "tee-env-OTEL_TRACES_EXPORTER"  = "google_cloud",
+      "tee-env-OTEL_LOGS_EXPORTER"    = "logging",
       "tee-env-OTEL_SERVICE_NAME"     = "edpa.results_fulfiller",
       "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
     },
