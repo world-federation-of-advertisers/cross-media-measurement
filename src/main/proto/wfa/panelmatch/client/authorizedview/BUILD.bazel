@@ -13,3 +13,17 @@ kt_jvm_proto_library(
     name = "encrypted_event_kt_jvm_proto",
     deps = [":encrypted_event_proto"],
 )
+
+proto_library(
+    name = "bigquery_streaming_status_proto",
+    srcs = ["bigquery_streaming_status.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "bigquery_streaming_status_kt_jvm_proto",
+    deps = [":bigquery_streaming_status_proto"],
+)
