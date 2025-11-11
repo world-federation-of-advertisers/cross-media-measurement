@@ -801,7 +801,7 @@ class ResultsFulfillerTest {
         }
       )
     whenever(requisitionsServiceMock.getRequisition(any()))
-            .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
 
     // Set up KMS
     val kmsClient = FakeKmsClient()
