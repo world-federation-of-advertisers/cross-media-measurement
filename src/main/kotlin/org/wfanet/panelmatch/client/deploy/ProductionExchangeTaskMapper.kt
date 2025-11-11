@@ -43,6 +43,7 @@ import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
 import org.wfanet.panelmatch.client.exchangetasks.InputTask
 import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.PreprocessSourceEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
@@ -126,7 +127,8 @@ open class ProductionExchangeTaskMapper(
         }
       }
       PreprocessEventsStep.PreprocessProtocol.AUTHORIZED_VIEW -> {
-        throw NotImplementedError("Preprocess for authorized view data - Not Implemented")
+        val cipher = JniDeterministicCommutativeCipher()
+        return PreprocessSourceEventsTask(cipher = cipher)
       }
       else -> error("Unrecognized PreprocessProtocol: $preProcessStep")
     }
