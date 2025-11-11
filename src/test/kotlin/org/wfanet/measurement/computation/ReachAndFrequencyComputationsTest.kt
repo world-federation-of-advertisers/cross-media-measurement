@@ -245,6 +245,24 @@ class ReachAndFrequencyComputationsTest {
     }
   }
 
+  @Test
+  fun `computeFrequencyDistribution calculates 0 distribution for insufficient k-anonymity`() {
+    val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        dpParams = null,
+        kAnonymityParams = KAnonymityParams(minUsers = 110, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0f,
+      )
+    val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
+    assertThat(distribution.keys).isEqualTo(expected.keys)
+    for ((k, v) in distribution) {
+      assertThat(v).isWithin(FLOAT_COMPARISON_TOLERANCE).of(expected[k]!!)
+    }
+  }
+
   companion object {
     private const val MAX_FREQUENCY = 5
     private const val FLOAT_COMPARISON_TOLERANCE = 1e-9

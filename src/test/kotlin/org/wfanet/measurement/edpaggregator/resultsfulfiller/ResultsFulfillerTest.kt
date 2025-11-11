@@ -532,7 +532,7 @@ class ResultsFulfillerTest {
     }
 
   @Test
-  fun `runWork processes direct requisition successfully to zero with k-anonymity`() = runBlocking {
+  fun `runWork processes direct requisition with 0 result for insufficient k-anonymity`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
