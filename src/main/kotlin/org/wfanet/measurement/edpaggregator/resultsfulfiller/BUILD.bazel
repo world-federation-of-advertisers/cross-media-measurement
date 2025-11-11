@@ -368,8 +368,9 @@ java_image(
         # - OTEL_SERVICE_NAME: OpenTelemetry service name for distributed tracing identification
         # - OTEL_METRICS_EXPORTER: Configures the exporter for OpenTelemetry metrics
         # - OTEL_TRACES_EXPORTER: Configures the exporter for OpenTelemetry traces
+        # - OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID: Forces telemetry exporter to use a specific project
         # Note: OpenTelemetry variables are automatically configured by the SDK
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER",
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

@@ -154,6 +154,7 @@ locals {
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
                                         ]
+      java_tool_options             = var.results_fulfiller_java_tool_options
     }
   }
 
