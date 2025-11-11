@@ -1,6 +1,6 @@
 # Components
 
-HaloDCR is a distributed system composed of multiple services deployed across various Google Cloud components. The system architecture spans the following Google Cloud services:
+EDP Aggregator is a distributed system composed of multiple services deployed across various Google Cloud components. The system architecture spans the following Google Cloud services:
 
 * **Kubernetes (GKE)**
 * **Spanner DB**
@@ -39,7 +39,7 @@ EDPs, themselves, do not create secrets. This is managed by the EDP Aggregator O
 
 Used to store EDP and service certificates required for mutual authentication across EDP Aggregator components. These secrets are accessed only by authorized service accounts at runtime.
 
-#### **Certificates used across HaloDCR:**
+#### **Certificates:**
 
 * ***`securecomputation-root-ca`**:*
   Root certificate for the Secure Computation API.
