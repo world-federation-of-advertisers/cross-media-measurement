@@ -18,16 +18,14 @@ package org.wfanet.measurement.reporting.service.internal
 
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.EventTemplates
-import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
-import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
-
-private typealias Grouping = List<EventTemplateField>
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 
 private typealias EnumTuple = List<Descriptors.EnumValueDescriptor>
 
 class GroupingDimensions(eventMessageDescriptor: Descriptors.Descriptor) {
-  val groupingByFingerprint: Map<Long, Grouping>
+  val groupingByFingerprint: Map<Long, ReportingSetResult.Dimension.Grouping>
 
   init {
     val maxVersion: Int = EventTemplates.getEventDescriptor(eventMessageDescriptor).currentVersion
@@ -53,21 +51,17 @@ class GroupingDimensions(eventMessageDescriptor: Descriptors.Descriptor) {
         val sets: List<List<Descriptors.EnumValueDescriptor>> =
           groupableFields.map { valuesByFieldPath.getValue(it.path) }
         for (tuple: EnumTuple in cartesianProduct(sets)) {
-          val grouping = buildList {
-            for ((field, value) in groupableFields.zip(tuple)) {
-              if (value.number == 0) {
-                // Skip the default unspecified value for each enum.
-                continue
-              }
-              add(
-                eventTemplateField {
-                  path = field.path
-                  this.value = EventTemplateFieldKt.fieldValue { enumValue = value.name }
+          val grouping =
+            ReportingSetResultKt.DimensionKt.grouping {
+              for ((field, value) in groupableFields.zip(tuple)) {
+                if (value.number == 0) {
+                  // Skip the default unspecified value for each enum.
+                  continue
                 }
-              )
+                valueByPath[field.path] = EventTemplateFieldKt.fieldValue { enumValue = value.name }
+              }
             }
-          }
-          val existingValue: Grouping? =
+          val existingValue: ReportingSetResult.Dimension.Grouping? =
             put(Normalization.computeFingerprint(version, grouping), grouping)
           check(existingValue == null) {
             "Fingerprint collision detected between $existingValue and $grouping"

@@ -43,10 +43,10 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
-import org.wfanet.measurement.internal.reporting.v2.ReportResult.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
-import org.wfanet.measurement.internal.reporting.v2.ReportResult.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Dimension.VennDiagramRegionType
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
@@ -241,7 +241,7 @@ class BasicReportsReportsJob(
             }
             metricFrequencySpec = reportingSetResultInfoEntry.value.metricFrequencySpec
             groupings +=
-              Normalization.sortGrouping(
+              Normalization.normalizeGrouping(
                 reportingSetResultInfoEntry.key.groupingPredicates.map {
                   eventTemplateFieldByPredicate.getValue(it)
                 }

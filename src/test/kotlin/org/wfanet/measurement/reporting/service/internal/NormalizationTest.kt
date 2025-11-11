@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
@@ -36,31 +37,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 
 @RunWith(JUnit4::class)
 class NormalizationTest {
-  @Test
-  fun `sortGrouping sorts grouping`() {
-    val fields =
-      listOf(
-        eventTemplateField {
-          path = "person.gender"
-          value = EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
-        },
-        eventTemplateField {
-          path = "person.social_grade_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
-        },
-        eventTemplateField {
-          path = "person.age_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
-        },
-      )
-
-    assertThat(Normalization.sortGrouping(fields))
-      .containsExactly(fields[2], fields[0], fields[1])
-      .inOrder()
-  }
-
   @Test
   fun `normalizeEventFilters sorts filters and terms`() {
     val filters =
@@ -122,25 +98,22 @@ class NormalizationTest {
     val eventMessageVersion =
       EventTemplates.getEventDescriptor(TestEvent.getDescriptor()).currentVersion
     val grouping =
-      Normalization.sortGrouping(
-        listOf(
-          eventTemplateField {
-            path = "person.gender"
-            value = EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
-          },
-          eventTemplateField {
-            path = "person.social_grade_group"
-            value =
-              EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
-          },
-          eventTemplateField {
-            path = "person.age_group"
-            value =
-              EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
-          },
-        )
-      )
-    val otherGrouping = listOf(grouping[0], grouping[1], grouping[2])
+      ReportingSetResultKt.DimensionKt.grouping {
+        valueByPath["person.gender"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
+        valueByPath["person.social_grade_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
+        valueByPath["person.age_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
+      }
+    val otherGrouping =
+      grouping.copy {
+        val entries = valueByPath.entries.toList()
+        valueByPath.clear()
+        valueByPath[entries[2].key] = entries[2].value
+        valueByPath[entries[0].key] = entries[0].value
+        valueByPath[entries[1].key] = entries[1].value
+      }
 
     assertThat(Normalization.computeFingerprint(eventMessageVersion, grouping))
       .isEqualTo(Normalization.computeFingerprint(eventMessageVersion, otherGrouping))
@@ -151,22 +124,14 @@ class NormalizationTest {
     val eventMessageVersion =
       EventTemplates.getEventDescriptor(TestEvent.getDescriptor()).currentVersion
     val grouping =
-      listOf(
-        eventTemplateField {
-          path = "person.age_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
-        },
-        eventTemplateField {
-          path = "person.gender"
-          value = EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
-        },
-        eventTemplateField {
-          path = "person.social_grade_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
-        },
-      )
+      ReportingSetResultKt.DimensionKt.grouping {
+        valueByPath["person.age_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
+        valueByPath["person.gender"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
+        valueByPath["person.social_grade_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
+      }
 
     assertThat(Normalization.computeFingerprint(eventMessageVersion, grouping))
       .isNotEqualTo(Normalization.computeFingerprint(eventMessageVersion + 1, grouping))
@@ -177,28 +142,19 @@ class NormalizationTest {
     val eventMessageVersion =
       EventTemplates.getEventDescriptor(TestEvent.getDescriptor()).currentVersion
     val grouping =
-      listOf(
-        eventTemplateField {
-          path = "person.age_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
-        },
-        eventTemplateField {
-          path = "person.gender"
-          value = EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
-        },
-        eventTemplateField {
-          path = "person.social_grade_group"
-          value =
-            EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
-        },
-      )
+      ReportingSetResultKt.DimensionKt.grouping {
+        valueByPath["person.age_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_18_TO_34.name }
+        valueByPath["person.gender"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.FEMALE.name }
+        valueByPath["person.social_grade_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.SocialGradeGroup.A_B_C1.name }
+      }
     val otherGrouping =
-      listOf(
-        grouping[0].copy { value = value.copy { enumValue = Person.AgeGroup.YEARS_35_TO_54.name } },
-        grouping[1],
-        grouping[2],
-      )
+      grouping.copy {
+        valueByPath["person.age_group"] =
+          EventTemplateFieldKt.fieldValue { enumValue = Person.AgeGroup.YEARS_35_TO_54.name }
+      }
 
     assertThat(Normalization.computeFingerprint(eventMessageVersion, grouping))
       .isNotEqualTo(Normalization.computeFingerprint(eventMessageVersion, otherGrouping))
