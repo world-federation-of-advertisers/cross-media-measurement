@@ -256,7 +256,8 @@ maven.install(
         # Google Cloud OpenTelemetry exporters
         "com.google.cloud.opentelemetry:exporter-metrics:0.36.0",
         "com.google.cloud.opentelemetry:exporter-trace:0.36.0",
-        "com.google.cloud.opentelemetry:exporter-auto:0.31.0-alpha:shaded",
+        "com.google.cloud.opentelemetry:exporter-auto:0.36.0-alpha",
+
         # OpenTelemetry logging exporter (console/stdout - Google Cloud will collect from stdout)
         "io.opentelemetry:opentelemetry-exporter-logging",
         "io.opentelemetry:opentelemetry-extension-kotlin",

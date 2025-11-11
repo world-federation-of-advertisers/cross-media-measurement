@@ -82,6 +82,18 @@ resource "google_project_iam_member" "mig_log_writer" {
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+resource "google_project_iam_member" "mig_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "mig_trace_agent" {
+  project = data.google_project.project.name
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
 data "google_compute_image" "confidential_space" {
   family  = var.disk_image_family
   project = "confidential-space-images"
