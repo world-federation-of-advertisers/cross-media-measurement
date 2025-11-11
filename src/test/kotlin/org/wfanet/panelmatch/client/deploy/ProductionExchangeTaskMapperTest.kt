@@ -27,12 +27,15 @@ import org.wfanet.panelmatch.client.deploy.testing.TestProductionExchangeTaskMap
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.PreprocessEventsTask
 import org.wfanet.panelmatch.client.exchangetasks.ReadEncryptedEventsFromBigQueryTask
+import org.wfanet.panelmatch.client.exchangetasks.WriteToBigQueryTask
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.preprocessEventsStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.readEncryptedEventsFromBigQueryStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.writeEventsToBigQueryStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.writeKeysToBigQueryStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
@@ -125,6 +128,48 @@ class ProductionExchangeTaskMapperTest {
 
     // Verify that the correct task type is created for the readEncryptedEventsFromBigQuery step
     assertThat(exchangeTask).isInstanceOf(ReadEncryptedEventsFromBigQueryTask::class.java)
+  }
+
+  @Test
+  fun `map writeKeysToBigQuery task`() = runBlockingTest {
+    val workflow = exchangeWorkflow {
+      steps += inputStep("input" to "data")
+      steps += step {
+        this.writeKeysToBigQueryStep = writeKeysToBigQueryStep {
+          projectId = "test-project"
+          datasetId = "test-dataset"
+          tableId = "test-table"
+        }
+        inputLabels.put("join-key-and-ids", "join-key-and-ids")
+        outputLabels.put("status", "streaming-status")
+      }
+    }
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, workflow, workflow.getSteps(1))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+
+    // Verify that the correct task type is created for the writeKeysToBigQuery step
+    assertThat(exchangeTask).isInstanceOf(WriteToBigQueryTask::class.java)
+  }
+
+  @Test
+  fun `map writeEventsToBigQuery task`() = runBlockingTest {
+    val workflow = exchangeWorkflow {
+      steps += inputStep("input" to "data")
+      steps += step {
+        this.writeEventsToBigQueryStep = writeEventsToBigQueryStep {
+          projectId = "test-project"
+          datasetId = "test-dataset"
+          tableId = "test-table"
+        }
+        inputLabels.put("encrypted-events", "encrypted-events")
+        outputLabels.put("status", "streaming-status")
+      }
+    }
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, workflow, workflow.getSteps(1))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+
+    // Verify that the correct task type is created for the writeEventsToBigQuery step
+    assertThat(exchangeTask).isInstanceOf(WriteToBigQueryTask::class.java)
   }
 
   companion object {
