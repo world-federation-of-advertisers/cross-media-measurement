@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -60,10 +61,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataReque
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.edpaggregator.service.Errors as EdpAggregatorErrors
 
 /**
  * Fulfills event-level measurement requisitions using protocol-specific fulfillers.
@@ -240,7 +244,9 @@ class ResultsFulfiller(
     return when (requisition.state) {
       Requisition.State.FULFILLED -> {
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
-          signalRequisitionFulfilled(metadata)
+          // Refresh metadata to avoid stale etag before signaling.
+          val latest = getRequisitionMetadataByName(metadata.name)
+          signalRequisitionFulfilled(latest)
         }
         false
       }
@@ -250,7 +256,9 @@ class ResultsFulfiller(
       else -> {
         if (metadata.state !== RequisitionMetadata.State.REFUSED) {
           val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
-          signalRequisitionRefused(metadata, refusalMessage)
+          // Refresh metadata to avoid stale etag before signaling.
+          val latest = getRequisitionMetadataByName(metadata.name)
+          signalRequisitionRefused(latest, refusalMessage)
         }
         false
       }
@@ -315,8 +323,19 @@ class ResultsFulfiller(
             .put(ATTR_REQUISITION_NAME_KEY, requisition.name)
             .put(ATTR_GROUP_ID_KEY, groupedRequisitions.groupId)
             .put(ATTR_REPORT_ID_KEY, reportId)
-            .build(),
+          .build(),
         )
+
+        // If another worker already transitioned this requisition to a terminal state,
+        // short‑circuit to avoid duplicate fulfillment attempts.
+        if (updateMetadataResult.state == RequisitionMetadata.State.FULFILLED) {
+          recordRequisitionCompletion(
+            span = span,
+            requisitionProcessingTimer = requisitionProcessingTimer,
+            requisitionMetadata = requisitionMetadata,
+          )
+          return@traceSuspending
+        }
 
         val fulfiller =
           fulfillerSelector.selectFulfiller(
@@ -416,13 +435,33 @@ class ResultsFulfiller(
     require(requisitionMetadata.name.isNotBlank()) {
       "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
     }
-    val startProcessingRequisitionMetadataRequest = startProcessingRequisitionMetadataRequest {
+    val request = startProcessingRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
     }
-    return requisitionMetadataStub.startProcessingRequisitionMetadata(
-      startProcessingRequisitionMetadataRequest
-    )
+    return try {
+      requisitionMetadataStub.startProcessingRequisitionMetadata(request)
+    } catch (e: StatusException) {
+      if (isEtagMismatch(e)) {
+        val current = getRequisitionMetadataByName(requisitionMetadata.name)
+        // If already in or beyond PROCESSING, treat as success and move on.
+        if (
+          current.state == RequisitionMetadata.State.PROCESSING ||
+            current.state == RequisitionMetadata.State.FULFILLED ||
+            current.state == RequisitionMetadata.State.REFUSED
+        ) {
+          return current
+        }
+        // Retry once with fresh etag if still eligible.
+        val retryReq = startProcessingRequisitionMetadataRequest {
+          name = current.name
+          etag = current.etag
+        }
+        return requisitionMetadataStub.startProcessingRequisitionMetadata(retryReq)
+      } else {
+        throw e
+      }
+    }
   }
 
   private suspend fun signalRequisitionFulfilled(
@@ -431,11 +470,31 @@ class ResultsFulfiller(
     require(requisitionMetadata.name.isNotBlank()) {
       "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
     }
-    val fulfillRequisitionMetadataRequest = fulfillRequisitionMetadataRequest {
+    val request = fulfillRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
     }
-    return requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
+    return try {
+      requisitionMetadataStub.fulfillRequisitionMetadata(request)
+    } catch (e: StatusException) {
+      if (isEtagMismatch(e)) {
+        val current = getRequisitionMetadataByName(requisitionMetadata.name)
+        // If already fulfilled, treat as success; otherwise retry once if eligible.
+        if (current.state == RequisitionMetadata.State.FULFILLED) {
+          return current
+        }
+        if (current.state == RequisitionMetadata.State.PROCESSING) {
+          val retryReq = fulfillRequisitionMetadataRequest {
+            name = current.name
+            etag = current.etag
+          }
+          return requisitionMetadataStub.fulfillRequisitionMetadata(retryReq)
+        }
+        return current
+      } else {
+        throw e
+      }
+    }
   }
 
   private suspend fun signalRequisitionRefused(
@@ -445,12 +504,41 @@ class ResultsFulfiller(
     require(requisitionMetadata.name.isNotBlank()) {
       "requisitionMetadata.name is empty for cmmsRequisition: ${requisitionMetadata.cmmsRequisition}"
     }
-    val refuseRequisitionMetadataRequest = refuseRequisitionMetadataRequest {
+    val request = refuseRequisitionMetadataRequest {
       name = requisitionMetadata.name
       etag = requisitionMetadata.etag
       this.refusalMessage = refusalMessage
     }
-    return requisitionMetadataStub.refuseRequisitionMetadata(refuseRequisitionMetadataRequest)
+    return try {
+      requisitionMetadataStub.refuseRequisitionMetadata(request)
+    } catch (e: StatusException) {
+      if (isEtagMismatch(e)) {
+        val current = getRequisitionMetadataByName(requisitionMetadata.name)
+        if (current.state == RequisitionMetadata.State.REFUSED) {
+          return current
+        }
+        // Retry once with fresh etag if not already terminal.
+        val retryReq = refuseRequisitionMetadataRequest {
+          name = current.name
+          etag = current.etag
+          this.refusalMessage = refusalMessage
+        }
+        return requisitionMetadataStub.refuseRequisitionMetadata(retryReq)
+      } else {
+        throw e
+      }
+    }
+  }
+
+  private fun isEtagMismatch(e: StatusException): Boolean {
+    val info = e.errorInfo
+    return e.status.code == Status.Code.FAILED_PRECONDITION &&
+      info?.reason == EdpAggregatorErrors.Reason.ETAG_MISMATCH.name
+  }
+
+  private suspend fun getRequisitionMetadataByName(name: String): RequisitionMetadata {
+    val request = GetRequisitionMetadataRequest.newBuilder().setName(name).build()
+    return requisitionMetadataStub.getRequisitionMetadata(request)
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {
