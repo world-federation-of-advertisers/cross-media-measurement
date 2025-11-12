@@ -41,3 +41,15 @@ variable "max_delivery_attempts" {
   type        = number
   default     = null
 }
+
+variable "retry_policy_minimum_backoff" {
+  description = "The minimum delay between consecutive deliveries of a given message. Value should be between 0 and 600 seconds. Format: '600s' for 10 minutes."
+  type        = string
+  default     = "600s"
+}
+
+variable "retry_policy_maximum_backoff" {
+  description = "The maximum delay between consecutive deliveries of a given message. Value should be between 0 and 600 seconds. Format: '600s' for 10 minutes."
+  type        = string
+  default     = "600s"
+}
