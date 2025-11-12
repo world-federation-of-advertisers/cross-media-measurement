@@ -2322,6 +2322,126 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `getBasicReport returns basic report when effective_model_line set`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+
+    val dataProvider =
+      publicDataProvidersClient
+        .withCallCredentials(credentials)
+        .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
+
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "abc123")
+    val campaignGroup =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = reportingSet {
+              displayName = "campaign group"
+              campaignGroup = campaignGroupKey.toName()
+              primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+            }
+            reportingSetId = "abc123"
+          }
+        )
+
+    val basicReportKey =
+      BasicReportKey(
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+        basicReportId = "basicreport123",
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroup.name
+      campaignGroupDisplayName = campaignGroup.displayName
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2021
+          month = 3
+          day = 14
+          hours = 17
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2021
+          month = 3
+          day = 15
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += dataProvider.name }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+            }
+        }
+      }
+    }
+
+    val createdBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(
+          createBasicReportRequest {
+            parent = measurementConsumerData.name
+            basicReportId = basicReportKey.basicReportId
+            this.basicReport = basicReport
+          }
+        )
+
+    val retrievedPublicBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() })
+
+    assertThat(retrievedPublicBasicReport).isEqualTo(createdBasicReport)
+    assertThat(retrievedPublicBasicReport.modelLine).isEmpty()
+    assertThat(retrievedPublicBasicReport.effectiveModelLine).isEqualTo(inProcessCmmsComponents.modelLineResourceName)
+  }
+
+  @Test
   fun `getBasicReport returns basic report inserted via internal API`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()

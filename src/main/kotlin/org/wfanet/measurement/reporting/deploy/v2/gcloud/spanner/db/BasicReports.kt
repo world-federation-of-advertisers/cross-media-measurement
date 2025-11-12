@@ -70,7 +70,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       ExternalReportId,
       CmmsModelProviderId,
       CmmsModelSuiteId,
-      CmmsModelLineId
+      CmmsModelLineId,
+      EffectiveCmmsModelProviderId,
+      EffectiveCmmsModelSuiteId,
+      EffectiveCmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -120,7 +123,10 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       ExternalReportId,
       CmmsModelProviderId,
       CmmsModelSuiteId,
-      CmmsModelLineId
+      CmmsModelLineId,
+      EffectiveCmmsModelProviderId,
+      EffectiveCmmsModelSuiteId,
+      EffectiveCmmsModelLineId
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -173,7 +179,10 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         ExternalReportId,
         CmmsModelProviderId,
         CmmsModelSuiteId,
-        CmmsModelLineId
+        CmmsModelLineId,
+        EffectiveCmmsModelProviderId,
+        EffectiveCmmsModelSuiteId,
+        EffectiveCmmsModelLineId
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -268,6 +277,11 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
       set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
     }
+    if (basicReport.hasEffectiveModelLineKey()) {
+      set("EffectiveCmmsModelProviderId").to(basicReport.effectiveModelLineKey.cmmsModelProviderId)
+      set("EffectiveCmmsModelSuiteId").to(basicReport.effectiveModelLineKey.cmmsModelSuiteId)
+      set("EffectiveCmmsModelLineId").to(basicReport.effectiveModelLineKey.cmmsModelLineId)
+    }
   }
 }
 
@@ -335,6 +349,14 @@ private fun buildBasicReport(row: Struct): BasicReport {
           cmmsModelProviderId = row.getString("CmmsModelProviderId")
           cmmsModelSuiteId = row.getString("CmmsModelSuiteId")
           cmmsModelLineId = row.getString("CmmsModelLineId")
+        }
+    }
+    if (!row.isNull("EffectiveCmmsModelProviderId")) {
+      effectiveModelLineKey =
+        BasicReportKt.modelLineKey {
+          cmmsModelProviderId = row.getString("EffectiveCmmsModelProviderId")
+          cmmsModelSuiteId = row.getString("EffectiveCmmsModelSuiteId")
+          cmmsModelLineId = row.getString("EffectiveCmmsModelLineId")
         }
     }
   }

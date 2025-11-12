@@ -2275,7 +2275,11 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(response.modelLine).isEmpty()
+      assertThat(response.effectiveModelLine).isEqualTo(defaultModelLine.name)
 
       // Verify kingdomModelLinesStub.enumerateValidModelLines was called
       verifyProtoArgument(
@@ -2371,7 +2375,10 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      assertThat(response.modelLine).isEmpty()
+      assertThat(response.effectiveModelLine).isEmpty()
 
       // Verify kingdomModelLinesStub.enumerateValidModelLines was called
       // Verify kingdomModelLinesStub.enumerateValidModelLines was called
@@ -2973,7 +2980,7 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception.errorInfo)
         .isEqualTo(
           errorInfo {

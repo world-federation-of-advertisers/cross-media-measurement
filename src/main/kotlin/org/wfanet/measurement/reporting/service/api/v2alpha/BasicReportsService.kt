@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineSt
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.toTimestamp
@@ -193,7 +194,7 @@ class BasicReportsService(
         .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
         .enumerateValidModelLines(
           enumerateValidModelLinesRequest {
-            parent = ModelSuiteKey("-", "-").toName()
+            parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
             timeInterval = interval {
               startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
               endTime =
@@ -213,8 +214,10 @@ class BasicReportsService(
     val modelLine =
       if (request.basicReport.modelLine.isNotEmpty()) {
         if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
-          throw InvalidFieldValueException("basic_report.model_line")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          throw InvalidFieldValueException("basic_report.model_line") { fieldName ->
+            "$fieldName is not active for the specified reporting interval and data providers"
+          }
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
         request.basicReport.modelLine
       } else if (validModelLines.isNotEmpty()) {
@@ -297,6 +300,11 @@ class BasicReportsService(
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
                   internalReportingImpressionQualificationFilters,
+                effectiveModelLine = if (request.basicReport.modelLine.isEmpty() && modelLine.isNotEmpty()) {
+                  modelLine
+                } else {
+                  null
+                },
               )
             requestId = request.requestId
           }

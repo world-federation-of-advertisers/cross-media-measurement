@@ -97,6 +97,7 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
+  effectiveModelLine: String? = null,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -125,6 +126,15 @@ fun BasicReport.toInternal(
     if (modelLine.isNotEmpty()) {
       val modelLineKey = ModelLineKey.fromName(modelLine)
       this.modelLineKey =
+        InternalBasicReportKt.modelLineKey {
+          cmmsModelProviderId = modelLineKey!!.modelProviderId
+          cmmsModelSuiteId = modelLineKey.modelSuiteId
+          cmmsModelLineId = modelLineKey.modelLineId
+        }
+    }
+    if (effectiveModelLine != null) {
+      val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
+      effectiveModelLineKey =
         InternalBasicReportKt.modelLineKey {
           cmmsModelProviderId = modelLineKey!!.modelProviderId
           cmmsModelSuiteId = modelLineKey.modelSuiteId
@@ -416,6 +426,15 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
             modelLineKey.cmmsModelSuiteId,
             modelLineKey.cmmsModelLineId,
           )
+          .toName()
+    }
+    if (effectiveModelLineKey.cmmsModelProviderId.isNotEmpty()) {
+      effectiveModelLine =
+        ModelLineKey(
+          effectiveModelLineKey.cmmsModelProviderId,
+          effectiveModelLineKey.cmmsModelSuiteId,
+          effectiveModelLineKey.cmmsModelLineId,
+        )
           .toName()
     }
   }

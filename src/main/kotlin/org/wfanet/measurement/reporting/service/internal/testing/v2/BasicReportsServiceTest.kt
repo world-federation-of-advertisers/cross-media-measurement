@@ -621,6 +621,94 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `getBasicReport with createBasicReport with effective model line succeeds`(): Unit =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = REPORTING_SET
+          externalReportingSetId = REPORTING_SET.externalReportingSetId
+        }
+      )
+
+      val basicReport = basicReport {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalBasicReportId = "1237"
+        externalCampaignGroupId = REPORTING_SET.externalReportingSetId
+        effectiveModelLineKey =
+          BasicReportKt.modelLineKey {
+            cmmsModelProviderId = "1234"
+            cmmsModelSuiteId = "1235"
+            cmmsModelLineId = "1236"
+          }
+        details = basicReportDetails {
+          title = "title"
+          resultGroupSpecs += resultGroupSpec {
+            title = "title"
+            reportingUnit = reportingUnit {
+              dataProviderKeys =
+                ReportingUnitKt.dataProviderKeys {
+                  dataProviderKeys += dataProviderKey { cmmsDataProviderId = "1234" }
+                }
+            }
+            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.WEDNESDAY }
+            dimensionSpec = dimensionSpec {
+              grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.gender" }
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "person.age_group"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+              }
+            }
+            resultGroupMetricSpec = resultGroupMetricSpec {
+              populationSize = true
+              reportingUnit =
+                ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                  nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                  cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                  stackedIncrementalReach = true
+                }
+              component =
+                ResultGroupMetricSpecKt.componentMetricSetSpec {
+                  nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                  cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                  nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                  cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                }
+            }
+          }
+        }
+        resultDetails = basicReportResultDetails {}
+        createReportRequestId = "1235"
+      }
+
+      val createdBasicReport =
+        service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
+
+      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelProviderId)
+        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelProviderId)
+      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelSuiteId)
+        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelSuiteId)
+      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelLineId)
+        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelLineId)
+
+      val retrievedBasicReport =
+        service.getBasicReport(
+          getBasicReportRequest {
+            cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = createdBasicReport.externalBasicReportId
+          }
+        )
+
+      assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
+    }
+
+
+  @Test
   fun `getBasicReport throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }

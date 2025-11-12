@@ -110,9 +110,17 @@ message BasicReport {
 
   // Resource name of a valid `ModelLine` to be used for the metrics.
   //
-  // A valid `ModelLine` will be selected if this field isn't specified.
+  // `effective_model_line` will be set if this field isn't specified.
   string model_line = 11 [
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
     (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Resource name of a valid `ModelLine` to be used for the metrics.
+  //
+  // Only set if `model_line` is not specified.
+  string effective_model_line = 12 [
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
+    (google.api.field_behavior) = OUTPUT_ONLY
   ];
 }
