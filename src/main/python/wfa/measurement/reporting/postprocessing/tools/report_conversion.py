@@ -25,38 +25,41 @@ from wfa.measurement.internal.reporting.v2 import report_result_pb2
 from wfa.measurement.internal.reporting.v2 import metric_frequency_spec_pb2
 from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
 
-ReportResult = report_result_pb2.ReportResult
+ReportingSetResult = report_result_pb2.ReportingSetResult
 ReportSummaryV2 = report_summary_v2_pb2.ReportSummaryV2
 ProtoDate = date_pb2.Date
 EventTemplateField = event_template_field_pb2.EventTemplateField
-NoisyMetricSet = ReportResult.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
+NoisyMetricSet = (
+    ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
+)
 ReportSummaryWindowResult = ReportSummaryV2.ReportSummarySetResult.ReportSummaryWindowResult
 
 
 def report_result_to_report_summary_v2(
-    report_result: ReportResult,
+    reporting_set_results: list[ReportingSetResult],
     primitive_reporting_sets_by_reporting_set_id: dict[str, list[str]],
 ) -> list[ReportSummaryV2]:
-    """Converts a ReportResult to a list of ReportSummaryV2.
+    """Converts a list of ReportingSetResults to a list of ReportSummaryV2.
 
-      The conversion steps are as follows:
-      1.  Validating the input `ReportResult` to ensure it has all the required
-          fields.
-      2.  Grouping the individual `reporting_set_results` by their demographic
-          and event filters.
-      3.  Creating a single `ReportSummaryV2` proto for each of the above groups.
+    The conversion steps are as follows:
+    1.  Validating the input `ReportingSetResult`s to ensure they have all the required
+        fields.
+    2.  Grouping the individual `reporting_set_results` by their demographic
+        and event filters.
+    3.  Creating a single `ReportSummaryV2` proto for each of the above groups.
 
-      Args:
-        report_result: The ReportResult to be converted.
-        primitive_reporting_sets_by_reporting_set_id: A reporting set id to EDP
-          combination map.
+    Args:
+      reporting_set_results: List of ReportingSetResults to be converted.
+      primitive_reporting_sets_by_reporting_set_id: A reporting set id to EDP
+        combination map.
 
-      Returns:
-        A list of ReportSummaryV2 messages, one for each set of grouping
-        predicates found in the report_result.
+    Returns:
+      A list of ReportSummaryV2 messages, one for each set of grouping
+      predicates found in the report_result.
     """
-    _validate_report_result(report_result,
-                            primitive_reporting_sets_by_reporting_set_id)
+    _validate_report_result(
+        reporting_set_results, primitive_reporting_sets_by_reporting_set_id
+    )
 
     grouped_results = _group_reporting_set_results(report_result)
 
@@ -76,9 +79,9 @@ def report_result_to_report_summary_v2(
 
 
 def _validate_report_result(
-    report_result: ReportResult,
-    primitive_reporting_sets_by_reporting_set_id: dict[str,
-                                                       list[str]]) -> None:
+    reporting_set_results: list[ReportingSetResult],
+    primitive_reporting_sets_by_reporting_set_id: dict[str, list[str]],
+) -> None:
     """Performs validation checks on the input ReportResult.
 
     The function ensures that the `ReportResult` proto is well-formed and
@@ -94,79 +97,90 @@ def _validate_report_result(
     Raises:
       ValueError: If any validation check fails.
     """
+    if not reporting_set_results:
+        raise ValueError("There must be at least one ReportingSetResult")
+
     # Validates that the report result has the required top-level fields.
-    if not report_result.cmms_measurement_consumer_id:
-        raise ValueError(
-            "The report result must have a cmms_measurement_consumer_id.")
-    if not report_result.external_report_result_id:
-        raise ValueError(
-            "The report result must have an external_report_result_id.")
-    if not report_result.HasField("report_start"):
-        raise ValueError("The report result must have a report_start date.")
+    for reporting_set_result in reporting_set_results:
+        if not reporting_set_result.cmms_measurement_consumer_id:
+            raise ValueError(
+                "The ReportingSetResult must have a"
+                " cmms_measurement_consumer_id."
+            )
+        if not reporting_set_result.external_report_result_id:
+            raise ValueError(
+                "The ReportingSetResult must have an external_report_result_id."
+            )
 
-    if not report_result.reporting_set_results:
-        raise ValueError(
-            "The report result must have at least one reporting set result.")
+        # Each reporting set result must have a dimension and a value.
+        if not reporting_set_result.HasField("dimension"):
+            raise ValueError("ReportingSetResult must have a dimension.")
 
-    for entry in report_result.reporting_set_results:
-        # Each reporting set result must have a key and a value.
-        if not entry.HasField("key"):
-            raise ValueError("ReportingSetResultEntry must have a key.")
-        if not entry.HasField("value"):
-            raise ValueError("ReportingSetResultEntry must have a value.")
+        dimension = reporting_set_result.dimension
 
-        key = entry.key
-
-        # Validates that the reporting set result key has the required fields.
-        if not key.external_reporting_set_id:
+        # Validates that the reporting set result dimension has the required fields.
+        if not dimension.external_reporting_set_id:
             raise ValueError(
                 "ReportingSetResultKey must have an external_reporting_set_id."
             )
-        if key.venn_diagram_region_type == ReportResult.VennDiagramRegionType.VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED:
+        if (
+            dimension.venn_diagram_region_type
+            == ReportingSetResult.Dimension.VennDiagramRegionType.VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED
+        ):
             raise ValueError(
-                "ReportingSetResultKey must have a venn_diagram_region_type.")
-        if not key.WhichOneof("impression_qualification_filter"):
-            raise ValueError(
-                "ReportingSetResultKey must have an impression_qualification_filter."
+                "ReportingSetResultKey must have a venn_diagram_region_type."
             )
-        if not key.HasField("metric_frequency_spec"):
+        if not dimension.WhichOneof("impression_qualification_filter"):
             raise ValueError(
-                "ReportingSetResultKey must have a metric_frequency_spec.")
+                "ReportingSetResultKey must have an"
+                " impression_qualification_filter."
+            )
+        if not dimension.HasField("metric_frequency_spec"):
+            raise ValueError(
+                "ReportingSetResultKey must have a metric_frequency_spec."
+            )
 
         # Validates that the external_reporting_set_id is mapped to a set of
         # primitive reporting sets.
-        if str(key.external_reporting_set_id
-               ) not in primitive_reporting_sets_by_reporting_set_id:
+        if (
+            str(dimension.external_reporting_set_id)
+            not in primitive_reporting_sets_by_reporting_set_id
+        ):
             raise ValueError(
                 "Cannot find the data providers for reporting set "
-                f"{key.external_reporting_set_id}.")
+                f"{dimension.external_reporting_set_id}."
+            )
 
         # Validates the population.
-        if entry.value.population_size <= 0:
+        if reporting_set_result.population_size <= 0:
             raise ValueError("Population size must have a positive value.")
 
         # Validates that each reporting window result has the required fields.
         for window_entry in entry.value.reporting_window_results:
             if not window_entry.value.HasField("noisy_report_result_values"):
                 raise ValueError("Missing noisy_report_result_values field.")
-            if (window_entry.value.noisy_report_result_values.HasField(
-                    "non_cumulative_results")
-                    and not window_entry.key.HasField("non_cumulative_start")):
+            if window_entry.value.noisy_report_result_values.HasField(
+                "non_cumulative_results"
+            ) and not window_entry.key.HasField("non_cumulative_start"):
                 raise ValueError(
                     "ReportingWindow with non_cumulative_results must have a "
-                    "non-cumulative start date.")
+                    "non-cumulative start date."
+                )
             if not window_entry.key.HasField("end"):
                 raise ValueError("ReportingWindow must have an end date.")
-            if key.metric_frequency_spec.WhichOneof(
-                "selector") == 'total' and window_entry.value.noisy_report_result_values.HasField(
-                    "non_cumulative_results"):
+            if dimension.metric_frequency_spec.WhichOneof(
+                "selector"
+            ) == "total" and window_entry.value.noisy_report_result_values.HasField(
+                "non_cumulative_results"
+            ):
                 raise ValueError(
-                    "Non cumulative results cannot have metric frequency spec of TOTAL."
+                    "Non cumulative results cannot have metric frequency spec"
+                    " of TOTAL."
                 )
 
 
 def _group_reporting_set_results(
-    report_result: ReportResult
+    reporting_set_results: list[ReportingSetResult],
 ) -> defaultdict[tuple[int, int], list[ReportResult.ReportingSetResultEntry]]:
     """Groups reporting set results by their grouping predicates (demographic
     groupings and event filters).
@@ -183,10 +197,9 @@ def _group_reporting_set_results(
         of `ReportingSetResultEntry` that belong to the group.
     """
     grouped_results = defaultdict(list)
-    for reporting_set_result_entry in report_result.reporting_set_results:
-        value = reporting_set_result_entry.value
-        group_key = (value.grouping_dimension_fingerprint,
-                     value.filter_fingerprint)
+    for reporting_set_result in reporting_set_results:
+        group_key = (reporting_set_result.grouping_dimension_fingerprint,
+                     reporting_set_result.filter_fingerprint)
         grouped_results[group_key].append(reporting_set_result_entry)
     return grouped_results
 
