@@ -27,21 +27,77 @@ service ReportResults {
   // Creates a `ReportResult`.
   rpc CreateReportResult(CreateReportResultRequest) returns (ReportResult);
 
+  // Creates a batch of `ReportingSetResult` entities.
+  rpc BatchCreateReportingSetResults(BatchCreateReportingSetResultsRequest)
+      returns (BatchCreateReportingSetResultsResponse);
+
+  // Lists `ReportingSetResult` entities.
+  rpc ListReportingSetResults(ListReportingSetResultsRequest)
+      returns (ListReportingSetResultsResponse);
+
   // Adds denoised result values to a `ReportResult`.
   rpc AddDenoisedResultValues(AddDenoisedResultValuesRequest)
       returns (google.protobuf.Empty);
 
-  // Gets all of the noisy result values associated with a particular report
-  // result.
-  rpc GetNoisyResultValues(GetNoisyResultValuesRequest) returns (ReportResult);
+  // Gets a `ReportResult`.
+  rpc GetReportResult(GetReportResultRequest) returns (ReportResult);
 }
 
 // Request message for the `CreateReportResult` method.
 message CreateReportResultRequest {
-  // The `ReportResult` to create. The `external_report_result_id` will be
-  // ignored and the system will assign a value.
-  ReportResult report_result = 1;
+  // Parent MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+
+  // The `ReportResult` to create. Required.
+  //
+  // The `external_report_result_id` will be ignored and the system will assign
+  // a value.
+  ReportResult report_result = 2;
 }
+
+message CreateReportingSetResultRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  // `ReportingSetResult` to create.
+  //
+  // The `external_reporting_set_result_id` will be ignored and the system will
+  // assign a value.
+  ReportingSetResult reporting_set_result = 3;
+}
+
+message BatchCreateReportingSetResultsRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  // Batch of requests.
+  repeated CreateReportingSetResultRequest requests = 3;
+}
+
+message BatchCreateReportingSetResultsResponse {
+  repeated ReportingSetResult reporting_set_results = 1;
+}
+
+message ListReportingSetResultsRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  ReportingSetResultView view = 3;
+
+  int32 page_size = 4;
+  ListReportingSetResultsPageToken page_token = 5;
+}
+
+message ListReportingSetResultsResponse {
+  repeated ReportingSetResult reporting_set_results = 1;
+  ListReportingSetResultsPageToken next_page_token = 2;
+}
+
+// For future backwards-compatible support of pagination.
+message ListReportingSetResultsPageToken {}
 
 // Request message for the `AddDenoisedResultValues` method.
 message AddDenoisedResultValuesRequest {
@@ -53,19 +109,22 @@ message AddDenoisedResultValuesRequest {
 
   message DenoisedReportingSetResult {
     message ReportingWindowEntry {
-      ReportResult.ReportingSetResult.ReportingWindow key = 1;
-      ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues
-          value = 2;
+      ReportingSetResult.ReportingWindow key = 1;
+      ReportingSetResult.ReportingWindowResult.ReportResultValues value = 2;
     }
     // Map of `ReportingWindow` to `ReportResultValues`.
     repeated ReportingWindowEntry reporting_window_results = 1;
   }
 
-  // Map of external `ReportingSet` ID to `ReportingSetResult`.
-  map<string, DenoisedReportingSetResult> reporting_set_results = 4;
+  // Map of external ReportingSetResult ID to `DenoisedReportingSetResult`.
+  map<fixed64, DenoisedReportingSetResult> reporting_set_results = 4;
+
+  // TODO(@SanjayVas): Support specifying BasicReports to mark as completed.
+  // TODO(@SanjayVas): Support including log entry for processor once the format
+  // is defined.
 }
 
-message GetNoisyResultValuesRequest {
+message GetReportResultRequest {
   // The CMMS MeasurementConsumer ID. Required.
   string cmms_measurement_consumer_id = 1;
   // The external ID of the ReportResult. Required.
