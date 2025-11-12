@@ -39,8 +39,10 @@ databaseChangeLog:
 - include:
     file: add-model-line-to-basic-report.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-report-results-schema.sql
+    relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-bins.sql
+    relativeToChangeLogFile: true
 
-# TODO(@sanjayvas): Reinstate this when the service is implemented.
-#- include:
-#    file: create-report-results-schema.sql
-#    relativeToChangeLogFile: true

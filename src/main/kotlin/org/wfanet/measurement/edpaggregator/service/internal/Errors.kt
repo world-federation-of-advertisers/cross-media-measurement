@@ -29,12 +29,15 @@ object Errors {
   const val DOMAIN = "internal.edpaggregator.halo-cmm.org"
 
   enum class Reason {
+    DATA_PROVIDER_MISMATCH,
     IMPRESSION_METADATA_NOT_FOUND,
     IMPRESSION_METADATA_ALREADY_EXISTS,
     IMPRESSION_METADATA_STATE_INVALID,
     REQUISITION_METADATA_NOT_FOUND,
     REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_ALREADY_EXISTS,
+    REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+    REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     REQUISITION_METADATA_STATE_INVALID,
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
@@ -42,6 +45,7 @@ object Errors {
   }
 
   enum class Metadata(val key: String) {
+    EXPECTED_DATA_PROVIDER_RESOURCE_ID("expectedDataProviderResourceId"),
     DATA_PROVIDER_RESOURCE_ID("dataProviderResourceId"),
     IMPRESSION_METADATA_RESOURCE_ID("impressionMetadataResourceId"),
     REQUISITION_METADATA_RESOURCE_ID("requisitionMetadataResourceId"),
@@ -108,6 +112,21 @@ sealed class ServiceException(
   }
 }
 
+class DataProviderMismatchException(
+  expectedDataProviderResourceId: String,
+  actualDataProviderResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.DATA_PROVIDER_MISMATCH,
+    "Expect DataProvider with resource ID $expectedDataProviderResourceId but got $actualDataProviderResourceId",
+    mapOf(
+      Errors.Metadata.EXPECTED_DATA_PROVIDER_RESOURCE_ID to expectedDataProviderResourceId,
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to actualDataProviderResourceId,
+    ),
+    cause,
+  )
+
 class ImpressionMetadataNotFoundException(
   dataProviderResourceId: String,
   impressionMetadataResourceId: String,
@@ -123,11 +142,11 @@ class ImpressionMetadataNotFoundException(
     cause,
   )
 
-class ImpressionMetadataAlreadyExistsException(cause: Throwable? = null) :
+class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
     "ImpressionMetadata already exists",
-    emptyMap(),
+    mapOf(Errors.Metadata.BLOB_URI to blobUri),
     cause,
   )
 
@@ -184,6 +203,36 @@ class RequisitionMetadataAlreadyExistsException(cause: Throwable? = null) :
     Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
     "RequisitionMetadata already exists",
     emptyMap(),
+    cause,
+  )
+
+class RequisitionMetadataAlreadyExistsByCmmsRequisitionException(
+  dataProviderResourceId: String,
+  cmmsRequisition: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+    "RequisitionMetadata with CMMS Requisition $cmmsRequisition for DataProvider with resource ID $dataProviderResourceId already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.CMMS_REQUISITION to cmmsRequisition,
+    ),
+    cause,
+  )
+
+class RequisitionMetadataAlreadyExistsByBlobUriException(
+  dataProviderResourceId: String,
+  blobUri: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+    "RequisitionMetadata with blob uri $blobUri for DataProvider with resource ID $dataProviderResourceId already exists",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.BLOB_URI to blobUri,
+    ),
     cause,
   )
 

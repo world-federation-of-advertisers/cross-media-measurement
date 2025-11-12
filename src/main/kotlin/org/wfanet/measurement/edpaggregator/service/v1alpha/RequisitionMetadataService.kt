@@ -20,6 +20,7 @@ import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
+import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
@@ -30,11 +31,15 @@ import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchExceptio
 import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsByBlobUriException
+import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundByCmmsRequisitionException
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.FulfillRequisitionMetadataRequest
@@ -47,8 +52,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.BatchCreateRequisitionMetadataResponse as InternalBatchCreateRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRequest as InternalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageToken as InternalListRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest.Filter as InternalListRequisitionMetadataFilter
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt.filter as internalListRequisitionMetadataRequestFilter
@@ -56,6 +64,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResp
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
+import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetadataRequest as internalBatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.createRequisitionMetadataRequest as internalCreateRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.fetchLatestCmmsCreateTimeRequest as internalFetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataRequest as internalFulfillRequisitionMetadataRequest
@@ -125,6 +134,9 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS ->
             RequisitionMetadataAlreadyExistsException(e)
               .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
@@ -139,6 +151,113 @@ class RequisitionMetadataService(
       }
 
     return internalRequisitionMetadata.toRequisitionMetadata()
+  }
+
+  override suspend fun batchCreateRequisitionMetadata(
+    request: BatchCreateRequisitionMetadataRequest
+  ): BatchCreateRequisitionMetadataResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val blobUriSet = mutableSetOf<String>()
+    val cmmsRequisitionSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
+
+    val internalRequests: List<InternalCreateRequisitionMetadataRequest> =
+      request.requestsList.mapIndexed { index, it ->
+        if (it.parent.isNotEmpty() && it.parent != request.parent) {
+          throw DataProviderMismatchException(request.parent, it.parent)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val blobUri = it.requisitionMetadata.blobUri
+        if (!blobUriSet.add(blobUri)) {
+          throw InvalidFieldValueException("requests.$index.requisition_metadata.blob_uri") {
+              "blob uri $blobUri is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val cmmsRequisition = it.requisitionMetadata.cmmsRequisition
+        if (!cmmsRequisitionSet.add(cmmsRequisition)) {
+          throw InvalidFieldValueException(
+              "requests.$index.requisition_metadata.cmms_requisition"
+            ) {
+              "cmms requisition $cmmsRequisition is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        val requestId = it.requestId
+        if (requestId.isNotEmpty()) {
+          if (!requestIdSet.add(requestId)) {
+            throw InvalidFieldValueException("requests.$index.request_id") {
+                "request Id $requestId is duplicate in the batch of requests"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+        }
+
+        try {
+          validateRequisitionMetadataRequest(it, "requests.$index.")
+        } catch (e: RequiredFieldNotSetException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: InvalidFieldValueException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: DataProviderMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+
+        internalCreateRequisitionMetadataRequest {
+          this.requestId = requestId
+          requisitionMetadata = it.requisitionMetadata.toInternal(dataProviderKey, null)
+        }
+      }
+
+    val internalResponse: InternalBatchCreateRequisitionMetadataResponse =
+      try {
+        internalClient.batchCreateRequisitionMetadata(
+          internalBatchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            requests += internalRequests
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS ->
+            RequisitionMetadataAlreadyExistsException(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI ->
+            RequisitionMetadataAlreadyExistsByBlobUriException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION ->
+            RequisitionMetadataAlreadyExistsByCmmsRequisitionException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.ETAG_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return batchCreateRequisitionMetadataResponse {
+      requisitionMetadata +=
+        internalResponse.requisitionMetadataList.map { it.toRequisitionMetadata() }
+    }
   }
 
   override suspend fun getRequisitionMetadata(
@@ -161,8 +280,11 @@ class RequisitionMetadataService(
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
             RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -239,12 +361,15 @@ class RequisitionMetadataService(
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -291,8 +416,11 @@ class RequisitionMetadataService(
                 request.cmmsRequisition,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.ETAG_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -322,9 +450,12 @@ class RequisitionMetadataService(
       internalClient.fetchLatestCmmsCreateTime(internalRequest)
     } catch (e: StatusException) {
       throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
         InternalErrors.Reason.ETAG_MISMATCH,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -368,8 +499,11 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -410,8 +544,11 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -452,8 +589,11 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -499,8 +639,11 @@ class RequisitionMetadataService(
           InternalErrors.Reason.ETAG_MISMATCH ->
             EtagMismatchException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -584,6 +727,77 @@ class RequisitionMetadataService(
       RequisitionMetadata.State.STATE_UNSPECIFIED ->
         InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED
     }
+  }
+
+  /**
+   * Checks whether the specified create requisition metadata request is valid.
+   *
+   * @throws RequiredFieldNotSetException
+   * @throws InvalidFieldValueException
+   * @throws DataProviderMismatchException
+   */
+  private fun validateRequisitionMetadataRequest(
+    request: CreateRequisitionMetadataRequest,
+    fieldPathPrefix: String,
+  ) {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}parent")
+    }
+
+    val parentKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("${fieldPathPrefix}parent")
+
+    val requestId = request.requestId
+    if (requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("${fieldPathPrefix}request_id", e)
+      }
+    }
+
+    if (!request.hasRequisitionMetadata()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata")
+    }
+
+    val requisitionMetadata = request.requisitionMetadata
+
+    if (requisitionMetadata.cmmsRequisition.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata.cmms_requisition")
+    }
+
+    val cmmsRequisitionKey =
+      CanonicalRequisitionKey.fromName(request.requisitionMetadata.cmmsRequisition)
+        ?: throw InvalidFieldValueException(
+          "${fieldPathPrefix}requisition_metadata.cmms_requisition"
+        )
+
+    if (cmmsRequisitionKey.dataProviderId != parentKey.dataProviderId) {
+      throw DataProviderMismatchException(
+        parentKey.dataProviderId,
+        cmmsRequisitionKey.dataProviderId,
+      )
+    }
+
+    if (requisitionMetadata.blobUri.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata.blob_uri")
+    }
+
+    if (requisitionMetadata.blobTypeUrl.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata.blob_type_url")
+    }
+
+    if (requisitionMetadata.groupId.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata.group_id")
+    }
+
+    if (requisitionMetadata.report.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}requisition_metadata.report")
+    }
+
+    ReportKey.fromName(request.requisitionMetadata.report)
+      ?: throw InvalidFieldValueException("${fieldPathPrefix}requisition_metadata.report")
   }
 
   companion object {

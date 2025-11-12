@@ -29,6 +29,8 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -26,6 +26,9 @@ on:
         description: "Tag of container images"
         value: ${{ jobs.get-image-tag.outputs.image-tag }}
 
+permissions:
+  contents: read
+
 jobs:
   get-image-tag:
     runs-on: ubuntu-22.04
@@ -53,6 +56,9 @@ jobs:
     if: inputs.existing-image-tag == ''
     needs: [get-image-tag]
     secrets: inherit
+    permissions:
+      contents: read
+      packages: write
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
 
@@ -61,6 +67,9 @@ jobs:
     if: inputs.existing-image-tag == ''
     needs: [ get-image-tag ]
     secrets: inherit
+    permissions:
+      contents: read
+      packages: write    
     with:
       package-version: ${{ needs.get-image-tag.outputs.image-tag }}
 
@@ -68,6 +77,10 @@ jobs:
     uses: ./.github/workflows/sign-images.yml
     needs: [get-image-tag, push-images]
     secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+      packages: write    
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
       kms-key-resource-name: "${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
@@ -79,6 +92,10 @@ jobs:
     needs: [get-image-tag, push-images]
     if: ${{ github.event_name == 'release' }}
     secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+      packages: write    
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
       kms-key-resource-name: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"

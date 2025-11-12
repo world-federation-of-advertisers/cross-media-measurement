@@ -37,10 +37,10 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyData: IntArray,
+    frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-    return NoOpMeasurementFulfiller(requisition, frequencyData)
+    return NoOpMeasurementFulfiller(requisition, frequencyDataBytes)
   }
 
   companion object {
@@ -53,17 +53,22 @@ class NoOpFulfillerSelector : FulfillerSelector {
    */
   private class NoOpMeasurementFulfiller(
     private val requisition: Requisition,
-    private val frequencyData: IntArray,
+    private val frequencyDataBytes: ByteArray,
   ) : MeasurementFulfiller {
 
     override suspend fun fulfillRequisition() {
       logger.info("[NOOP_FULFILLER] Starting fulfillRequisition() for: ${requisition.name}")
 
       val startTime = System.currentTimeMillis()
-      val nonZeroFrequencies = frequencyData.count { it > 0 }
-      val totalFrequency = frequencyData.sum()
-      val maxFrequency = frequencyData.maxOrNull() ?: 0
-      val avgFrequency = if (frequencyData.isNotEmpty()) frequencyData.average() else 0.0
+      val nonZeroFrequencies = frequencyDataBytes.count { it.toInt() and 0xFF > 0 }
+      val totalFrequency = frequencyDataBytes.sumOf { (it.toInt() and 0xFF).toLong() }
+      val maxFrequency = frequencyDataBytes.maxOfOrNull { it.toInt() and 0xFF } ?: 0
+      val avgFrequency =
+        if (frequencyDataBytes.isNotEmpty()) {
+          frequencyDataBytes.map { it.toInt() and 0xFF }.average()
+        } else {
+          0.0
+        }
 
       logger.info(
         """
@@ -74,7 +79,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
         |  State: ${requisition.state}
         |  Data provider certificate: ${requisition.dataProviderCertificate}
         |  Frequency data analysis:
-        |    - Array size: ${frequencyData.size}
+        |    - Array size: ${frequencyDataBytes.size}
         |    - Non-zero entries: $nonZeroFrequencies
         |    - Total frequency: $totalFrequency
         |    - Max frequency: $maxFrequency

@@ -10,6 +10,7 @@ kt_jvm_library(
     srcs = ["ReportSchedulingJob.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_info_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedules_service",
@@ -38,6 +39,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",
         "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",

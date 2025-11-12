@@ -16,6 +16,7 @@ kt_jvm_library(
         "DefaultFulfillerSelector.kt",
         "FulfillerSelector.kt",
         "ResultsFulfiller.kt",
+        "ResultsFulfillerMetrics.kt",
     ],
     deps = [
         ":continuous_gaussian_noiser_selector",
@@ -39,6 +40,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_measurement_result_factory",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:direct_measurement_fulfiller",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:hmshuffle_measurement_fulfiller",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
@@ -302,6 +304,7 @@ kt_jvm_library(
     srcs = ["RequisitionStubFactoryImpl.kt"],
     deps = [
         ":requisition_stub_factory",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -333,7 +336,9 @@ kt_jvm_library(
         ":results_fulfiller_app",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:event_data_provider_configs_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
@@ -357,7 +362,14 @@ java_image(
     base = "@java_image_base_root",
     binary = ":ResultsFulfiller",
     labels = {
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET",
+        # Environment variables allowed to be overridden in TEE launch policy:
+        # - EDPA_CONFIG_STORAGE_BUCKET: Specifies the storage bucket for EDP aggregator configuration
+        # - JAVA_TOOL_OPTIONS: JVM configuration options, required to set JVM heap size
+        # - OTEL_SERVICE_NAME: OpenTelemetry service name for distributed tracing identification
+        # - OTEL_METRICS_EXPORTER: Configures the exporter for OpenTelemetry metrics
+        # - OTEL_TRACES_EXPORTER: Configures the exporter for OpenTelemetry traces
+        # Note: OpenTelemetry variables are automatically configured by the SDK
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER",
     },
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerAppRunner",
     visibility = ["//src:docker_image_deployment"],

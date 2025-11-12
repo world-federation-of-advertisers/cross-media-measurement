@@ -17,6 +17,10 @@ proto_library(
 proto_library(
     name = "report_summary_v2_proto",
     srcs = ["report_summary_v2.proto"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_proto",
+    ],
 )
 
 proto_library(
