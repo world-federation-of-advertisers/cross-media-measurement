@@ -63,7 +63,7 @@ class SpannerMeasurementLogEntriesService(
     } catch (e: MeasurementStateIllegalException) {
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
-        "Measurement in wrong state.",
+        "Measurement in wrong state. state=${e.state}",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error")
