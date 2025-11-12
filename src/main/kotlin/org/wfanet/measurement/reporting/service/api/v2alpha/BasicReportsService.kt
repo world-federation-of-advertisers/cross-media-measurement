@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.type.copy
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.UUID
@@ -30,8 +32,14 @@ import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.toTimestamp
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
@@ -101,10 +109,12 @@ class BasicReportsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
+  private val kingdomModelLinesStub: KingdomModelLinesCoroutineStub,
   private val eventDescriptor: EventDescriptor?,
   private val metricSpecConfig: MetricSpecConfig,
   private val secureRandom: Random,
   private val authorization: Authorization,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -167,6 +177,51 @@ class BasicReportsService(
           e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
       }
     }
+
+    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[request.parent]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $request.parent")
+          .asRuntimeException()
+
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
+
+    val validModelLines =
+      kingdomModelLinesStub
+        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
+        .enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            parent = ModelSuiteKey("-", "-").toName()
+            timeInterval = interval {
+              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
+              endTime =
+                request.basicReport.reportingInterval.reportStart
+                  .copy {
+                    day = request.basicReport.reportingInterval.reportEnd.day
+                    month = request.basicReport.reportingInterval.reportEnd.month
+                    year = request.basicReport.reportingInterval.reportEnd.year
+                  }
+                  .toTimestamp()
+            }
+            dataProviders += reportingSetMaps.primitiveReportingSetsByDataProvider.keys
+          }
+        )
+        .modelLinesList
+
+    val modelLine =
+      if (request.basicReport.modelLine.isNotEmpty()) {
+        if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
+          throw InvalidFieldValueException("basic_report.model_line")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        request.basicReport.modelLine
+      } else if (validModelLines.isNotEmpty()) {
+        validModelLines.first().name
+      } else {
+        ""
+      }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
     val impressionQualificationFilterSpecsLists:
@@ -268,8 +323,6 @@ class BasicReportsService(
         }
       }
 
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
-
     val reportingSetsMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
@@ -287,6 +340,7 @@ class BasicReportsService(
         campaignGroupKey,
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
+        modelLine,
       )
 
     val createReportRequest = createReportRequest {
@@ -698,6 +752,7 @@ class BasicReportsService(
    *   name
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
+   * @param modelLine The model line to use for the report.
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -705,6 +760,7 @@ class BasicReportsService(
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
+    modelLine: String,
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
@@ -746,7 +802,7 @@ class BasicReportsService(
                   val metricCalculationSpec = metricCalculationSpec {
                     cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
                     externalCampaignGroupId = campaignGroupKey.reportingSetId
-                    cmmsModelLine = basicReport.modelLine
+                    cmmsModelLine = modelLine
                     details = metricCalculationSpecDetails
                   }
                   metricCalculationSpecs +=

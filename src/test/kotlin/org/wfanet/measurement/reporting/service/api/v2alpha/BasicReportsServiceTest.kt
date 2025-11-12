@@ -24,6 +24,7 @@ import com.google.type.DayOfWeek
 import com.google.type.copy
 import com.google.type.date
 import com.google.type.dateTime
+import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -47,6 +48,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
 import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
@@ -56,9 +58,17 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.getRuntimePath
@@ -68,12 +78,15 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
@@ -174,6 +187,11 @@ class BasicReportsServiceTest {
       .thenReturn(report { name = ReportKey("a1234", "a1234").toName() })
   }
 
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { enumerateValidModelLines(any()) }
+      .thenReturn(enumerateValidModelLinesResponse { modelLines += ModelLine.getDefaultInstance() })
+  }
+
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
@@ -192,6 +210,7 @@ class BasicReportsServiceTest {
     addService(PostgresMetricCalculationSpecsService(idGenerator, postgresDatabaseClient))
     addService(PostgresReportingSetsService(idGenerator, postgresDatabaseClient))
     addService(ImpressionQualificationFiltersService(IMPRESSION_QUALIFICATION_FILTER_MAPPING))
+    addService(modelLinesServiceMock)
   }
 
   @get:Rule
@@ -206,6 +225,7 @@ class BasicReportsServiceTest {
   private lateinit var internalReportingSetsService: InternalReportingSetsCoroutineStub
   private lateinit var internalBasicReportsService: InternalBasicReportsCoroutineStub
   private lateinit var reportsService: ReportsCoroutineStub
+  private lateinit var modelLinesService: ModelLinesCoroutineStub
 
   private lateinit var service: BasicReportsService
 
@@ -219,6 +239,7 @@ class BasicReportsServiceTest {
     internalReportingSetsService = InternalReportingSetsCoroutineStub(grpcTestServerRule.channel)
     internalBasicReportsService = InternalBasicReportsCoroutineStub(grpcTestServerRule.channel)
     reportsService = ReportsCoroutineStub(grpcTestServerRule.channel)
+    modelLinesService = ModelLinesCoroutineStub(grpcTestServerRule.channel)
     authorization =
       Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel))
 
@@ -229,16 +250,18 @@ class BasicReportsServiceTest {
         internalReportingSetsService,
         internalMetricCalculationSpecsService,
         reportsService,
+        modelLinesService,
         TEST_EVENT_DESCRIPTOR,
         METRIC_SPEC_CONFIG,
         SecureRandom().asKotlinRandom(),
         authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
       )
   }
 
   @Test
   fun `createBasicReport returns basic report`(): Unit = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -394,7 +417,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport creates report and persists its report id`(): Unit = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -602,7 +625,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport creates only 1 basic report when request id is repeated`(): Unit =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -655,7 +678,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport creates new primitive reportingsets only when needed`(): Unit =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -906,7 +929,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport creates new composite reportingsets only when needed`(): Unit =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -1173,7 +1196,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport creates reportingsets when filters exists in old ones`(): Unit =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -1596,8 +1619,15 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport creates new metric calculation specs only when needed`(): Unit =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      val specifiedModelLine = modelLine {
+        name = ModelLineKey("1234", "1234", "1234").toName()
+        type = ModelLine.Type.PROD
+      }
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(enumerateValidModelLinesResponse { modelLines += specifiedModelLine })
 
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer {
@@ -1646,8 +1676,6 @@ class BasicReportsServiceTest {
 
       assertThat(existingMetricCalculationSpecs).hasSize(0)
 
-      val modelLineName = ModelLineKey("1234", "1234", "1234").toName()
-
       val basicReport = basicReport {
         this.campaignGroup = campaignGroupKey.toName()
         title = "title"
@@ -1664,7 +1692,7 @@ class BasicReportsServiceTest {
             day = 5
           }
         }
-        modelLine = modelLineName
+        modelLine = specifiedModelLine.name
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
             ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -1773,7 +1801,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            cmmsModelLine = modelLineName
+            cmmsModelLine = specifiedModelLine.name
             details =
               MetricCalculationSpecKt.details {
                 groupings +=
@@ -1886,7 +1914,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            cmmsModelLine = modelLineName
+            cmmsModelLine = specifiedModelLine.name
             details =
               MetricCalculationSpecKt.details {
                 groupings +=
@@ -2033,7 +2061,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            cmmsModelLine = modelLineName
+            cmmsModelLine = specifiedModelLine.name
             details =
               MetricCalculationSpecKt.details {
                 filter =
@@ -2082,7 +2110,7 @@ class BasicReportsServiceTest {
           internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
             externalCampaignGroupId = campaignGroupKey.reportingSetId
-            cmmsModelLine = modelLineName
+            cmmsModelLine = specifiedModelLine.name
             details =
               MetricCalculationSpecKt.details {
                 filter =
@@ -2185,8 +2213,204 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport uses line when model line not set and one valid line exists`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      val defaultModelLine = modelLine {
+        name = "modelProviders/123/modelSuites/123/modelLines/DEFAULT"
+        type = ModelLine.Type.PROD
+      }
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(enumerateValidModelLinesResponse { modelLines += defaultModelLine })
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport =
+        BASIC_REPORT.copy {
+          this.campaignGroup = campaignGroupKey.toName()
+          reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 3
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2026
+              month = 1
+              day = 5
+            }
+          }
+          clearModelLine()
+        }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
+      verifyProtoArgument(
+          modelLinesServiceMock,
+          ModelLinesCoroutineImplBase::enumerateValidModelLines,
+        )
+        .isEqualTo(
+          enumerateValidModelLinesRequest {
+            parent = "modelProviders/-/modelSuites/-"
+            timeInterval = interval {
+              startTime = timestamp { seconds = 1751526000 }
+              endTime = timestamp { seconds = 1767600000 }
+            }
+            dataProviders += DATA_PROVIDER_KEY.toName()
+          }
+        )
+
+      val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        filter =
+          ListMetricCalculationSpecsRequestKt.filter {
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        limit = 50
+      }
+
+      val createdMetricCalculationSpecs =
+        internalMetricCalculationSpecsService
+          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+          .metricCalculationSpecsList
+
+      assertThat(createdMetricCalculationSpecs.map { it.cmmsModelLine }.distinct())
+        .containsExactly(defaultModelLine.name)
+    }
+
+  @Test
+  fun `createBasicReport uses no line when model line not set and zero valid lines exist`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      // Return no model lines
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(EnumerateValidModelLinesResponse.getDefaultInstance())
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport =
+        BASIC_REPORT.copy {
+          this.campaignGroup = campaignGroupKey.toName()
+          reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 3
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2026
+              month = 1
+              day = 5
+            }
+          }
+          clearModelLine()
+        }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
+      // Verify kingdomModelLinesStub.enumerateValidModelLines was called
+      verifyProtoArgument(
+          modelLinesServiceMock,
+          ModelLinesCoroutineImplBase::enumerateValidModelLines,
+        )
+        .isEqualTo(
+          enumerateValidModelLinesRequest {
+            parent = "modelProviders/-/modelSuites/-"
+            timeInterval = interval {
+              startTime = timestamp { seconds = 1751526000 }
+              endTime = timestamp { seconds = 1767600000 }
+            }
+            dataProviders += DATA_PROVIDER_KEY.toName()
+          }
+        )
+
+      val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        filter =
+          ListMetricCalculationSpecsRequestKt.filter {
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        limit = 50
+      }
+
+      val createdMetricCalculationSpecs =
+        internalMetricCalculationSpecsService
+          .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+          .metricCalculationSpecsList
+
+      assertThat(createdMetricCalculationSpecs.map { it.cmmsModelLine }.distinct())
+        .containsExactly("")
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2228,7 +2452,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when parent is invalid`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2272,7 +2496,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws PERMISSION_DENIED when caller does not have permission`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -2310,7 +2534,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when basicReportId is missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2352,7 +2576,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when basicReportId is invalid`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2395,7 +2619,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws ALREADY_EXISTS when basicReport already exists`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2442,7 +2666,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when requestId is invalid`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2486,7 +2710,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup is missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2529,7 +2753,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup is invalid`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
 
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer {
@@ -2560,7 +2784,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws FAILED_PRECONDITION when campaignGroup not found`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2593,7 +2817,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup not campaignGroup`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -2636,7 +2860,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when modelLine is invalid`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2682,8 +2906,87 @@ class BasicReportsServiceTest {
   }
 
   @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when modelLine not part of valid list`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      val unusedModelLine = modelLine {
+        name = "modelProviders/123/modelSuites/123/modelLines/unused"
+        type = ModelLine.Type.PROD
+      }
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(enumerateValidModelLinesResponse { modelLines += unusedModelLine })
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport =
+        BASIC_REPORT.copy {
+          this.campaignGroup = campaignGroupKey.toName()
+          reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 3
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2026
+              month = 1
+              day = 5
+            }
+          }
+          modelLine = ModelLineKey("a", "b", "c").toName()
+        }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.model_line"
+          }
+        )
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2731,7 +3034,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval reportStart missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -2780,7 +3083,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingInterval reportEnd missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -2827,7 +3130,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart year missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2875,7 +3178,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart month missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2923,7 +3226,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart day missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -2972,7 +3275,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart time zone missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3023,7 +3326,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportEnd year missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3071,7 +3374,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportEnd month missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3119,7 +3422,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportEnd day missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3167,7 +3470,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3215,7 +3518,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs have invalid IQF name`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3266,7 +3569,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when IQFs have 2 custom filters`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3342,7 +3645,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when IQFs have custom missing filter specs`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3395,7 +3698,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom has 2 filter spec for media type`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3467,7 +3770,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom filter spec missing filters`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3522,7 +3825,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom filter spec filters missing terms`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3580,7 +3883,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom filter spec filters terms no path`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3642,7 +3945,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom filter spec filters terms no value`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3702,7 +4005,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting IQF no name nor custom`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3751,7 +4054,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when result group specs missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -3799,7 +4102,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when result group specs reporting unit missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3848,7 +4151,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit missing components`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3897,7 +4200,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit component invalid format`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3947,7 +4250,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when component not in campaign group`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -3998,7 +4301,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec missing`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -4047,7 +4350,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec template fields missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4102,7 +4405,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec template field nonexistent`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4158,7 +4461,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec templatefield not groupable`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4215,7 +4518,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter 0 terms`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4270,7 +4573,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter 2 terms`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4334,7 +4637,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter term no path`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4393,7 +4696,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter term path not exist`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4454,7 +4757,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec filter term not filterable`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4515,7 +4818,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimensionspec filter term in grouping`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4577,7 +4880,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec filter term no value`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4634,7 +4937,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension string_value set for Duration`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4694,7 +4997,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension enum_value set for Duration`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4754,7 +5057,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Duration`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4814,7 +5117,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension float_value set for Duration`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4874,7 +5177,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension spec string_value set for Enum`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4934,7 +5237,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when invalid dimension enum_value set for Enum`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -4994,7 +5297,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension bool_value set for Enum`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5054,7 +5357,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when dimension float_value set for Enum`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5113,7 +5416,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 0 terms`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -5170,7 +5473,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter 2 terms`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -5237,7 +5540,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter term path not exist`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5301,7 +5604,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF filter term not IQ`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5365,7 +5668,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF field diff media type than spec`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5429,7 +5732,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF string_value set for Bool`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5492,7 +5795,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF enum_value set for Bool`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5555,7 +5858,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF float_value set for Bool`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5618,7 +5921,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF bool_value set for Double`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5681,7 +5984,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when custom IQF float_value set for Double`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5744,7 +6047,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when result group metric spec missing`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5792,7 +6095,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws UNIMPLEMENTED when component intersection set`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -5846,7 +6149,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when metric frequency not set`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -5895,7 +6198,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit non cumulative with total`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -5953,7 +6256,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when component non cumulative with total`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6011,7 +6314,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when component non cumulative unique with total`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6070,7 +6373,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportingunit non cumulative 0 kplusReach`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6132,7 +6435,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting unit cumulative 0 kplusReach`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6194,7 +6497,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when stacked reach set with weekly`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6252,7 +6555,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when component non cumulative 0 kplusReach`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6314,7 +6617,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when component cumulative 0 kplusReach`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6376,7 +6679,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reporting IQFs IQF not found`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
       measurementConsumersService.createMeasurementConsumer(
@@ -6428,7 +6731,7 @@ class BasicReportsServiceTest {
 
   @Test
   fun `getBasicReport with createBasicReport returns basic report when found`() = runBlocking {
-    val measurementConsumerKey = MeasurementConsumerKey("1234")
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
     measurementConsumersService.createMeasurementConsumer(
@@ -6579,8 +6882,15 @@ class BasicReportsServiceTest {
   @Test
   fun `getBasicReport with createBasicReport with model line returns basic report when found`() =
     runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey("1234")
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      val specifiedModelLine = modelLine {
+        name = ModelLineKey("1234", "1234", "1234").toName()
+        type = ModelLine.Type.PROD
+      }
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(enumerateValidModelLinesResponse { modelLines += specifiedModelLine })
 
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer {
@@ -6623,7 +6933,7 @@ class BasicReportsServiceTest {
             day = 5
           }
         }
-        modelLine = ModelLineKey("1234", "1234", "1234").toName()
+        modelLine = specifiedModelLine.name
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
             ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -8716,6 +9026,19 @@ class BasicReportsServiceTest {
         SECRETS_DIR.resolve("basic_report_metric_spec_config.textproto"),
         MetricSpecConfig.getDefaultInstance(),
       )
+
+    private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
+
+    private val CONFIG = measurementConsumerConfig {
+      apiKey = "api_key_1234"
+      signingCertificateName =
+        MeasurementConsumerCertificateKey(CMMS_MEASUREMENT_CONSUMER_ID, "1234").toName()
+      signingPrivateKeyPath = "mc_cs_private.der"
+    }
+
+    private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+      configs[MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID).toName()] = CONFIG
+    }
 
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
