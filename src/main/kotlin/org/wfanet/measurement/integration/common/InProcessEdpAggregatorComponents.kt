@@ -198,6 +198,8 @@ class InProcessEdpAggregatorComponents(
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
+      googlePubSubClient = pubSubClient,
+      projectId = PROJECT_ID,
     )
   }
 
@@ -396,7 +398,7 @@ class InProcessEdpAggregatorComponents(
     while (day.isBefore(endExclusive)) {
       val ds = day.toString()
 
-      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata.binpb"
 
       val impressionsFileUri = "file:///$impressionsMetadataBucket/$impressionMetadataBlobKey"
       val perDayInterval = dailyInterval(day)
@@ -497,10 +499,11 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
+      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          "model-line/$modelLineName/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
@@ -508,7 +511,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events)
+      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
     }
   }
 

@@ -185,7 +185,7 @@ class BaseTeeApplicationTest {
     val testWork = createTestWork()
     val workItem = createWorkItem(testWork)
     val consumer = TestMessageConsumer()
-    fakeSubscriber.send(QueueSubscriber.QueueMessage(body = workItem, consumer = consumer))
+    fakeSubscriber.send(QueueSubscriber.QueueMessage(body = workItem, ackId = "test-ack-id", consumer = consumer))
 
     consumer.disposition.await()
 

@@ -97,12 +97,6 @@ variable "tee_cmd" {
   type        = list(string)
 }
 
-variable "java_tool_options" {
-  description = "JAVA_TOOL_OPTIONS override for the workload TEE environment."
-  type        = string
-  default     = ""
-}
-
 variable "disk_image_family" {
   description = "The boot disk image family."
   type        = string
@@ -123,4 +117,10 @@ variable "subnetwork_name" {
 variable "edpa_tee_signed_image_repo" {
   description = "Trusted container image repository for Confidential Space attestation."
   type        = string
+}
+
+variable "java_tool_options" {
+  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable."
+  type        = string
+  default     = ""
 }

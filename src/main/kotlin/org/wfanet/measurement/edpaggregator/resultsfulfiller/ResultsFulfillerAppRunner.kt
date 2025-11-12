@@ -52,7 +52,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Stora
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.Subscriber
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.PullSubscriber
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -283,7 +284,8 @@ class ResultsFulfillerAppRunner : Runnable {
     // Create KMS clients for EDPs
     createKmsClients()
 
-    val queueSubscriber = createQueueSubscriber()
+    val pubSubClient = DefaultGooglePubSubClient()
+    val queueSubscriber = createQueueSubscriber(pubSubClient)
     val parser = createWorkItemParser()
 
     // Get client certificates for secure computation API from server flags
@@ -366,6 +368,8 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        googlePubSubClient = pubSubClient,
+        projectId = googleProjectId,
       )
 
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
@@ -494,10 +498,14 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
-    val pubSubClient = DefaultGooglePubSubClient()
-    return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
+  private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
+    logger.info("Creating PullSubscriber for project: ${googleProjectId}.")
+    return PullSubscriber(
+      projectId = googleProjectId,
+      googlePubSubClient = pubSubClient,
+      maxMessages = 1,  // Pull one message at a time for long-running processing
+      pullIntervalMillis = 100
+    )
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {
