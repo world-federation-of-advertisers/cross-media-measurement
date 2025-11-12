@@ -11,6 +11,11 @@ alias(
 )
 
 alias(
+    name = "exporter_auto",
+    actual = "@maven//:com_google_cloud_opentelemetry_exporter_auto",
+)
+
+alias(
     name = "exporter_logging",
     actual = "@maven//:io_opentelemetry_opentelemetry_exporter_logging",
 )

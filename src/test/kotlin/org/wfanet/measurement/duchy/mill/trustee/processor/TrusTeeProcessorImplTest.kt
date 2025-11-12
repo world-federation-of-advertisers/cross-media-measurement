@@ -140,8 +140,10 @@ class TrusTeeProcessorImplTest {
     // With noise, reach might not be exactly 0, but should be small.
     // The frequency distribution should be all zeros if the noised total is zero.
     assertThat(result.reach).isAtMost(5)
-    val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
-    assertThat(result.frequency).isEqualTo(expectedDistribution)
+    if (result.reach == 0L) {
+      val expectedDistribution = (1L..MAX_FREQUENCY).associateWith { 0.0 }
+      assertThat(result.frequency).isEqualTo(expectedDistribution)
+    }
   }
 
   @Test
