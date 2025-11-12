@@ -417,9 +417,7 @@ class ResourceSetup(
         modelLine {
           this.externalModelProviderId = externalModelProviderId
           externalModelSuiteId = internalModelSuite.externalModelSuiteId
-          activeStartTime = timestamp {
-            seconds = 1609502400
-          }
+          activeStartTime = timestamp { seconds = 1609502400 }
           type = InternalModelLine.Type.PROD
         }
       )
