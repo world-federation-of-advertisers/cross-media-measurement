@@ -12,7 +12,10 @@ kt_jvm_library(
     name = "edpa_telemetry",
     srcs = ["EdpaTelemetry.kt"],
     deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
         "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
@@ -48,7 +51,10 @@ kt_jvm_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
         "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/api:semconv",
