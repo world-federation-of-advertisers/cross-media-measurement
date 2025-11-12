@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
@@ -46,6 +47,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
@@ -91,75 +93,63 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
-              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
-              externalImpressionQualificationFilterId =
-                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
-              metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+    val reportingSetResults = listOf(
+      // Primitive 1.
+      reportingSetResult {
+        dimension =
+          ReportingSetResultKt.dimension {
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+            externalImpressionQualificationFilterId =
+              IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+            metricFrequencySpec = metricFrequencySpec { total = true }
+            grouping = ReportingSetResultKt.DimensionKt.grouping {
+              valueByPath["person.age_group"] = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+            populationSize = 100
+            reportingWindowResults +=
+              ReportingSetResultKt.reportingWindowEntry {
+                key =
+                  ReportingSetResultKt.reportingWindow {
+                    end = REPORTING_INTERVAL.reportEnd
+                  }
+                value =
+                  ReportingSetResultKt.reportingWindowResult {
+                    denoisedReportResultValues =
+                      ReportingSetResultKt.ReportingWindowResultKt
+                        .reportResultValues {
+                          cumulativeResults =
+                            ResultGroupKt.MetricSetKt.basicMetricSet {
+                              reach = 10
+                              impressions = 100
+                            }
+                        }
+                  }
               }
-            }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
-                    }
-                }
-            }
-        }
-
+      },
       // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {
+                valueByPath["person.age_group"] = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
-          value =
-            ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -169,44 +159,38 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                           }
                     }
                 }
-            }
-        }
+        },
       // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              grouping = ReportingSetResultKt.DimensionKt.grouping {
+                valueByPath["person.age_group"] = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
               }
             }
-          value =
-            ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                           }
                     }
                 }
-            }
         }
-    }
+    )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -232,7 +216,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -400,9 +384,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -416,15 +400,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -438,9 +422,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -454,15 +438,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -476,9 +460,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -492,15 +476,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
@@ -730,9 +714,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Composite
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -746,9 +730,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = date {
                         day = REPORTING_INTERVAL.reportStart.day + 1
                         month = REPORTING_INTERVAL.reportStart.month
@@ -757,9 +741,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
@@ -905,9 +889,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -921,15 +905,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1058,9 +1042,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1074,16 +1058,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1097,9 +1081,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1113,16 +1097,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1136,9 +1120,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1152,16 +1136,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
@@ -1349,9 +1333,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1365,16 +1349,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1388,9 +1372,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1404,16 +1388,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1427,9 +1411,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 3
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1443,16 +1427,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1466,9 +1450,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1482,16 +1466,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
@@ -1502,9 +1486,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_2_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1518,16 +1502,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 30 }
@@ -1538,9 +1522,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite 3
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1554,16 +1538,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 45 }
@@ -1574,9 +1558,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Composite 4
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1590,16 +1574,16 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             nonCumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet { reach = 55 }
@@ -1824,9 +1808,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1840,15 +1824,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1862,9 +1846,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 1 custom
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               custom = true
               metricFrequencySpec = metricFrequencySpec { total = true }
@@ -1877,15 +1861,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1899,9 +1883,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -1915,15 +1899,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1937,9 +1921,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2 custom
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               custom = true
               metricFrequencySpec = metricFrequencySpec { total = true }
@@ -1952,15 +1936,15 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2177,9 +2161,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       reportStart = REPORTING_INTERVAL.reportStart
       // Primitive 1
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -2193,9 +2177,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart =
                         REPORTING_INTERVAL.reportEnd.copy {
                           day = REPORTING_INTERVAL.reportStart.day
@@ -2210,9 +2194,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                         }
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2226,9 +2210,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 1 week 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -2242,9 +2226,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart =
                         REPORTING_INTERVAL.reportEnd.copy {
                           day = REPORTING_INTERVAL.reportStart.day + 7
@@ -2254,9 +2238,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2270,9 +2254,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -2286,9 +2270,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart =
                         REPORTING_INTERVAL.reportEnd.copy {
                           day = REPORTING_INTERVAL.reportStart.day
@@ -2303,9 +2287,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                         }
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2319,9 +2303,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
       // Primitive 2 week 2
       reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
+        reportingSetResult {
           key =
-            ReportResultKt.reportingSetResultKey {
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
@@ -2335,9 +2319,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
             ReportResultKt.reportingSetResult {
               populationSize = 100
               reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
+                ReportingSetResultKt.reportingWindowEntry {
                   key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
+                    ReportingSetResultKt.reportingWindow {
                       nonCumulativeStart =
                         REPORTING_INTERVAL.reportEnd.copy {
                           day = REPORTING_INTERVAL.reportStart.day + 7
@@ -2347,9 +2331,9 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                       end = REPORTING_INTERVAL.reportEnd
                     }
                   value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
+                    ReportingSetResultKt.reportingWindowResult {
                       denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
+                        ReportingSetResultKt.ReportingWindowResultKt
                           .reportResultValues {
                             cumulativeResults =
                               ResultGroupKt.MetricSetKt.basicMetricSet {
