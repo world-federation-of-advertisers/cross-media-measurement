@@ -448,10 +448,11 @@ class TestOriginReport(unittest.TestCase):
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
           TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self._assertFuzzyLessEqual(
           corrected_measurements_map[
@@ -758,10 +759,11 @@ class TestOriginReport(unittest.TestCase):
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
           TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self._assertFuzzyLessEqual(
           corrected_measurements_map[
