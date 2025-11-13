@@ -114,8 +114,17 @@ class BaseTeeApplicationTest {
 
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
+    val pubSubClient = Subscriber(
+      projectId = PROJECT_ID,
+      googlePubSubClient = emulatorClient,
+      maxMessages = 1,
+      pullIntervalMillis = 100,
+      blockingContext = kotlinx.coroutines.Dispatchers.IO
+    )
+    val publisher = Publisher<WorkItem>(
+      projectId = PROJECT_ID,
+      googlePubSubClient = emulatorClient
+    )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
 
@@ -237,6 +246,10 @@ class BaseTeeApplicationTest {
     override fun nack() {
       nackCount++
       _disposition.complete(Disposition.NACK)
+    }
+
+    override fun extendAckDeadline(duration: java.time.Duration) {
+      // No-op for test
     }
   }
 

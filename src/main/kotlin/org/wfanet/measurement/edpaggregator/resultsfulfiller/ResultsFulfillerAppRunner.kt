@@ -53,7 +53,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.Paral
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.PullSubscriber
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -519,15 +519,16 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
-    logger.info("Creating PullSubscriber for project: $googleProjectId, subscription: $subscriptionId")
-    logger.info("PullSubscriber config: maxMessages=1, pullIntervalMillis=100ms")
-    val subscriber = PullSubscriber(
+    logger.info("Creating Subscriber for project: $googleProjectId, subscription: $subscriptionId")
+    logger.info("Subscriber config: maxMessages=1, pullIntervalMillis=100ms")
+    val subscriber = Subscriber(
       projectId = googleProjectId,
       googlePubSubClient = pubSubClient,
       maxMessages = 1,  // Pull one message at a time for long-running processing
-      pullIntervalMillis = 100
+      pullIntervalMillis = 100,
+      blockingContext = kotlinx.coroutines.Dispatchers.IO
     )
-    logger.info("PullSubscriber created successfully")
+    logger.info("Subscriber created successfully")
     return subscriber
   }
 
