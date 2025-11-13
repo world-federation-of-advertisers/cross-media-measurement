@@ -278,13 +278,23 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   override fun run() {
+    logger.info("Starting ResultsFulfillerAppRunner.run()")
+    logger.info("Google Project ID: $googleProjectId")
+    logger.info("Subscription ID: $subscriptionId")
+
     // Pull certificates needed to operate from Google Secrets.
+    logger.info("Saving EDPA certificates...")
     saveEdpaCerts()
+    logger.info("Saving EDPs certificates...")
     saveEdpsCerts()
     // Create KMS clients for EDPs
+    logger.info("Creating KMS clients...")
     createKmsClients()
 
+    logger.info("Creating DefaultGooglePubSubClient...")
     val pubSubClient = DefaultGooglePubSubClient()
+    logger.info("DefaultGooglePubSubClient created")
+
     val queueSubscriber = createQueueSubscriber(pubSubClient)
     val parser = createWorkItemParser()
 
@@ -353,6 +363,11 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
+    logger.info("Creating ResultsFulfillerApp instance...")
+    logger.info("Subscription ID: $subscriptionId")
+    logger.info("Project ID: $googleProjectId")
+    logger.info("Model lines configured: ${modelLinesMap.keys}")
+
     val resultsFulfillerApp =
       ResultsFulfillerApp(
         subscriptionId = subscriptionId,
@@ -372,7 +387,12 @@ class ResultsFulfillerAppRunner : Runnable {
         projectId = googleProjectId,
       )
 
+    logger.info("ResultsFulfillerApp instance created successfully")
+    logger.info("Starting ResultsFulfillerApp.run()...")
+
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
+
+    logger.info("ResultsFulfillerApp.run() completed")
   }
 
   fun createKmsClients() {
@@ -499,13 +519,16 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
-    logger.info("Creating PullSubscriber for project: ${googleProjectId}.")
-    return PullSubscriber(
+    logger.info("Creating PullSubscriber for project: $googleProjectId, subscription: $subscriptionId")
+    logger.info("PullSubscriber config: maxMessages=1, pullIntervalMillis=100ms")
+    val subscriber = PullSubscriber(
       projectId = googleProjectId,
       googlePubSubClient = pubSubClient,
       maxMessages = 1,  // Pull one message at a time for long-running processing
       pullIntervalMillis = 100
     )
+    logger.info("PullSubscriber created successfully")
+    return subscriber
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {

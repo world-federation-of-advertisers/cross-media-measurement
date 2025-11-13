@@ -42,7 +42,7 @@ bazel_dep(
 )
 git_override(
     module_name = "common-jvm",
-    commit = "e9be9022",
+    commit = "26229e52",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(

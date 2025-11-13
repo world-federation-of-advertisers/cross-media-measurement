@@ -74,6 +74,8 @@ abstract class BaseTeeApplication(
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
+    logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
+    logger.info("PubSub client configured: ${googlePubSubClient != null}, projectId: $projectId")
     receiveAndProcessMessages()
   }
 
@@ -82,11 +84,18 @@ abstract class BaseTeeApplication(
    * If an error occurs during the message flow, it is logged and handling continues.
    */
   private suspend fun receiveAndProcessMessages() {
+    logger.info("Creating subscription channel for subscriptionId: $subscriptionId")
     val messageChannel: ReceiveChannel<QueueSubscriber.QueueMessage<WorkItem>> =
       queueSubscriber.subscribe(subscriptionId, parser)
+    logger.info("Subscription channel created. Waiting for messages...")
+
+    var messageCount = 0
     for (message: QueueSubscriber.QueueMessage<WorkItem> in messageChannel) {
+      messageCount++
+      logger.info("Received message #$messageCount with ackId: ${message.ackId}")
       processMessage(message)
     }
+    logger.warning("Message channel closed after processing $messageCount messages")
   }
 
   /**
@@ -97,17 +106,20 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
 
     if (body.name.isEmpty()) {
-      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed.")
+      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed. Nacking message.")
       queueMessage.nack()
       return
     }
+    logger.info("Processing WorkItem: ${body.name}")
     val workItemName = WorkItemKey(body.name).toName()
     val workItemAttempt: WorkItemAttempt =
       try {
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
+        logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
         createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
         // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
@@ -133,6 +145,9 @@ abstract class BaseTeeApplication(
     // Start background coroutine to extend ack deadline if configured
     val ackDeadlineExtensionJob: Job? =
       if (googlePubSubClient != null && projectId != null) {
+        logger.info(
+          "Starting ack deadline extension job for message ${queueMessage.ackId} (interval: ${ackDeadlineExtensionIntervalSeconds}s, deadline: ${ackDeadlineExtensionSeconds}s)"
+        )
         CoroutineScope(Dispatchers.IO).launch {
           while (isActive) {
             delay(ackDeadlineExtensionIntervalSeconds * 1000)
@@ -152,11 +167,16 @@ abstract class BaseTeeApplication(
           }
         }
       } else {
+        logger.warning(
+          "Ack deadline extension disabled. GooglePubSubClient: ${googlePubSubClient != null}, projectId: ${projectId != null}"
+        )
         null
       }
 
     try {
+      logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runWork(queueMessage.body.workItemParams)
+      logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runCatching { completeWorkItemAttempt(workItemAttempt) }
         .onFailure { error ->
           when (error) {
@@ -167,36 +187,41 @@ abstract class BaseTeeApplication(
                   error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
                     WorkItemAttempt.State.SUCCEEDED.name
               ) {
+                logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
                 queueMessage.ack()
                 return@processMessage
               } else {
-                logger.log(Level.SEVERE, error) { "Failed to report work item as completed" }
+                logger.log(Level.SEVERE, error) { "Failed to report work item as completed. Nacking message ${queueMessage.ackId}" }
                 queueMessage.nack()
                 return@processMessage
               }
             }
           }
         }
+      logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
-      logger.log(Level.SEVERE, e) { "Failed to parse protobuf message" }
+      logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
         failWorkItem(workItemName)
+        logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
       } catch (error: Throwable) {
-        logger.log(Level.SEVERE, error) { "Failed to report work item failure" }
+        logger.log(Level.SEVERE, error) { "Failed to report work item failure. Nacking message ${queueMessage.ackId}" }
         queueMessage.nack()
       }
     } catch (e: Exception) {
-      logger.log(Level.SEVERE, e) { "Error processing message" }
+      logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
         .onFailure { error ->
           logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
         }
+      logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()
     } finally {
       // Cancel the ack deadline extension job when message processing is complete
       ackDeadlineExtensionJob?.cancel()
+      logger.info("Finished processing message ${queueMessage.ackId}")
     }
   }
 
@@ -256,7 +281,9 @@ abstract class BaseTeeApplication(
   abstract suspend fun runWork(message: Any)
 
   override fun close() {
+    logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
     queueSubscriber.close()
+    logger.info("BaseTeeApplication closed")
   }
 
   companion object {
