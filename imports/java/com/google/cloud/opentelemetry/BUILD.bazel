@@ -1,0 +1,21 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "exporter_metrics",
+    actual = "@maven//:com_google_cloud_opentelemetry_exporter_metrics",
+)
+
+alias(
+    name = "exporter_trace",
+    actual = "@maven//:com_google_cloud_opentelemetry_exporter_trace",
+)
+
+alias(
+    name = "exporter_auto",
+    actual = "@maven//:com_google_cloud_opentelemetry_exporter_auto",
+)
+
+alias(
+    name = "exporter_logging",
+    actual = "@maven//:io_opentelemetry_opentelemetry_exporter_logging",
+)

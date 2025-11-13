@@ -32,11 +32,14 @@ on:
           - head
 
 permissions:
-  id-token: write
+  contents: read
 
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4

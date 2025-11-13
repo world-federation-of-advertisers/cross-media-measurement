@@ -18,9 +18,17 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   update-cmms:
     uses: ./.github/workflows/update-cmms.yml
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      security-events: write
     secrets: inherit
     with:
       environment: qa

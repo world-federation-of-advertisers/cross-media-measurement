@@ -118,3 +118,9 @@ variable "edpa_tee_signed_image_repo" {
   description = "Trusted container image repository for Confidential Space attestation."
   type        = string
 }
+
+variable "java_tool_options" {
+  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable."
+  type        = string
+  default     = ""
+}

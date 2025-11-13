@@ -48,7 +48,7 @@ on:
         default: false
 
 permissions:
-  id-token: write
+  contents: read
 
 env:
   KUSTOMIZATION_PATH: "k8s/secure_computation"
@@ -56,6 +56,9 @@ env:
 jobs:
   update-secure-computation-control-plane:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@v4

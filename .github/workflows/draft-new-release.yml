@@ -30,6 +30,9 @@ on:
         type: string
         description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
 
+permissions:
+  contents: read
+
 jobs:
   compute-notes-start-commitish:
     runs-on: ubuntu-22.04
@@ -118,6 +121,10 @@ jobs:
   compute-release-notes:
     needs: [compute-notes-start-commitish, compute-milestone-name, compute-release-target]
     uses: ./.github/workflows/generate-release-notes.yml
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     with:
       notes-start-commitish: ${{ needs.compute-notes-start-commitish.outputs.commitish }}
       notes-end-commitish: ${{ needs.compute-release-target.outputs.sha }}

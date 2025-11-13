@@ -156,12 +156,18 @@ class ResultsFulfillerAppTest {
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
-  private val requisitionMetadataServiceMock =
-    mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { startProcessingRequisitionMetadata(any()) }
+        .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
+      onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
   private val impressionMetadataServiceMock =
     mockService<ImpressionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+    onBlocking { getRequisition(any()) }
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
   }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
     mockService {
