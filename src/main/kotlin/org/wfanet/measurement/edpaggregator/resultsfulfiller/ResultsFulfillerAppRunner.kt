@@ -284,7 +284,8 @@ class ResultsFulfillerAppRunner : Runnable {
     // Create KMS clients for EDPs
     createKmsClients()
 
-    val queueSubscriber = createQueueSubscriber()
+    val pubSubClient = DefaultGooglePubSubClient()
+    val queueSubscriber = createQueueSubscriber(pubSubClient)
     val parser = createWorkItemParser()
 
     // Get client certificates for secure computation API from server flags
@@ -367,6 +368,8 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        googlePubSubClient = pubSubClient,
+        projectId = googleProjectId,
       )
 
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
