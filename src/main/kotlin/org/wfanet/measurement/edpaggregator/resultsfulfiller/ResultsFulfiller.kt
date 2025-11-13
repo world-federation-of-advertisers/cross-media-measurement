@@ -245,8 +245,7 @@ class ResultsFulfiller(
         true
       }
       Requisition.State.WITHDRAWN -> {
-        if (metadata.state !== RequisitionMetadata.State.REFUSED) {
-          val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
+        if (metadata.state !== RequisitionMetadata.State.WITHDRAWN) {
           signalRequisitionWithdrawn(metadata)
         }
         false
