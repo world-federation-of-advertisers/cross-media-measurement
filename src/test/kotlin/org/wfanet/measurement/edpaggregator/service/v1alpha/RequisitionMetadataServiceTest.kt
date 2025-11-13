@@ -59,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRequisitionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
@@ -821,6 +822,29 @@ class RequisitionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.fulfillRequisitionMetadata(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `markWithdrawnRequisitionMetadata updates state successfully`() = runBlocking {
+    val existingRequisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val request = markWithdrawnRequisitionMetadataRequest {
+      name = existingRequisitionMetadata.name
+      etag = existingRequisitionMetadata.etag
+    }
+    val requisitionMetadata = service.markWithdrawnRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.WITHDRAWN)
+    assertThat(requisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
   }
 
   @Test
