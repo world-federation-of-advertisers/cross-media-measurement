@@ -115,19 +115,25 @@ class ImpressionWriterTest {
           ),
         ),
       )
-    runBlocking { impressionWriter.writeLabeledImpressionData(events) }
+    runBlocking {
+      impressionWriter.writeLabeledImpressionData(events, "some-model-line", "edp/edp-test")
+    }
     val storageClient = FileSystemStorageClient(tempFolder.root)
     runBlocking {
       listOf("2020-01-01", "2020-01-02").forEach { date ->
         val blobDetails =
           BlobDetails.parseFrom(
             storageClient
-              .getBlob("some-metadata-bucket/ds/$date/some-event-group-path/metadata")!!
+              .getBlob(
+                "some-metadata-bucket/edp/edp-test/ds/$date/some-event-group-path/metadata.binpb"
+              )!!
               .read()
               .flatten()
           )
         assertThat(blobDetails.blobUri)
-          .isEqualTo("file:///some-impression-bucket/ds/$date/some-event-group-path/impressions")
+          .isEqualTo(
+            "file:///some-impression-bucket/edp/edp-test/ds/$date/some-event-group-path/impressions"
+          )
         val encryptedDek = blobDetails.encryptedDek
         assertThat(encryptedDek.kekUri).isEqualTo(kekUri)
         val serializedEncryptionKey = encryptedDek.ciphertext
@@ -137,7 +143,7 @@ class ImpressionWriterTest {
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
         val impressions =
           MesosRecordIoStorageClient(decryptionClient)
-            .getBlob("ds/$date/some-event-group-path/impressions")!!
+            .getBlob("edp/edp-test/ds/$date/some-event-group-path/impressions")!!
             .read()
             .toList()
         assertThat(impressions.size).isEqualTo(3)

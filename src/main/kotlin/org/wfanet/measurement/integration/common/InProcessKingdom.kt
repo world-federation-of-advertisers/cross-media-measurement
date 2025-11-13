@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentitie
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.duchy.herald.Herald
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -129,7 +130,10 @@ class InProcessKingdom(
       kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
   private val systemApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    GrpcTestServerRule(
+      logAllRequests = verboseGrpcLogging,
+      defaultServiceConfig = Herald.SERVICE_CONFIG,
+    ) {
       logger.info("Building Kingdom's system API services")
       listOf(
           SystemComputationsService(internalMeasurementsClient),

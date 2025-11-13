@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Check out revision
         uses: actions/checkout@v4
@@ -64,16 +65,41 @@ jobs:
           bazel build
           //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
 
-      - name: Attach CLI uber jars and pyzips to release
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.0.0
+        with:
+          cosign-release: 'v3.0.2'
+
+      - name: Authenticate to Google Cloud for image signing
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}
+
+      - name: Sign and upload artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          gh release upload "${{ github.event.release.tag_name }}"
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
-          ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/ModelRepository_deploy.jar
-          ./bazel-bin/src/main/python/wfa/measurement/reporting/postprocessing/tools/log_processor.zip
-          --clobber
+          KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"
+        run: |
+          set -euo pipefail
+          artifacts=(
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/MeasurementSystem_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EncryptionPublicKeys_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/EventTemplateValidator_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/tools/Reporting_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/ModelRepository_deploy.jar
+            ./bazel-bin/src/main/python/wfa/measurement/reporting/postprocessing/tools/log_processor.zip
+          )
+
+          echo "Signing artifacts:"
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --tlog-upload=false --key="gcpkms://${KMS_KEY_RESOURCE_NAME}" --bundle="${artifact}.sigstore.json" "${artifact}"
+          done
+
+          echo "Attaching artifacts to release:"
+          artifacts_to_upload=()
+          for artifact in "${artifacts[@]}"; do
+            artifacts_to_upload+=("${artifact}" "${artifact}.sigstore.json")
+          done
+          gh release upload "${{ github.event.release.tag_name }}" "${artifacts_to_upload[@]}" --clobber
