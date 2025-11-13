@@ -206,6 +206,8 @@ class ResultsFulfillerTest {
 
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+    onBlocking { getRequisition(any()) }
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
