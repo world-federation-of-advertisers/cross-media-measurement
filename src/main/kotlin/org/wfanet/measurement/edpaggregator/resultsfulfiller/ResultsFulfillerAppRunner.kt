@@ -52,8 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Stora
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
-import org.wfanet.measurement.gcloud.pubsub.PullSubscriber
+import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -278,24 +277,13 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   override fun run() {
-    logger.info("Starting ResultsFulfillerAppRunner.run()")
-    logger.info("Google Project ID: $googleProjectId")
-    logger.info("Subscription ID: $subscriptionId")
-
     // Pull certificates needed to operate from Google Secrets.
-    logger.info("Saving EDPA certificates...")
     saveEdpaCerts()
-    logger.info("Saving EDPs certificates...")
     saveEdpsCerts()
     // Create KMS clients for EDPs
-    logger.info("Creating KMS clients...")
     createKmsClients()
 
-    logger.info("Creating DefaultGooglePubSubClient...")
-    val pubSubClient = DefaultGooglePubSubClient()
-    logger.info("DefaultGooglePubSubClient created")
-
-    val queueSubscriber = createQueueSubscriber(pubSubClient)
+    val queueSubscriber = createQueueSubscriber()
     val parser = createWorkItemParser()
 
     // Get client certificates for secure computation API from server flags
@@ -363,11 +351,6 @@ class ResultsFulfillerAppRunner : Runnable {
 
     val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
-    logger.info("Creating ResultsFulfillerApp instance...")
-    logger.info("Subscription ID: $subscriptionId")
-    logger.info("Project ID: $googleProjectId")
-    logger.info("Model lines configured: ${modelLinesMap.keys}")
-
     val resultsFulfillerApp =
       ResultsFulfillerApp(
         subscriptionId = subscriptionId,
@@ -383,16 +366,9 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
-        googlePubSubClient = pubSubClient,
-        projectId = googleProjectId,
       )
 
-    logger.info("ResultsFulfillerApp instance created successfully")
-    logger.info("Starting ResultsFulfillerApp.run()...")
-
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
-
-    logger.info("ResultsFulfillerApp.run() completed")
   }
 
   fun createKmsClients() {
@@ -518,17 +494,10 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
-    logger.info("Creating PullSubscriber for project: $googleProjectId, subscription: $subscriptionId")
-    logger.info("PullSubscriber config: maxMessages=1, pullIntervalMillis=100ms")
-    val subscriber = PullSubscriber(
-      projectId = googleProjectId,
-      googlePubSubClient = pubSubClient,
-      maxMessages = 1,  // Pull one message at a time for long-running processing
-      pullIntervalMillis = 100
-    )
-    logger.info("PullSubscriber created successfully")
-    return subscriber
+  private fun createQueueSubscriber(): QueueSubscriber {
+    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
+    val pubSubClient = DefaultGooglePubSubClient()
+    return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {
