@@ -69,6 +69,10 @@ class HMShuffleMeasurementFulfiller(
             .asFlow()
         requisitionFulfillmentStub.fulfillRequisition(requests)
         logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
+      } else {
+        logger.info(
+          "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
+        )
       }
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)

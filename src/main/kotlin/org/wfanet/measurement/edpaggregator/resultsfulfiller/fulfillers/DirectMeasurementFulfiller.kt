@@ -86,6 +86,8 @@ class DirectMeasurementFulfiller(
             etag = requisition.etag
           }
         )
+      } else {
+        logger.info("Cannot fulfill requisition $requisitionName with state ${requisition.state}")
       }
     } catch (e: StatusException) {
       throw Exception("Error fulfilling direct requisition $requisitionName", e)
