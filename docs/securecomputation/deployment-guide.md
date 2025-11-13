@@ -16,11 +16,11 @@ Secure Computation is a distributed system composed of multiple services deploye
 
 ### Data Watcher Storage config
 
-The **Data Watcher Config Storage** is a separate Cloud Storage bucket used to store configuration files that are dynamically pulled by cloud functions at runtime. The EDP Aggregator Operator creates and manages this config.
+The **Data Watcher Config Storage** is a separate Cloud Storage bucket used to store configuration files that are dynamically pulled by cloud functions at runtime.
 
 These configuration files define operational parameters required by various services in the pipeline.
 
-This bucket is **private** and access is restricted to **authorized service accounts** only. **Only** the EDP Aggregator Operator has access to this bucket. The EDPs, themselves, do not.
+This bucket is **private** and access is restricted to **authorized service accounts** only. **Only** the Secure Computation API Operator has access to this bucket.
 
 ### Google secrets
 
@@ -33,17 +33,17 @@ Used to certificates required for mutual authentication across components. These
 * ***`securecomputation-root-ca`**:*
   Root certificate for the Secure Computation API.
 
-* ***`edpa-tee-app-tls-key`**, **`edpa-tee-app-tls-pem`***:
+* ***`tee-app-tls-key`**, **`tee-app-tls-pem`***:
   Used by the application running inside the TEE to authenticate with the Secure Computation API and update the status of WorkItems after processing. Must be signed by ***`securecomputation-root-ca`***.
 
-* ***`edpa-data-watcher-tls-key`**, **`edpa-data-watcher-tls-pem`***:
+* ***`data-watcher-tls-key`**, **`data-watcher-tls-pem`***:
   Used by the DataWatcher to authenticate to the Secure Computation API when creating new WorkItems. Must be signed by ***`securecomputation-root-ca`.***
 
 ### Data Watcher
 
 #### Overview
 
-The **Data Watcher** is a Google Cloud Function automatically triggered whenever a new file is written to the **Secure Computation Storage** bucket (in practice combined with **EDP Aggregator Storage** bucket. Upon invocation, it receives the Google Cloud Storage blob URI of the newly created file and determines, based on configuration, whether and how to process it.
+The **Data Watcher** is a Google Cloud Function automatically triggered whenever a new file is written to the **Secure Computation Storage** bucket. Upon invocation, it receives the Google Cloud Storage blob URI of the newly created file and determines, based on configuration, whether and how to process it.
 
 #### Configuration
 
@@ -59,34 +59,20 @@ When a new file path matches one of the configured regex patterns, the Data Watc
 
 The Data Watcher currently supports the following scenarios:
 
-1. **Requisition Detection**
-   When a new requisition file is written to storage, the Data Watcher forwards the event to the **Secure Computation API**, enabling the **Results Fulfiller** to process the requisition.
+1. **Secure Computation Sink**
 
-2. **Event Group and Impressions Detection**
-
-    * **Event Groups:** When a new Event Group file is detected, the Data Watcher invokes the **EventGroupSync** function to synchronize the event group with **CMMS**.
-    * **Impressions:** When an Impressions file is detected, the Data Watcher invokes the **DataAvailabilitySync** function to synchronize data availability with **CMMS**.
-
-In practice, for each EDP, the Data Watcher configuration must include three watched paths:
-
-* event-groups
-* data-availability
-* results-fulfiller
+2. **Cloud Function Sync**
 
 **Permissions**
 The Data Watcher executes under a dedicated **service account** with the following permissions:
 
-* Read and write access to **EDP Aggregator Storage**
-* Read access to **EDP Aggregator Config Storage**
+* Read access to **Config Storage**
 * Access to secrets in **Secret Manager**
-* Event trigger permissions to invoke:
-    * **EventGroupSync Cloud Function**
-    * **DataAvailabilitySync Cloud Function**
+* Event trigger permissions to invoke any cloud functions.
 
 #### Deployment
 
 The Data Watcher can be deployed using the [Data Watcher module](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/terraform/gcloud/modules/gcs-bucket-cloud-function).
-The corresponding IAM permissions are defined in the [EDP Aggregator Terraform module](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/terraform/gcloud/modules/edp-aggregator).
 
 ##### Environment Variables
 
@@ -97,13 +83,13 @@ The DataWatcher needs environment variables to operate. These variables are prov
 * CERT_COLLECTION_FILE_PATH - the secure_computation_root.pem file. **Must match the path defined in DataWatcher secret mapping.**
 * CONTROL_PLANE_TARGET - the grpc target of Secure Computation API
 * CONTROL_PLANE_CERT_HOST
-* EDPA_CONFIG_STORAGE_BUCKET - [The config bucket](#edp-aggregator-storage-config), where the DataWatcher configuration are pulled from
-* GOOGLE_PROJECT_ID - The Google project id where the EDPA_CONFIG_STORAGE_BUCKET is deployed
+* CONFIG_STORAGE_BUCKET - where the DataWatcher configuration are pulled from
+* GOOGLE_PROJECT_ID - The Google project id where the CONFIG_STORAGE_BUCKET is deployed
 
 This is an example of DataWatcher env variable:
 
-| CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket |
-|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,CONFIG_STORAGE_BUCKET=gs://configs-storage-dev-bucket |
+|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 ##### Secret Mappings
 
@@ -115,8 +101,8 @@ This secret mapping is set using the [data_watcher_secret_mapping](https://githu
 
 This is an example of DataWatcher secret mapping:
 
-| /secrets/key/data_watcher_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest |
-|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| /secrets/key/data_watcher_tls.key=data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest |
+|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
 **Important:**
 
@@ -125,264 +111,60 @@ This is an example of DataWatcher secret mapping:
 
 ##### DataWatcher config file
 
-This configuration file demonstrates how to define the three required watched paths for a single EDP named **edp7**.
-
 ```protobuf
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 watched_paths {
-  identifier: "event-groups"
-  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/(.*)"
+  identifier: "cloud-function-sink"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/some-source-path/(.*)"
   http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/event-group-sync"
+    endpoint_uri: "https://some-cloud-function/endpoint"
     app_params {
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/T5RryPMNong" }
-      }
-      fields {
-        key: "eventGroupsBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.pb" }
-      }
-      fields {
-        key: "eventGroupMapBlobUri"
-        value { string_value: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.pb" }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/edp7_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/edp7_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "eventGroupStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "eventGroupMapStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      ...
     }
   }
 }
 watched_paths {
-  identifier: "results-fulfiller"
-  source_path_regex: "gs://secure-computation-storage-dev-bucket/edp7/requisitions/(.*)"
+  identifier: "control-plane-sink"
+  source_path_regex: "gs://secure-computation-storage-dev-bucket/some-other-source-path/(.*)"
   control_plane_queue_sink {
-    queue: "results-fulfiller-queue"
+    queue: "some-work-queue"
     app_params {
-      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams] {
-        data_provider: "dataProviders/T5RryPMNong"
-        storage_params {
-          labeled_impressions_blob_details_uri_prefix: "gs://secure-computation-storage-dev-bucket"
-          gcs_project_id: "halo-cmm-dev"
-        }
-        consent_params {
-          result_cs_cert_der_resource_path: "/tmp/edp_certs/edp7_cs_cert.der"
-          result_cs_private_key_der_resource_path: "/tmp/edp_certs/edp7_cs_private.der"
-          private_encryption_key_resource_path: "/tmp/edp_certs/edp7_enc_private.tink"
-          edp_certificate_name: "dataProviders/T5RryPMNong/certificates/Zskl3_MNorU"
-        }
-        cmms_connection {
-          client_cert_resource_path: "/tmp/edp_certs/edp7_tls.pem"
-          client_private_key_resource_path: "/tmp/edp_certs/edp7_tls.key"
-        }
-        noise_params {
-          noise_type: CONTINUOUS_GAUSSIAN
-        }
-      }
+      ...
     }
   }
 }
-watched_paths {
-  identifier: "data-availability"
-  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edp7/[^/]+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-sync"
-    app_params {
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/T5RryPMNong" }
-      }
-      fields {
-        key: "dataAvailabilityStorage"
-        value {
-          struct_value {
-            fields {
-              key: "gcs"
-              value {
-                struct_value {
-                  fields {
-                    key: "projectId"
-                    value { string_value: "halo-cmm-dev" }
-                  }
-                  fields {
-                    key: "bucketName"
-                    value { string_value: "secure-computation-storage-dev-bucket" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      fields {
-        key: "cmmsConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/edp7_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/edp7_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/kingdom_root.pem" }
-            }
-          }
-        }
-      }
-      fields {
-        key: "impressionMetadataStorageConnection"
-        value {
-          struct_value {
-            fields {
-              key: "certFilePath"
-              value { string_value: "/secrets/cert/data_availability/data_availability_tls.pem" }
-            }
-            fields {
-              key: "privateKeyFilePath"
-              value { string_value: "/secrets/key/data_availability/data_availability_tls.key" }
-            }
-            fields {
-              key: "certCollectionFilePath"
-              value { string_value: "/secrets/ca/metadata_storage/edp_aggregator_root.pem" }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
 ```
 
 The local file path for this config file is set using the [data_watcher_config_file_path](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/variables.tf#L111) terraform variable.
 
-###### *Variable definition for the EventGroupSync watched path*
+###### *Variable definition for the cloud function watched path*
 
-This configuration is passed from the **DataWatcher** to the **EventGroupSync** function when the DataWatcher triggers it. The EventGroupSync relies on this configuration to determine how to connect to CMMS, where to read input data, and where to write synchronized results.
+This configuration is passed from the **DataWatcher** to the cloud function when the DataWatcher triggers it.
 
-* **identifier:** "event-groups" In case of multiple “watched path” for event groups for different EDPs, the same identifier can be used.
-* **source_path_regex:** indicates the path to watch. In this case the path where the edp can upload the event groups.
+* **identifier:** unique identifier
+* **source_path_regex:** indicates the path to watch. 
 
 The **`http_endpoint_sink`** block defines the target function to invoke and the parameters required for synchronization.
 
-* **endpoint_uri:**  The URL of the Cloud Function to be invoked, here pointing to the deployed **`event-group-sync`** function.
-* **app_params**: A structured set of parameters passed to the invoked function, that conforms to this [proto message definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/config/edpaggregator/event_group_sync_config.proto). These parameters include all the information EventGroupSync needs to connect to CMMS and access Cloud Storage resources.
+* **endpoint_uri:**  The URL of the Cloud Function to be invoked.
+* **app_params**: A structured set of parameters passed to the invoked function.
 
-Within **app_params**, the key fields are:
+###### *Variable definition for the watched paths*
 
-* **dataProvider**: The CMMS data provider identifier associated with this EDP.
-* **eventGroupsBlobUri**: The URI of the Event Group protobuf file stored in the EDP Aggregator Storage bucket.
-* **eventGroupMapBlobUri**: The URI of the Event Group Map protobuf file in the same bucket.
-* **cmmsConnection**: TLS connection details used by the EventGroupSync to communicate securely with the CMMS API:
-    * **`certFilePath`**: Path to the edp cert file, which must match the [event group secret mapping](#secret-mappings).
-    * **`privateKeyFilePath`**: Path to the edp private key file, which must match the [event group secret mapping](#secret-mappings).
-    * **`certCollectionFilePath`**: Path to the root CA file, which must match the [event group secret mapping](#secret-mappings).
-    * **eventGroupStorage** and **eventGroupMapStorage**: Configuration for the Cloud Storage buckets containing the Event Group and Event Group Map files, including:
-        * **`projectId`**: The Google Cloud project ID where the bucket resides.
-        * **`bucketName`**: The name of the Cloud Storage bucket used for these files.
+This configuration is passed from the **DataWatcher** to the **Secure Computation API** component.
 
-###### *Variable definition for the ResultsFulfiller watched path*
-
-This configuration is passed from the **DataWatcher** to the **Results Fulfiller** component when a new requisition file is detected in the EDP Aggregator Storage bucket. The Results Fulfiller requires this configuration to determine how to connect to CMMS, retrieve inputs, apply consent and noise parameters, and store the resulting data.
-
-* **Identifier**: "results-fulfiller" In case of multiple “watched path” for results fulfiller for different EDPs, the same identifier can be used.
-*  identifies that this configuration handles requisition fulfillment.
-* **source_path_regex**: A regular expression that matches new files written under the EDP’s requisitions folder. When a file path matches this regex, the DataWatcher forwards the event to the Results Fulfiller via the control-plane queue.
+* **Identifier**: unique identifier for each type of watched path.
+* **source_path_regex**: A regular expression that matches new files written. When a file path matches this regex, the DataWatcher forwards the event to the sink.
 
 The **control_plane_queue_sink** block defines the queue and parameters that the DataWatcher uses to submit work items for processing.
 
-* **queue**: The name of the Cloud Pub/Sub  queue where the work item is sent. In this example, it is "results-fulfiller-queue".
-* **app_params**: A structured payload, that conforms to [this protofub definition](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto), containing all the configuration details required by the Results Fulfiller to process the requisition.
-
-Within **app_params**, the main configuration fields are:
-
-* **data_provider**: The CMMS data provider resource name.
-* **storage_params**: Configuration for reading and writing data to Cloud Storage:
-
-    * **labeled_impressions_blob_details_uri_prefix**: The base URI prefix for impression data.
-    * **gcs_project_id**: The Google Cloud project ID where the storage bucket resides.
-
-* **consent_params**: Paths and metadata related to encryption, signing, and consent management:
-
-    * **result_cs_cert_der_resource_path**: Path to the DER-encoded certificate used for result signing, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **result_cs_private_key_der_resource_path**: Path to the DER-encoded private key corresponding to the result certificate, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **private_encryption_key_resource_path:** Path to the Tink keyset file containing the private encryption key, must match the [event group secret mapping](#secret-mappings). //TODO
-    * **edp_certificate_name**: The fully qualified resource name of the EDP’s certificate in CMMS, must match the [event group secret mapping](#secret-mappings). //TODO
-
-* **cmms_connection**: TLS connection details for secure communication with CMMS:
-
-    * **client_cert_resource_path**: Path to the edp cert file, which must match the [event group secret mapping](#secret-mappings). //TODO
-    * **client_private_key_resource_path**: Path to the edp key file, which must match the [event group secret mapping](#secret-mappings). // TODO
-* **noise_params**: Configuration for differential privacy noise generation, as defined in [this protobuf message](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/0e509a5f5a64acddc8761acf50c1369398347cd9/src/main/proto/wfa/measurement/internal/duchy/noise_mechanism.proto#L23).
+* **queue**: The name of the Cloud Pub/Sub  queue where the work item is sent.
+* **app_params**: A structured payload containing all the configuration details required by the TEE App to process inputs and produce necessary outputs.
 
 ### Secure Computation API
 
-The Secure Computation API resides in a Google Kubernetes Engine (GKE) cluster and is accessible from the DataWatcher function whenever new requisitions are stored in the EDP Aggregator Storage Bucket. When a new WorkItem is created by the DataWatcher, it invokes the Secure Computation API, which performs the following actions:
+The Secure Computation API resides in a Google Kubernetes Engine (GKE) cluster and is accessible from the DataWatcher function. When a new WorkItem is created by the DataWatcher, it invokes the Secure Computation API, which performs the following actions:
 
 * Stores the WorkItem in the Spanner database, which is deployed alongside the API.
 * Makes a request to Google Pub/Sub to enqueue the WorkItem for processing by the Trusted Execution Environment (TEE) Application.
@@ -391,7 +173,7 @@ Different types of WorkItems are forwarded to different queues, as specified in 
 
 ### Google Pub/Sub
 
-Google Pub/Sub provides a queue mechanism where each queue is associated with a different type of WorkItem. Currently, there is only one queue configured for the ResultsFulfiller TEE Application, which is responsible for fulfilling requisitions.
+Google Pub/Sub provides a queue mechanism where each queue is associated with a different type of WorkItem.
 
 ### Managed Instance Group (MIG)
 
@@ -400,16 +182,6 @@ The Managed Instance Group consists of a pool of Confidential VMs that privately
 The MIG is configured with an autoscaler that monitors the number of undelivered messages in Google Pub/Sub. It automatically scales up and down to accommodate spikes in requests, ensuring efficient processing of WorkItems.
 
 # Deployment
-
-## EDP Aggregator Storage Bucket(s)
-
-We recommend using **one storage bucket per EDP**.
-This approach enforces **data separation** and simplifies **cost tracking** for each EDP individually.
-
-The **Halo Terraform example** is configured with a **single bucket** by default.
-If you need to enable **multiple buckets**, there is an important consideration:
-
-**The DataWatcher function requires one trigger per bucket.**
 
 ### **Deploying DataWatcher for Multiple Buckets**
 
@@ -466,7 +238,7 @@ gcloud eventarc triggers create datawatcher-trigger-bucket-b \
 ### Background
 
 The configuration for the [dev environment](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/dev/secure_computation_gke.cue) can be used as the basis for deploying Secure Computation API components using Google Kubernetes Engine (GKE) on another Google Cloud project.
-This guide assumes that the [Kingdom](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/terraform/gcloud/examples/kingdom) cluster has been already deployed on GKE. [This is the reference guide](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md) and this is the [terraform module](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/modules/secure-computation/main.tf) for deploying the cluster and spanner DB.
+This is the [terraform module](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/modules/secure-computation/main.tf) for deploying the cluster and spanner DB.
 
 #### *Disclaimer*:
 
@@ -500,10 +272,7 @@ We use K8s secrets to hold sensitive information, such as private keys.
 First, prepare all the files we want to include in the Kubernetes secret. The dev configuration assumes the files have the following names:
 
 1. **all_root_certs.pem**
-   This makes up the trusted root CA store. It's the concatenation of the root CA certificates for all the entities that the Secure Computation server interacts with, including:
-    * All Measurement Consumers
-    * Any entity which produces Measurement results (e.g. the Aggregator Duchy and Data Providers)
-    * The Kingdom
+   This makes up the trusted root CA store. It's the concatenation of the root CA certificates for all the entities that the Secure Computation server interacts with.
 2. Supposing your root certs are all in a single folder and end with _root.pem, you can concatenate them all with a simple shell command:
 
 ####
@@ -525,10 +294,10 @@ Note: This assumes that all your root certificate PEM files end in newline.
    The Data Watcher Cloud Function’s TLS certificate.
 7. **data_watcher_tls.key**
    The private key for the Data Watcher Cloud Function’'s TLS certificate.
-8. **edpa_tee_app_tls.pem**
-   The EDPA Tee App’s TLS certificate.
-9. **edpa_tee_app_tls.key**
-   The private key for the EDPA Tee App’s TLS certificate.
+8. **tee_app_tls.pem**
+   The Tee App’s TLS certificate.
+9. **tee_app_tls.key**
+   The private key for the Tee App’s TLS certificate.
 
 #### Testing keys
 
@@ -591,7 +360,7 @@ For now, the attribute set that can be validated is:
 
 * The application runs inside a Confidential Space
 * The application uses a **STABLE** (production) disk boot image
-* The request originates from the expected service account (the one running in the VM where the **ResultsFulfiller** app is deployed)
+* The request originates from the expected service account (the one running in the VM where the **TEE** app is deployed)
   **Steps to create the provider:**
 
 Log into the **KMS Google account** and run:
@@ -599,13 +368,13 @@ Log into the **KMS Google account** and run:
 ```text
 gcloud iam workload-identity-pools providers create-oidc <provider_name> \
   --location="global" \
-  --workload-identity-pool="<name configured when deploying EDP resources>" \
+  --workload-identity-pool="<name configured when deploying resources>" \
   --issuer-uri="https://confidentialcomputing.googleapis.com/" \
   --allowed-audiences="https://sts.googleapis.com" \
   --attribute-mapping="google.subject='assertion.sub'" \
   --attribute-condition="assertion.swname == 'CONFIDENTIAL_SPACE' &&
     'STABLE' in assertion.submods.confidential_space.support_attributes &&
-    '<service_account running in the ResultsFulfiller VM>' in assertion.google_service_accounts"
+    '<service_account running in the VM>' in assertion.google_service_accounts"
 ```
 
 **Note:**
@@ -616,10 +385,10 @@ You must remove it from the `--attribute-condition` parameter.
 ## Debugging Notes
 
 The current Terraform configuration uses a **production SEV Confidential Space image type**, which does **not** support logging.
-Additionally, the image must be built using a **base image with root access** ([link1](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c925d452f37785f822d80c4ca49b7dcfa03fbd03/src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/BUILD.bazel#L181) and [link2](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c925d452f37785f822d80c4ca49b7dcfa03fbd03/MODULE.bazel#L359)), otherwise it will not be able to read the OIDC attestation token at runtime.
+Additionally, the image must be built using a **base image with root access* [link1](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/c925d452f37785f822d80c4ca49b7dcfa03fbd03/MODULE.bazel#L359)), otherwise it will not be able to read the OIDC attestation token at runtime.
 
 For easier debugging, it is recommended to use a **debug base image** with logging enabled:
 
-1. Replace `"confidential-space"` with `"confidential-space-debug"` [here](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/edp_aggregator.tf#L195).
+1. Replace `"confidential-space"` with `"confidential-space-debug"` 
 2. Add the following metadata entry [here](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/modules/mig/main.tf#L19):
    `tee-container-log-redirect = "true"`
