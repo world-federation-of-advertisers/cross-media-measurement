@@ -787,6 +787,8 @@ gcloud eventarc triggers create datawatcher-trigger-bucket-b \
 
 ## Step 1 \- Deploy infra using Terraform
 
+TODO: Write up a separate example root module that doesn't rely on anything else form the cmss root module.
+
 A Terraform example that sets up the EDP Aggregator infrastructure can be found [here](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/terraform/gcloud/cmms/edp_aggregator.tf).
 
 ### **Terraform Modules**
