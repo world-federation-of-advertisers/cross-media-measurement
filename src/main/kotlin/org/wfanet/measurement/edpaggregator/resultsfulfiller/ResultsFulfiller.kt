@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 
@@ -242,6 +243,13 @@ class ResultsFulfiller(
       }
       Requisition.State.UNFULFILLED -> {
         true
+      }
+      Requisition.State.WITHDRAWN -> {
+        if (metadata.state !== RequisitionMetadata.State.REFUSED) {
+          val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
+          signalRequisitionWithdrawn(metadata)
+        }
+        false
       }
       else -> {
         if (metadata.state !== RequisitionMetadata.State.REFUSED) {
@@ -432,6 +440,18 @@ class ResultsFulfiller(
       this.refusalMessage = refusalMessage
     }
     return requisitionMetadataStub.refuseRequisitionMetadata(refuseRequisitionMetadataRequest)
+  }
+
+  private suspend fun signalRequisitionWithdrawn(
+    requisitionMetadata: RequisitionMetadata
+  ): RequisitionMetadata {
+    val markWithdrawnRequisitionMetadataRequest = markWithdrawnRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
+      markWithdrawnRequisitionMetadataRequest
+    )
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {

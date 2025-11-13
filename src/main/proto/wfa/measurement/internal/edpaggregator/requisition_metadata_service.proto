@@ -71,6 +71,10 @@ service RequisitionMetadataService {
   // Transitions a RequisitionMetadata resource to the REFUSED state.
   rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
       returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  rpc MarkWithdrawnRequisitionMetadata(MarkWithdrawnRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
 }
 
 message CreateRequisitionMetadataRequest {
@@ -163,4 +167,10 @@ message RefuseRequisitionMetadataRequest {
   string etag = 3;
   // A human-readable message explaining the reason for refusal.
   string refusal_message = 4;
+}
+
+message MarkWithdrawnRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
 }
