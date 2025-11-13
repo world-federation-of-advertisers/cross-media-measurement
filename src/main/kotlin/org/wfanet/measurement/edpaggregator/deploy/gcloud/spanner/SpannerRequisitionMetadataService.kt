@@ -61,6 +61,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPage
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.LookupRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
@@ -510,6 +511,26 @@ class SpannerRequisitionMetadataService(
           set("RefusalMessage").to(request.refusalMessage)
         }
       requisitionMetadata.copy { refusalMessage = request.refusalMessage }
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequisitionMetadataNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
+  }
+
+  override suspend fun markWithdrawnRequisitionMetadata(
+    request: MarkWithdrawnRequisitionMetadataRequest
+  ): RequisitionMetadata {
+
+    return try {
+      transitionState(
+        request.dataProviderResourceId,
+        request.requisitionMetadataResourceId,
+        request.etag,
+        State.REQUISITION_METADATA_STATE_WITHDRAWN,
+      )
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: RequisitionMetadataNotFoundException) {

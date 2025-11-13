@@ -97,6 +97,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
@@ -153,7 +154,7 @@ abstract class AbstractEdpSimulator(
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsStub: EventGroupsGrpcKt.EventGroupsCoroutineStub,
-  requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
   private val requisitionFulfillmentStubsByDuchyId:
     Map<String, RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub>,
   protected val syntheticDataTimeZone: ZoneId,
@@ -1126,7 +1127,8 @@ abstract class AbstractEdpSimulator(
 
     val sampledFrequencyVector = frequencyVectorBuilder.build()
     logger.log(Level.INFO) { "Sampled frequency vector size:\n${sampledFrequencyVector.dataCount}" }
-
+    val etag =
+      requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name }).etag
     val requests =
       ShareshuffleRequisitionRequestBuilder.build(
           requisition,
@@ -1134,6 +1136,7 @@ abstract class AbstractEdpSimulator(
           sampledFrequencyVector,
           edpData.certificateKey,
           edpData.signingKeyHandle,
+          etag,
         )
         .asFlow()
 

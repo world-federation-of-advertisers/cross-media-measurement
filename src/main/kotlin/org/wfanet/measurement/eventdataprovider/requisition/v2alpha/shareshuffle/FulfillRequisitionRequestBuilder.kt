@@ -57,6 +57,7 @@ class FulfillRequisitionRequestBuilder(
   private val frequencyVector: FrequencyVector,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val signingKeyHandle: SigningKeyHandle,
+  private val etag: String,
   private val generateSecretShares: (ByteArray) -> (ByteArray) =
     SecretShareGeneratorAdapter::generateSecretShares,
 ) {
@@ -137,6 +138,7 @@ class FulfillRequisitionRequestBuilder(
             registerCount = shareVector.dataList.size.toLong()
             dataProviderCertificate = dataProviderCertificateKey.toName()
           }
+          this.etag = etag
         }
       }
     )
@@ -191,6 +193,7 @@ class FulfillRequisitionRequestBuilder(
       frequencyVector: FrequencyVector,
       dataProviderCertificateKey: DataProviderCertificateKey,
       signingKeyHandle: SigningKeyHandle,
+      etag: String,
       generateSecretShares: (ByteArray) -> (ByteArray) =
         SecretShareGeneratorAdapter::generateSecretShares,
     ): Sequence<FulfillRequisitionRequest> =
@@ -200,6 +203,7 @@ class FulfillRequisitionRequestBuilder(
           frequencyVector,
           dataProviderCertificateKey,
           signingKeyHandle,
+          etag,
           generateSecretShares,
         )
         .build()

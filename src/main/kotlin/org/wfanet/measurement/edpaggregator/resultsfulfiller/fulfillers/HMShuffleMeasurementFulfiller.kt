@@ -28,6 +28,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.KAnonymityParams
@@ -42,26 +44,36 @@ class HMShuffleMeasurementFulfiller(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val dataProviderCertificateKey: DataProviderCertificateKey,
   private val requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+  private val requisitionsStub: RequisitionsCoroutineStub,
   private val generateSecretShares: (ByteArray) -> (ByteArray) =
     SecretShareGeneratorAdapter::generateSecretShares,
 ) : MeasurementFulfiller {
   override suspend fun fulfillRequisition() {
     logger.info("Fulfilling requisition ${requisition.name}...")
-    val requests: Flow<FulfillRequisitionRequest> =
-      FulfillRequisitionRequestBuilder.build(
-          requisition,
-          requisitionNonce,
-          sampledFrequencyVector,
-          dataProviderCertificateKey,
-          dataProviderSigningKeyHandle,
-          generateSecretShares,
-        )
-        .asFlow()
+    val duchyId = getDuchyWithoutPublicKey(requisition)
+    val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
     try {
-      val duchyId = getDuchyWithoutPublicKey(requisition)
-      val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
-      requisitionFulfillmentStub.fulfillRequisition(requests)
-      logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
+      val getRequisitionResponse =
+        requisitionsStub.getRequisition(getRequisitionRequest { name = requisition.name })
+      if (getRequisitionResponse.state === Requisition.State.UNFULFILLED) {
+        val requests: Flow<FulfillRequisitionRequest> =
+          FulfillRequisitionRequestBuilder.build(
+              requisition,
+              requisitionNonce,
+              sampledFrequencyVector,
+              dataProviderCertificateKey,
+              dataProviderSigningKeyHandle,
+              getRequisitionResponse.etag,
+              generateSecretShares,
+            )
+            .asFlow()
+        requisitionFulfillmentStub.fulfillRequisition(requests)
+        logger.info("Successfully fulfilled HMShuffle requisition ${requisition.name}")
+      } else {
+        logger.info(
+          "Cannot fulfill requisition ${requisition.name} with state ${getRequisitionResponse.state}"
+        )
+      }
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
@@ -89,6 +101,7 @@ class HMShuffleMeasurementFulfiller(
       dataProviderSigningKeyHandle: SigningKeyHandle,
       dataProviderCertificateKey: DataProviderCertificateKey,
       requisitionFulfillmentStubMap: Map<String, RequisitionFulfillmentCoroutineStub>,
+      requisitionsStub: RequisitionsCoroutineStub,
       kAnonymityParams: KAnonymityParams,
       maxPopulation: Int?,
       generateSecretShares: (ByteArray) -> (ByteArray) =
@@ -109,6 +122,7 @@ class HMShuffleMeasurementFulfiller(
         dataProviderSigningKeyHandle,
         dataProviderCertificateKey,
         requisitionFulfillmentStubMap,
+        requisitionsStub,
         generateSecretShares,
       )
     }

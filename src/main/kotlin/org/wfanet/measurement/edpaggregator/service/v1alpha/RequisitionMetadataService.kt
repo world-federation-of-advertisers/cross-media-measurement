@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GetRequisitionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.LookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -71,6 +72,7 @@ import org.wfanet.measurement.internal.edpaggregator.fulfillRequisitionMetadataR
 import org.wfanet.measurement.internal.edpaggregator.getRequisitionMetadataRequest as internalGetRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest as internalListRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest as internalLookupRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMetadataRequest as internalMarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest as internalQueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
@@ -656,6 +658,51 @@ class RequisitionMetadataService(
     return internalResponse.toRequisitionMetadata()
   }
 
+  override suspend fun markWithdrawnRequisitionMetadata(
+    request: MarkWithdrawnRequisitionMetadataRequest
+  ): RequisitionMetadata {
+    val key =
+      RequisitionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("requisition_metadata.name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.etag.isEmpty()) {
+      throw InvalidFieldValueException("requisition_metadata.etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalRequest = internalMarkWithdrawnRequisitionMetadataRequest {
+      dataProviderResourceId = key.dataProviderId
+      requisitionMetadataResourceId = key.requisitionMetadataId
+      etag = request.etag
+    }
+    val internalResponse =
+      try {
+        internalClient.markWithdrawnRequisitionMetadata(internalRequest)
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND ->
+            RequisitionMetadataNotFoundException(key.dataProviderId, key.requisitionMetadataId)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.ETAG_MISMATCH ->
+            EtagMismatchException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+          InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+          InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
+          InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+    return internalResponse.toRequisitionMetadata()
+  }
+
   /** Converts an internal [InternalRequisitionMetadata] to a public [RequisitionMetadata]. */
   fun InternalRequisitionMetadata.toRequisitionMetadata(): RequisitionMetadata {
     val source = this
@@ -711,6 +758,7 @@ class RequisitionMetadataService(
       InternalState.REQUISITION_METADATA_STATE_PROCESSING -> RequisitionMetadata.State.PROCESSING
       InternalState.REQUISITION_METADATA_STATE_FULFILLED -> RequisitionMetadata.State.FULFILLED
       InternalState.REQUISITION_METADATA_STATE_REFUSED -> RequisitionMetadata.State.REFUSED
+      InternalState.REQUISITION_METADATA_STATE_WITHDRAWN -> RequisitionMetadata.State.WITHDRAWN
       InternalState.UNRECOGNIZED,
       InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED -> error("Unrecognized state")
     }
@@ -723,6 +771,7 @@ class RequisitionMetadataService(
       RequisitionMetadata.State.PROCESSING -> InternalState.REQUISITION_METADATA_STATE_PROCESSING
       RequisitionMetadata.State.FULFILLED -> InternalState.REQUISITION_METADATA_STATE_FULFILLED
       RequisitionMetadata.State.REFUSED -> InternalState.REQUISITION_METADATA_STATE_REFUSED
+      RequisitionMetadata.State.WITHDRAWN -> InternalState.REQUISITION_METADATA_STATE_WITHDRAWN
       RequisitionMetadata.State.UNRECOGNIZED,
       RequisitionMetadata.State.STATE_UNSPECIFIED ->
         InternalState.REQUISITION_METADATA_STATE_UNSPECIFIED
