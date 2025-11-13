@@ -17,8 +17,6 @@ name: Attach CLIs to release
 on:
   release:
     types: [published]
-  # DO_NOT_SUBMIT: remove pull_request event
-  pull_request:
 
 permissions:
   contents: read
@@ -75,14 +73,13 @@ jobs:
       - name: Authenticate to Google Cloud for image signing
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.IMAGE_SIGNING_TEST_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.IMAGE_SIGNING_TEST_SA }}
+          workload_identity_provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}
 
       - name: Sign and upload artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # DO_NOT_SUBMIT: use release key
-          KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
+          KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"
         run: |
           set -euo pipefail
           artifacts=(
@@ -105,6 +102,4 @@ jobs:
           for artifact in "${artifacts[@]}"; do
             artifacts_to_upload+=("${artifact}" "${artifact}.sigstore.json")
           done
-          # DO_NOT_SUBMIT: use the release tag instead of hardoding one
-          # gh release upload "${{ github.event.release.tag_name }}"
-          gh release upload "v0.0.0-test-workflow-permissions-3" "${artifacts_to_upload[@]}" --clobber
+          gh release upload "${{ github.event.release.tag_name }}" "${artifacts_to_upload[@]}" --clobber
