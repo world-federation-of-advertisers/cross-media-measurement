@@ -30,10 +30,8 @@ from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_summary_pb2
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_summary_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
