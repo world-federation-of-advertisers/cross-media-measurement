@@ -188,6 +188,7 @@ class ResultsFulfillerApp(
     ResultsFulfiller(
         dataProvider = fulfillerParams.dataProvider,
         requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMap,

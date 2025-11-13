@@ -152,6 +152,12 @@ variable "image_tag" {
   type        = string
 }
 
+variable "results_fulfiller_java_tool_options" {
+  description = "Optional JAVA_TOOL_OPTIONS override for the results fulfiller MIG."
+  type        = string
+  default     = ""
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string

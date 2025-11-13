@@ -235,6 +235,6 @@ class ParallelBatchedPipeline<T : Message>(
     const val DEFAULT_WORKER_CHANNEL_CAPACITY: Int = 128
 
     /** Number of batches between progress log messages. */
-    const val PROGRESS_LOG_INTERVAL: Int = 100
+    const val PROGRESS_LOG_INTERVAL: Int = 30000
   }
 }

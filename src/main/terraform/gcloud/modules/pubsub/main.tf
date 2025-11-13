@@ -36,6 +36,11 @@ resource "google_pubsub_subscription" "subscription" {
     max_delivery_attempts = var.max_delivery_attempts
   }
 
+  retry_policy {
+    minimum_backoff = var.retry_policy_minimum_backoff
+    maximum_backoff = var.retry_policy_maximum_backoff
+  }
+
   enable_exactly_once_delivery = true
 
 }

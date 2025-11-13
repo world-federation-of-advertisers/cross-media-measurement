@@ -126,7 +126,7 @@ locals {
       single_instance_assignment    = 1
       min_replicas                  = 1
       max_replicas                  = 10
-      machine_type                  = "n2d-standard-2"
+      machine_type                  = "c4d-standard-192"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [
@@ -154,6 +154,7 @@ locals {
                                           "--duchy-id", var.duchy_worker2_id,
                                           "--duchy-target", var.duchy_worker2_target,
                                         ]
+      java_tool_options             = var.results_fulfiller_java_tool_options
     }
   }
 
@@ -260,7 +261,7 @@ module "edp_aggregator" {
   edps_certs                                    = local.edps_certs
   requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config
   cloud_function_configs                        = local.cloud_function_configs
-  results_fulfiller_disk_image_family           = "confidential-space"
+  results_fulfiller_disk_image_family           = "confidential-space-debug"
   dns_managed_zone_name                         = "googleapis-private"
   edp_aggregator_service_account_name           = "edp-aggregator-internal"
   spanner_instance                              = google_spanner_instance.spanner_instance

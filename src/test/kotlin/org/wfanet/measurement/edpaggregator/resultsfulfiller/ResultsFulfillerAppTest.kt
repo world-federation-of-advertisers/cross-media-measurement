@@ -353,6 +353,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -463,6 +465,8 @@ class ResultsFulfillerAppTest {
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           mapOf("some-model-line" to MODEL_LINE_INFO),
+          googlePubSubClient = emulatorClient,
+          projectId = PROJECT_ID,
         )
       assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
     }
@@ -587,6 +591,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -705,6 +711,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -814,6 +822,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -955,6 +965,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1089,6 +1101,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        googlePubSubClient = emulatorClient,
+        projectId = PROJECT_ID,
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }

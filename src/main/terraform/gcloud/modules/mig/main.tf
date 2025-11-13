@@ -18,9 +18,12 @@ locals {
 
   metadata_map = merge(
     {
+      
+      "tee-container-log-redirect" = "true",
       "tee-signed-image-repos"                        = var.edpa_tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
       "tee-cmd"                                       = jsonencode(var.tee_cmd),
+      "tee-env-JAVA_TOOL_OPTIONS"                     = "-Xmx400G",
       "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
       "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
       "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
@@ -117,8 +120,11 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   disk {
-    boot            = true
-    source_image    = data.google_compute_image.confidential_space.self_link
+    boot                   = true
+    source_image           = data.google_compute_image.confidential_space.self_link
+    disk_type              = "hyperdisk-balanced"
+    provisioned_iops       = 5000
+    provisioned_throughput = 1250
   }
 
   shielded_instance_config {

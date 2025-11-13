@@ -321,6 +321,7 @@ module "result_fulfiller_tee_app" {
   terraform_service_account     = var.terraform_service_account
   secrets_to_access             = local.result_fulfiller_secrets_to_access
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
+  java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
