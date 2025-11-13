@@ -621,7 +621,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `getBasicReport with createBasicReport with effective model line succeeds`(): Unit =
+  fun `getBasicReport with createBasicReport with model line bool as true succeeds`(): Unit =
     runBlocking {
       measurementConsumersService.createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
@@ -638,12 +638,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalBasicReportId = "1237"
         externalCampaignGroupId = REPORTING_SET.externalReportingSetId
-        effectiveModelLineKey =
+        modelLineKey =
           BasicReportKt.modelLineKey {
             cmmsModelProviderId = "1234"
             cmmsModelSuiteId = "1235"
             cmmsModelLineId = "1236"
           }
+        modelLineSystemSpecified = true
         details = basicReportDetails {
           title = "title"
           resultGroupSpecs += resultGroupSpec {
@@ -689,12 +690,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       val createdBasicReport =
         service.createBasicReport(createBasicReportRequest { this.basicReport = basicReport })
 
-      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelProviderId)
-        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelProviderId)
-      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelSuiteId)
-        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelSuiteId)
-      assertThat(createdBasicReport.effectiveModelLineKey.cmmsModelLineId)
-        .isEqualTo(basicReport.effectiveModelLineKey.cmmsModelLineId)
+      assertThat(createdBasicReport.modelLineSystemSpecified).isTrue()
 
       val retrievedBasicReport =
         service.getBasicReport(

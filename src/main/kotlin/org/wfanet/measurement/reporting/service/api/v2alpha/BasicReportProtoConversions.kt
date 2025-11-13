@@ -97,7 +97,7 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
-  effectiveModelLine: String? = null,
+  effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -123,23 +123,16 @@ fun BasicReport.toInternal(
     }
 
     this.createReportRequestId = createReportRequestId
-    if (modelLine.isNotEmpty()) {
-      val modelLineKey = ModelLineKey.fromName(modelLine)
+    if (effectiveModelLine.isNotEmpty()) {
+      val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
       this.modelLineKey =
         InternalBasicReportKt.modelLineKey {
           cmmsModelProviderId = modelLineKey!!.modelProviderId
           cmmsModelSuiteId = modelLineKey.modelSuiteId
           cmmsModelLineId = modelLineKey.modelLineId
         }
-    }
-    if (effectiveModelLine != null) {
-      val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
-      effectiveModelLineKey =
-        InternalBasicReportKt.modelLineKey {
-          cmmsModelProviderId = modelLineKey!!.modelProviderId
-          cmmsModelSuiteId = modelLineKey.modelSuiteId
-          cmmsModelLineId = modelLineKey.modelLineId
-        }
+
+      modelLineSystemSpecified = source.modelLine.isEmpty()
     }
   }
 }
@@ -420,22 +413,18 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       }
 
     if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
-      modelLine =
+      val modelLineName =
         ModelLineKey(
             modelLineKey.cmmsModelProviderId,
             modelLineKey.cmmsModelSuiteId,
             modelLineKey.cmmsModelLineId,
           )
           .toName()
-    }
-    if (effectiveModelLineKey.cmmsModelProviderId.isNotEmpty()) {
-      effectiveModelLine =
-        ModelLineKey(
-          effectiveModelLineKey.cmmsModelProviderId,
-          effectiveModelLineKey.cmmsModelSuiteId,
-          effectiveModelLineKey.cmmsModelLineId,
-        )
-          .toName()
+
+      effectiveModelLine = modelLineName
+      if (!modelLineSystemSpecified) {
+        modelLine = modelLineName
+      }
     }
   }
 }

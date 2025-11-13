@@ -15,13 +15,7 @@
 -- limitations under the License.
 
 -- changeset tristanvuong2021:11 dbms:cloudspanner
--- comment: Add Effective ModelLine columns to BasicReport
+-- comment: Add ModelLine Boolean to BasicReport
 
 ALTER TABLE BasicReports
-ADD COLUMN EffectiveCmmsModelProviderId String(MAX);
-
-ALTER TABLE BasicReports
-ADD COLUMN EffectiveCmmsModelSuiteId String(MAX);
-
-ALTER TABLE BasicReports
-ADD COLUMN EffectiveCmmsModelLineId String(MAX);
+ADD COLUMN ModelLineSystemSpecified Bool;

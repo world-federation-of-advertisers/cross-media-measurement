@@ -46,6 +46,6 @@ databaseChangeLog:
     file: update-proto-bundle-for-bins.sql
     relativeToChangeLogFile: true
 - include:
-    file: add-effective-model-line-to-basic-report.sql
+    file: add-model-line-boolean-to-basic-report.sql
     relativeToChangeLogFile: true
 

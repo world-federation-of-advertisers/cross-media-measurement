@@ -300,11 +300,7 @@ class BasicReportsService(
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
                   internalReportingImpressionQualificationFilters,
-                effectiveModelLine = if (request.basicReport.modelLine.isEmpty() && modelLine.isNotEmpty()) {
-                  modelLine
-                } else {
-                  null
-                },
+                effectiveModelLine = modelLine,
               )
             requestId = request.requestId
           }

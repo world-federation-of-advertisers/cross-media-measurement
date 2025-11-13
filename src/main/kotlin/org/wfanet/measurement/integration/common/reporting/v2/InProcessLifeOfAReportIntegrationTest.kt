@@ -2316,13 +2316,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         basicReport.copy {
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
+          effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
         }
       )
     assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
   @Test
-  fun `getBasicReport returns basic report when effective_model_line set`() = runBlocking {
+  fun `getBasicReport returns basic report when model line system specified`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroup = eventGroups.first()
