@@ -49,6 +49,7 @@ import java.time.*
 import java.util.logging.Logger
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
@@ -798,15 +799,14 @@ class ResultsFulfillerTest {
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
       )
-
-    resultsFulfiller.fulfillRequisitions()
+    assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
 
     verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
 
     verifyBlocking(requisitionMetadataServiceMock, times(0)) {
       startProcessingRequisitionMetadata(any())
     }
-    verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { refuseRequisitionMetadata(any()) }
   }
 
   fun `runWork processes direct requisition successfully with no noise and k-anonymity`() =

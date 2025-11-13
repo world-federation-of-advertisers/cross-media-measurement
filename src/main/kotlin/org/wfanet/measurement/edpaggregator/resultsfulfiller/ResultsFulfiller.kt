@@ -250,12 +250,17 @@ class ResultsFulfiller(
         }
         false
       }
-      else -> {
+      Requisition.State.REFUSED -> {
         if (metadata.state !== RequisitionMetadata.State.REFUSED) {
           val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
           signalRequisitionRefused(metadata, refusalMessage)
         }
         false
+      }
+      else -> {
+        throw IllegalStateException(
+          "Requisition is in unsupported cmms state: ${requisition.state}"
+        )
       }
     }
   }
