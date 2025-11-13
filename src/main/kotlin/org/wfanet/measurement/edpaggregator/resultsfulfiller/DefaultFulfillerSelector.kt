@@ -100,6 +100,7 @@ class DefaultFulfillerSelector(
           dataProviderSigningKeyHandle,
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
+          requisitionsStub,
         )
       } else {
         HMShuffleMeasurementFulfiller.buildKAnonymized(
@@ -111,6 +112,7 @@ class DefaultFulfillerSelector(
           dataProviderSigningKeyHandle,
           dataProviderCertificateKey,
           requisitionFulfillmentStubMap,
+          requisitionsStub,
           kAnonymityParams,
           maxPopulation = null,
         )
