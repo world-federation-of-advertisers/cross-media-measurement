@@ -29,9 +29,9 @@ import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec
-import org.wfanet.measurement.internal.reporting.v2.ReportResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
@@ -42,10 +42,10 @@ import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
-import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
+import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
@@ -91,122 +91,107 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportingSetResults =
+      listOf(
+        // Primitive 1.
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -232,7 +217,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -395,121 +380,107 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportingSetResults =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -535,7 +506,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -725,50 +696,47 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportingSetResults =
+      listOf(
+        // Composite
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = date {
-                        day = REPORTING_INTERVAL.reportStart.day + 1
-                        month = REPORTING_INTERVAL.reportStart.month
-                        year = REPORTING_INTERVAL.reportStart.year
-                      }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = date {
+                    day = REPORTING_INTERVAL.reportStart.day + 1
+                    month = REPORTING_INTERVAL.reportStart.month
+                    year = REPORTING_INTERVAL.reportStart.year
+                  }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
                 }
             }
         }
-    }
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -794,7 +762,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -900,48 +868,43 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportingSetResults =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
         }
-    }
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -958,7 +921,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportingSetResults, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
@@ -1053,124 +1016,118 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportingSetResults =
+      listOf(
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -1201,7 +1158,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -1344,271 +1301,259 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportResult =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Primitive 3
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 3
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 30
-                                impressions = 300
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 30
+                          impressions = 300
+                        }
                     }
                 }
             }
-        }
-      // Composite
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 4
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
                 }
             }
-        }
-      // Composite 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 5
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_2_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 30 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 30 }
                     }
                 }
             }
-        }
-      // Composite 3
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite 3
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 6
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 45 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 45 }
                     }
                 }
             }
-        }
-      // Composite 4
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Composite 4
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 7
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = COMPOSITE_REPORTING_SET_1_2_3_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            nonCumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet { reach = 55 }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart = REPORTING_INTERVAL.reportEnd.copy { day -= 7 }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 55 }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -1819,160 +1764,131 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportResult =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-      // Primitive 1 custom
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 1 custom
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               custom = true
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 30
-                                impressions = 300
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 30
+                          impressions = 300
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2 custom
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2 custom
+        reportingSetResult {
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               custom = true
               metricFrequencySpec = metricFrequencySpec { total = true }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      end = REPORTING_INTERVAL.reportEnd
-                    }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 40
-                                impressions = 400
-                              }
-                          }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 40
+                          impressions = 400
+                        }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -2172,196 +2088,191 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult = reportResult {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      reportStart = REPORTING_INTERVAL.reportStart
-      // Primitive 1
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+    val reportResult =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
-                      end =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day + 7
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
                     }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 10
-                                impressions = 100
-                              }
-                          }
+                  end =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day + 7
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
+                    }
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 10
+                          impressions = 100
+                        }
                     }
                 }
             }
-        }
-      // Primitive 1 week 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 1 week 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 2
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day + 7
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
-                      end = REPORTING_INTERVAL.reportEnd
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day + 7
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
                     }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 20
-                                impressions = 200
-                              }
-                          }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 20
+                          impressions = 200
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 3
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
-                      end =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day + 7
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
                     }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 30
-                                impressions = 300
-                              }
-                          }
+                  end =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day + 7
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
+                    }
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 30
+                          impressions = 300
+                        }
                     }
                 }
             }
-        }
-      // Primitive 2 week 2
-      reportingSetResults +=
-        ReportResultKt.reportingSetResultEntry {
-          key =
-            ReportResultKt.reportingSetResultKey {
+        },
+        // Primitive 2 week 2
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 4
+          dimension =
+            ReportingSetResultKt.dimension {
               externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID
               externalImpressionQualificationFilterId =
                 IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
               metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-              groupings += eventTemplateField {
-                path = "person.age_group"
-                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-              }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
             }
-          value =
-            ReportResultKt.reportingSetResult {
-              populationSize = 100
-              reportingWindowResults +=
-                ReportResultKt.ReportingSetResultKt.reportingWindowEntry {
-                  key =
-                    ReportResultKt.ReportingSetResultKt.reportingWindow {
-                      nonCumulativeStart =
-                        REPORTING_INTERVAL.reportEnd.copy {
-                          day = REPORTING_INTERVAL.reportStart.day + 7
-                          month = REPORTING_INTERVAL.reportStart.month
-                          year = REPORTING_INTERVAL.reportStart.year
-                        }
-                      end = REPORTING_INTERVAL.reportEnd
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key =
+                ReportingSetResultKt.reportingWindow {
+                  nonCumulativeStart =
+                    REPORTING_INTERVAL.reportEnd.copy {
+                      day = REPORTING_INTERVAL.reportStart.day + 7
+                      month = REPORTING_INTERVAL.reportStart.month
+                      year = REPORTING_INTERVAL.reportStart.year
                     }
-                  value =
-                    ReportResultKt.ReportingSetResultKt.reportingWindowResult {
-                      denoisedReportResultValues =
-                        ReportResultKt.ReportingSetResultKt.ReportingWindowResultKt
-                          .reportResultValues {
-                            cumulativeResults =
-                              ResultGroupKt.MetricSetKt.basicMetricSet {
-                                reach = 40
-                                impressions = 400
-                              }
-                          }
+                  end = REPORTING_INTERVAL.reportEnd
+                }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  denoisedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          reach = 40
+                          impressions = 400
+                        }
                     }
                 }
             }
-        }
-    }
+        },
+      )
 
     val primitiveInfoByDataProviderId =
       mapOf(
@@ -2561,6 +2472,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc1"
+    private const val EXTERNAL_REPORT_RESULT_ID = 1234L
     private const val DATA_PROVIDER_1_ID = "dp1"
     private const val DATA_PROVIDER_2_ID = "dp2"
     private const val DATA_PROVIDER_3_ID = "dp3"
