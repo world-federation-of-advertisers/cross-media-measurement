@@ -179,7 +179,13 @@ class InProcessEdpAggregatorComponents(
 
   private val resultFulfillerApp by lazy {
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel, duchyChannelMap)
-    val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+    val subscriber = Subscriber(
+      projectId = PROJECT_ID,
+      googlePubSubClient = pubSubClient,
+      maxMessages = 1,
+      pullIntervalMillis = 100,
+      blockingContext = kotlinx.coroutines.Dispatchers.IO
+    )
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
     }
