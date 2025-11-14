@@ -11,6 +11,7 @@ kt_jvm_library(
     srcs = ["DataWatcherFunction.kt"],
     deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
@@ -22,6 +23,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
