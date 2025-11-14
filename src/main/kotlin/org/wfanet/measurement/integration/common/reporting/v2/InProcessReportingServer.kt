@@ -306,10 +306,12 @@ class InProcessReportingServer(
                 internalReportingSetsClient,
                 internalMetricCalculationSpecsClient,
                 PublicReportsCoroutineStub(this@GrpcTestServerRule.channel),
+                publicKingdomModelLinesClient,
                 EventDescriptor(eventDescriptor),
                 METRIC_SPEC_CONFIG,
                 SecureRandom().asKotlinRandom(),
                 authorization,
+                measurementConsumerConfigs,
               )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(

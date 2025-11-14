@@ -177,15 +177,16 @@ class ReportingUserSimulator(
       modelLine = modelLineName
       reportingInterval = reportingInterval {
         reportStart = dateTime {
-          year = 2025
-          month = 9
-          day = 3
+          year = 2021
+          month = 3
+          day = 14
+          hours = 17
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
-          year = 2025
-          month = 9
-          day = 17
+          year = 2021
+          month = 3
+          day = 15
         }
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
