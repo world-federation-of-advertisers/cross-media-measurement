@@ -236,6 +236,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -360,8 +362,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -393,6 +393,8 @@ class ResultsFulfillerAppTest {
           googlePubSubClient = emulatorClient,
           maxMessages = 1,
           pullIntervalMillis = 100,
+          ackDeadlineExtensionIntervalSeconds = 60,
+          ackDeadlineExtensionSeconds = 600,
           blockingContext = kotlinx.coroutines.Dispatchers.IO,
         )
       val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -479,8 +481,6 @@ class ResultsFulfillerAppTest {
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           mapOf("some-model-line" to MODEL_LINE_INFO),
-          emulatorClient,
-          "some-project-id",
         )
       assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
     }
@@ -494,6 +494,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -612,8 +614,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -637,6 +637,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -739,8 +741,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -755,6 +755,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -857,8 +859,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -882,6 +882,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -1007,8 +1009,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1039,6 +1039,8 @@ class ResultsFulfillerAppTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
@@ -1150,8 +1152,6 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
-        emulatorClient,
-        "some-project-id",
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }

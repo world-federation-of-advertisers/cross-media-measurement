@@ -368,8 +368,6 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
-        googlePubSubClient = pubSubClient,
-        projectId = googleProjectId,
       )
 
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
@@ -507,6 +505,8 @@ class ResultsFulfillerAppRunner : Runnable {
         googlePubSubClient = pubSubClient,
         maxMessages = 1, // Pull one message at a time for long-running processing
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     logger.info("Subscriber created successfully")

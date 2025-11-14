@@ -24,15 +24,8 @@ import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
@@ -53,12 +46,6 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
  * @param subscriptionId The name of the subscription to which this application subscribes.
  * @param queueSubscriber A client that manages connections and interactions with the queue.
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
- * @param googlePubSubClient Optional Google Pub/Sub client for ack deadline extension.
- * @param projectId Optional Google Cloud project ID for ack deadline extension.
- * @param ackDeadlineExtensionSeconds The new ack deadline in seconds when extending (default: 600 =
- *   10 minutes).
- * @param ackDeadlineExtensionIntervalSeconds How often to extend the ack deadline (default: 60
- *   seconds).
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -66,16 +53,11 @@ abstract class BaseTeeApplication(
   private val parser: Parser<WorkItem>,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
-  private val googlePubSubClient: GooglePubSubClient? = null,
-  private val projectId: String? = null,
-  private val ackDeadlineExtensionSeconds: Int = 600,
-  private val ackDeadlineExtensionIntervalSeconds: Long = 60,
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
     logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
-    logger.info("PubSub client configured: ${googlePubSubClient != null}, projectId: $projectId")
     receiveAndProcessMessages()
   }
 
@@ -142,39 +124,6 @@ abstract class BaseTeeApplication(
         return
       }
 
-    // Start background coroutine to extend ack deadline if configured
-    val ackDeadlineExtensionJob: Job? =
-      if (googlePubSubClient != null && projectId != null) {
-        logger.info(
-          "Starting ack deadline extension job for message ${queueMessage.ackId} (interval: ${ackDeadlineExtensionIntervalSeconds}s, deadline: ${ackDeadlineExtensionSeconds}s)"
-        )
-        CoroutineScope(Dispatchers.IO).launch {
-          while (isActive) {
-            delay(ackDeadlineExtensionIntervalSeconds * 1000)
-            try {
-              googlePubSubClient.modifyAckDeadline(
-                projectId = projectId,
-                subscriptionId = subscriptionId,
-                ackIds = listOf(queueMessage.ackId),
-                ackDeadlineSeconds = ackDeadlineExtensionSeconds,
-              )
-              logger.info(
-                "Extended ack deadline to $ackDeadlineExtensionSeconds seconds for message ${queueMessage.ackId}"
-              )
-            } catch (e: Exception) {
-              logger.log(Level.WARNING, e) {
-                "Failed to extend ack deadline for message ${queueMessage.ackId}"
-              }
-            }
-          }
-        }
-      } else {
-        logger.warning(
-          "Ack deadline extension disabled. GooglePubSubClient: ${googlePubSubClient != null}, projectId: ${projectId != null}"
-        )
-        null
-      }
-
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runWork(queueMessage.body.workItemParams)
@@ -227,8 +176,6 @@ abstract class BaseTeeApplication(
       logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()
     } finally {
-      // Cancel the ack deadline extension job when message processing is complete
-      ackDeadlineExtensionJob?.cancel()
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
   }

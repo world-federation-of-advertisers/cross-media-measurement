@@ -206,8 +206,6 @@ class InProcessEdpAggregatorComponents(
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
-      googlePubSubClient = pubSubClient,
-      projectId = projectId,
     )
   }
 

@@ -120,6 +120,8 @@ class BaseTeeApplicationTest {
         googlePubSubClient = emulatorClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
         blockingContext = kotlinx.coroutines.Dispatchers.IO,
       )
     val publisher = Publisher<WorkItem>(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
@@ -246,10 +248,6 @@ class BaseTeeApplicationTest {
     override fun nack() {
       nackCount++
       _disposition.complete(Disposition.NACK)
-    }
-
-    override fun extendAckDeadline(duration: java.time.Duration) {
-      // No-op for test
     }
   }
 

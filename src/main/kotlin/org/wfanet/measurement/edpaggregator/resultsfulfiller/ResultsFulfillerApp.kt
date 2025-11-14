@@ -38,7 +38,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -70,8 +69,6 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
- * @param googlePubSubClient Google Pub/Sub client for ack deadline extension.
- * @param projectId Google Cloud project ID for ack deadline extension.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -88,8 +85,6 @@ class ResultsFulfillerApp(
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  googlePubSubClient: GooglePubSubClient,
-  projectId: String,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
 ) :
   BaseTeeApplication(
@@ -98,8 +93,6 @@ class ResultsFulfillerApp(
     parser = parser,
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
-    googlePubSubClient = googlePubSubClient,
-    projectId = projectId,
   ) {
 
   override suspend fun runWork(message: Any) {
