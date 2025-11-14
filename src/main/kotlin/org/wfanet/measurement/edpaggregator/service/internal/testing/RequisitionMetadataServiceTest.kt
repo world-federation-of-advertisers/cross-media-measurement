@@ -55,6 +55,7 @@ import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPage
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
@@ -1170,6 +1171,34 @@ abstract class RequisitionMetadataServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `markWithdrawnRequisitionMetadata returns an updated requisition metadata`() = runBlocking {
+    val requisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest { requisitionMetadata = REQUISITION_METADATA }
+      )
+
+    val response =
+      service.markWithdrawnRequisitionMetadata(
+        markWithdrawnRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          etag = requisitionMetadata.etag
+        }
+      )
+
+    assertThat(response.state).isEqualTo(State.REQUISITION_METADATA_STATE_WITHDRAWN)
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisitionMetadata(
+          getRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requisitionMetadataResourceId = REQUISITION_METADATA_RESOURCE_ID
+          }
+        )
+      )
   }
 
   @Test

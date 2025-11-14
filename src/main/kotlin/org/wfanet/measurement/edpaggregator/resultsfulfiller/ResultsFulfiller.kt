@@ -43,7 +43,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedMessage
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -60,6 +62,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 
 /**
@@ -88,6 +92,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
 class ResultsFulfiller(
   private val dataProvider: String,
   private val requisitionMetadataStub: RequisitionMetadataServiceCoroutineStub,
+  private val requisitionsStub: RequisitionsCoroutineStub,
   private val privateEncryptionKey: PrivateKeyHandle,
   private val groupedRequisitions: GroupedRequisitions,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
@@ -140,6 +145,9 @@ class ResultsFulfiller(
 
     val filteredRequisitions =
       requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+    if (filteredRequisitions.isEmpty()) {
+      return
+    }
 
     val reportId: String =
       requireNotNull(requisitionsMetadata.first().report) {
@@ -219,15 +227,42 @@ class ResultsFulfiller(
     }
   }
 
-  private fun Requisition.shouldBeProcessed(
+  private suspend fun Requisition.shouldBeProcessed(
     metadataByName: Map<String, RequisitionMetadata>
   ): Boolean {
     val metadata = metadataByName[name]
-
     requireNotNull(metadata) { "Requisition metadata not found for requisition: $name" }
-
-    return metadata.state != RequisitionMetadata.State.FULFILLED &&
-      metadata.state != RequisitionMetadata.State.REFUSED
+    val requisition =
+      requisitionsStub.getRequisition(getRequisitionRequest { name = metadata.cmmsRequisition })
+    return when (requisition.state) {
+      Requisition.State.FULFILLED -> {
+        if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
+          signalRequisitionFulfilled(metadata)
+        }
+        false
+      }
+      Requisition.State.UNFULFILLED -> {
+        true
+      }
+      Requisition.State.WITHDRAWN -> {
+        if (metadata.state !== RequisitionMetadata.State.WITHDRAWN) {
+          signalRequisitionWithdrawn(metadata)
+        }
+        false
+      }
+      Requisition.State.REFUSED -> {
+        if (metadata.state !== RequisitionMetadata.State.REFUSED) {
+          val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
+          signalRequisitionRefused(metadata, refusalMessage)
+        }
+        false
+      }
+      else -> {
+        throw IllegalStateException(
+          "Requisition is in unsupported cmms state: ${requisition.state}"
+        )
+      }
+    }
   }
 
   /**
@@ -397,6 +432,30 @@ class ResultsFulfiller(
       etag = requisitionMetadata.etag
     }
     return requisitionMetadataStub.fulfillRequisitionMetadata(fulfillRequisitionMetadataRequest)
+  }
+
+  private suspend fun signalRequisitionRefused(
+    requisitionMetadata: RequisitionMetadata,
+    refusalMessage: String,
+  ): RequisitionMetadata {
+    val refuseRequisitionMetadataRequest = refuseRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+      this.refusalMessage = refusalMessage
+    }
+    return requisitionMetadataStub.refuseRequisitionMetadata(refuseRequisitionMetadataRequest)
+  }
+
+  private suspend fun signalRequisitionWithdrawn(
+    requisitionMetadata: RequisitionMetadata
+  ): RequisitionMetadata {
+    val markWithdrawnRequisitionMetadataRequest = markWithdrawnRequisitionMetadataRequest {
+      name = requisitionMetadata.name
+      etag = requisitionMetadata.etag
+    }
+    return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
+      markWithdrawnRequisitionMetadataRequest
+    )
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {
