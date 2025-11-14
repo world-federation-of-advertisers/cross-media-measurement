@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -122,7 +123,7 @@ class BaseTeeApplicationTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val publisher = Publisher<WorkItem>(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)

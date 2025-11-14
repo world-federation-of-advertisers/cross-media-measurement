@@ -30,6 +30,7 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -507,7 +508,7 @@ class ResultsFulfillerAppRunner : Runnable {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     logger.info("Subscriber created successfully")
     return subscriber

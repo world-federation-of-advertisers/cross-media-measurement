@@ -43,6 +43,7 @@ import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -238,7 +239,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -395,7 +396,7 @@ class ResultsFulfillerAppTest {
           pullIntervalMillis = 100,
           ackDeadlineExtensionIntervalSeconds = 60,
           ackDeadlineExtensionSeconds = 600,
-          blockingContext = kotlinx.coroutines.Dispatchers.IO,
+          blockingContext = Dispatchers.IO,
         )
       val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
       val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -496,7 +497,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -639,7 +640,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -757,7 +758,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -884,7 +885,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
@@ -1041,7 +1042,7 @@ class ResultsFulfillerAppTest {
         pullIntervalMillis = 100,
         ackDeadlineExtensionIntervalSeconds = 60,
         ackDeadlineExtensionSeconds = 600,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)

@@ -24,6 +24,7 @@ import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -125,7 +126,7 @@ class InternalApiServer : Runnable {
                 googlePubSubClient = googlePubSubClient,
                 maxMessages = 10,
                 pullIntervalMillis = 100,
-                blockingContext = kotlinx.coroutines.Dispatchers.IO,
+                blockingContext = Dispatchers.IO,
               )
             val deadLetterListener =
               createDeadLetterQueueListener(
