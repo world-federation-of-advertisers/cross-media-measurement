@@ -162,7 +162,9 @@ abstract class BaseTeeApplication(
                 "Extended ack deadline to $ackDeadlineExtensionSeconds seconds for message ${queueMessage.ackId}"
               )
             } catch (e: Exception) {
-              logger.log(Level.WARNING, e) { "Failed to extend ack deadline for message ${queueMessage.ackId}" }
+              logger.log(Level.WARNING, e) {
+                "Failed to extend ack deadline for message ${queueMessage.ackId}"
+              }
             }
           }
         }
@@ -187,11 +189,15 @@ abstract class BaseTeeApplication(
                   error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
                     WorkItemAttempt.State.SUCCEEDED.name
               ) {
-                logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+                logger.info(
+                  "WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}"
+                )
                 queueMessage.ack()
                 return@processMessage
               } else {
-                logger.log(Level.SEVERE, error) { "Failed to report work item as completed. Nacking message ${queueMessage.ackId}" }
+                logger.log(Level.SEVERE, error) {
+                  "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
+                }
                 queueMessage.nack()
                 return@processMessage
               }
@@ -207,7 +213,9 @@ abstract class BaseTeeApplication(
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
       } catch (error: Throwable) {
-        logger.log(Level.SEVERE, error) { "Failed to report work item failure. Nacking message ${queueMessage.ackId}" }
+        logger.log(Level.SEVERE, error) {
+          "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
+        }
         queueMessage.nack()
       }
     } catch (e: Exception) {
