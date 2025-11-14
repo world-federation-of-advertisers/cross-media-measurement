@@ -230,13 +230,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -384,13 +385,14 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork throws where requisition metadata is not found`() {
     runBlocking {
-      val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+      val pubSubClient =
+        Subscriber(
+          projectId = PROJECT_ID,
+          googlePubSubClient = emulatorClient,
+          maxMessages = 1,
+          pullIntervalMillis = 100,
+          blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        )
       val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
       val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -482,13 +484,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork correctly selects continuous gaussian noise`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -622,13 +625,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws exception if noise is not selected`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -737,13 +741,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork zeros out results if k-anonymity threshold is not met`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -861,13 +866,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork returns non-zero results for sufficient k-anonymity`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -1015,13 +1021,14 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws errors if k-anonymity params not set up correctly`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 

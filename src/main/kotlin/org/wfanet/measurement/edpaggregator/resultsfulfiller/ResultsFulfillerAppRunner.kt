@@ -501,13 +501,14 @@ class ResultsFulfillerAppRunner : Runnable {
   private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
     logger.info("Creating Subscriber for project: $googleProjectId, subscription: $subscriptionId")
     logger.info("Subscriber config: maxMessages=1, pullIntervalMillis=100ms")
-    val subscriber = Subscriber(
-      projectId = googleProjectId,
-      googlePubSubClient = pubSubClient,
-      maxMessages = 1,  // Pull one message at a time for long-running processing
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
+    val subscriber =
+      Subscriber(
+        projectId = googleProjectId,
+        googlePubSubClient = pubSubClient,
+        maxMessages = 1, // Pull one message at a time for long-running processing
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
     logger.info("Subscriber created successfully")
     return subscriber
   }

@@ -114,17 +114,15 @@ class BaseTeeApplicationTest {
 
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val pubSubClient = Subscriber(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient,
-      maxMessages = 1,
-      pullIntervalMillis = 100,
-      blockingContext = kotlinx.coroutines.Dispatchers.IO
-    )
-    val publisher = Publisher<WorkItem>(
-      projectId = PROJECT_ID,
-      googlePubSubClient = emulatorClient
-    )
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+      )
+    val publisher = Publisher<WorkItem>(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
 

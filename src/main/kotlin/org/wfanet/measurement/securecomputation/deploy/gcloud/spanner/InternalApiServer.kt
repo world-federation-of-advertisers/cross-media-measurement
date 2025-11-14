@@ -119,13 +119,14 @@ class InternalApiServer : Runnable {
 
         val deadLetterListenerJob: Deferred<Unit>? =
           deadLetterSubscriptionId?.let { subscriptionId ->
-            val subscriber = Subscriber(
-              projectId = googleProjectId,
-              googlePubSubClient = googlePubSubClient,
-              maxMessages = 10,
-              pullIntervalMillis = 100,
-              blockingContext = kotlinx.coroutines.Dispatchers.IO
-            )
+            val subscriber =
+              Subscriber(
+                projectId = googleProjectId,
+                googlePubSubClient = googlePubSubClient,
+                maxMessages = 10,
+                pullIntervalMillis = 100,
+                blockingContext = kotlinx.coroutines.Dispatchers.IO,
+              )
             val deadLetterListener =
               createDeadLetterQueueListener(
                 spannerWorkItemsService = spannerWorkItemsService,
