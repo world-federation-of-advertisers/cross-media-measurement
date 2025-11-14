@@ -27,7 +27,6 @@ import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
 import java.nio.file.Paths
-import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -63,20 +62,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.createModelLineRequest
-import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -84,11 +76,9 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInterval
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
@@ -250,26 +240,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
         }
 
-        val modelLine = runBlocking {
-          val modelSuite =
-            publicKingdomModelSuitesClient.createModelSuite(
-              createModelSuiteRequest {
-                parent = inProcessCmmsComponents.modelProviderResourceName
-                modelSuite = modelSuite { displayName = "model-suite" }
-              }
-            )
-
-          publicKingdomModelLinesClient.createModelLine(
-            createModelLineRequest {
-              parent = modelSuite.name
-              modelLine = modelLine {
-                activeStartTime = Instant.now().plusSeconds(2000L).toProtoTime()
-                type = ModelLine.Type.PROD
-              }
-            }
-          )
-        }
-
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
           accessServicesFactory,
@@ -280,7 +250,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
           TestEvent.getDescriptor(),
-          defaultModelLineName = modelLine.name,
+          defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
         )
       }
@@ -398,16 +368,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicKingdomMeasurementConsumersClient by lazy {
     MeasurementConsumersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-  }
-
-  private val publicKingdomModelSuitesClient by lazy {
-    ModelSuitesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
-  }
-
-  private val publicKingdomModelLinesClient by lazy {
-    ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
-      .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
   }
 
   private val publicDataProvidersClient by lazy {
@@ -2237,6 +2197,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       title = "title"
       this.campaignGroup = campaignGroup.name
       campaignGroupDisplayName = campaignGroup.displayName
+      modelLine = inProcessCmmsComponents.modelLineResourceName
       reportingInterval = reportingInterval {
         reportStart = dateTime {
           year = 2025

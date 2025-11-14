@@ -74,4 +74,8 @@ message CorrectnessTestConfig {
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
   string access_public_api_cert_host = 13;
+
+  // Resource name of the `ModelLine`.
+  string model_line = 14
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 }

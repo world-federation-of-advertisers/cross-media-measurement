@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.resourcesetup
 import com.google.protobuf.ByteString
 import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -41,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.apiKey
@@ -54,6 +56,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
 import org.wfanet.measurement.config.authorityKeyToPrincipalMap
@@ -67,13 +70,18 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt as InternalAccount
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.modelLine
+import org.wfanet.measurement.internal.kingdom.modelSuite
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.loadtest.common.ConsoleOutput
@@ -106,6 +114,8 @@ class ResourceSetup(
   private val requiredDuchies: List<String>,
   private val internalModelProvidersClient: ModelProvidersGrpcKt.ModelProvidersCoroutineStub? =
     null,
+  private val internalModelSuitesClient: ModelSuitesGrpcKt.ModelSuitesCoroutineStub? = null,
+  private val internalModelLinesClient: ModelLinesGrpcKt.ModelLinesCoroutineStub? = null,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
 ) {
@@ -177,6 +187,14 @@ class ResourceSetup(
     logger.info("Successfully created ModelProvider ${modelProviderResource.name}")
     resources.add(modelProviderResource)
 
+    // Step 5: Create ModelLine.
+    val modelLineResource =
+      createModelLineResource(
+        apiIdToExternalId(ModelProviderKey.fromName(modelProviderResource.name)!!.modelProviderId)
+      )
+    logger.info("Successfully created ModelLine ${modelLineResource.name}")
+    resources.add(modelLineResource)
+
     withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
 
@@ -202,6 +220,7 @@ class ResourceSetup(
             Resources.Resource.ResourceCase.MODEL_PROVIDER ->
               resource.modelProvider.authorityKeyIdentifier
             Resources.Resource.ResourceCase.DUCHY_CERTIFICATE,
+            Resources.Resource.ResourceCase.MODEL_LINE,
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> continue
           }
         entries +=
@@ -286,6 +305,9 @@ class ResourceSetup(
           Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
             writer.appendLine("build:$configName --define=mp_name=${resource.name}")
           }
+          Resources.Resource.ResourceCase.MODEL_LINE -> {
+            writer.appendLine("build:$configName --define=model_line_name=${resource.name}")
+          }
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
       }
@@ -361,6 +383,46 @@ class ResourceSetup(
       internalModelProvidersClient.createModelProvider(InternalModelProvider.getDefaultInstance())
     } catch (e: StatusException) {
       throw Exception("Error creating ModelProvider", e)
+    }
+  }
+
+  suspend fun createModelLineResource(externalModelProviderId: Long): Resources.Resource {
+    val internalModelLine: InternalModelLine = createInternalModelLine(externalModelProviderId)
+    return resource {
+      name =
+        ModelLineKey(
+            modelProviderId = ExternalId(internalModelLine.externalModelProviderId).apiId.value,
+            modelSuiteId = ExternalId(internalModelLine.externalModelSuiteId).apiId.value,
+            modelLineId = ExternalId(internalModelLine.externalModelLineId).apiId.value,
+          )
+          .toName()
+      modelLine = Resources.Resource.ModelLine.getDefaultInstance()
+    }
+  }
+
+  private suspend fun createInternalModelLine(externalModelProviderId: Long): InternalModelLine {
+    checkNotNull(internalModelSuitesClient)
+    checkNotNull(internalModelLinesClient)
+
+    return try {
+      val internalModelSuite =
+        internalModelSuitesClient.createModelSuite(
+          modelSuite {
+            this.externalModelProviderId = externalModelProviderId
+            displayName = "test-model-suite"
+          }
+        )
+
+      internalModelLinesClient.createModelLine(
+        modelLine {
+          this.externalModelProviderId = externalModelProviderId
+          externalModelSuiteId = internalModelSuite.externalModelSuiteId
+          activeStartTime = timestamp { seconds = 1609502400 }
+          type = InternalModelLine.Type.PROD
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Error creating ModelLine", e)
     }
   }
 
