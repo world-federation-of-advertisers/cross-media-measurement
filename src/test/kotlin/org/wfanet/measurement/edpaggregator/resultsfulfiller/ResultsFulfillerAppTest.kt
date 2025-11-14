@@ -230,7 +230,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -345,7 +345,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -360,6 +360,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -385,7 +387,7 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork throws where requisition metadata is not found`() {
     runBlocking {
-      val pubSubClient =
+      val subscriber =
         Subscriber(
           projectId = PROJECT_ID,
           googlePubSubClient = emulatorClient,
@@ -462,7 +464,7 @@ class ResultsFulfillerAppTest {
       val app =
         ResultsFulfillerApp(
           subscriptionId = SUBSCRIPTION_ID,
-          queueSubscriber = pubSubClient,
+          queueSubscriber = subscriber,
           parser = WorkItem.parser(),
           workItemsStub,
           workItemAttemptsStub,
@@ -477,6 +479,8 @@ class ResultsFulfillerAppTest {
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           mapOf("some-model-line" to MODEL_LINE_INFO),
+          emulatorClient,
+          "some-project-id",
         )
       assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
     }
@@ -484,7 +488,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork correctly selects continuous gaussian noise`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -593,7 +597,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -608,6 +612,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -625,7 +631,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws exception if noise is not selected`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -718,7 +724,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -733,6 +739,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -741,7 +749,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork zeros out results if k-anonymity threshold is not met`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -834,7 +842,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -849,6 +857,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -866,7 +876,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork returns non-zero results for sufficient k-anonymity`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -982,7 +992,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -997,6 +1007,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1021,7 +1033,7 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws errors if k-anonymity params not set up correctly`() = runBlocking {
-    val pubSubClient =
+    val subscriber =
       Subscriber(
         projectId = PROJECT_ID,
         googlePubSubClient = emulatorClient,
@@ -1123,7 +1135,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -1138,6 +1150,8 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        emulatorClient,
+        "some-project-id",
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }

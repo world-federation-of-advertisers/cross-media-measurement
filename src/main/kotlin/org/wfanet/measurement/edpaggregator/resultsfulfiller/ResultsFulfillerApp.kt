@@ -88,9 +88,9 @@ class ResultsFulfillerApp(
   private val getImpressionsStorageConfig: (StorageParams) -> StorageConfig,
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
   googlePubSubClient: GooglePubSubClient,
   projectId: String,
+  private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
