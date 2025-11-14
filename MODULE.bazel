@@ -40,10 +40,10 @@ bazel_dep(
     version = "0.126.0",
     repo_name = "wfa_common_jvm",
 )
-#  Do not merge!
+#  DO_NOT_COMMIT
 git_override(
     module_name = "common-jvm",
-    commit = "3d0ec926",
+    commit = "460ec4e39ec761e66ccb3474e3a0b245fa40f3c9",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(

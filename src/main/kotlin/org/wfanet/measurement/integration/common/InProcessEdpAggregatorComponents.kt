@@ -119,7 +119,6 @@ class InProcessEdpAggregatorComponents(
   private val syntheticPopulationSpec: SyntheticPopulationSpec,
   private val syntheticEventGroupMap: Map<String, SyntheticEventGroupSpec>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
-  private val projectId: String = "some-project-id",
 ) : TestRule {
 
   private val storageClient: StorageClient = FileSystemStorageClient(storagePath.toFile())
@@ -186,7 +185,7 @@ class InProcessEdpAggregatorComponents(
         googlePubSubClient = pubSubClient,
         maxMessages = 1,
         pullIntervalMillis = 100,
-        blockingContext = kotlinx.coroutines.Dispatchers.IO,
+        blockingContext = Dispatchers.IO,
       )
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
