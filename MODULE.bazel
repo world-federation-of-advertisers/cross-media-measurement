@@ -40,7 +40,7 @@ bazel_dep(
     version = "0.126.0",
     repo_name = "wfa_common_jvm",
 )
-#  DO_NOT_COMMIT
+#  DO_NOT_SUBMIT
 git_override(
     module_name = "common-jvm",
     commit = "460ec4e39ec761e66ccb3474e3a0b245fa40f3c9",
