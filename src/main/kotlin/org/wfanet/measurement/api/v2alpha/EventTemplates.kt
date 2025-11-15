@@ -67,4 +67,12 @@ object EventTemplates {
 
     return templateType.options.getExtension(EventAnnotationsProto.eventTemplate)
   }
+
+  fun getEventDescriptor(eventMessageDescriptor: Descriptors.Descriptor): EventDescriptor {
+    require(eventMessageDescriptor.options.hasExtension(EventAnnotationsProto.event)) {
+      "${eventMessageDescriptor.fullName} it not an event message type"
+    }
+
+    return eventMessageDescriptor.options.getExtension(EventAnnotationsProto.event)
+  }
 }
