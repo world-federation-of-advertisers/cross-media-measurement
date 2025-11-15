@@ -505,7 +505,7 @@ class MetricsService(
       }
     }
 
-    /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
+    /** Gets a [SigningKeyHandle] for [measurementConsumerCreds]. */
     private suspend fun getMeasurementConsumerSigningKey(
       measurementConsumerCreds: MeasurementConsumerCredentials
     ): SigningKeyHandle {
@@ -1312,6 +1312,8 @@ class MetricsService(
         InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
         InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
         InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -1620,12 +1622,12 @@ class MetricsService(
           try {
             request.metric.metricSpec.withDefaults(metricSpecConfig, secureRandom).toInternal()
           } catch (e: MetricSpecDefaultsException) {
-            failGrpc(Status.INVALID_ARGUMENT) {
+            failGrpc(Status.INVALID_ARGUMENT, e) {
               listOfNotNull("Invalid metric spec.", e.message, e.cause?.message)
                 .joinToString(separator = "\n")
             }
           } catch (e: Exception) {
-            failGrpc(Status.UNKNOWN) { "Failed to read the metric spec." }
+            failGrpc(Status.INTERNAL, e) { "Failed to read the metric spec." }
           }
         weightedMeasurements +=
           buildInitialInternalMeasurements(
@@ -2239,7 +2241,7 @@ fun buildWeightedWatchDurationMeasurementVarianceParamsPerResult(
     val statsNoiseMechanism: StatsNoiseMechanism =
       try {
         watchDurationResult.noiseMechanism.toStatsNoiseMechanism()
-      } catch (e: NoiseMechanismUnspecifiedException) {
+      } catch (_: NoiseMechanismUnspecifiedException) {
         return@map null
       }
 
@@ -2393,7 +2395,7 @@ fun buildWeightedImpressionMeasurementVarianceParamsPerResult(
     val statsNoiseMechanism: StatsNoiseMechanism =
       try {
         impressionResult.noiseMechanism.toStatsNoiseMechanism()
-      } catch (e: NoiseMechanismUnspecifiedException) {
+      } catch (_: NoiseMechanismUnspecifiedException) {
         return@map null
       }
 
@@ -2651,7 +2653,7 @@ fun buildWeightedFrequencyMeasurementVarianceParams(
   val frequencyStatsNoiseMechanism: StatsNoiseMechanism =
     try {
       frequencyResult.noiseMechanism.toStatsNoiseMechanism()
-    } catch (e: NoiseMechanismUnspecifiedException) {
+    } catch (_: NoiseMechanismUnspecifiedException) {
       return null
     }
 
@@ -2908,7 +2910,7 @@ private fun buildWeightedReachMeasurementVarianceParams(
   val statsNoiseMechanism: StatsNoiseMechanism =
     try {
       reachResult.noiseMechanism.toStatsNoiseMechanism()
-    } catch (e: NoiseMechanismUnspecifiedException) {
+    } catch (_: NoiseMechanismUnspecifiedException) {
       return null
     }
 

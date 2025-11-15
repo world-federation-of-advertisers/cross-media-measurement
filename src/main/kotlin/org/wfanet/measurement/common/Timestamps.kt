@@ -18,9 +18,11 @@ package org.wfanet.measurement.common
 
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Durations
+import com.google.type.Date
 import com.google.type.DateTime
 import com.google.type.dateTime
 import com.google.type.timeZone
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -57,4 +59,8 @@ fun ZonedDateTime.toProtoDateTime(): DateTime {
       timeZone = timeZone { id = zoneId.id }
     }
   }
+}
+
+fun Date.toLocalDate(): LocalDate {
+  return LocalDate.of(year, month, day)
 }
