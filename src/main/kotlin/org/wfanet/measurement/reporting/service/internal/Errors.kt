@@ -36,6 +36,7 @@ object Errors {
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
     INVALID_METRIC_STATE_TRANSITION,
     INVALID_FIELD_VALUE,
+    REPORT_RESULT_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
@@ -45,7 +46,8 @@ object Errors {
     EXTERNAL_METRIC_ID("externalMetricId"),
     METRIC_STATE("metricState"),
     NEW_METRIC_STATE("newMetricState"),
-    FIELD_NAME("fieldName");
+    FIELD_NAME("fieldName"),
+    EXTERNAL_REPORT_RESULT_ID("externalReportResultId");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -143,6 +145,21 @@ class BasicReportAlreadyExistsException(
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
+    cause,
+  )
+
+class ReportResultNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalReportResultId: Long,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORT_RESULT_NOT_FOUND,
+    "ReportResult with CMMS measurement consumer ID $cmmsMeasurementConsumerId and external ID $externalReportResultId not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_REPORT_RESULT_ID to externalReportResultId.toString(),
     ),
     cause,
   )
