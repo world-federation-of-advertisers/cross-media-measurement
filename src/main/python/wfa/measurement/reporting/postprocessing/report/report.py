@@ -32,8 +32,7 @@ from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
@@ -241,7 +240,6 @@ def get_edps_from_edp_combination(
   )
 
 
-
 def build_measurement_set(
     reach: dict[EdpCombination, Measurement],
     k_reach: dict[EdpCombination, KReachMeasurements],
@@ -261,7 +259,6 @@ def build_measurement_set(
         impression=impression.get(edp),
     )
   return whole_campaign_measurements
-
 
 
 class MetricReport:

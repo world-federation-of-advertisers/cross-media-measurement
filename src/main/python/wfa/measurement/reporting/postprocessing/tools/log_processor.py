@@ -18,8 +18,7 @@ from absl import flags
 from absl import logging
 from google.api_core.exceptions import NotFound
 from google.cloud import storage
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult

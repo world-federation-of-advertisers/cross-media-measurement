@@ -40,8 +40,8 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -612,7 +612,7 @@ class SpannerBasicReportsService(
 
   private suspend fun transformReportResultIntoResultGroups(
     basicReport: BasicReport,
-    reportResult: ReportResult,
+    reportingSetResults: Iterable<ReportingSetResult>,
     campaignGroup: ReportingSet,
   ): List<ResultGroup> {
     val campaignGroupReportingSets =
@@ -664,7 +664,7 @@ class SpannerBasicReportsService(
 
     return buildResultGroups(
       basicReport,
-      reportResult,
+      reportingSetResults,
       primitiveInfoByDataProviderId,
       compositeReportingSetIdBySetExpression,
     )

@@ -23,16 +23,17 @@ import com.google.type.copy
 import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.EventFilter
-import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
+import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 
 object BasicReportNoiseCorrectedResultsTransformation {
@@ -40,7 +41,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
    * Builds a list of [ResultGroup]s for the [BasicReport] given the [ReportResult]
    *
    * @param basicReport [BasicReport] to create [ResultGroup]s for
-   * @param reportResult [ReportResult] to get results from
+   * @param reportingSetResults [ReportingSetResult]s for a [ReportResult]
    * @param primitiveInfoByDataProviderId Map that contains [PrimitiveInfo] for each DataProviderId
    *   represented by the CampaignGroup [ReportingSet]
    * @param compositeReportingSetIdBySetExpression Map that contains ExternalReportingSetIDs for
@@ -48,13 +49,13 @@ object BasicReportNoiseCorrectedResultsTransformation {
    */
   fun buildResultGroups(
     basicReport: BasicReport,
-    reportResult: ReportResult,
+    reportingSetResults: Iterable<ReportingSetResult>,
     primitiveInfoByDataProviderId: Map<String, PrimitiveInfo>,
     compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
   ): List<ResultGroup> {
     val reportingWindowResultValuesByResultGroupSpecKey:
       Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> =
-      buildReportingWindowResultValuesByResultGroupSpecKey(reportResult)
+      buildReportingWindowResultValuesByResultGroupSpecKey(reportingSetResults)
 
     // If there is no custom ReportingImpressionQualificationFilter, this will be unused so the
     // value
@@ -223,10 +224,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
           primitiveReportingSetIds.add(
             primitiveInfoByDataProviderId.getValue(dataProviderId).externalReportingSetId
           )
-          val setExpression =
-            BasicReportNoiseCorrectedResultsTransformation.buildUnionSetExpression(
-              primitiveReportingSetIds
-            )
+          val setExpression = buildUnionSetExpression(primitiveReportingSetIds)
           add(compositeReportingSetIdBySetExpression.getValue(setExpression))
         }
       }
@@ -374,7 +372,13 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
             dimensionSpecSummary =
               ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
-                groupings += reportingWindowResults.key.groupings
+                groupings +=
+                  reportingWindowResults.key.grouping.valueByPathMap.toSortedMap().map {
+                    eventTemplateField {
+                      path = it.key
+                      value = it.value
+                    }
+                  }
                 filters += resultGroupSpec.dimensionSpec.filtersList
               }
 
@@ -423,34 +427,30 @@ object BasicReportNoiseCorrectedResultsTransformation {
     }
   }
 
-  /**
-   * Builds a Map for finding all results for each [ResultGroupSpec] in the [BasicReport]
-   *
-   * @param reportResult [ReportResult] to get [ReportResult.ReportingSetResult]s from
-   */
+  /** Builds a Map for finding all results for each [ResultGroupSpec] in the [BasicReport] */
   private fun buildReportingWindowResultValuesByResultGroupSpecKey(
-    reportResult: ReportResult
+    reportingSetResults: Iterable<ReportingSetResult>
   ): Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> {
     return buildMap<
       ResultGroupSpecKey,
       MutableMap<ReportingWindowResultKey, ReportingWindowResultValues>,
     > {
-      for (reportingSetResult in reportResult.reportingSetResultsList) {
-        for (reportingWindowResult in reportingSetResult.value.reportingWindowResultsList) {
+      for (reportingSetResult in reportingSetResults) {
+        for (reportingWindowEntry in reportingSetResult.reportingWindowResultsList) {
           val externalImpressionQualificationFilterId: String? =
-            if (reportingSetResult.key.custom) {
+            if (reportingSetResult.dimension.custom) {
               null
             } else {
-              reportingSetResult.key.externalImpressionQualificationFilterId
+              reportingSetResult.dimension.externalImpressionQualificationFilterId
             }
 
           // This isn't unique to a ResultGroupSpec because it doesn't include the ReportingUnit,
           // but it is unique enough to get the results for every ResultGroupSpec that matches this.
           val resultGroupSpecKey =
             ResultGroupSpecKey(
-              metricFrequencySpec = reportingSetResult.key.metricFrequencySpec,
-              groupingFields = reportingSetResult.key.groupingsList.map { it.path }.toSet(),
-              eventFilters = reportingSetResult.key.eventFiltersList.toSet(),
+              metricFrequencySpec = reportingSetResult.dimension.metricFrequencySpec,
+              groupingFields = reportingSetResult.dimension.grouping.valueByPathMap.keys,
+              eventFilters = reportingSetResult.dimension.eventFiltersList.toSet(),
             )
 
           val reportingWindowResultMap:
@@ -459,23 +459,23 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
           val key =
             ReportingWindowResultKey(
-              groupings = reportingSetResult.key.groupingsList.toSet(),
+              grouping = reportingSetResult.dimension.grouping,
               nonCumulativeWindowStartDate =
                 if (
-                  reportingSetResult.key.metricFrequencySpec.selectorCase ==
+                  reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
                     MetricFrequencySpec.SelectorCase.WEEKLY
                 ) {
-                  reportingWindowResult.key.nonCumulativeStart
+                  reportingWindowEntry.key.nonCumulativeStart
                 } else {
                   null
                 },
-              windowEndDate = reportingWindowResult.key.end,
+              windowEndDate = reportingWindowEntry.key.end,
               externalImpressionQualificationFilterId = externalImpressionQualificationFilterId,
             )
 
           val value =
             ReportingWindowResultValues(
-              populationSize = reportingSetResult.value.populationSize,
+              populationSize = reportingSetResult.populationSize,
               reportResultValuesByExternalReportingSetId = mutableMapOf(),
             )
 
@@ -483,8 +483,8 @@ object BasicReportNoiseCorrectedResultsTransformation {
             reportingWindowResultMap.getOrPut(key) { value }
 
           reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
-              reportingSetResult.key.externalReportingSetId] =
-            reportingWindowResult.value.denoisedReportResultValues
+              reportingSetResult.dimension.externalReportingSetId] =
+            reportingWindowEntry.value.denoisedReportResultValues
         }
       }
     }
@@ -510,7 +510,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
     reportingUnitReportingSetId: String,
     incrementalReportingSetIds: List<String>,
     reportResultValuesByExternalReportingSetId:
-      Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+      Map<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   ): ResultGroup.MetricSet.ReportingUnitMetricSet {
     return ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
       val reportingUnitDenoisedResultValues =
@@ -548,7 +548,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
     componentMetricSetSpec: ResultGroupMetricSpec.ComponentMetricSetSpec,
     componentReportingSetIds: ComponentReportingSetIds,
     reportResultValuesByExternalReportingSetId:
-      Map<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+      Map<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   ): ResultGroup.MetricSet.ComponentMetricSet {
     val componentDenoisedResultValues =
       reportResultValuesByExternalReportingSetId.getValue(
@@ -691,7 +691,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
   )
 
   private data class ReportingWindowResultKey(
-    val groupings: Set<EventTemplateField>,
+    val grouping: ReportingSetResult.Dimension.Grouping,
     val nonCumulativeWindowStartDate: Date?,
     val windowEndDate: Date,
     val externalImpressionQualificationFilterId: String? = null,
@@ -700,7 +700,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
   private data class ReportingWindowResultValues(
     val populationSize: Int,
     val reportResultValuesByExternalReportingSetId:
-      MutableMap<String, ReportResult.ReportingSetResult.ReportingWindowResult.ReportResultValues>,
+      MutableMap<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   )
 
   private data class ComponentReportingSetIds(

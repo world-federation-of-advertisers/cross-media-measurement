@@ -26,31 +26,44 @@ import "wfa/measurement/internal/reporting/v2/result_group.proto";
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
+// Entity representing a result of a Basic or Advanced report.
 message ReportResult {
-  // The CMMS Measurement Consumer ID. Required. Immutable.
+  // MeasurementConsumer ID from the CMMS public API. Identifier.
   string cmms_measurement_consumer_id = 1;
-  // The external ID of this result. Immutable.
+  // External ID of this ReportResult. Identifier.
   fixed64 external_report_result_id = 2;
-  // The report start time. Required. Immutable.
+
+  // Report start time. Required. Immutable.
   google.type.DateTime report_start = 3;
+}
 
-  enum VennDiagramRegionType {
-    VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED = 0;
-    // Indicates that the metrics for a ReportingSet are for the
-    // union of the entailed ReportingSets
-    UNION = 1;
-    // Indicates that the metrics for a ReportingSet are for the
-    // primitive Venn diagram region entailed by sub-ReportingSets
-    PRIMITIVE = 2;
-  }
+// Entity representing a result for a dimension of a ReportingSet for a
+// ReportResult.
+message ReportingSetResult {
+  // MeasurementConsumer ID from the CMMS public API.  Identifier.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult.  Identifier.
+  fixed64 external_report_result_id = 2;
+  // External ID of this ReportingSetResult.  Identifier.
+  fixed64 external_reporting_set_result_id = 3;
 
-  // Unique key of a `ReportingSetResult` within a `ReportResult`. Immutable.
-  message ReportingSetResultKey {
-    // External ID of the `ReportingSet`. Required.
+  message Dimension {
+    // External ID of the `ReportingSet`. Required. Immutable.
     string external_reporting_set_id = 1;
-    // Type of the Venn diagram region. Required.
+
+    enum VennDiagramRegionType {
+      VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED = 0;
+      // Indicates that the metrics for a ReportingSet are for the
+      // union of the entailed ReportingSets
+      UNION = 1;
+      // Indicates that the metrics for a ReportingSet are for the
+      // primitive Venn diagram region entailed by sub-ReportingSets
+      PRIMITIVE = 2;
+    }
+    // Type of the Venn diagram region. Required. Immutable.
     VennDiagramRegionType venn_diagram_region_type = 2;
-    // Impression qualification filter. Required.
+
+    // Impression qualification filter. Required. Immutable.
     oneof impression_qualification_filter {
       // The external ID of the IQF.
       string external_impression_qualification_filter_id = 3;
@@ -59,128 +72,128 @@ message ReportResult {
     }
     // Frequency specification. Required.
     MetricFrequencySpec metric_frequency_spec = 5;
-    // The event template dimensions from the `DimensionSpec`, ordered by
-    // `path`. Each event template field path may exist at most once in this
-    // list.
-    repeated EventTemplateField groupings = 6;
-    // The event filters from the `DimensionSpec`, ordered by `terms`
-    // lexicographically. The terms themselves are ordered by `path` and
-    // `value`, following the natural order of the value type.
+
+    message Grouping {
+      // Map of field path to value.
+      map<string, EventTemplateField.FieldValue> value_by_path = 1;
+    }
+    // Grouping where each field path corresponds to an element in the
+    // `event_template_fields` field of `DimensionSpec.Grouping`. Immutable.
+    Grouping grouping = 6;
+
+    // Event `filters` field from the `DimensionSpec`, ordered by `terms`
+    // lexicographically. Immutable.
+    //
+    // The terms themselves are ordered by `path` and `value`, following the
+    // natural order of the value type.
     repeated EventFilter event_filters = 7;
   }
-  message ReportingSetResult {
-    // Size of the population. Required. Immutable.
-    int32 population_size = 1;
+  // ReportingSet dimension. This is unique within a parent `ReportResult`.
+  Dimension dimension = 4;
 
-    // Window for report results. Immutable.
+  // Size of the population. Required. Immutable.
+  int32 population_size = 5;
+
+  // Window for report results.
+  //
+  // This implicitly covers up to two logical windows with the same end date:
+  // 1. The window for cumulative metrics, which starts at `report_start`
+  // 2. The window for non-cumulative metrics, which starts at
+  // `non_cumulative_start`.
+  //
+  // The time of day is implicitly the time in `report_start`.
+  message ReportingWindow {
+    // Start of the window range for non-cumulative metrics, inclusive.
     //
-    // This implicitly covers up to two logical windows with the same end date:
-    // 1. The window for cumulative metrics, which starts at `report_start`
-    // 2. The window for non-cumulative metrics, which starts at
-    // `non_cumulative_start`.
-    //
-    // The time of day is implicitly the time in `report_start`.
-    message ReportingWindow {
-      // Start of the window range for non-cumulative metrics, inclusive.
-      //
-      // Required if there are non-cumulative metrics in the corresponding
-      // `ReportingWindowResult`.
-      google.type.Date non_cumulative_start = 1;
-      // End of the window range, inclusive. Required.
-      google.type.Date end = 2;
-    }
-    // Represents the results for a reporting window with respect to a
-    // ReportingSetResult.
-    message ReportingWindowResult {
-      // Represents noisy result values with respect to a ReportingWindowResult.
-      // Immutable.
-      message NoisyReportResultValues {
-        message NoisyMetricSet {
-          // Statistics of a scalar value
-          message UnivariateStatistics {
-            // The standard deviation of the associated scalar variable value.
-            //
-            // Can be used to find different confidence intervals.
-            double standard_deviation = 1;
-          }
-
-          message ReachResult {
-            int64 value = 1;
-            UnivariateStatistics univariate_statistics = 2;
-          }
-
-          message HistogramResult {
-            message BinResult {
-              double value = 1;
-              UnivariateStatistics univariate_statistics = 2;
-            }
-            // Map of bin to the result for that bin.
-            map<int32, BinResult> bin_results = 1;
-          }
-
-          message ImpressionCountResult {
-            int64 value = 1;
-            UnivariateStatistics univariate_statistics = 2;
-          }
-
-          ReachResult reach = 1;
-          // Histogram where each bin is the frequency `k` and each result value
-          // is the `k` reach of that bin. The largest bin represents the
-          // maximum frequency, where the result value is the `k+` reach of that
-          // bin.
-          HistogramResult frequency_histogram = 2;
-          ImpressionCountResult impression_count = 3;
+    // Required if there are non-cumulative metrics in the corresponding
+    // `ReportingWindowResult`.
+    google.type.Date non_cumulative_start = 1;
+    // End of the window range, inclusive. Required.
+    google.type.Date end = 2;
+  }
+  message ReportingWindowResult {
+    // Represents noisy result values with respect to a ReportingWindowResult.
+    // Immutable.
+    message NoisyReportResultValues {
+      message NoisyMetricSet {
+        // Statistics of a scalar value
+        message UnivariateStatistics {
+          // The standard deviation of the associated scalar variable value.
+          //
+          // Can be used to find different confidence intervals.
+          double standard_deviation = 1;
         }
 
-        NoisyMetricSet cumulative_results = 1;
-        NoisyMetricSet non_cumulative_results = 2;
+        message ReachResult {
+          int64 value = 1;
+          UnivariateStatistics univariate_statistics = 2;
+        }
+
+        message HistogramResult {
+          message BinResult {
+            int32 value = 1;
+            UnivariateStatistics univariate_statistics = 2;
+          }
+          // Map of bin to the result for that bin.
+          map<int32, BinResult> bin_results = 1;
+        }
+
+        message ImpressionCountResult {
+          int64 value = 1;
+          UnivariateStatistics univariate_statistics = 2;
+        }
+
+        ReachResult reach = 1;
+        // Histogram where each bin is the frequency `k` and each result value
+        // is the `k` reach of that bin. The largest bin represents the
+        // maximum frequency, where the result value is the `k+` reach of that
+        // bin.
+        HistogramResult frequency_histogram = 2;
+        ImpressionCountResult impression_count = 3;
       }
 
-      // Represents result values with respect to a ReportingWindowResult.
-      // Immutable.
-      message ReportResultValues {
-        ResultGroup.MetricSet.BasicMetricSet cumulative_results = 1;
-        ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 2;
-      }
-
-      // Noisy report result values. Required. Immutable.
-      NoisyReportResultValues noisy_report_result_values = 3;
-      // Denoised report result values. Output-only.
-      //
-      // In responses, only set when view is `REPORT_RESULT_VIEW_FULL`.
-      ReportResultValues denoised_report_result_values = 4;
+      NoisyMetricSet cumulative_results = 1;
+      NoisyMetricSet non_cumulative_results = 2;
     }
-    message ReportingWindowEntry {
-      ReportingWindow key = 1;
-      ReportingWindowResult value = 2;
+
+    // Represents result values with respect to a ReportingWindowResult.
+    // Immutable.
+    message ReportResultValues {
+      ResultGroup.MetricSet.BasicMetricSet cumulative_results = 1;
+      ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 2;
     }
-    // Map of `ReportingWindow` to `ReportingWindowResult`.
-    repeated ReportingWindowEntry reporting_window_results = 2;
 
-    // Fingerprint of `ReportingSetResultKey.metric_frequency_spec`.
-    // Output-only.
-    fixed64 metric_frequency_spec_fingerprint = 3;
+    // Noisy report result values. Required. Immutable.
+    NoisyReportResultValues noisy_report_result_values = 1;
 
-    // Fingerprint of `ReportingSetResultKey.groupings`. Output-only.
-    fixed64 grouping_dimension_fingerprint = 4;
-
-    // Fingerprint of `ReportingSetResultKey.event_filters`. Output-only.
-    fixed64 filter_fingerprint = 5;
+    // Denoised report result values. Output-only.
+    //
+    // In responses, only set when view is `REPORTING_SET_RESULT_VIEW_FULL`.
+    ReportResultValues denoised_report_result_values = 2;
   }
-  message ReportingSetResultEntry {
-    ReportingSetResultKey key = 1;
-    ReportingSetResult value = 2;
+  message ReportingWindowEntry {
+    ReportingWindow key = 1;
+    ReportingWindowResult value = 2;
   }
+  // Map of `ReportingWindow` to `ReportingWindowResult`.
+  repeated ReportingWindowEntry reporting_window_results = 6;
 
-  // Map of `ReportingSetResultKey` to `ReportingSetResult`.
-  repeated ReportingSetResultEntry reporting_set_results = 4;
+  // Fingerprint of `ReportingSetResult.Dimension.metric_frequency_spec`.
+  // Output-only.
+  fixed64 metric_frequency_spec_fingerprint = 7;
+
+  // Fingerprint of `ReportingSetResult.Dimension.grouping`. Output-only.
+  fixed64 grouping_dimension_fingerprint = 8;
+
+  // Fingerprint of `ReportingSetResult.Dimension.event_filters`. Output-only.
+  fixed64 filter_fingerprint = 9;
 }
 
-enum ReportResultView {
+enum ReportingSetResultView {
   // Default value. The API will default to the NOISY view.
-  REPORT_RESULT_VIEW_UNSPECIFIED = 0;
+  REPORTING_SET_RESULT_VIEW_UNSPECIFIED = 0;
   // View which includes noisy values only.
-  REPORT_RESULT_VIEW_NOISY = 1;
+  REPORTING_SET_RESULT_VIEW_NOISY = 1;
   // View which includes all values (noisy and de-noised).
-  REPORT_RESULT_VIEW_FULL = 2;
+  REPORTING_SET_RESULT_VIEW_FULL = 2;
 }

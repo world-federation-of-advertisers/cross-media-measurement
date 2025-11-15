@@ -17,8 +17,7 @@ import unittest
 from google.api_core.exceptions import NotFound
 from google.protobuf import json_format
 from io import StringIO
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
