@@ -418,6 +418,14 @@ proto_library(
     for prefix in MESSAGE_LIBS
 ]
 
+[
+    py_proto_library(
+        name = "{prefix}_service_py_pb2".format(prefix = prefix),
+        deps = [":{prefix}_service_proto".format(prefix = prefix)],
+    )
+    for prefix in SERVICE_LIBS
+]
+
 proto_descriptor_set(
     name = "descriptor_set",
     deps = [
