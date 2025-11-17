@@ -138,7 +138,7 @@ class MillJobScheduler(
     }
 
     val claimedComputationId: String = claimedToken.globalComputationId
-    logger.info { "Claimed work item for Computation $claimedComputationId" }
+    logger.info { "MillScheduler claimed work item for Computation $claimedComputationId" }
     val template =
       millType.podTemplate.template.clone().apply {
         val container: V1Container = spec.containers.first()
