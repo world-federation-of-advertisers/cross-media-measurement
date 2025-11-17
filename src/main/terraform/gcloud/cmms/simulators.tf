@@ -18,30 +18,15 @@ module "simulators_cluster" {
   name            = local.simulators_cluster_name
   location        = local.cluster_location
   release_channel = var.cluster_release_channel
-  secret_key      = module.common.cluster_secret_key
-}
 
-module "simulators_default_node_pool" {
-  source = "../modules/node-pool"
-
-  name            = "default"
-  cluster         = module.simulators_cluster.cluster
-  service_account = module.common.cluster_service_account
-  machine_type    = "e2-standard-2"
-  max_node_count  = 2
-}
-
-module "simulators_spot_node_pool" {
-  source = "../modules/node-pool"
-
-  name            = "spot"
-  cluster         = module.simulators_cluster.cluster
-  service_account = module.common.cluster_service_account
-  machine_type    = "n2d-highmem-8"
-  max_node_count  = 6
-  spot            = true
+  trusted_image_signing_fingerprint = ""
 }
 
 module "simulators" {
   source = "../modules/simulators"
+  for_each = toset(var.edp_simulator_names)
+
+  simulator_name                  = each.key
+  location                        = local.cluster_location
+  tee_image_signature_fingerprint = var.trusted_image_signing_fingerprint
 }

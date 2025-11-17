@@ -63,6 +63,7 @@ jobs:
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
+      EDP_SIMULATOR_NAMES: '["${{ vars.EDP1_NAME }}", "${{ vars.EDP2_NAME }}", "${{ vars.EDP3_NAME }}", "${{ vars.EDP4_NAME }}", "${{ vars.EDP5_NAME }}", "${{ vars.EDP6_NAME }}"]'
 
     steps:
     - uses: actions/checkout@v4
@@ -186,6 +187,17 @@ jobs:
         -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
+    - id: get-public-key-fingerprint
+      name: Get TEE image signing key fingerprint
+      env:
+        GCP_KMS_KEY_RESOURCE_NAME: projects/halo-cmm-dev/locations/global/keyRings/image-signing/cryptoKeys/image-signing-test/cryptoKeyVersions/1
+      run: |
+        set -euo pipefail
+        gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pub.pem
+        KEY_ID=$(openssl pkey -pubin -in pub.pem -outform DER | openssl sha256 | cut -d' ' -f2)
+        FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
+        echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
+
     - name: terraform plan
       env:
         KEY_RING: ${{ vars.KEY_RING }}
@@ -218,6 +230,7 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        EDP_SIMULATOR_TEE_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -261,6 +274,8 @@ jobs:
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
+        -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
+        -var="edp_simulator_tee_fingerprint=$EDP_SIMULATOR_TEE_FINGERPRINT"
         -out=tfplan
 
     - name: terraform apply
