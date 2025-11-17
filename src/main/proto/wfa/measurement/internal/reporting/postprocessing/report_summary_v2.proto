@@ -16,6 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.postprocessing;
 
+import "wfa/measurement/internal/reporting/v2/event_filter.proto";
+import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+
 option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
 option java_outer_classname = "ReportSummaryV2Proto";
@@ -48,11 +51,11 @@ message ReportSummaryV2 {
     // Represents a frequency distribution result.
     message FrequencyResult {
       message BinResult {
-        string label = 1;
-        int64 value = 2;
-        double standard_deviation = 3;
+        double value = 1;
+        double standard_deviation = 2;
       }
-      repeated BinResult bins = 1;
+      // Map of bin label to `BinResult`.
+      map<int32, BinResult> bins = 1;
 
       // The unique name that is associated with this result.
       string metric = 2;
@@ -86,27 +89,35 @@ message ReportSummaryV2 {
     repeated ReportSummaryWindowResult cumulative_results = 5;
 
     // A list of non-cumulative results, ordered by the end date of the window.
-    // This can contain both whole-campaign metrics (e.g., where
-    // `metric_frequency_type` is `TOTAL`) and periodic non-cumulative metrics
-    // (e.g., where `metric_frequency_type` is `WEEKLY`).
     repeated ReportSummaryWindowResult non_cumulative_results = 6;
+
+    ReportSummaryWindowResult whole_campaign_result = 7;
+
+    string external_reporting_set_id = 8;
   }
 
   // A list containing the details and results for each set of metrics included
   // in the report summary.
   repeated ReportSummarySetResult report_summary_set_results = 1;
 
-  // Identifies the filtered demographic groups this report summary applies to.
-  //
-  // The demographic_groups field contains a list of strings, each corresponds
-  // to a single demographic group identifier. For examples:
-  // - For a report summary on a subset of groups: ["MALE_AGE_GROUP1",
-  // "FEMALE_AGE_GROUP1"].
-  // - For a report summary on a single group: ["MALE_AGE_GROUP1"].
-  // - For a report summary on the whole population (no filter): ["-"].
-  repeated string demographic_groups = 2;
+  // The event template dimensions from the `DimensionSpec`, ordered by
+  // `path`. Each event template field path may exist at most once in this
+  // list.
+  repeated wfa.measurement.internal.reporting.v2.EventTemplateField groupings =
+      2;
+
+  // The event filters from the `DimensionSpec`, ordered by `terms`
+  // lexicographically. The terms themselves are ordered by `path` and
+  // `value`, following the natural order of the value type.
+  repeated wfa.measurement.internal.reporting.v2.EventFilter event_filters = 3;
 
   // The total population size of the selected demographic groups in this report
   // summary.
-  int64 population = 3;
+  int64 population = 4;
+
+  // The CMMS Measurement Consumer ID.
+  string cmms_measurement_consumer_id = 5;
+
+  // The external ID of the report result from which this summary was generated.
+  string external_report_result_id = 6;
 }

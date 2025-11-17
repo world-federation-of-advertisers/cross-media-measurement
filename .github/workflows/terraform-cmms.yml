@@ -48,11 +48,14 @@ on:
         required: true
 
 permissions:
-  id-token: write
+  contents: read
 
 jobs:
   terraform:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
@@ -230,7 +233,7 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
-        EDP_SIMULATOR_TEE_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
+        TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -275,7 +278,7 @@ jobs:
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
-        -var="edp_simulator_tee_fingerprint=$EDP_SIMULATOR_TEE_FINGERPRINT"
+        -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -out=tfplan
 
     - name: terraform apply

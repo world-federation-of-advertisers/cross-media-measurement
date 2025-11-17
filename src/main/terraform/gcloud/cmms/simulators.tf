@@ -18,8 +18,7 @@ module "simulators_cluster" {
   name            = local.simulators_cluster_name
   location        = local.cluster_location
   release_channel = var.cluster_release_channel
-
-  trusted_image_signing_fingerprint = ""
+  secret_key      = module.common.cluster_secret_key
 }
 
 module "simulators" {

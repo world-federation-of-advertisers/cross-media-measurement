@@ -362,9 +362,9 @@ fun Report.toReportSummaries(): List<ReportSummary> {
                                           resultAttribute.metricResult.reachAndFrequency.reach
                                             .value > 0
                                         ) {
-                                          bin.binResult.value.toLong()
+                                          bin.binResult.value
                                         } else {
-                                          0
+                                          0.0
                                         }
                                       // TODO(@ple13): Read the standard deviations directly from
                                       // the frequency buckets when the report populates the

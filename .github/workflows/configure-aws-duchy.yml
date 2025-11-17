@@ -58,7 +58,7 @@ on:
         default: false
 
 permissions:
-  id-token: write
+  contents: read
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
@@ -68,6 +68,9 @@ env:
 jobs:
   update-duchy:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@v4
