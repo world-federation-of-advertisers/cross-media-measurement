@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
@@ -48,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRespo
 import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResult
@@ -64,6 +66,9 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToNoisyResultReady
+import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
+import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
@@ -198,6 +203,31 @@ class SpannerReportResultsService(
         } catch (e: ReportResultNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
+
+      if (request.externalBasicReportId.isNotEmpty()) {
+        val basicReportResult =
+          try {
+            txn.getBasicReportByExternalId(
+              request.cmmsMeasurementConsumerId,
+              request.externalBasicReportId,
+            )
+          } catch (e: BasicReportNotFoundException) {
+            throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        val basicReport = basicReportResult.basicReport
+        if (basicReport.state != BasicReport.State.REPORT_CREATED) {
+          throw BasicReportStateInvalidException(
+            basicReport.cmmsMeasurementConsumerId,
+            basicReport.externalBasicReportId,
+            basicReport.state,
+          )
+        }
+        txn.setBasicReportStateToNoisyResultReady(
+          measurementConsumerId,
+          basicReportResult.basicReportId,
+          reportResultId,
+        )
+      }
 
       batchCreateReportingSetResultsResponse {
         for (reportingSetResultRequest in request.requestsList) {
