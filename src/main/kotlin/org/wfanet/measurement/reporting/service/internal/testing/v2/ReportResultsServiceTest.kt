@@ -47,6 +47,7 @@ import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConf
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
+import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -62,7 +63,10 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.Reporti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reportingWindow
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reportingWindowEntry
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reportingWindowResult
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
+import org.wfanet.measurement.internal.reporting.v2.addDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
@@ -317,6 +321,174 @@ abstract class ReportResultsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] =
             "requests[0].reporting_set_result.reporting_window_results[0].value." +
               "noisy_report_result_values.non_cumulative_results"
+        }
+      )
+  }
+
+  @Test
+  fun `addDenoisedResultValues adds values to existing ReportingSetResults`() {
+    ensureMeasurementConsumer()
+    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val reportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+            reportResult.externalReportResultId
+          )
+        )
+        .reportingSetResultsList
+    val request = addDenoisedResultValuesRequest {
+      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+      externalReportResultId = reportResult.externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                  nonCumulativeResults = basicMetricSet {
+                    reach = 1
+                    impressions = 5
+                  }
+                }
+            }
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[1].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[1].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+    }
+
+    reportResultsStub.addDenoisedResultValues(request)
+
+    val updatedReportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .listReportingSetResults(
+          listReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+            externalReportResultId = reportResult.externalReportResultId
+            view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
+          }
+        )
+        .reportingSetResultsList
+    assertThat(updatedReportingSetResults)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactly(
+        reportingSetResults[0].copy {
+          reportingWindowResults[0] =
+            reportingWindowResults[0].copy {
+              value =
+                value.copy {
+                  denoisedReportResultValues =
+                    request.reportingSetResultsMap
+                      .getValue(reportingSetResults[0].externalReportingSetResultId)
+                      .reportingWindowResultsList[0]
+                      .value
+                }
+            }
+          reportingWindowResults[1] =
+            reportingWindowResults[1].copy {
+              value =
+                value.copy {
+                  denoisedReportResultValues =
+                    request.reportingSetResultsMap
+                      .getValue(reportingSetResults[0].externalReportingSetResultId)
+                      .reportingWindowResultsList[1]
+                      .value
+                }
+            }
+        },
+        reportingSetResults[1].copy {
+          reportingWindowResults[0] =
+            reportingWindowResults[0].copy {
+              value =
+                value.copy {
+                  denoisedReportResultValues =
+                    request.reportingSetResultsMap
+                      .getValue(reportingSetResults[1].externalReportingSetResultId)
+                      .reportingWindowResultsList[0]
+                      .value
+                }
+            }
+        },
+        reportingSetResults[2],
+      )
+  }
+
+  @Test
+  fun `addDenoisedResultValues throws if reporting window not found`() {
+    ensureMeasurementConsumer()
+    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val reportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+            reportResult.externalReportResultId
+          )
+        )
+        .reportingSetResultsList
+    val request = addDenoisedResultValuesRequest {
+      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+      externalReportResultId = reportResult.externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingWindow {
+                end = date {
+                  year = 2025
+                  month = 11
+                  day = 15
+                }
+              }
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusException> { reportResultsStub.addDenoisedResultValues(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND.name
+          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+            request.cmmsMeasurementConsumerId
+          metadata[Errors.Metadata.EXTERNAL_REPORT_RESULT_ID.key] =
+            request.externalReportResultId.toString()
+          metadata[Errors.Metadata.EXTERNAL_REPORTING_SET_RESULT_ID.key] =
+            reportingSetResults[0].externalReportingSetResultId.toString()
+          metadata[Errors.Metadata.REPORTING_WINDOW_END.key] = "2025-11-15"
         }
       )
   }
