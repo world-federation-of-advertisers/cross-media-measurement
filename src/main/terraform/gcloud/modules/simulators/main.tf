@@ -17,8 +17,8 @@ data "google_project" "project" {}
 locals {
   kms_keyring_name              = "${var.simulator_name}-keyring"
   kms_key_name                  = "${var.simulator_name}-kek"
-  edp_service_account_name      = "${var.simulator_name}-edp-sa"
-  tee_decrypter_account_name    = "${var.simulator_name}-tee-decrypter-sa"
+  edp_service_account_name      = "${var.simulator_name}"
+  tee_decrypter_account_name    = "${var.simulator_name}-kms-decrypt"
   workload_identity_pool_id     = "${var.simulator_name}-wip"
   workload_identity_provider_id = "${var.simulator_name}-oidc-provider"
 }

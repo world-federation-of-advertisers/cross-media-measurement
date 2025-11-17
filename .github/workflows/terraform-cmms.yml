@@ -66,7 +66,7 @@ jobs:
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
-      EDP_SIMULATOR_NAMES: '["${{ vars.EDP1_NAME }}", "${{ vars.EDP2_NAME }}", "${{ vars.EDP3_NAME }}", "${{ vars.EDP4_NAME }}", "${{ vars.EDP5_NAME }}", "${{ vars.EDP6_NAME }}"]'
+      EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
     - uses: actions/checkout@v4
