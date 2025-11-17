@@ -217,6 +217,7 @@ class BasicReportsService(
                 InternalErrors.Reason.INVALID_FIELD_VALUE,
                 InternalErrors.Reason.METRIC_NOT_FOUND,
                 InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
                 null -> Status.INTERNAL.withCause(e).asRuntimeException()
               }
             }
@@ -264,6 +265,7 @@ class BasicReportsService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -342,6 +344,7 @@ class BasicReportsService(
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -383,6 +386,7 @@ class BasicReportsService(
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -604,6 +608,7 @@ class BasicReportsService(
                 InternalErrors.Reason.INVALID_FIELD_VALUE,
                 InternalErrors.Reason.METRIC_NOT_FOUND,
                 InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
                 null -> Status.INTERNAL.withCause(e).asRuntimeException()
               }
             }
