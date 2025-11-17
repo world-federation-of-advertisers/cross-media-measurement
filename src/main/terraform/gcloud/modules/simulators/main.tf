@@ -15,12 +15,14 @@
 data "google_project" "project" {}
 
 locals {
-  kms_keyring_name              = "${var.simulator_name}-keyring"
-  kms_key_name                  = "${var.simulator_name}-kek"
-  edp_service_account_name      = "${var.simulator_name}"
-  tee_decrypter_account_name    = "${var.simulator_name}-kms-decrypt"
-  workload_identity_pool_id     = "${var.simulator_name}-wip"
-  workload_identity_provider_id = "${var.simulator_name}-oidc-provider"
+  kms_keyring_name                = "${var.simulator_name}-keyring"
+  kms_key_name                    = "${var.simulator_name}-kek"
+  edp_service_account_name        = "${var.simulator_name}"
+  tee_decrypter_account_name      = "${var.simulator_name}-kms-decrypt"
+  workload_identity_pool_id       = "${var.simulator_name}-wip"
+  workload_identity_pool_name     = "${var.simulator_name}-wip"
+  workload_identity_provider_id   = "${var.simulator_name}-oidc-provider"
+  workload_identity_provider_name = "${var.simulator_name}-oidc-provider"
 }
 
 # 1. Create the main service account for the EDP simulator. This is the "owner" of the KMS key.
@@ -48,7 +50,7 @@ module "workload_identity_binding" {
 resource "google_kms_key_ring" "edp_key_ring" {
   project  = data.google_project.project.name
   name     = local.kms_keyring_name
-  location = var.location
+  location = var.key_ring_location
 }
 
 resource "google_kms_crypto_key" "edp_kek" {
@@ -75,7 +77,7 @@ resource "google_kms_crypto_key_iam_member" "tee_sa_decrypter" {
 resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
   project                           = data.google_project.project.name
   workload_identity_pool_id         = local.workload_identity_pool_id
-  display_name                      = "Workload Identity Pool for ${var.simulator_name}"
+  display_name                      = local.workload_identity_pool_name
   description                       = "EDP workload identity pool for ${var.simulator_name}"
   disabled                          = false
 }
@@ -84,7 +86,7 @@ resource "google_iam_workload_identity_pool_provider" "oidc_provider" {
   project                            = google_iam_workload_identity_pool.edp_workload_identity_pool.project
   workload_identity_pool_id          = google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id
   workload_identity_pool_provider_id = local.workload_identity_provider_id
-  display_name                       = "OIDC Provider for ${var.simulator_name}"
+  display_name                       = local.workload_identity_provider_name
 
   attribute_mapping = {
     "google.subject" = "assertion.sub"

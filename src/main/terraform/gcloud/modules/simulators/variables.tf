@@ -18,8 +18,8 @@ variable "simulator_name" {
   nullable    = false
 }
 
-variable "location" {
-  description = "The GCP location for the resources."
+variable "key_ring_location" {
+  description = "Location of the KMS key ring."
   type        = string
 }
 
