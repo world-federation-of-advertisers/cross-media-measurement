@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -60,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataReque
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
@@ -102,6 +104,8 @@ class ResultsFulfiller(
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
   private val responsePageSize: Int? = null,
+  private val resultsFulfillerParams: ResultsFulfillerParams,
+  private val requisitionsBlobUri: String,
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
@@ -175,6 +179,8 @@ class ResultsFulfiller(
         batchSize = pipelineConfiguration.batchSize,
       )
 
+    val inputEventBlobUris = resolveInputEventBlobUris(modelLine)
+
     Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
       val span = Span.current()
       val frequencyVectorMap =
@@ -209,6 +215,7 @@ class ResultsFulfiller(
               frequencyVector = frequencyVector,
               populationSpec = populationSpec,
               requisitionsMetadata = requisitionMetadataByName,
+              inputEventBlobUris = inputEventBlobUris,
             )
             emit(Unit)
           }
@@ -278,6 +285,7 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
+    inputEventBlobUris: List<String>,
   ) {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
@@ -339,9 +347,10 @@ class ResultsFulfiller(
             ?: fulfiller::class.java.simpleName
             ?: fulfiller::class.java.name
 
-        ResultsFulfillerMetrics.sendDuration.measureSuspending {
-          withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
-        }
+        val measurementResult: Measurement.Result? =
+          ResultsFulfillerMetrics.sendDuration.measureSuspending {
+            withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+          }
         span.addEvent(
           EVENT_REQUISITION_FULFILLMENT_SENT,
           Attributes.builder()
@@ -370,6 +379,18 @@ class ResultsFulfiller(
           span = span,
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
+        )
+
+        ResultsFulfillerStructuredLogger.logRequisitionAudit(
+          groupId = groupedRequisitions.groupId,
+          dataProvider = dataProvider,
+          groupedRequisitions = groupedRequisitions,
+          resultsFulfillerParams = resultsFulfillerParams,
+          requisitionsBlobUri = requisitionsBlobUri,
+          inputEventBlobUris = inputEventBlobUris,
+          requisition = requisition,
+          requisitionSpec = requisitionSpec,
+          measurementResult = measurementResult,
         )
       } catch (t: Throwable) {
         recordRequisitionFailure(
@@ -456,6 +477,22 @@ class ResultsFulfiller(
     return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
       markWithdrawnRequisitionMetadataRequest
     )
+  }
+
+  /** Resolves all unique impression input blob URIs used for this group's fulfillment. */
+  private suspend fun resolveInputEventBlobUris(modelLine: String): List<String> {
+    val allSources =
+      groupedRequisitions.eventGroupMapList.flatMap { entry ->
+        val details = entry.details
+        details.collectionIntervalsList.flatMap { interval ->
+          impressionDataSourceProvider.listImpressionDataSources(
+            modelLine,
+            details.eventGroupReferenceId,
+            interval,
+          )
+        }
+      }
+    return allSources.map { it.blobDetails.blobUri }.distinct()
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {

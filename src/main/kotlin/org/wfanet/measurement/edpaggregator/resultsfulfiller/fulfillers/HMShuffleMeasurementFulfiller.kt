@@ -24,6 +24,7 @@ import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.SecretShareGeneratorAdapter
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -48,7 +49,7 @@ class HMShuffleMeasurementFulfiller(
   private val generateSecretShares: (ByteArray) -> (ByteArray) =
     SecretShareGeneratorAdapter::generateSecretShares,
 ) : MeasurementFulfiller {
-  override suspend fun fulfillRequisition() {
+  override suspend fun fulfillRequisition(): Measurement.Result? {
     logger.info("Fulfilling requisition ${requisition.name}...")
     val duchyId = getDuchyWithoutPublicKey(requisition)
     val requisitionFulfillmentStub = requisitionFulfillmentStubMap.getValue(duchyId)
@@ -77,6 +78,9 @@ class HMShuffleMeasurementFulfiller(
     } catch (e: StatusException) {
       throw Exception("Error fulfilling requisition ${requisition.name}", e)
     }
+
+    // HM Shuffle protocol does not produce a direct Measurement.Result at the EDP aggregator.
+    return null
   }
 
   private fun getDuchyWithoutPublicKey(requisition: Requisition): String {

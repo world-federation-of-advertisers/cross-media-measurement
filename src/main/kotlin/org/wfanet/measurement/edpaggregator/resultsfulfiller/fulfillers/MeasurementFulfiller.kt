@@ -16,9 +16,16 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
+import org.wfanet.measurement.api.v2alpha.Measurement
+
 /** Interface for fulfilling measurement requisitions. */
 interface MeasurementFulfiller {
 
-  /** Fulfills a requisition. */
-  suspend fun fulfillRequisition()
+  /**
+   * Fulfills a requisition.
+   *
+   * @return [Measurement.Result] for direct protocols, or `null` for multi-party protocols where
+   *   the result is assembled downstream.
+   */
+  suspend fun fulfillRequisition(): Measurement.Result?
 }

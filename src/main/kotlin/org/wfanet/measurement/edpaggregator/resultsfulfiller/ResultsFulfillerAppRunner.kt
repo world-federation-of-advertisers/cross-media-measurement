@@ -30,7 +30,6 @@ import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
-import java.util.logging.Level
 import java.util.logging.LogManager
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
