@@ -22,7 +22,10 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.reporting.v2.Metric
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
 
 object Errors {
   const val DOMAIN = "internal.reporting.halo-cmm.org"
@@ -37,6 +40,8 @@ object Errors {
     INVALID_METRIC_STATE_TRANSITION,
     INVALID_FIELD_VALUE,
     REPORT_RESULT_NOT_FOUND,
+    REPORTING_SET_RESULT_NOT_FOUND,
+    REPORTING_WINDOW_RESULT_NOT_FOUND,
   }
 
   enum class Metadata(val key: String) {
@@ -47,7 +52,10 @@ object Errors {
     METRIC_STATE("metricState"),
     NEW_METRIC_STATE("newMetricState"),
     FIELD_NAME("fieldName"),
-    EXTERNAL_REPORT_RESULT_ID("externalReportResultId");
+    EXTERNAL_REPORT_RESULT_ID("externalReportResultId"),
+    EXTERNAL_REPORTING_SET_RESULT_ID("externalReportingSetResultId"),
+    REPORTING_WINDOW_NON_CUMULATIVE_START("reportingWindowNonCumulativeStart"),
+    REPORTING_WINDOW_END("reportingWindowEnd");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -164,11 +172,70 @@ class ReportResultNotFoundException(
     cause,
   )
 
-class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) :
+class ReportingSetResultNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalReportResultId: Long,
+  externalReportingSetResultId: Long,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+    "ReportingSetResult with external key ($cmmsMeasurementConsumerId, $externalReportResultId, " +
+      "$externalReportingSetResultId) not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_REPORT_RESULT_ID to externalReportResultId.toString(),
+      Errors.Metadata.EXTERNAL_REPORTING_SET_RESULT_ID to externalReportingSetResultId.toString(),
+    ),
+    cause,
+  )
+
+class ReportingWindowResultNotFoundException
+private constructor(
+  cmmsMeasurementConsumerId: String,
+  externalReportResultId: String,
+  externalReportingSetResultId: String,
+  reportingWindowNonCumulativeStart: String,
+  reportingWindowEnd: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+    "ReportingWindow with external key ($cmmsMeasurementConsumerId, $externalReportResultId, " +
+      "$externalReportingSetResultId, $reportingWindowNonCumulativeStart, $reportingWindowEnd) not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_REPORT_RESULT_ID to externalReportResultId,
+      Errors.Metadata.EXTERNAL_REPORTING_SET_RESULT_ID to externalReportingSetResultId,
+      Errors.Metadata.REPORTING_WINDOW_NON_CUMULATIVE_START to reportingWindowNonCumulativeStart,
+      Errors.Metadata.REPORTING_WINDOW_END to reportingWindowEnd,
+    ),
+    cause,
+  ) {
+  constructor(
+    cmmsMeasurementConsumerId: String,
+    externalReportResultId: Long,
+    externalReportingSetResultId: Long,
+    reportingWindow: ReportingSetResult.ReportingWindow,
+    cause: Throwable? = null,
+  ) : this(
+    cmmsMeasurementConsumerId,
+    externalReportResultId.toString(),
+    externalReportingSetResultId.toString(),
+    reportingWindow.nonCumulativeStartOrNull?.toLocalDate().toString(),
+    reportingWindow.end.toLocalDate().toString(),
+  )
+}
+
+class RequiredFieldNotSetException(
+  fieldPath: String,
+  cause: Throwable? = null,
+  buildMessage: (fieldPath: String) -> String = { "$fieldPath not set" },
+) :
   ServiceException(
     Errors.Reason.REQUIRED_FIELD_NOT_SET,
-    "$fieldName not set",
-    mapOf(Errors.Metadata.FIELD_NAME to fieldName),
+    buildMessage(fieldPath),
+    mapOf(Errors.Metadata.FIELD_NAME to fieldPath),
     cause,
   )
 
