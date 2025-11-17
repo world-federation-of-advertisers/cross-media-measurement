@@ -23,6 +23,7 @@ import java.nio.file.Paths
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
+import com.google.common.truth.extensions.proto.ProtoTruth
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -113,7 +114,10 @@ class DirectMeasurementFulfillerTest {
           requisitionsStub = requisitionsStub,
         )
 
-      directMeasurementFulfiller.fulfillRequisition()
+      val returnedResult = directMeasurementFulfiller.fulfillRequisition()
+
+      // Returned result should match the input result when fulfilled.
+      ProtoTruth.assertThat(returnedResult).isEqualTo(result)
 
       // Verify the stub was called with the correct parameters
       verifyProtoArgument(
@@ -168,7 +172,9 @@ class DirectMeasurementFulfillerTest {
           requisitionsStub = throwingTerminalRequisitionsStub,
         )
 
-      directMeasurementFulfiller.fulfillRequisition()
+      // Should not throw even if the requisition is in a terminal state.
+      val returnedResult = directMeasurementFulfiller.fulfillRequisition()
+      ProtoTruth.assertThat(returnedResult).isNull()
     }
 
   companion object {

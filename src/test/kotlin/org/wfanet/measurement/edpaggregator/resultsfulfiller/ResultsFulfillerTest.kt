@@ -16,6 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.LogEntry
+import com.google.cloud.logging.Logging
+import com.google.cloud.logging.Payload
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.crypto.tink.*
@@ -62,8 +65,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -150,6 +156,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -371,16 +378,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -422,6 +431,118 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `fulfillRequisitions emits audit log with expected payload`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(10) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "audit-log-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_REQUISITION),
+    )
+
+    val impressionDataSourceProvider =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        kAnonymityParams = null,
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    val fakeLogging: Logging = mock()
+    val fulfillerParams =
+      ResultsFulfillerParams.newBuilder().setDataProvider(EDP_NAME).build()
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionDataSourceProvider,
+        kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = fulfillerParams,
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
+        loggingOverride = fakeLogging,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val entriesCaptor = argumentCaptor<Iterable<LogEntry>>()
+    verify(fakeLogging).write(entriesCaptor.capture())
+
+    val logEntry = entriesCaptor.firstValue.single()
+    val payload: Payload<*> = logEntry.getPayload()
+    assertThat(payload is Payload.JsonPayload).isTrue()
+    val json = (payload as Payload.JsonPayload).dataAsMap
+
+    assertThat(json["groupedRequisitionId"]).isEqualTo(groupedRequisitions.groupId)
+    assertThat(json["dataProvider"]).isEqualTo(EDP_NAME)
+
+    @Suppress("UNCHECKED_CAST")
+    val eventGroupRefIds = json["eventGroupReferenceIds"] as List<String>
+    assertThat(eventGroupRefIds).contains(EVENT_GROUP_NAME)
+
+    @Suppress("UNCHECKED_CAST")
+    val blobUris = json["blobUris"] as List<String>
+    assertThat(blobUris).contains(IMPRESSIONS_FILE_URI)
   }
 
   @Test
@@ -498,16 +619,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -594,16 +717,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -692,16 +817,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -788,16 +915,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
     assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
 
@@ -881,16 +1010,18 @@ class ResultsFulfillerTest {
       val resultsFulfiller =
         ResultsFulfiller(
           dataProvider = EDP_NAME,
-          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           fulfillerSelector = fulfillerSelector,
+          resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+          requisitionsBlobUri = REQUISITIONS_FILE_URI,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -995,16 +1126,18 @@ class ResultsFulfillerTest {
       val resultsFulfiller =
         ResultsFulfiller(
           dataProvider = EDP_NAME,
-          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           requisitionMetadataStub = requisitionMetadataStub,
           requisitionsStub = requisitionsStub,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
           groupedRequisitions = groupedRequisitions,
           modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider = impressionsMetadataService,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           fulfillerSelector = fulfillerSelector,
+          resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+          requisitionsBlobUri = REQUISITIONS_FILE_URI,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -1107,16 +1240,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1266,16 +1401,18 @@ class ResultsFulfillerTest {
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
-        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         requisitionMetadataStub = requisitionMetadataStub,
         requisitionsStub = requisitionsStub,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
         pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
         impressionDataSourceProvider = impressionsMetadataService,
-        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = ResultsFulfillerParams.getDefaultInstance(),
+        requisitionsBlobUri = REQUISITIONS_FILE_URI,
       )
 
     resultsFulfiller.fulfillRequisitions()
