@@ -63,7 +63,7 @@ class DirectMeasurementFulfiller(
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   /** Fulfills a requisition. */
-  override suspend fun fulfillRequisition() {
+  override suspend fun fulfillRequisition(): Measurement.Result? {
     logger.log(Level.INFO, "Direct MeasurementResult: $measurementResult")
 
     DataProviderCertificateKey.fromName(requisitionDataProviderCertificateName)
@@ -73,6 +73,7 @@ class DirectMeasurementFulfiller(
     val signedEncryptedResult: EncryptedMessage =
       encryptResult(signedResult, measurementEncryptionPublicKey)
 
+    var fulfilled = false
     try {
       val requisition =
         requisitionsStub.getRequisition(getRequisitionRequest { name = requisitionName })
@@ -86,11 +87,14 @@ class DirectMeasurementFulfiller(
             etag = requisition.etag
           }
         )
+        fulfilled = true
       } else {
         logger.info("Cannot fulfill requisition $requisitionName with state ${requisition.state}")
       }
     } catch (e: StatusException) {
       throw Exception("Error fulfilling direct requisition $requisitionName", e)
     }
+
+    return if (fulfilled) measurementResult else null
   }
 }

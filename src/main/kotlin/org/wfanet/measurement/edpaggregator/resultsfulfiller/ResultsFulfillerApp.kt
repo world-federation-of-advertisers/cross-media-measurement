@@ -194,9 +194,11 @@ class ResultsFulfillerApp(
         modelLineInfoMap = modelLineInfoMap,
         pipelineConfiguration = pipelineConfiguration,
         impressionDataSourceProvider = impressionsDataSourceProvider,
-        impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
+        impressionsStorageConfig = impressionsStorageConfig,
         fulfillerSelector = fulfillerSelector,
+        resultsFulfillerParams = fulfillerParams,
+        requisitionsBlobUri = requisitionsBlobUri,
       )
       .fulfillRequisitions()
   }

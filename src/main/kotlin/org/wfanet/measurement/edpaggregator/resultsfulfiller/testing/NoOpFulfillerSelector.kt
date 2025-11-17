@@ -56,7 +56,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
     private val frequencyDataBytes: ByteArray,
   ) : MeasurementFulfiller {
 
-    override suspend fun fulfillRequisition() {
+    override suspend fun fulfillRequisition(): Measurement.Result? {
       logger.info("[NOOP_FULFILLER] Starting fulfillRequisition() for: ${requisition.name}")
 
       val startTime = System.currentTimeMillis()
@@ -94,6 +94,8 @@ class NoOpFulfillerSelector : FulfillerSelector {
       kotlinx.coroutines.delay(10)
 
       logger.info("[NOOP_FULFILLER] Mock fulfillment completed for: ${requisition.name}")
+
+      return null
     }
 
     companion object {

@@ -1,0 +1,7 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "logging",
+    actual = "@maven//:com_google_cloud_google_cloud_logging",
+)
+
