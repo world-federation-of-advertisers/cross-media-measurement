@@ -138,7 +138,8 @@ class HMShuffleMeasurementFulfillerTest {
           ),
         requisitionsStub = unfulfilledRequisitionsStub,
       )
-    fulfiller.fulfillRequisition()
+    val result = fulfiller.fulfillRequisition()
+    assertThat(result).isNull()
     val fulfilledRequisitions =
       requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
     assertThat(fulfilledRequisitions).hasSize(2)
@@ -205,7 +206,8 @@ class HMShuffleMeasurementFulfillerTest {
           requisitionFulfillmentStubMap = mapOf("duchies/worker2" to stubWithError),
           requisitionsStub = terminalRequisitionsStub,
         )
-      fulfiller.fulfillRequisition()
+      val result = fulfiller.fulfillRequisition()
+      assertThat(result).isNull()
     }
   }
 

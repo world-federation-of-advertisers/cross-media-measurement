@@ -171,3 +171,23 @@ kt_jvm_proto_library(
     name = "encryption_key_kt_jvm_proto",
     deps = [":encryption_key_proto"],
 )
+
+proto_library(
+    name = "requisition_audit_log_proto",
+    srcs = ["requisition_audit_log.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":results_fulfiller_params_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_audit_log_kt_jvm_proto",
+    deps = [":requisition_audit_log_proto"],
+)

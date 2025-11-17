@@ -110,6 +110,12 @@ class StorageEventSource(
 ) : EventSource<Message> {
 
   /**
+   * Cached impression data sources created during event reader initialization.
+   * This list is populated when [generateEventBatches] is first called.
+   */
+  private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
+
+  /**
    * Generates batches of events by reading from storage in parallel.
    *
    * This method creates an [EventReader] for each combination of event group and date within the
@@ -175,6 +181,9 @@ class StorageEventSource(
         }
       }
 
+    // Cache all sources before deduplication for later retrieval
+    cachedImpressionDataSources = allSources
+
     // Deduplicate sources by blob URI to avoid double-reading overlapping intervals.
     val uniqueSources = allSources.distinctBy { it.blobDetails.blobUri }
 
@@ -187,6 +196,16 @@ class StorageEventSource(
         batchSize,
       )
     }
+  }
+
+  /**
+   * Returns the list of all impression data sources used by this event source.
+   * This list is populated after [generateEventBatches] is called.
+   *
+   * @return List of [ImpressionDataSource] objects, or empty list if not yet initialized.
+   */
+  fun getImpressionDataSources(): List<ImpressionDataSource> {
+    return cachedImpressionDataSources ?: emptyList()
   }
 
   /** Processes events from a single EventReader and returns batch and event counts. */
