@@ -74,7 +74,6 @@ resource "google_kms_crypto_key_iam_member" "tee_sa_decrypter" {
 
 resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
   project                           = data.google_project.project.name
-  location                          = "global"
   workload_identity_pool_id         = local.workload_identity_pool_id
   display_name                      = "Workload Identity Pool for ${var.simulator_name}"
   description                       = "EDP workload identity pool for ${var.simulator_name}"
@@ -83,7 +82,6 @@ resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
 
 resource "google_iam_workload_identity_pool_provider" "oidc_provider" {
   project                            = google_iam_workload_identity_pool.edp_workload_identity_pool.project
-  location                           = google_iam_workload_identity_pool.edp_workload_identity_pool.location
   workload_identity_pool_id          = google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id
   workload_identity_pool_provider_id = local.workload_identity_provider_id
   display_name                       = "OIDC Provider for ${var.simulator_name}"
