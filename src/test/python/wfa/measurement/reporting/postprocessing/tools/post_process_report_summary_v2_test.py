@@ -16,8 +16,7 @@ import unittest
 
 from google.protobuf import text_format
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-    report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 from noiseninja.noised_measurements import Measurement, MeasurementSet
 
@@ -25,8 +24,7 @@ from src.main.python.wfa.measurement.reporting.postprocessing.report.report impo
     MetricReport,
     Report,
 )
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-    report_summary_v2_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_summary_v2_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
