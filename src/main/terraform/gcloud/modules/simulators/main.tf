@@ -14,15 +14,16 @@
 
 data "google_project" "project" {}
 
+# DO_NOT_SUBMIT: Remove suffix for dev
 locals {
-  kms_keyring_name                = "${var.simulator_name}-keyring"
+  kms_keyring_name                = "${var.simulator_name}-keyring-test1"
   kms_key_name                    = "${var.simulator_name}-kek"
   edp_service_account_name        = "${var.simulator_name}"
   tee_decrypter_account_name      = "${var.simulator_name}-kms-decrypt"
-  workload_identity_pool_id       = "${var.simulator_name}-wip"
-  workload_identity_pool_name     = "${var.simulator_name}-wip"
-  workload_identity_provider_id   = "${var.simulator_name}-oidc-provider"
-  workload_identity_provider_name = "${var.simulator_name}-oidc-provider"
+  workload_identity_pool_id       = "${var.simulator_name}-wip-test1"
+  workload_identity_pool_name     = "${var.simulator_name}-wip-test1"
+  workload_identity_provider_id   = "provider-test1"
+  workload_identity_provider_name = "provider-test1"
 }
 
 # 1. Create the main service account for the EDP simulator. This is the "owner" of the KMS key.
