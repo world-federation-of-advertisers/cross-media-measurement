@@ -15,6 +15,8 @@
 -- limitations under the License.
 
 -- changeset sanjayvas:11 dbms:cloudspanner
+-- preconditions onFail:MARK_RAN
+-- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.columns WHERE TABLE_NAME = 'ReportResults' AND COLUMN_NAME = 'ReportIntervalStartTimeZoneId'
 -- comment: Add missing columns and indexes to unused ReportResults schema.
 
 -- New FileDescriptorSet with ReportingSetResult moved out from ReportResult.
@@ -80,6 +82,7 @@ START BATCH DDL;
 
 ALTER PROTO BUNDLE DELETE (
   `wfa.measurement.internal.reporting.v2.ReportResult.VennDiagramRegionType`,
+  `wfa.measurement.internal.reporting.v2.ReportResult.ReportingSetResultKey`,
   `wfa.measurement.internal.reporting.v2.ReportResult.ReportingSetResult`,
   `wfa.measurement.internal.reporting.v2.ReportResult.ReportingSetResult.ReportingWindow`,
   `wfa.measurement.internal.reporting.v2.ReportResult.ReportingSetResult.ReportingWindowResult`,
