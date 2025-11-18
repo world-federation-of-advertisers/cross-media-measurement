@@ -6,6 +6,9 @@ common --registry=https://bcr.bazel.build
 # Use clang as C++ compiler.
 build --repo_env='CC=clang'
 
+# Configuration for python proto import.
+build --incompatible_default_to_explicit_init_py
+
 # Configuration for running CC coverage locally
 # See https://github.com/bazelbuild/bazel/blob/106903d38f6d41b5eb1f100698f257184bea47a3/src/test/shell/bazel/bazel_coverage_cc_test_llvm.sh#L59
 # and https://github.com/bazelbuild/bazel/commit/21b5eb627d78c09d47c4de957e9e6b56a9ae6fad
@@ -29,8 +32,9 @@ build --tool_java_language_version=17
 # Target Java 11.
 build --java_language_version=11
 
-# Pass environment variables.
-test --test_env TESTCONTAINERS_RYUK_DISABLED=true
+# Pass environment variables for tests.
+common --test_env TESTCONTAINERS_RYUK_DISABLED=true
+common --test_env DOCKER_HOST
 
 # Configuration for remote cache.
 build --noremote_upload_local_results  # Do not upload by default

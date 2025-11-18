@@ -1,0 +1,71 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "edpa_telemetry",
+    srcs = ["EdpaTelemetry.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/api:semconv",
+        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
+        "//imports/java/io/opentelemetry/sdk:sdk_logs",
+        "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+    ],
+)
+
+kt_jvm_library(
+    name = "tracing",
+    srcs = ["Tracing.kt"],
+    deps = [
+        ":edpa_telemetry",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/extension:kotlin",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+# Main target: Telemetry infrastructure for all EDPA components
+# Components should create their own metrics following patterns in README.md
+kt_jvm_library(
+    name = "telemetry",
+    srcs = [
+        "EdpaTelemetry.kt",
+        "Tracing.kt",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/api:semconv",
+        "//imports/java/io/opentelemetry/extension:kotlin",
+        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
+        "//imports/java/io/opentelemetry/sdk:sdk_logs",
+        "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

@@ -19,14 +19,17 @@ from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 
-from report.report import MetricReport
-from report.report import Report
-from report.report import build_measurement_set
-from report.testing.validate_report import get_sorted_list
-from report.testing.validate_report import ordered_sets_to_sorted_list
+from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
+    MetricReport,
+    Report,
+    build_measurement_set,
+)
+from src.main.python.wfa.measurement.reporting.postprocessing.report.testing.validate_report import (
+    get_sorted_list,
+    ordered_sets_to_sorted_list,
+)
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 ReportQuality = report_post_processor_result_pb2.ReportQuality

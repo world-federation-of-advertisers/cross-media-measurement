@@ -16,8 +16,14 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.net.URI
@@ -26,6 +32,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.Collections
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -49,6 +56,7 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemStorage
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -68,6 +76,23 @@ class DataAvailabilitySyncFunctionTest {
 
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
+
+  private val capturedTraceparentHeaders = Collections.synchronizedList(mutableListOf<String>())
+  private val capturedGrpcTraceBinHeaders = Collections.synchronizedList(mutableListOf<ByteArray>())
+  private val traceparentKey = Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
+  private val grpcTraceBinKey = Metadata.Key.of("grpc-trace-bin", Metadata.BINARY_BYTE_MARSHALLER)
+  private val metadataCaptureInterceptor =
+    object : ServerInterceptor {
+      override fun <ReqT, RespT> interceptCall(
+        call: ServerCall<ReqT, RespT>,
+        headers: Metadata,
+        next: ServerCallHandler<ReqT, RespT>,
+      ): ServerCall.Listener<ReqT> {
+        headers[traceparentKey]?.let { capturedTraceparentHeaders.add(it) }
+        headers[grpcTraceBinKey]?.let { capturedGrpcTraceBinHeaders.add(it) }
+        return next.startCall(call, headers)
+      }
+    }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -94,14 +119,18 @@ class DataAvailabilitySyncFunctionTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    addService(dataProvidersServiceMock)
-    addService(impressionMetadataServiceMock)
+    addService(ServerInterceptors.intercept(dataProvidersServiceMock, metadataCaptureInterceptor))
+    addService(
+      ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
+    )
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
 
   @Before
   fun startInfra() {
+    capturedTraceparentHeaders.clear()
+    capturedGrpcTraceBinHeaders.clear()
     /** Start gRPC server with mock EventGroups service */
     grpcServer =
       CommonServer.fromParameters(
@@ -111,8 +140,14 @@ class DataAvailabilitySyncFunctionTest {
           nameForLogging = "DataAvailabilityServers",
           services =
             listOf(
-              dataProvidersServiceMock.bindService(),
-              impressionMetadataServiceMock.bindService(),
+              ServerInterceptors.intercept(
+                dataProvidersServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
+                impressionMetadataServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
             ),
         )
         .start()
@@ -147,21 +182,7 @@ class DataAvailabilitySyncFunctionTest {
       }
     }
 
-    val dataAvailabilitySyncConfig = dataAvailabilitySyncConfig {
-      dataProvider = "dataProviders/edp123"
-      cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      impressionMetadataStorageConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-    }
+    val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val port = runBlocking {
       functionProcess.start(
@@ -171,6 +192,10 @@ class DataAvailabilitySyncFunctionTest {
           "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
           "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
           "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
         )
       )
     }
@@ -199,6 +224,119 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
+
+  @Test
+  fun `sync propagates traceparent header to outgoing grpc calls`() {
+    val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
+    val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
+    val localMetadataBlobKey = "edp/edp_name/timestamp/metadata.binpb"
+    val localDoneBlobUri = "file:////edp/edp_name/timestamp/done"
+
+    val blobDetails = blobDetails {
+      blobUri = localImpressionBlobUri
+      eventGroupReferenceId = "reference-id"
+      modelLine = "some-model-line"
+      interval = interval {
+        startTime = timestamp { seconds = 1735689600 }
+        endTime = timestamp { seconds = 1736467200 }
+      }
+    }
+
+    val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+    }
+
+    val traceId = "1af7651916cd43dd8448eb211c80319c"
+    val traceParentHeader = "00-$traceId-0123456789abcdef-01"
+
+    val client = HttpClient.newHttpClient()
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("traceparent", traceParentHeader)
+        .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+        .build()
+
+    val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+    logger.info("Trace propagation response status: ${response.statusCode()}")
+    logger.info("Trace propagation response body: ${response.body()}")
+
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+
+    logger.info("Captured traceparent headers: $capturedTraceparentHeaders")
+    logger.info(
+      "Captured grpc-trace-bin headers: ${capturedGrpcTraceBinHeaders.map { it.toHexString() }}"
+    )
+
+    val recordedTraceIds =
+      synchronized(capturedTraceparentHeaders) {
+        val w3cIds = capturedTraceparentHeaders.mapNotNull { parseTraceparentTraceId(it) }
+        val grpcTraceIds = capturedGrpcTraceBinHeaders.mapNotNull { parseGrpcTraceBinTraceId(it) }
+        (w3cIds + grpcTraceIds).toSet()
+      }
+    assertThat(recordedTraceIds).isNotEmpty()
+    assertThat(recordedTraceIds).contains(traceId)
+  }
+
+  private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
+    dataAvailabilitySyncConfig {
+      dataProvider = "dataProviders/edp123"
+      cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      impressionMetadataStorageConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+
+  private fun parseTraceparentTraceId(header: String?): String? {
+    header ?: return null
+    val parts = header.split('-')
+    return if (parts.size >= 2) parts[1].lowercase() else null
+  }
+
+  private fun parseGrpcTraceBinTraceId(bytes: ByteArray?): String? {
+    bytes ?: return null
+    if (bytes.size < 18) {
+      return null
+    }
+    if (bytes[0] != 0.toByte()) {
+      return null
+    }
+    val traceIdBytes = bytes.copyOfRange(1, 17)
+    return traceIdBytes.joinToString(separator = "") { "%02x".format(it) }
+  }
+
+  private fun ByteArray.toHexString(): String = joinToString(separator = "") { "%02x".format(it) }
 
   companion object {
 

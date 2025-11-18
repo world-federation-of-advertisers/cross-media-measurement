@@ -30,10 +30,8 @@ from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_summary_pb2
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_summary_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
@@ -171,7 +169,7 @@ class ReportSummaryProcessor:
 
     # If the QP solver finds a solution, update the report post processor result
     # with the updated measurements map.
-    metric_name_to_value: dict[str, int] = {}
+    metric_name_to_value: dict[str, float] = {}
     measurements_policies = corrected_report.get_metrics()
     for policy in measurements_policies:
       metric_report = corrected_report.get_metric_report(policy)
@@ -179,25 +177,25 @@ class ReportSummaryProcessor:
         for index in range(metric_report.get_number_of_periods()):
           entry = metric_report.get_weekly_cumulative_reach_measurement(
               edp_combination, index)
-          metric_name_to_value.update({entry.name: round(entry.value)})
+          metric_name_to_value.update({entry.name: entry.value})
       for edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
         entry = metric_report.get_whole_campaign_reach_measurement(edp_combination)
-        metric_name_to_value.update({entry.name: round(entry.value)})
+        metric_name_to_value.update({entry.name: entry.value})
       for edp_combination in metric_report.get_whole_campaign_k_reach_edp_combinations():
         for frequency in range(1,
                                metric_report.get_number_of_frequencies() + 1):
           entry = metric_report.get_whole_campaign_k_reach_measurement(
               edp_combination, frequency)
-          metric_name_to_value.update({entry.name: round(entry.value)})
+          metric_name_to_value.update({entry.name: entry.value})
       for edp_combination in metric_report.get_whole_campaign_impression_edp_combinations():
         entry = metric_report.get_whole_campaign_impression_measurement(
             edp_combination)
-        metric_name_to_value.update({entry.name: round(entry.value)})
+        metric_name_to_value.update({entry.name: entry.value})
 
     # Updates difference measurements.
     for key, value in self._set_difference_map.items():
-      metric_name_to_value.update({key: round(
-          metric_name_to_value[value[0]] - metric_name_to_value[value[1]])})
+      metric_name_to_value.update(
+        {key: metric_name_to_value[value[0]] - metric_name_to_value[value[1]]})
 
     logging.info("Finished correcting the report.")
 

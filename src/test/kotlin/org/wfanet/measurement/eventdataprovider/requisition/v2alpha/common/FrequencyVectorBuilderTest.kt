@@ -356,6 +356,212 @@ class FrequencyVectorBuilderTest {
     assertThat(builder.build()).isEqualTo(frequencyVector { data += expectedData.toList() })
   }
 
+  @Test
+  fun `ByteArray constructor builds correct frequency vector for reach over full interval`() {
+    // Create a byte array with frequency data for each VID
+    val frequencyDataBytes = byteArrayOf(1, 2, 3, 0, 1, 0, 0, 5, 1, 0)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // For reach, all frequencies should be capped at 1
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(1, 1, 1, 0, 1, 0, 0, 1, 1, 0) })
+  }
+
+  @Test
+  fun `ByteArray constructor builds correct frequency vector for frequency measurement`() {
+    val frequencyMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      reachAndFrequency = reachAndFrequency { maximumFrequency = 5 }
+    }
+
+    // Create a byte array with frequency data, some values exceed max frequency
+    val frequencyDataBytes = byteArrayOf(1, 2, 3, 0, 1, 0, 0, 10, 5, 0)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = frequencyMeasurementSpec,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Frequencies should be capped at maximum of 5
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(1, 2, 3, 0, 1, 0, 0, 5, 5, 0) })
+  }
+
+  @Test
+  fun `ByteArray constructor handles unsigned bytes correctly`() {
+    val frequencyMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      reachAndFrequency = reachAndFrequency { maximumFrequency = 255 }
+    }
+
+    // Test unsigned byte values (200 and 255 would be negative as signed bytes)
+    val frequencyDataBytes =
+      byteArrayOf(10, 50, 100, (-56).toByte(), 200.toByte(), 255.toByte(), 0, 0, 0, 0)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = frequencyMeasurementSpec,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Verify unsigned conversion: -56 as byte = 200 unsigned, 255 stays 255
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(10, 50, 100, 200, 200, 255, 0, 0, 0, 0) })
+  }
+
+  @Test
+  fun `ByteArray constructor applies sampling for partial non-wrapping interval`() {
+    // Population size is 10, interval is [0.3, 0.8) = indices 3-7 (5 elements)
+    val frequencyDataBytes = byteArrayOf(1, 1, 1, 5, 6, 7, 8, 9, 1, 1)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Should only include indices 3-7, and cap at 1 for reach
+    assertThat(builder.size).isEqualTo(5)
+    assertThat(builder.build()).isEqualTo(frequencyVector { data += listOf<Int>(1, 1, 1, 1, 1) })
+  }
+
+  @Test
+  fun `ByteArray constructor applies sampling for partial wrapping interval`() {
+    // Population size is 10, interval is [0.8, 1.3) = [0.8, 1.0) + [0, 0.3)
+    // This should include indices 8-9 and 0-2 (5 elements)
+    val frequencyDataBytes = byteArrayOf(10, 20, 30, 0, 0, 0, 0, 0, 80, 90)
+
+    val frequencyMeasurementSpec = measurementSpec {
+      vidSamplingInterval = PARTIAL_WRAPPING_SAMPLING_INTERVAL
+      reachAndFrequency = reachAndFrequency { maximumFrequency = 100 }
+    }
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = frequencyMeasurementSpec,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Output order: indices 8, 9, 0, 1, 2
+    assertThat(builder.size).isEqualTo(5)
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(80, 90, 10, 20, 30) })
+  }
+
+  @Test
+  fun `ByteArray constructor handles empty frequencies`() {
+    val frequencyDataBytes = byteArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) })
+  }
+
+  @Test
+  fun `ByteArray constructor handles array smaller than population size`() {
+    // Only provide data for first 5 VIDs
+    val frequencyDataBytes = byteArrayOf(1, 2, 3, 4, 5)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Remaining VIDs should have frequency 0
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(1, 1, 1, 1, 1, 0, 0, 0, 0, 0) })
+  }
+
+  @Test
+  fun `ByteArray constructor produces same result as manual increment approach`() {
+    val frequencyDataBytes = byteArrayOf(1, 2, 3, 0, 1, 0, 0, 5, 1, 0)
+    val frequencyData =
+      IntArray(frequencyDataBytes.size) { frequencyDataBytes[it].toInt() and 0xFF }
+
+    // Build using ByteArray constructor
+    val builderFromBytes =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+      )
+
+    // Build using manual increment
+    val builderManual =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        strict = false,
+      )
+    for (index in frequencyData.indices) {
+      val frequency = frequencyData[index]
+      if (frequency > 0) {
+        builderManual.incrementBy(index, frequency)
+      }
+    }
+
+    // Both should produce identical results
+    assertThat(builderFromBytes.build()).isEqualTo(builderManual.build())
+  }
+
+  @Test
+  fun `ByteArray constructor with kAnonymityParams for reach measurement`() {
+    val kAnonymityParams =
+      org.wfanet.measurement.computation.KAnonymityParams(
+        minUsers = 10,
+        minImpressions = 10,
+        reachMaxFrequencyPerUser = 3,
+      )
+
+    val reachMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      reach = reach {}
+    }
+
+    // Create a byte array with various frequency values
+    val frequencyDataBytes = byteArrayOf(1, 5, 10, 0, 2, 0, 0, 8, 3, 0)
+
+    val builder =
+      FrequencyVectorBuilder(
+        populationSpec = SMALL_POPULATION_SPEC,
+        measurementSpec = reachMeasurementSpec,
+        frequencyDataBytes = frequencyDataBytes,
+        strict = false,
+        kAnonymityParams = kAnonymityParams,
+      )
+
+    // For reach with k-anonymity, frequencies should be capped at reachMaxFrequencyPerUser (3)
+    assertThat(builder.build())
+      .isEqualTo(frequencyVector { data += listOf<Int>(1, 3, 3, 0, 2, 0, 0, 3, 3, 0) })
+  }
+
   companion object {
     // A hash function to map the VIDs into the frequency vector based on their numeric order
     private val hashFunction = { vid: Long, _: ByteString -> vid - STARTING_VID }

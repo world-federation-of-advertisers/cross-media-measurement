@@ -21,10 +21,13 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
@@ -83,8 +86,8 @@ class DataAvailabilitySync(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
+  private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
-
   /**
    * Synchronizes impression availability data after a completion signal.
    *
@@ -96,70 +99,120 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
   suspend fun sync(doneBlobPath: String) {
+    // Start timing for sync duration
+    val syncStartTime = TimeSource.Monotonic.markNow()
 
-    // 1. Crawl for metadata files
-    val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-    val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+    try {
+      // 1. Crawl for metadata files
+      val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-    require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
-      "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
-    }
+      require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
+        "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
+      }
 
-    val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> =
-      storageClient.listBlobs(doneBlobFolderPath)
+      val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      val impressionMetadataBlobs: Flow<StorageClient.Blob> =
+        storageClient.listBlobs(doneBlobFolderPath)
 
-    // 1. Retrieve blob details from storage and build a map and validate them
-    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
-      createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+      // 1. Retrieve blob details from storage and build a map and validate them
+      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
+        createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
-    if (impressionMetadataMap.isEmpty()) {
-      logger.info("There were no valid impressions metadata.")
-      return
-    }
+      if (impressionMetadataMap.isEmpty()) {
+        logger.info("There were no valid impressions metadata.")
+        // Record sync duration even if no records
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return
+      }
 
-    // 2. Save ImpressionMetadata using ImpressionMetadataStorage
-    impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
+      // Count total records
+      val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
-    // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
-    // found in the storage folder and update kingdom availability
-    // Collect all model lines
-    val modelLines = impressionMetadataMap.keys.toList()
+      // 2. Save ImpressionMetadata using ImpressionMetadataStorage
+      impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-    val modelLineBounds: ComputeModelLineBoundsResponse =
-      impressionMetadataServiceStub.computeModelLineBounds(
-        computeModelLineBoundsRequest {
-          parent = dataProviderName
-          this.modelLines += modelLines
+      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
+      // found in the storage folder and update kingdom availability
+      // Collect all model lines
+      val modelLines = impressionMetadataMap.keys.toList()
+
+      val modelLineBounds: ComputeModelLineBoundsResponse =
+        impressionMetadataServiceStub.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            parent = dataProviderName
+            this.modelLines += modelLines
+          }
+        )
+
+      // Build availability entries from the response
+      val availabilityEntries =
+        modelLineBounds.modelLineBoundsList.map { bound ->
+          dataAvailabilityMapEntry {
+            key = bound.key
+            value = interval {
+              startTime = bound.value.startTime
+              endTime = bound.value.endTime
+            }
+          }
         }
-      )
 
-    // Build availability entries from the response
-    val availabilityEntries =
-      modelLineBounds.modelLineBoundsList.map { bound ->
-        dataAvailabilityMapEntry {
-          key = bound.key
-          value = interval {
-            startTime = bound.value.startTime
-            endTime = bound.value.endTime
+      if (availabilityEntries.isNotEmpty()) {
+        throttler.onReady {
+          try {
+            dataProvidersStub.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
+          } catch (e: StatusException) {
+            // Record CMMS RPC error
+            metrics.cmmsRpcErrorsCounter.add(
+              1,
+              Attributes.of(
+                DATA_PROVIDER_KEY_ATTR,
+                dataProviderName,
+                RPC_METHOD_ATTR,
+                RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
+                STATUS_CODE_ATTR,
+                e.status.code.name,
+              ),
+            )
+            throw Exception("Error replacing DataAvailability intervals", e)
           }
         }
       }
 
-    if (availabilityEntries.isNotEmpty()) {
-      throttler.onReady {
-        try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Error replacing DataAvailability intervals", e)
-        }
-      }
+      // Record successful sync
+      recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+
+      // Record records synced
+      metrics.recordsSyncedCounter.add(
+        totalRecords.toLong(),
+        Attributes.of(
+          DATA_PROVIDER_KEY_ATTR,
+          dataProviderName,
+          SYNC_STATUS_ATTR,
+          SYNC_STATUS_SUCCESS,
+        ),
+      )
+    } catch (e: Exception) {
+      // Record sync duration even on failure
+      recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
+      throw e
     }
+  }
+
+  private fun recordSyncDuration(
+    startTime: TimeSource.Monotonic.ValueTimeMark,
+    syncStatus: String,
+  ) {
+    val syncDuration = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+    metrics.syncDurationHistogram.record(
+      syncDuration,
+      Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
+    )
   }
 
   private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
@@ -302,6 +355,18 @@ class DataAvailabilitySync(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
+    private val SYNC_STATUS_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.sync_status")
+    private val RPC_METHOD_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
+    private val STATUS_CODE_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+    private const val SYNC_STATUS_SUCCESS = "success"
+    private const val SYNC_STATUS_FAILED = "failed"
+    private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
+      "ReplaceDataAvailabilityIntervals"
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"

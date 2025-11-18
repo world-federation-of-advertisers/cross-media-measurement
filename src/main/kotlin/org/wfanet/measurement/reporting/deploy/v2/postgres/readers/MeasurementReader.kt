@@ -77,9 +77,15 @@ class MeasurementReader(private val readContext: ReadContext) {
     val sql =
       StringBuilder(
         """
+          WITH CmmsMeasurementIds AS MATERIALIZED (
+            SELECT
+              CmmsMeasurementId
+            FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+            AS c(CmmsMeasurementId)
+          )
           $baseSql
+          JOIN CmmsMeasurementIds USING(CmmsMeasurementId)
           WHERE Measurements.MeasurementConsumerId = $1
-            AND CmmsMeasurementId IN (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
         """
           .trimIndent()
       )

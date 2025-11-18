@@ -7,6 +7,11 @@ package(
 kt_jvm_test(
     name = "RequisitionFetcherTest",
     srcs = ["RequisitionFetcherTest.kt"],
+    jvm_flags = [
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcherTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
@@ -14,7 +19,11 @@ kt_jvm_test(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],

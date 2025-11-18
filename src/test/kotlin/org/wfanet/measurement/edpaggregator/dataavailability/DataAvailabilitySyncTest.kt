@@ -21,10 +21,17 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.data.MetricData
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
-import kotlin.test.assertFailsWith
+import kotlin.test.fail
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -36,6 +43,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -69,6 +77,20 @@ class DataAvailabilitySyncTest {
 
   private val bucket = "file:///my-bucket"
   private val folderPrefix = "edp/edpa_edp/timestamp/"
+  private val dataProviderKeyAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
+  private val syncStatusAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.sync_status")
+  private val rpcMethodAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
+  private val statusCodeAttributeKey =
+    AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+
+  companion object {
+    private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
+    private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
+    private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+  }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
@@ -132,6 +154,30 @@ class DataAvailabilitySyncTest {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private data class MetricsTestEnvironment(
+    val metrics: DataAvailabilitySyncMetrics,
+    val metricExporter: InMemoryMetricExporter,
+    val metricReader: PeriodicMetricReader,
+    val meterProvider: SdkMeterProvider,
+  ) {
+    fun close() {
+      meterProvider.close()
+    }
+  }
+
+  private fun createMetricsEnvironment(): MetricsTestEnvironment {
+    val metricExporter = InMemoryMetricExporter.create()
+    val metricReader = PeriodicMetricReader.create(metricExporter)
+    val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
+    val meter = meterProvider.get("data-availability-sync-test")
+    return MetricsTestEnvironment(
+      DataAvailabilitySyncMetrics(meter),
+      metricExporter,
+      metricReader,
+      meterProvider,
+    )
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(dataProvidersServiceMock)
@@ -141,11 +187,10 @@ class DataAvailabilitySyncTest {
   @get:Rule val tempFolder = TemporaryFolder()
 
   @Test
-  fun `register single contiguous day for existing model line using proto message`() {
-
+  fun `register single contiguous day for existing model line using proto message`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking { seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)) }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -156,20 +201,17 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   @Test
-  fun `register single contiguous day for existing model line using json message`() {
-
+  fun `register single contiguous day for existing model line using json message`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.JSON)
-    }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.JSON)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -180,20 +222,17 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   @Test
-  fun `register single overlapping day for existing model line`() {
-
+  fun `register single overlapping day for existing model line`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(storageClient, folderPrefix, listOf(250L to 400L), BlobEncoding.JSON)
-    }
+    seedBlobDetails(storageClient, folderPrefix, listOf(250L to 400L), BlobEncoding.JSON)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -204,49 +243,44 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   @Test
-  fun `registers a single contiguous day preceding an existing interval for an existing model line`() {
-
-    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-
+  fun `registers a single contiguous day preceding an existing interval for an existing model line`() =
     runBlocking {
+      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
       seedBlobDetails(storageClient, folderPrefix, listOf(50L to 100L), BlobEncoding.JSON)
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+      verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+      verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
     }
-
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      )
-
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
-    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
-  }
 
   @Test
-  fun `register multiple contiguous day for existing model line`() {
-
+  fun `register multiple contiguous day for existing model line`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(
-        storageClient,
-        folderPrefix,
-        listOf(300L to 400L, 400L to 500L, 500L to 600L),
-        BlobEncoding.JSON,
-      )
-    }
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L, 400L to 500L, 500L to 600L),
+      BlobEncoding.JSON,
+    )
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -257,25 +291,22 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(3)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
   @Test
-  fun `blob details with missing interval throws IllegalArgumentException`() {
-
+  fun `blob details with missing interval throws IllegalArgumentException`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(
-        storageClient,
-        folderPrefix,
-        listOf(300L to 400L, null to null),
-        BlobEncoding.JSON,
-      )
-    }
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L, null to null),
+      BlobEncoding.JSON,
+    )
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -286,19 +317,19 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    try {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      fail("Expected IllegalArgumentException")
+    } catch (e: IllegalArgumentException) {
+      // Expected.
     }
   }
 
   @Test
-  fun `blob details with wrong file extension throws IllegalArgumentException`() {
-
+  fun `blob details with wrong file extension throws IllegalArgumentException`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.EMPTY)
-    }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), BlobEncoding.EMPTY)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -309,17 +340,19 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    try {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      fail("Expected IllegalArgumentException")
+    } catch (e: IllegalArgumentException) {
+      // Expected.
     }
   }
 
   @Test
-  fun `sync throw if file prefix doesn't follow expected path`() {
-
+  fun `sync throw if file prefix doesn't follow expected path`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking { seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)) }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -330,24 +363,19 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      runBlocking { dataAvailabilitySync.sync("$bucket/some-wrong-path/done") }
+    try {
+      dataAvailabilitySync.sync("$bucket/some-wrong-path/done")
+      fail("Expected IllegalArgumentException")
+    } catch (e: IllegalArgumentException) {
+      // Expected.
     }
   }
 
   @Test
-  fun `metadata file is ignored if no associated impression file is found`() {
-
+  fun `metadata file is ignored if no associated impression file is found`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
-      seedBlobDetails(
-        storageClient,
-        folderPrefix,
-        listOf(300L to 400L),
-        createImpressionFile = false,
-      )
-    }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L), createImpressionFile = false)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -358,17 +386,111 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { createImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
   }
 
   @Test
+  fun `sync emits success metrics`() = runBlocking {
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          metrics = metricsEnv.metrics,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val durationPoint = metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+      assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+      assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+
+      val recordsPoint = metricByName.getValue(RECORDS_SYNCED_METRIC).longSumData.points.single()
+      assertThat(recordsPoint.value).isEqualTo(1)
+      assertThat(recordsPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("success")
+      assertThat(recordsPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
+  fun `sync emits failure metrics when replaceDataAvailabilityIntervals fails`() = runBlocking {
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          metrics = metricsEnv.metrics,
+        )
+
+      wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+        .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+
+      try {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+        fail("Expected Exception")
+      } catch (e: Exception) {
+        // Expected.
+      } finally {
+        wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+          .thenAnswer { DataProvider.getDefaultInstance() }
+      }
+
+      metricsEnv.metricReader.forceFlush()
+      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
+      val metricByName = metricData.associateBy { it.name }
+
+      val durationPoint = metricByName.getValue(SYNC_DURATION_METRIC).histogramData.points.single()
+      assertThat(durationPoint.attributes.get(syncStatusAttributeKey)).isEqualTo("failed")
+      assertThat(durationPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+
+      assertThat(metricByName.containsKey(RECORDS_SYNCED_METRIC)).isFalse()
+
+      val cmmsErrorPoint = metricByName.getValue(CMMS_RPC_ERRORS_METRIC).longSumData.points.single()
+      assertThat(cmmsErrorPoint.value).isEqualTo(1)
+      assertThat(cmmsErrorPoint.attributes.get(dataProviderKeyAttributeKey))
+        .isEqualTo("dataProviders/dataProvider123")
+      assertThat(cmmsErrorPoint.attributes.get(rpcMethodAttributeKey))
+        .isEqualTo("ReplaceDataAvailabilityIntervals")
+      assertThat(cmmsErrorPoint.attributes.get(statusCodeAttributeKey))
+        .isEqualTo(Status.Code.UNAVAILABLE.name)
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
   fun `saveImpressionMetadata generates deterministic UUIDs`() = runBlocking {
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking { seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L)) }
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -379,8 +501,8 @@ class DataAvailabilitySyncTest {
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       )
 
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
-    runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // Capture both requests
     val captor = argumentCaptor<CreateImpressionMetadataRequest>()
