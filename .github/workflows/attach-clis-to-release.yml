@@ -17,8 +17,6 @@ name: Attach artifacts to release
 on:
   release:
     types: [published]
-  # DO_NOT_SUBMIT: remove pull_request event
-  pull_request:
 
 permissions:
   contents: read
@@ -79,17 +77,16 @@ jobs:
         with:
           cosign-release: 'v3.0.2'
 
-      # DO_NOT_SUBMIT: undo RELEASE -> TEST
       - name: Authenticate to Google Cloud for image signing
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          workload_identity_provider: ${{ vars.IMAGE_SIGNING_TEST_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.IMAGE_SIGNING_TEST_SA }}
+          workload_identity_provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}
 
       - name: Sign and upload artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
+          KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"
         run: |
           set -euo pipefail
           artifacts=(
@@ -113,9 +110,4 @@ jobs:
           for artifact in "${artifacts[@]}"; do
             artifacts_to_upload+=("${artifact}" "${artifact}.sigstore.json")
           done
-          # DO_NOT_SUBMIT: uncomment gh release upload and remove debug cmds
-          ls -lh
-          tar -xzf reporting_api_specs.tar.gz
-          ls -lh
-          cat basic_reports_service.swagger.json | jq . | head -n10
-          #gh release upload "${{ github.event.release.tag_name }}" "${artifacts_to_upload[@]}" --clobber
+          gh release upload "${{ github.event.release.tag_name }}" "${artifacts_to_upload[@]}" --clobber
