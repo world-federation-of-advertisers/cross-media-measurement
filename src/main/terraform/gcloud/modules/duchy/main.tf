@@ -182,13 +182,14 @@ module "trustee_mill" {
   max_replicas                  = var.trustee_config.replicas
   machine_type                  = var.trustee_config.machine_type
   docker_image                  = var.trustee_config.docker_image
-  edpa_tee_signed_image_repo    = var.trustee_config.signed_image_repo
+  tee_signed_image_repo         = var.trustee_config.signed_image_repo
   mig_distribution_policy_zones = var.trustee_config.mig_distribution_policy_zones
   terraform_service_account     = var.trustee_config.terraform_service_account
   disk_image_family             = var.trustee_config.disk_image_family
   tee_cmd                       = var.trustee_config.app_flags
   secrets_to_access             = local.trustee_secrets_to_access
   subnetwork_name               = google_compute_subnetwork.trustee_mill_subnetwork[0].name
+  otel_service_name             = "duchy.trustee-mill"
 }
 
 module "secrets" {
