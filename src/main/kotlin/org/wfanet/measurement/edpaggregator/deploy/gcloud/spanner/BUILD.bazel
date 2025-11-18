@@ -5,6 +5,7 @@ load("//src/main/docker:macros.bzl", "java_image")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
     ],
@@ -14,7 +15,6 @@ kt_jvm_library(
     name = "spanner_impression_metadata_service",
     srcs = ["SpannerImpressionMetadataService.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",

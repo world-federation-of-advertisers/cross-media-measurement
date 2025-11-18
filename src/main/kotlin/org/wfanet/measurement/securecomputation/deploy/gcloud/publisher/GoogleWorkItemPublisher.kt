@@ -24,7 +24,8 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublish
 class GoogleWorkItemPublisher(projectId: String, googlePubSubClient: GooglePubSubClient) :
   WorkItemPublisher {
 
-  private val publisher: Publisher<Message> = Publisher(projectId, googlePubSubClient)
+  private val publisher: Publisher<Message> =
+    Publisher(projectId = projectId, googlePubSubClient = googlePubSubClient)
 
   override suspend fun publishMessage(queueName: String, message: Message) {
     publisher.publishMessage(queueName, message)

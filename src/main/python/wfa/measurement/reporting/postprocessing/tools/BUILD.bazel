@@ -21,10 +21,19 @@ filegroup(
 )
 
 py_binary(
+    name = "post_process_report_summary_v2",
+    srcs = ["post_process_report_summary_v2.py"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+    ],
+)
+
+py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],
     deps = [
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
         requirement("absl-py"),
         requirement("openpyxl"),
@@ -39,7 +48,7 @@ py_binary(
     deps = [
         requirement("absl-py"),
         requirement("google-cloud-storage"),
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
     ],
 )
@@ -51,7 +60,20 @@ py_library(
     deps = [
         requirement("absl-py"),
         requirement("google-cloud-storage"),
-        "//src/main/proto/wfa/measurement/reporting/postprocessing/v2alpha:report_summary_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+    ],
+)
+
+py_library(
+    name = "report_conversion",
+    srcs = ["report_conversion.py"],
+    imports = ["../"],
+    deps = [
+        requirement("absl-py"),
+        requirement("google-api-core"),
+        requirement("protobuf"),
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
     ],
 )

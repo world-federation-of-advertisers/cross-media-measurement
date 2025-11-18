@@ -16,9 +16,13 @@ from typing import FrozenSet
 
 from absl import logging
 
-from report.report import Report
-from report.report import fuzzy_less_equal
-from report.report import get_edps_from_edp_combination
+from noiseninja.noised_measurements import OrderedSets
+
+from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
+    Report,
+    fuzzy_less_equal,
+    get_edps_from_edp_combination,
+)
 
 
 def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
@@ -155,3 +159,22 @@ def are_overlap_constraints_consistent(report: Report, tolerance: float = 0.0):
           is_consistent = False
 
   return is_consistent
+
+
+def get_sorted_list(lst):
+  sorted_list = []
+  for item in lst:
+    if isinstance(item, list):
+      sorted_list.append(tuple(sorted(get_sorted_list(item))))
+    else:
+      sorted_list.append(item)
+  return sorted(sorted_list)
+
+
+def ordered_sets_to_sorted_list(ordered_sets: list[OrderedSets]):
+  ordered_sets_list = []
+  for ordered_pair in ordered_sets:
+    ordered_sets_list.append(
+        [list(ordered_pair.larger_set), list(ordered_pair.smaller_set)])
+  return get_sorted_list(ordered_sets_list)
+

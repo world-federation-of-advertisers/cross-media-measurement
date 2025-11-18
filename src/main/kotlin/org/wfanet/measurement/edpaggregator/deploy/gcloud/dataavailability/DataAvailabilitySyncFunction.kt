@@ -21,7 +21,11 @@ import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
@@ -30,6 +34,7 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.EnvVars
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
@@ -37,6 +42,8 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -68,6 +75,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
 class DataAvailabilitySyncFunction() : HttpFunction {
+  init {
+    EdpaTelemetry.ensureInitialized()
+  }
 
   override fun service(request: HttpRequest, response: HttpResponse) {
     logger.fine("Starting DataAvailabilitySyncFunction")
@@ -85,8 +95,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
 
+    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+
     val cmmsPublicChannel =
       createPublicChannel(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+    val instrumentedCmmsChannel =
+      ClientInterceptors.intercept(cmmsPublicChannel, grpcTelemetry.newClientInterceptor())
 
     val impressionMetadataStoragePublicChannel =
       createPublicChannel(
@@ -94,10 +108,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         impressionMetadataTarget,
         impressionMetadataCertHost,
       )
+    val instrumentedImpMetadataChannel =
+      ClientInterceptors.intercept(
+        impressionMetadataStoragePublicChannel,
+        grpcTelemetry.newClientInterceptor(),
+      )
 
-    val dataProvidersClient = DataProvidersCoroutineStub(cmmsPublicChannel)
+    val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
     val impressionMetadataServicesClient =
-      ImpressionMetadataServiceCoroutineStub(impressionMetadataStoragePublicChannel)
+      ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -108,7 +127,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
       )
 
-    runBlocking { dataAvailabilitySync.sync(doneBlobPath) }
+    Tracing.withW3CTraceContext(request) {
+      runBlocking(Context.current().asContextElement()) { dataAvailabilitySync.sync(doneBlobPath) }
+    }
   }
 
   /**
@@ -181,7 +202,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
     private const val CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
     private val throttlerDuration =

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.LoggingHandler
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
@@ -24,11 +25,19 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Parser
+import io.grpc.ClientInterceptors
+import io.opentelemetry.context.Context
+import io.opentelemetry.extension.kotlin.asContextElement
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
+import java.util.logging.Level
+import java.util.logging.LogManager
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -39,10 +48,15 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.measured
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.StorageParams
-import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -52,12 +66,22 @@ import picocli.CommandLine
 
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
+  private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
+
   @CommandLine.Option(
     names = ["--edpa-tls-cert-secret-id"],
     description = ["Secret ID of EDPA TLS cert file."],
     defaultValue = "",
   )
   lateinit var edpaCertSecretId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--edpa-tls-cert-file-path"],
+    description = ["Local path where the --edpa-tls-cert-secret-id secret is stored."],
+    defaultValue = "",
+  )
+  lateinit var edpaCertFilePath: String
     private set
 
   @CommandLine.Option(
@@ -69,6 +93,14 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
+    names = ["--edpa-tls-key-file-path"],
+    description = ["Local path where the --edpa-tls-key-secret-id secret is stored."],
+    defaultValue = "",
+  )
+  lateinit var edpaPrivateKeyFilePath: String
+    private set
+
+  @CommandLine.Option(
     names = ["--secure-computation-cert-collection-secret-id"],
     description = ["Secret ID of SecureComputation Trusted root Cert collection file."],
     required = true,
@@ -77,11 +109,44 @@ class ResultsFulfillerAppRunner : Runnable {
     private set
 
   @CommandLine.Option(
+    names = ["--secure-computation-cert-collection-file-path"],
+    description =
+      ["Local path where the --secure-computation-cert-collection-secret-id secret is stored."],
+    required = true,
+  )
+  lateinit var secureComputationCertCollectionFilePath: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-cert-collection-secret-id"],
+    description = ["Secret ID of Metadata Storage Trusted root Cert collection file."],
+    required = true,
+  )
+  lateinit var metadataStorageCertCollectionSecretId: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-cert-collection-file-path"],
+    description =
+      ["Local path where the --metadata-storage-cert-collection-secret-id secret is stored."],
+    required = true,
+  )
+  lateinit var metadataStorageCertCollectionFilePath: String
+    private set
+
+  @CommandLine.Option(
     names = ["--trusted-cert-collection-secret-id"],
     description = ["Secret ID of trusted root collections file."],
     required = true,
   )
   private lateinit var trustedCertCollectionSecretId: String
+
+  @CommandLine.Option(
+    names = ["--trusted-cert-collection-file-path"],
+    description = ["Local path where the --trusted-cert-collection-secret-id secret is stored."],
+    required = true,
+  )
+  private lateinit var trustedCertCollectionFilePath: String
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
   lateinit var duchyInfos: List<DuchyFlags>
@@ -156,6 +221,13 @@ class ResultsFulfillerAppRunner : Runnable {
   private lateinit var secureComputationPublicApiTarget: String
 
   @CommandLine.Option(
+    names = ["--metadata-storage-public-api-target"],
+    description = ["gRPC target of the Metadata Storage public API server"],
+    required = true,
+  )
+  private lateinit var metadataStoragePublicApiTarget: String
+
+  @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
     description =
       [
@@ -176,6 +248,17 @@ class ResultsFulfillerAppRunner : Runnable {
     required = false,
   )
   private var secureComputationPublicApiCertHost: String? = null
+
+  @CommandLine.Option(
+    names = ["--metadata-storage-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Metadata Storage public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --edpa-aggregator-public-api-target.",
+      ],
+    required = false,
+  )
+  private var metadataStoragePublicApiCertHost: String? = null
 
   @CommandLine.Option(
     names = ["--subscription-id"],
@@ -199,38 +282,68 @@ class ResultsFulfillerAppRunner : Runnable {
   }
 
   override fun run() {
-
     // Pull certificates needed to operate from Google Secrets.
     saveEdpaCerts()
     saveEdpsCerts()
     // Create KMS clients for EDPs
     createKmsClients()
 
-    val queueSubscriber = createQueueSubscriber()
+    val pubSubClient = DefaultGooglePubSubClient()
+    val queueSubscriber = createQueueSubscriber(pubSubClient)
     val parser = createWorkItemParser()
 
-    // Get client certificates from server flags
-    val edpaCertFile = File(EDPA_TLS_CERT_FILE_PATH)
-    val edpaPrivateKeyFile = File(EDPA_TLS_KEY_FILE_PATH)
-    val secureComputationCertCollectionFile = File(SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    // Get client certificates for secure computation API from server flags
+    val secureComputationEdpaCertFile = File(edpaCertFilePath)
+    val secureComputationEdpaPrivateKeyFile = File(edpaPrivateKeyFilePath)
+    val secureComputationCertCollectionFile = File(secureComputationCertCollectionFilePath)
     val secureComputationClientCerts =
       SigningCerts.fromPemFiles(
-        certificateFile = edpaCertFile,
-        privateKeyFile = edpaPrivateKeyFile,
+        certificateFile = secureComputationEdpaCertFile,
+        privateKeyFile = secureComputationEdpaPrivateKeyFile,
         trustedCertCollectionFile = secureComputationCertCollectionFile,
       )
 
     // Build the mutual TLS channel for secure computation API
-    val publicChannel =
-      buildMutualTlsChannel(
-        secureComputationPublicApiTarget,
-        secureComputationClientCerts,
-        secureComputationPublicApiCertHost,
+    val secureComputationPublicChannel =
+      ClientInterceptors.intercept(
+        buildMutualTlsChannel(
+          secureComputationPublicApiTarget,
+          secureComputationClientCerts,
+          secureComputationPublicApiCertHost,
+        ),
+        grpcTelemetry.newClientInterceptor(),
       )
-    val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(publicChannel)
-    val workItemAttemptsClient = WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(publicChannel)
-    val trustedRootCaCollectionFile = File(TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
+    val workItemsClient = WorkItemsGrpcKt.WorkItemsCoroutineStub(secureComputationPublicChannel)
+    val workItemAttemptsClient =
+      WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(secureComputationPublicChannel)
 
+    // Get client certificates for EDP Aggregator API from server flags
+    val metadataStorageCertFile = File(edpaCertFilePath)
+    val metadataStoragePrivateKeyFile = File(edpaPrivateKeyFilePath)
+    val metadataStorageCertCollectionFile = File(metadataStorageCertCollectionFilePath)
+    val metadataStorageClientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = metadataStorageCertFile,
+        privateKeyFile = metadataStoragePrivateKeyFile,
+        trustedCertCollectionFile = metadataStorageCertCollectionFile,
+      )
+
+    // Build the mutual TLS channel for secure computation API
+    val metadataStoragePublicChannel =
+      ClientInterceptors.intercept(
+        buildMutualTlsChannel(
+          metadataStoragePublicApiTarget,
+          metadataStorageClientCerts,
+          metadataStoragePublicApiCertHost,
+        ),
+        grpcTelemetry.newClientInterceptor(),
+      )
+
+    val requisitionMetadataClient =
+      RequisitionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val impressionMetadataClient =
+      ImpressionMetadataServiceCoroutineStub(metadataStoragePublicChannel)
+    val trustedRootCaCollectionFile = File(trustedCertCollectionFilePath)
     val duchiesMap = buildDuchyMap()
 
     val requisitionStubFactory =
@@ -239,9 +352,10 @@ class ResultsFulfillerAppRunner : Runnable {
         cmmsTarget = kingdomPublicApiTarget,
         trustedCertCollection = trustedRootCaCollectionFile,
         duchies = duchiesMap,
+        grpcTelemetry = grpcTelemetry,
       )
 
-    val modelLinesMap = runBlocking { buildModelLineMap() }
+    val modelLinesMap = runBlockingWithTelemetry { buildModelLineMap() }
 
     val resultsFulfillerApp =
       ResultsFulfillerApp(
@@ -249,6 +363,8 @@ class ResultsFulfillerAppRunner : Runnable {
         queueSubscriber = queueSubscriber,
         parser = parser,
         workItemsClient = workItemsClient,
+        requisitionMetadataStub = requisitionMetadataClient,
+        impressionMetadataStub = impressionMetadataClient,
         workItemAttemptsClient = workItemAttemptsClient,
         requisitionStubFactory = requisitionStubFactory,
         kmsClients = kmsClientsMap,
@@ -258,7 +374,7 @@ class ResultsFulfillerAppRunner : Runnable {
         modelLineInfoMap = modelLinesMap,
       )
 
-    runBlocking { resultsFulfillerApp.run() }
+    runBlockingWithTelemetry { resultsFulfillerApp.run() }
   }
 
   fun createKmsClients() {
@@ -306,10 +422,14 @@ class ResultsFulfillerAppRunner : Runnable {
       val eventDescriptor =
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
+      val vidIndexMap =
+        ResultsFulfillerMetrics.vidIndexBuildDuration.measured {
+          ParallelInMemoryVidIndexMap.build(populationSpec)
+        }
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
-          vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+          vidIndexMap = vidIndexMap,
           eventDescriptor = eventDescriptor,
         )
     }
@@ -317,15 +437,18 @@ class ResultsFulfillerAppRunner : Runnable {
 
   fun saveEdpaCerts() {
     val edpaCert = accessSecretBytes(googleProjectId, edpaCertSecretId, SECRET_VERSION)
-    saveByteArrayToFile(edpaCert, EDPA_TLS_CERT_FILE_PATH)
+    saveByteArrayToFile(edpaCert, edpaCertFilePath)
     val edpaPrivateKey = accessSecretBytes(googleProjectId, edpaPrivateKeySecretId, SECRET_VERSION)
-    saveByteArrayToFile(edpaPrivateKey, EDPA_TLS_KEY_FILE_PATH)
+    saveByteArrayToFile(edpaPrivateKey, edpaPrivateKeyFilePath)
     val secureComputationRootCa =
       accessSecretBytes(googleProjectId, secureComputationCertCollectionSecretId, SECRET_VERSION)
-    saveByteArrayToFile(secureComputationRootCa, SECURE_COMPUTATION_ROOT_CA_FILE_PATH)
+    saveByteArrayToFile(secureComputationRootCa, secureComputationCertCollectionFilePath)
+    val metadataStorageRootCa =
+      accessSecretBytes(googleProjectId, metadataStorageCertCollectionSecretId, SECRET_VERSION)
+    saveByteArrayToFile(metadataStorageRootCa, metadataStorageCertCollectionFilePath)
     val trustedRootCaCollectionFile =
       accessSecretBytes(googleProjectId, trustedCertCollectionSecretId, SECRET_VERSION)
-    saveByteArrayToFile(trustedRootCaCollectionFile, TRUSTED_ROOT_CA_COLLECTION_FILE_PATH)
+    saveByteArrayToFile(trustedRootCaCollectionFile, trustedCertCollectionFilePath)
   }
 
   fun saveEdpsCerts() {
@@ -377,10 +500,21 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
-    val pubSubClient = DefaultGooglePubSubClient()
-    return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
+  private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
+    logger.info("Creating Subscriber for project: $googleProjectId, subscription: $subscriptionId")
+    logger.info("Subscriber config: maxMessages=1, pullIntervalMillis=100ms")
+    val subscriber =
+      Subscriber(
+        projectId = googleProjectId,
+        googlePubSubClient = pubSubClient,
+        maxMessages = 1, // Pull one message at a time for long-running processing
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
+    logger.info("Subscriber created successfully")
+    return subscriber
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {
@@ -404,11 +538,6 @@ class ResultsFulfillerAppRunner : Runnable {
         .unmodifiable
 
     private const val SECRET_VERSION = "latest"
-    private const val EDPA_TLS_CERT_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.pem"
-    private const val EDPA_TLS_KEY_FILE_PATH = "/tmp/edpa_certs/edpa_tee_app_tls.key"
-    private const val SECURE_COMPUTATION_ROOT_CA_FILE_PATH =
-      "/tmp/edpa_certs/secure_computation_root.pem"
-    private const val TRUSTED_ROOT_CA_COLLECTION_FILE_PATH = "/tmp/edpa_certs/trusted_root.pem"
 
     private const val SUBJECT_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:jwt"
     private const val TOKEN_URL = "https://sts.googleapis.com/v1/token"
@@ -419,7 +548,7 @@ class ResultsFulfillerAppRunner : Runnable {
 
     private const val EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY = "event-data-provider-configs.textproto"
     private val edpsConfig by lazy {
-      runBlocking {
+      runBlockingWithTelemetry {
         getConfigAsProtoMessage(
           EVENT_DATA_PROVIDER_CONFIGS_BLOB_KEY,
           EventDataProviderConfigs.getDefaultInstance(),
@@ -427,6 +556,40 @@ class ResultsFulfillerAppRunner : Runnable {
       }
     }
 
+    init {
+      configureCloudLoggingHandler()
+      EdpaTelemetry.ensureInitialized()
+    }
+
+    private fun configureCloudLoggingHandler() {
+      try {
+        val rootLogger = LogManager.getLogManager().getLogger("")
+        if (rootLogger.handlers.none { it is LoggingHandler }) {
+          val otelServiceName = System.getenv("OTEL_SERVICE_NAME")
+          val handler =
+            if (otelServiceName.isNullOrBlank()) {
+              LoggingHandler()
+            } else {
+              LoggingHandler(otelServiceName)
+            }
+          rootLogger.addHandler(handler)
+          if (otelServiceName.isNullOrBlank()) {
+            logger.info("Configured Google Cloud Logging handler for java.util.logging")
+          } else {
+            logger.info(
+              "Configured Google Cloud Logging handler for java.util.logging (logName=$otelServiceName)"
+            )
+          }
+        }
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Failed to configure Google Cloud Logging handler", e)
+      }
+    }
+
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)
   }
+}
+
+private fun <T> runBlockingWithTelemetry(block: suspend () -> T): T {
+  return runBlocking(Context.current().asContextElement()) { block() }
 }

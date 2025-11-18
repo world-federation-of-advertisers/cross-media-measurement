@@ -24,8 +24,10 @@ import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
+import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -45,6 +47,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -60,6 +63,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as i
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
@@ -82,11 +86,9 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
-import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -105,6 +107,18 @@ class BasicReportsService(
   private val authorization: Authorization,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  private sealed class ReportingSetMapKey {
+    data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
+
+    data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
+  }
+
+  private data class ReportingSetMaps(
+    // Map of DataProvider resource name to Primitive ReportingSet
+    val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
+    // Map of ReportingSet composite to ReportingSet resource name
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     if (request.parent.isEmpty()) {
@@ -132,10 +146,10 @@ class BasicReportsService(
     // Required for creating Report
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
-    val eventTemplateFieldsMap = eventDescriptor?.eventTemplateFieldsMap ?: emptyMap()
+    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     try {
-      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsMap)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -155,7 +169,11 @@ class BasicReportsService(
     }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>> =
+    val impressionQualificationFilterSpecsLists:
+      MutableList<List<ImpressionQualificationFilterSpec>> =
+      mutableListOf()
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter> =
       buildList {
         for (impressionQualificationFilter in
           request.basicReport.impressionQualificationFiltersList) {
@@ -165,14 +183,23 @@ class BasicReportsService(
                 impressionQualificationFilter.impressionQualificationFilter
               )
             try {
+              val internalImpressionQualificationFilter =
+                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+                  getImpressionQualificationFilterRequest {
+                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
+                  }
+                )
+
               add(
-                internalImpressionQualificationFiltersStub
-                  .getImpressionQualificationFilter(
-                    getImpressionQualificationFilterRequest {
-                      externalImpressionQualificationFilterId =
-                        key!!.impressionQualificationFilterId
-                    }
-                  )
+                reportingImpressionQualificationFilter {
+                  externalImpressionQualificationFilterId =
+                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+                }
+              )
+
+              impressionQualificationFilterSpecsLists.add(
+                internalImpressionQualificationFilter
                   .toImpressionQualificationFilter()
                   .filterSpecsList
               )
@@ -194,7 +221,9 @@ class BasicReportsService(
               }
             }
           } else if (impressionQualificationFilter.hasCustom()) {
-            add(impressionQualificationFilter.custom.filterSpecList)
+            impressionQualificationFilterSpecsLists.add(
+              impressionQualificationFilter.custom.filterSpecList
+            )
           }
         }
       }
@@ -211,6 +240,8 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
+                internalReportingImpressionQualificationFilters =
+                  internalReportingImpressionQualificationFilters,
               )
             requestId = request.requestId
           }
@@ -247,12 +278,12 @@ class BasicReportsService(
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
-        eventTemplateFieldsMap = eventTemplateFieldsMap,
+        eventTemplateFieldsByPath = eventTemplateFieldsByPath,
       )
 
     val report: Report =
       buildReport(
-        request.basicReport.reportingInterval,
+        request.basicReport,
         campaignGroupKey,
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
@@ -264,7 +295,8 @@ class BasicReportsService(
       requestId = createdInternalBasicReport.createReportRequestId
       reportId = "a${UUID.randomUUID()}"
     }
-    reportsStub.createReport(createReportRequest)
+
+    reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
 
     internalBasicReportsStub.setExternalReportId(
       setExternalReportIdRequest {
@@ -424,7 +456,7 @@ class BasicReportsService(
       val decodedPageToken =
         try {
           ListBasicReportsPageToken.parseFrom(source.pageToken.base64UrlDecode())
-        } catch (e: InvalidProtocolBufferException) {
+        } catch (_: InvalidProtocolBufferException) {
           throw InvalidFieldValueException("page_token")
         }
 
@@ -490,18 +522,14 @@ class BasicReportsService(
     campaignGroup: ReportingSet,
     campaignGroupKey: ReportingSetKey,
   ): ReportingSetMaps {
-    val dataProviderEventGroupsMap: Map<String, MutableList<String>> = buildMap {
-      for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
-        val eventGroupKey = EventGroupKey.fromName(eventGroupName)
-        val eventGroupsList = getOrDefault(eventGroupKey!!.parentKey.toName(), mutableListOf())
-        eventGroupsList.add(eventGroupName)
-        put(eventGroupKey.parentKey.toName(), eventGroupsList)
+    val dataProviderEventGroupsMap: Map<String, List<String>> =
+      campaignGroup.primitive.cmmsEventGroupsList.groupBy {
+        EventGroupKey.fromName(it)!!.parentKey.toName()
       }
-    }
 
-    // Map of ReportingSet without name to ReportingSet with name. For determining whether a
+    // Map of ReportingSetMapKey to ReportingSet. For determining whether a
     // ReportingSet already exists.
-    val campaignGroupReportingSetMap: Map<ReportingSet, ReportingSet> = buildMap {
+    val campaignGroupReportingSetMap: Map<ReportingSetMapKey, ReportingSet> = buildMap {
       internalReportingSetsStub
         .streamReportingSets(
           streamReportingSetsRequest {
@@ -513,28 +541,43 @@ class BasicReportsService(
             limit = 1000
           }
         )
+        .filter { it.filter.isEmpty() }
         .collect {
           val reportingSet = it.toReportingSet()
-          put(reportingSet.copy { clearName() }, reportingSet)
+          if (reportingSet.hasComposite()) {
+            put(ReportingSetMapKey.Composite(composite = reportingSet.composite), reportingSet)
+          } else {
+            put(
+              ReportingSetMapKey.Primitive(
+                cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList.toSet()
+              ),
+              reportingSet,
+            )
+          }
         }
     }
 
     // Map of DataProvider resource names to primitive Reporting Sets.
     val dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet> = buildMap {
       for (dataProviderName in dataProviderEventGroupsMap.keys) {
-        val reportingSet = reportingSet {
-          this.campaignGroup = campaignGroup.name
-          primitive =
-            ReportingSetKt.primitive {
-              cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
-            }
-        }
+        val reportingSetMapKey =
+          ReportingSetMapKey.Primitive(
+            cmmsEventGroups = dataProviderEventGroupsMap.getValue(dataProviderName).toSet()
+          )
 
-        if (campaignGroupReportingSetMap.containsKey(reportingSet)) {
-          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSet))
+        if (campaignGroupReportingSetMap.containsKey(reportingSetMapKey)) {
+          put(dataProviderName, campaignGroupReportingSetMap.getValue(reportingSetMapKey))
         } else {
           val uuid = UUID.randomUUID()
           val id = "a$uuid"
+
+          val reportingSet = reportingSet {
+            this.campaignGroup = campaignGroup.name
+            primitive =
+              ReportingSetKt.primitive {
+                cmmsEventGroups += dataProviderEventGroupsMap.getValue(dataProviderName)
+              }
+          }
 
           val createdReportingSet =
             try {
@@ -572,23 +615,22 @@ class BasicReportsService(
 
     // Map of ReportingSet Composite to ReportingSet resource name.
     val reportingSetCompositeToNameMap: Map<ReportingSet.Composite, String> = buildMap {
-      campaignGroupReportingSetMap.filter { it.key.hasComposite() }
-      for (entry in campaignGroupReportingSetMap) {
-        put(entry.key.composite, entry.value.name)
-      }
+      campaignGroupReportingSetMap
+        .filter { it.key is ReportingSetMapKey.Composite }
+        .forEach { put((it.key as ReportingSetMapKey.Composite).composite, it.value.name) }
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)
   }
 
   /**
-   * Build map of MetricCalculationSpec.Details to MetricCalculationSpec resource name using
-   * CampaignGroup resource name as filter.
+   * Build map of MetricCalculationSpec to MetricCalculationSpec resource name using CampaignGroup
+   * resource name as filter.
    */
-  private suspend fun buildMetricCalculationSpecDetailsToNameMap(
+  private suspend fun buildMetricCalculationSpecToNameMap(
     campaignGroupKey: ReportingSetKey
-  ): Map<InternalMetricCalculationSpec.Details, String> {
-    // Map of MetricCalculationSpec.Details to MetricCalculationSpec resource name for
+  ): Map<InternalMetricCalculationSpec, String> {
+    // Map of MetricCalculationSpec to MetricCalculationSpec resource name for
     // MetricCalculationSpecs that already exist for the campaign group.
     return internalMetricCalculationSpecsStub
       .listMetricCalculationSpecs(
@@ -603,34 +645,44 @@ class BasicReportsService(
       )
       .metricCalculationSpecsList
       .associate {
-        it.details.copy {
-          val realMetricSpecs = metricSpecs
-          metricSpecs.clear()
-          for (realMetricSpec in realMetricSpecs) {
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case enums cannot be null.
-            when (realMetricSpec.typeCase) {
-              MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-                metricSpecs += metricSpec {
-                  reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+        it.copy {
+          clearExternalMetricCalculationSpecId()
+          details =
+            details.copy {
+              val realMetricSpecs = metricSpecs
+              metricSpecs.clear()
+              for (realMetricSpec in realMetricSpecs) {
+                @Suppress(
+                  "WHEN_ENUM_CAN_BE_NULL_IN_JAVA"
+                ) // Protobuf oneof case enums cannot be null.
+                when (realMetricSpec.typeCase) {
+                  MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                    metricSpecs += metricSpec {
+                      reachAndFrequency = MetricSpecKt.reachAndFrequencyParams {}
+                    }
+                  }
+
+                  MetricSpec.TypeCase.REACH -> {
+                    metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
+                  }
+
+                  MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      impressionCount = MetricSpecKt.impressionCountParams {}
+                    }
+                  }
+
+                  MetricSpec.TypeCase.POPULATION_COUNT -> {
+                    metricSpecs += metricSpec {
+                      populationCount = MetricSpecKt.populationCountParams {}
+                    }
+                  }
+
+                  MetricSpec.TypeCase.WATCH_DURATION,
+                  MetricSpec.TypeCase.TYPE_NOT_SET -> {}
                 }
               }
-              MetricSpec.TypeCase.REACH -> {
-                metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
-              }
-              MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-                metricSpecs += metricSpec {
-                  impressionCount = MetricSpecKt.impressionCountParams {}
-                }
-              }
-              MetricSpec.TypeCase.POPULATION_COUNT -> {
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
-              }
-              MetricSpec.TypeCase.WATCH_DURATION,
-              MetricSpec.TypeCase.TYPE_NOT_SET -> {}
             }
-          }
         } to
           MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
             .toName()
@@ -640,7 +692,7 @@ class BasicReportsService(
   /**
    * Builds a [Report]
    *
-   * @param reportingInterval [ReportingInterval] from [BasicReport]
+   * @param basicReport [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
    * @param nameByReportingSetComposite Map of [ReportingSet.Composite] to ReportingSet resource
    *   name
@@ -648,7 +700,7 @@ class BasicReportsService(
    *   [InternalMetricCalculationSpec.Details]
    */
   private suspend fun buildReport(
-    reportingInterval: ReportingInterval,
+    basicReport: BasicReport,
     campaignGroupKey: ReportingSetKey,
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
@@ -656,7 +708,7 @@ class BasicReportsService(
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
-      buildMetricCalculationSpecDetailsToNameMap(campaignGroupKey).toMutableMap()
+      buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
 
     return report {
       for (reportingSetMetricCalculationSpecDetailsEntry in
@@ -691,10 +743,16 @@ class BasicReportsService(
                 // Reuse MetricCalculationSpec or create a new one if it doesn't exist
                 for (metricCalculationSpecDetails in
                   reportingSetMetricCalculationSpecDetailsEntry.value) {
+                  val metricCalculationSpec = metricCalculationSpec {
+                    cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+                    externalCampaignGroupId = campaignGroupKey.reportingSetId
+                    cmmsModelLine = basicReport.modelLine
+                    details = metricCalculationSpecDetails
+                  }
                   metricCalculationSpecs +=
-                    existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpecDetails) {
+                    existingMetricCalculationSpecsMap.getOrPut(metricCalculationSpec) {
                       val createdMetricCalculationSpec =
-                        createMetricCalculationSpec(metricCalculationSpecDetails, campaignGroupKey)
+                        createMetricCalculationSpec(metricCalculationSpec)
 
                       MetricCalculationSpecKey(
                           createdMetricCalculationSpec.cmmsMeasurementConsumerId,
@@ -707,10 +765,10 @@ class BasicReportsService(
           }
       }
 
-      this.reportingInterval =
+      reportingInterval =
         ReportKt.reportingInterval {
-          reportStart = reportingInterval.reportStart
-          reportEnd = reportingInterval.reportEnd
+          reportStart = basicReport.reportingInterval.reportStart
+          reportEnd = basicReport.reportingInterval.reportEnd
         }
     }
   }
@@ -733,22 +791,20 @@ class BasicReportsService(
   }
 
   private suspend fun createMetricCalculationSpec(
-    metricCalculationSpecDetails: MetricCalculationSpec.Details,
-    campaignGroupKey: ReportingSetKey,
+    metricCalculationSpec: MetricCalculationSpec
   ): MetricCalculationSpec {
     return internalMetricCalculationSpecsStub.createMetricCalculationSpec(
       createMetricCalculationSpecRequest {
-        this.metricCalculationSpec = metricCalculationSpec {
-          cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-          details =
-            metricCalculationSpecDetails.copy {
-              val metricSpecsWithDefault =
-                metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
-              metricSpecs.clear()
-              metricSpecs += metricSpecsWithDefault
-            }
-        }
+        this.metricCalculationSpec =
+          metricCalculationSpec.copy {
+            details =
+              details.copy {
+                val metricSpecsWithDefault =
+                  metricSpecs.map { it.withDefaults(metricSpecConfig, secureRandom) }
+                metricSpecs.clear()
+                metricSpecs += metricSpecsWithDefault
+              }
+          }
         externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
       }
     )
@@ -765,13 +821,6 @@ class BasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000
-
-    private data class ReportingSetMaps(
-      // Map of DataProvider resource name to Primitive ReportingSet
-      val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
-      // Map of ReportingSet composite to ReportingSet resource name
-      val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
-    )
 
     /** Specifies default values using [MetricSpecConfig] */
     private fun MetricSpec.withDefaults(

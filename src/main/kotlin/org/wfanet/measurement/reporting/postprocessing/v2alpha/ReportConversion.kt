@@ -16,8 +16,12 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetail.MeasurementResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.reachResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetail
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.measurementResult
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.measurementDetail
+import org.wfanet.measurement.internal.reporting.postprocessing.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -305,7 +309,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
               .toSet()
               .toList()
               .sorted()
-          var measurementList: List<MeasurementResult> =
+          var measurementList: List<MeasurementDetail.MeasurementResult> =
             value
               .flatMap { it.resultAttributesList }
               .sortedBy { it.timeInterval.endTime.seconds }
@@ -358,9 +362,9 @@ fun Report.toReportSummaries(): List<ReportSummary> {
                                           resultAttribute.metricResult.reachAndFrequency.reach
                                             .value > 0
                                         ) {
-                                          bin.binResult.value.toLong()
+                                          bin.binResult.value
                                         } else {
-                                          0
+                                          0.0
                                         }
                                       // TODO(@ple13): Read the standard deviations directly from
                                       // the frequency buckets when the report populates the

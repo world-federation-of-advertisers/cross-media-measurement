@@ -49,6 +49,8 @@ message RequisitionMetadata {
     FULFILLED = 4;
     // The requisition was refused.
     REFUSED = 5;
+    // The requisition was withdrawn.
+    WITHDRAWN = 6;
   }
 
   // The resource name of the RequisitionMetadata.

@@ -21,25 +21,26 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLinesAvailabilityResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLinesAvailabilityRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.storage.BlobUri
@@ -85,8 +86,8 @@ class DataAvailabilitySync(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
+  private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
-
   /**
    * Synchronizes impression availability data after a completion signal.
    *
@@ -98,73 +99,123 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
   suspend fun sync(doneBlobPath: String) {
+    // Start timing for sync duration
+    val syncStartTime = TimeSource.Monotonic.markNow()
 
-    // 1. Crawl for metadata files
-    val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-    val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+    try {
+      // 1. Crawl for metadata files
+      val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-    require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
-      "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
-    }
+      require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
+        "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
+      }
 
-    val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-    val impressionMetadataBlobs: Flow<StorageClient.Blob> =
-      storageClient.listBlobs(doneBlobFolderPath)
+      val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      val impressionMetadataBlobs: Flow<StorageClient.Blob> =
+        storageClient.listBlobs(doneBlobFolderPath)
 
-    // 1. Retrieve blob details from storage and build a map and validate them
-    val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
-      createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
+      // 1. Retrieve blob details from storage and build a map and validate them
+      val impressionMetadataMap: Map<String, List<ImpressionMetadata>> =
+        createModelLineToImpressionMetadataMap(impressionMetadataBlobs, doneBlobUri)
 
-    if (impressionMetadataMap.isEmpty()) {
-      logger.info("There were no valid impressions metadata.")
-      return
-    }
+      if (impressionMetadataMap.isEmpty()) {
+        logger.info("There were no valid impressions metadata.")
+        // Record sync duration even if no records
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return
+      }
 
-    // 2. Save ImpressionMetadata using ImpressionMetadataStorage
-    impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
+      // Count total records
+      val totalRecords = impressionMetadataMap.values.sumOf { it.size }
 
-    // 3. Retrieve model line availability from ImpressionMetadataStorage for all model line
-    // found in the storage folder and update kingdom availability
-    // Collect all model lines
-    val modelLines = impressionMetadataMap.keys.toList()
+      // 2. Save ImpressionMetadata using ImpressionMetadataStorage
+      impressionMetadataMap.values.forEach { saveImpressionMetadata(it) }
 
-    val modelLinesAvailabilityInterval: ComputeModelLinesAvailabilityResponse =
-      impressionMetadataServiceStub.computeModelLinesAvailability(
-        computeModelLinesAvailabilityRequest {
-          parent = dataProviderName
-          this.modelLines += modelLines
+      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model line
+      // found in the storage folder and update kingdom availability
+      // Collect all model lines
+      val modelLines = impressionMetadataMap.keys.toList()
+
+      val modelLineBounds: ComputeModelLineBoundsResponse =
+        impressionMetadataServiceStub.computeModelLineBounds(
+          computeModelLineBoundsRequest {
+            parent = dataProviderName
+            this.modelLines += modelLines
+          }
+        )
+
+      // Build availability entries from the response
+      val availabilityEntries =
+        modelLineBounds.modelLineBoundsList.map { bound ->
+          dataAvailabilityMapEntry {
+            key = bound.key
+            value = interval {
+              startTime = bound.value.startTime
+              endTime = bound.value.endTime
+            }
+          }
         }
-      )
 
-    // Build availability entries from the response
-    val availabilityEntries =
-      modelLinesAvailabilityInterval.modelLineAvailabilitiesList.map { availability ->
-        dataAvailabilityMapEntry {
-          key = availability.modelLine
-          value = interval {
-            startTime = availability.availability.startTime
-            endTime = availability.availability.endTime
+      if (availabilityEntries.isNotEmpty()) {
+        throttler.onReady {
+          try {
+            dataProvidersStub.replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
+          } catch (e: StatusException) {
+            // Record CMMS RPC error
+            metrics.cmmsRpcErrorsCounter.add(
+              1,
+              Attributes.of(
+                DATA_PROVIDER_KEY_ATTR,
+                dataProviderName,
+                RPC_METHOD_ATTR,
+                RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
+                STATUS_CODE_ATTR,
+                e.status.code.name,
+              ),
+            )
+            throw Exception("Error replacing DataAvailability intervals", e)
           }
         }
       }
 
-    if (availabilityEntries.isNotEmpty()) {
-      throttler.onReady {
-        try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Error replacing DataAvailability intervals", e)
-        }
-      }
+      // Record successful sync
+      recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+
+      // Record records synced
+      metrics.recordsSyncedCounter.add(
+        totalRecords.toLong(),
+        Attributes.of(
+          DATA_PROVIDER_KEY_ATTR,
+          dataProviderName,
+          SYNC_STATUS_ATTR,
+          SYNC_STATUS_SUCCESS,
+        ),
+      )
+    } catch (e: Exception) {
+      // Record sync duration even on failure
+      recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
+      throw e
     }
   }
 
-  suspend private fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
+  private fun recordSyncDuration(
+    startTime: TimeSource.Monotonic.ValueTimeMark,
+    syncStatus: String,
+  ) {
+    val syncDuration = startTime.elapsedNow().inWholeMilliseconds / 1000.0
+    metrics.syncDurationHistogram.record(
+      syncDuration,
+      Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
+    )
+  }
+
+  private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
@@ -178,12 +229,9 @@ class DataAvailabilitySync(
     }
     try {
       throttler.onReady {
-        impressionMetadataServiceStub.batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            parent = dataProviderName
-            requests += createImpressionMetadataRequests
-          }
-        )
+        createImpressionMetadataRequests.forEach {
+          impressionMetadataServiceStub.createImpressionMetadata(it)
+        }
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)
@@ -214,25 +262,25 @@ class DataAvailabilitySync(
    * - Adds the [ImpressionMetadata] to a list in a map keyed by `modelLine`.
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
-   * @param blobUri the blob uri.
+   * @param doneBlobUri the blob uri.
    * @return a map where each key is a `modelLine` string and each value is the list of
    *   [ImpressionMetadata] objects associated with that model line.
    * @throws InvalidProtocolBufferException if a blob cannot be parsed as either binary or JSON
    *   `BlobDetails`.
    */
-  suspend private fun createModelLineToImpressionMetadataMap(
+  private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
-    blobUri: BlobUri,
+    doneBlobUri: BlobUri,
   ): Map<String, List<ImpressionMetadata>> {
     val impressionMetadataMap = mutableMapOf<String, MutableList<ImpressionMetadata>>()
     impressionMetadataBlobs
-      .filter { blob ->
-        val fileName = blob.blobKey.substringAfterLast("/").lowercase()
+      .filter { impressionMetadataBlob ->
+        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
         METADATA_FILE_NAME in fileName
       }
-      .collect { blob ->
-        val fileName = blob.blobKey.substringAfterLast("/").lowercase()
-        val bytes: ByteString = blob.read().flatten()
+      .collect { impressionMetadataBlob ->
+        val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
+        val bytes: ByteString = impressionMetadataBlob.read().flatten()
 
         // Build the blob details object
         val blobDetails =
@@ -250,14 +298,26 @@ class DataAvailabilitySync(
         require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
           "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
         }
-
-        val metadata_blob_uri = "${blobUri.asUriString()}${blobUri.bucket}/${blob.blobKey}"
-        val impressionBlob = storageClient.getBlob(blobDetails.blobUri)
+        val impressionBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+        val metadataBlobUri =
+          when (doneBlobUri.scheme) {
+            "gs" ->
+              "${doneBlobUri.scheme}://${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+            "file" ->
+              "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/${impressionMetadataBlob.blobKey}"
+            else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+          }
+        logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
+        val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
         if (impressionBlob == null) {
-          logger.info("Encrypted impressions blob non found for metadata: $metadata_blob_uri.")
+          logger.info(
+            "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
+          )
         } else {
+          logger.info("MetadataBlobUri is: $metadataBlobUri")
           val impressionMetadata = impressionMetadata {
-            this.blobUri = metadata_blob_uri
+            this.blobUri = metadataBlobUri
+            blobTypeUrl = BLOB_TYPE_URL
             eventGroupReferenceId = blobDetails.eventGroupReferenceId
             modelLine = blobDetails.modelLine
             interval = blobDetails.interval
@@ -295,9 +355,23 @@ class DataAvailabilitySync(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")
+    private val SYNC_STATUS_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.sync_status")
+    private val RPC_METHOD_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
+    private val STATUS_CODE_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+    private const val SYNC_STATUS_SUCCESS = "success"
+    private const val SYNC_STATUS_FAILED = "failed"
+    private const val RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS =
+      "ReplaceDataAvailabilityIntervals"
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
+    private const val BLOB_TYPE_URL =
+      "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }
 }

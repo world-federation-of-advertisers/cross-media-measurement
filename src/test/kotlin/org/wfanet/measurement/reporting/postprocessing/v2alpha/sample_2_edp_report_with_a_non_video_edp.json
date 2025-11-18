@@ -1,0 +1,3377 @@
+{
+  "name": "measurementConsumers/DZG7LP8dadw/reports/b25b5bc8c9405da3d16c5e8cfdb070",
+  "reportingMetricEntries": [
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/f61d1a5fbed74bc0a17c725b67664505",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130",
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/df0e15da60864f6e81f386139b58da4b",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130",
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/b8e694bc558c471e8e977b6fd7185b6d",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130",
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/ae4be7b332ca4315b6836de79a3f4c52",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130",
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/a339ef594bc44df08614a382f17617c5",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc5748706e3a4b31989f759bc7c72432"
+        ]
+      }
+    },
+    {
+      "key": "measurementConsumers/DZG7LP8dadw/reportingSets/c5b25476fe5461da17e33e076e5002b",
+      "value": {
+        "metricCalculationSpecs": [
+          "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc5748706e3a4b31989f759bc7c72432"
+        ]
+      }
+    }
+  ],
+  "state": "SUCCEEDED",
+  "createTime": "2025-10-28T09:26:23.736404Z",
+  "metricCalculationResults": [
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/f61d1a5fbed74bc0a17c725b67664505",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-21T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1043140",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Uvb9pyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a028384d3-cf9f-45d0-893e-833b472a9771",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-04T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1518665",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Hg6b9Soj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a0e99b17e-9bf5-47f9-aa9f-be0b5e96626a",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-07T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "410400",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/GB5O_Soj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a4d6431fc-dc4b-4896-83ea-a957f54601d1",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-25T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1692637",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/ej_9OtXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a57ec8e6c-47c2-460f-aff6-df6a95813a1f",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-28T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1311852",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/IoePi9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a5cb0a166-5972-4b1b-a929-1e26da013782",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1688453",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/V1J-J9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a7049eed1-b280-4096-80b7-21a16854d8ec",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-11T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1651149",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/ISSBRSoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aa0b4f82e-cd70-4d40-ad1a-3c9fa1c53d3f",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-18T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1694235",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/GB4yedXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ab8d0edd7-bfb3-49b6-a271-0cdd419ec41f",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-14T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "747571",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/W1msNNXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ae4287530-8fa5-47a4-8c86-ec5c9ab5db5f",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/f61d1a5fbed74bc0a17c725b67664505",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 15,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.1256,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.2043,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.0235,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "1690970",
+                "univariateStatistics": {
+                  "standardDeviation": 1724.4139272460939
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 28330.82171087819
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 292.1185502100865
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.719049954062994E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 989.7613937415647
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.843310151637952E-4
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 298767.297889253
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 435.749502357803
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.8423052666831127E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 933.7122937222558
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.7382597884435663E-4
+                    }
+                  },
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 1220835.6586694876
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 1480.5206542782828
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 4.7382597884435663E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1724.4139272460939
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 114931.25510104577
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 308.1958873137221
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.6856592621055803E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 972.7385006453866
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.658949705167049E-4
+                    }
+                  },
+                  {
+                    "label": "15",
+                    "binResult": {
+                      "value": 26081.265124360612
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 292.201416454542
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.720836391556785E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 292.201416454542
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 1.720836391556785E-4
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 920.4094252255394
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 294.8820057370761
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7438532829932077E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 962.7513804214882
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.690959468866743E-4
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "binResult": {
+                      "value": 798.4876555431118
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 294.90275754273136
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.743978190103798E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 918.4804895939039
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.429200703913001E-4
+                    }
+                  },
+                  {
+                    "label": "8",
+                    "binResult": {
+                      "value": 108.93010569987382
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.0215161250615
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.744687024657265E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 822.0984792978618
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.859128738210947E-4
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "binResult": {
+                      "value": 195.87431850619512
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.0064119515497
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.744597425924513E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 871.7982800967077
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.153151583274333E-4
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 769.131636889248
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.5457413595530183E-4
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 712.1796405048508
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.208723092702045E-4
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 650.2585684443559
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 3.8422565809867525E-4
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 581.7839558813799
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 3.436934854958492E-4
+                    }
+                  },
+                  {
+                    "label": "13",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 504.09219078128143
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 2.976929082178662E-4
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04049276859797
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.7447993716947596E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 412.00158044885734
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 2.4313971957320413E-4
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Fa0Blyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a2fbed080-3df2-4991-aa4a-39a6b104545b",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0406,
+                "delta": 1.0E-15
+              },
+              "maximumFrequencyPerUser": 15,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0406,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "6145789",
+              "univariateStatistics": {
+                "standardDeviation": 15529.649018554683
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/BwqJE9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ad73c1915-be26-4594-84ad-720cfb653a33",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/df0e15da60864f6e81f386139b58da4b",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-14T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "479090",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/WOfB8Coj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a0fe011dc-f73e-4187-b3f2-c7f5c62cb007",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-21T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "684802",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/RelDuSoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a68badee6-4681-43db-9a6a-abffde8fe338",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-11T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1116596",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/MGy9hyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a85937554-7aa0-4610-af0b-f0a02dd06e2d",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-07T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "262606",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/B1SHwdXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aa0cf22a3-10a9-4e88-afb5-29bb784f9dd7",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-28T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "874100",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/ZX4mnioj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aaf61ff0e-7863-4ab4-a7f7-e503136506dd",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1147257",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/X0wZ8Soj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ab71e97c9-4a64-413e-bdf5-87a7e4c38a3e",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-18T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1145177",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/QNXp-9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ae3611837-2eb1-42cb-8ef0-312fd4179185",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-04T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1023672",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/OPQr1yoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ae3c14e7c-8690-44b2-b2f0-fd1cf5e8ad19",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-25T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1144671",
+              "univariateStatistics": {
+                "standardDeviation": 1724.4139272460939
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Vt0ysCoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aff5bd0c7-fb44-4198-9145-51fb6ab8eabc",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/df0e15da60864f6e81f386139b58da4b",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0406,
+                "delta": 1.0E-15
+              },
+              "maximumFrequencyPerUser": 15,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0406,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "3694073",
+              "univariateStatistics": {
+                "standardDeviation": 12596.270870605465
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/JpBUcCoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a556a8dd6-d0dc-4f07-bb63-3a39fc7c0a72",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 15,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.1256,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.2043,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.0235,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "1144806",
+                "univariateStatistics": {
+                  "standardDeviation": 1724.4139272460939
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 912269.854728466
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 1632.712852985062
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 7.702121828173183E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1724.4139272460939
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 167230.05842146426
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 391.06536972814104
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.612943202844079E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 948.7680838500822
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 7.702121828173183E-4
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 35294.2745604788
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 292.8293261991788
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.5153834720018466E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1008.1929798805515
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 8.764640832656614E-4
+                    }
+                  },
+                  {
+                    "label": "15",
+                    "binResult": {
+                      "value": 25670.650457374093
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 292.0561980282208
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.528680042407968E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 292.0561980282208
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 2.528680042407968E-4
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 3722.2792532390245
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 294.15670874016945
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.569019859432951E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 996.3733936930481
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 8.694453021924751E-4
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 206.62692556194105
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 294.9876534335406
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.576743610600969E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 956.9835519342253
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 8.352181958339682E-4
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "binResult": {
+                      "value": 393.2898969633081
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 294.94015374091805
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.5763249335963455E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 912.7132262876765
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 7.965246478889476E-4
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "binResult": {
+                      "value": 18.965756452545314
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.03578814092003
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577165493996674E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 866.276419492158
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 7.559453208942221E-4
+                    }
+                  },
+                  {
+                    "label": "8",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 816.891984193409
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 7.127630205324068E-4
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 764.308455481477
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 6.667757138648224E-4
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 707.8292989143057
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 6.173723202099417E-4
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 646.4342330682633
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.636553121570577E-4
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 578.5603848895897
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.042479946259911E-4
+                    }
+                  },
+                  {
+                    "label": "13",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 501.58450957403636
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.36834945083148E-4
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 295.04067406679343
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.577208185102705E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 410.41676564884983
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 3.569082492844068E-4
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/MjhCFtXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a587356bb-3f4b-4495-8047-e4277130a6ca",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/b8e694bc558c471e8e977b6fd7185b6d",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-25T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "948196",
+              "univariateStatistics": {
+                "standardDeviation": 9481.960000000001
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/IoSIESoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a145c0989-2350-47c7-b4f5-4787d89c1d60",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-28T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "739763",
+              "univariateStatistics": {
+                "standardDeviation": 7397.63
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/TreBC9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a1dc54b6c-7174-431e-8697-313bcd66b1a1",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-04T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "846615",
+              "univariateStatistics": {
+                "standardDeviation": 8466.15
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/YQcTiyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a1f224dcb-82f3-4315-b615-ec182002ba80",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "948196",
+              "univariateStatistics": {
+                "standardDeviation": 9481.960000000001
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/G91sTyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a252c5b7f-911b-4f57-ba12-eccda4f30a56",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-18T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "948196",
+              "univariateStatistics": {
+                "standardDeviation": 9481.960000000001
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/YaugWNXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a6b856330-005c-4ed4-8e6b-c7bae520b17b",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-11T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "928154",
+              "univariateStatistics": {
+                "standardDeviation": 9281.54
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/F_Ombioj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aa42d0f01-626b-4c68-965f-e65dad839339",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-07T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "286687",
+              "univariateStatistics": {
+                "standardDeviation": 2866.87
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/PrsdOioj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ab9f03a72-5b67-4eef-806a-a9da40ca0b46",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-14T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "461283",
+              "univariateStatistics": {
+                "standardDeviation": 4612.83
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Uvop89XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ad9211071-8233-45c7-b48d-da95db6d35d8",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-21T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "609047",
+              "univariateStatistics": {
+                "standardDeviation": 6090.47
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/SuAzvSoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aeb2adc6f-89b3-4b10-b080-e9e567608335",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/b8e694bc558c471e8e977b6fd7185b6d",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 15,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.1256,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.2043,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.0235,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "969026",
+                "univariateStatistics": {
+                  "standardDeviation": 0.0
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "8",
+                    "binResult": {
+                      "value": 25161.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "binResult": {
+                      "value": 69.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 171123.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 10729.2122
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 14590.7878
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "13",
+                    "binResult": {
+                      "value": 4.111
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "binResult": {
+                      "value": 28187.889
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 613336.9996
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "binResult": {
+                      "value": 3359.0004
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "binResult": {
+                      "value": 13293.667
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 56431.333
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "binResult": {
+                      "value": 17.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "15",
+                    "binResult": {
+                      "value": 11900.5
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "binResult": {
+                      "value": 20822.5
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "binResult": {
+                      "value": 0.0
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/JT30sioj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a36548633-0345-4099-9faf-fb846cf69e6f",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0406,
+                "delta": 1.0E-15
+              },
+              "maximumFrequencyPerUser": 15,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0406,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "3333530",
+              "univariateStatistics": {
+                "standardDeviation": 0.0
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/OQlF7Soj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a80eee7ed-2699-4745-8192-66cdd71fff6d",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_true",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/ae4be7b332ca4315b6836de79a3f4c52",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-21T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1651415",
+              "univariateStatistics": {
+                "standardDeviation": 2144.5849786274807
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/FKBtWtXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a2489c92f-ab16-4d8e-9c3b-71defc69b560",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-07T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "700484",
+              "univariateStatistics": {
+                "standardDeviation": 1658.2327280835702
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/LOSO4tXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a2de62e49-4e99-460c-bc7a-48f710ccfac1",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-04T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2356181",
+              "univariateStatistics": {
+                "standardDeviation": 2434.6717727008254
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/cN5Y4NXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a5f3528af-c39d-4752-a792-3322575b8192",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2628218",
+              "univariateStatistics": {
+                "standardDeviation": 2535.88899614324
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Zcs-FSoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a64eaf822-ced0-408f-833b-62911f4afb78",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-18T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2630427",
+              "univariateStatistics": {
+                "standardDeviation": 2536.6900378079013
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/TT9HXCoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a6b028dc1-f6d6-482d-932b-74ff996ffeaa",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-14T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1212975",
+              "univariateStatistics": {
+                "standardDeviation": 1937.693924755334
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/anLhPSoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/aa5e7456b-edef-4662-9183-4458c36011d5",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-11T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2569190",
+              "univariateStatistics": {
+                "standardDeviation": 2514.363279587283
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/U2rfW9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ab204642c-d2e8-497e-abab-18d6dcab0c2f",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-08-28T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2042860",
+              "univariateStatistics": {
+                "standardDeviation": 2311.171383458435
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/JlZVvtXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/abe6315d4-2b10-48e8-8c5c-264ed234a534",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.1286,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-09-25T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "2628363",
+              "univariateStatistics": {
+                "standardDeviation": 2535.9415868687142
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/JZnYi9XcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/ae8511acc-eeb0-4b9d-947d-b9f5b4a14bb0",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130"
+    },
+    {
+      "displayName": "METRICS_frequency_impressions_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/ae4be7b332ca4315b6836de79a3f4c52",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reachAndFrequency": {
+              "maximumFrequency": 15,
+              "multipleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.1256,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.2043,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "reachPrivacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "frequencyPrivacyParams": {
+                  "epsilon": 0.0235,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reachAndFrequency": {
+              "reach": {
+                "value": "2632290",
+                "univariateStatistics": {
+                  "standardDeviation": 2537.3653599184804
+                }
+              },
+              "frequencyHistogram": {
+                "bins": [
+                  {
+                    "label": "5",
+                    "binResult": {
+                      "value": 12460.601757197326
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 258.0082824897721
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 9.795482777249022E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1341.041155367224
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.8682051769397076E-4
+                    }
+                  },
+                  {
+                    "label": "1",
+                    "binResult": {
+                      "value": 1797447.8640796817
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 1890.3391981549896
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 5.133530119010608E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 2537.3653599184804
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 0.0
+                    }
+                  },
+                  {
+                    "label": "13",
+                    "binResult": {
+                      "value": 15.151509918771067
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 203.240714931742
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 7.7210609254523E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1385.2699137606567
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.207107751522169E-4
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "binResult": {
+                      "value": 45448.46915234569
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 365.34172774087057
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.382103160625079E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1359.7228645990851
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.86211034408916E-4
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "binResult": {
+                      "value": 3524.24120710615
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 220.0696947444806
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 8.359809702705339E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1342.5393324201038
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.037518797949833E-4
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "binResult": {
+                      "value": 366.66654003425987
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 204.98638902760533
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 7.787371928633811E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1400.0780889332475
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.263978821703455E-4
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "binResult": {
+                      "value": 13251.510574957174
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 261.1005656035485
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 9.912230321952657E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1337.1589853658961
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.996291321586587E-4
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "binResult": {
+                      "value": 28093.92969138531
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 313.50437205653225
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.1884058318035793E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1346.4886405533703
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.946934615839431E-4
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "binResult": {
+                      "value": 33.333321821296344
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 203.33060179825304
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 7.724475660381842E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1355.191404961666
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.091503562818573E-4
+                    }
+                  },
+                  {
+                    "label": "15",
+                    "binResult": {
+                      "value": 38215.13831712439
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 1414.4797340372563
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 5.319783838948985E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1414.4797340372563
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.319783838948985E-4
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "binResult": {
+                      "value": 174924.18201221197
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 628.7404379708103
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 2.338037182541676E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1469.430432255068
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.978734682347292E-4
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "binResult": {
+                      "value": 21139.38663866939
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 290.1356404465153
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.1006342261887214E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1347.0312158071342
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.913458393431352E-4
+                    }
+                  },
+                  {
+                    "label": "8",
+                    "binResult": {
+                      "value": 25054.53680167984
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 303.514023502615
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 1.1509151528330044E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1340.6943866897172
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 4.970247939650894E-4
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "binResult": {
+                      "value": 472287.71567801293
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 996.0254445071066
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 3.546352388753193E-4
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1748.2313682215056
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.133529075343481E-4
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "binResult": {
+                      "value": 27.27271785378792
+                    },
+                    "resultUnivariateStatistics": {
+                      "standardDeviation": 203.30064393166128
+                    },
+                    "relativeUnivariateStatistics": {
+                      "standardDeviation": 7.723337587012345E-5
+                    },
+                    "kPlusUnivariateStatistics": {
+                      "standardDeviation": 1370.3113406491761
+                    },
+                    "relativeKPlusUnivariateStatistics": {
+                      "standardDeviation": 5.149627441348142E-4
+                    }
+                  }
+                ]
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/Vx2JytXcIxQ"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a1a963357-1c23-4f75-8895-250a010c5b7e",
+          "state": "SUCCEEDED"
+        },
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "impressionCount": {
+              "privacyParams": {
+                "epsilon": 0.0406,
+                "delta": 1.0E-15
+              },
+              "maximumFrequencyPerUser": 15,
+              "params": {
+                "privacyParams": {
+                  "epsilon": 0.0406,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            },
+            "vidSamplingInterval": {
+              "start": 0.0,
+              "width": 1.0
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "impressionCount": {
+              "value": "9505403",
+              "univariateStatistics": {
+                "standardDeviation": 16219.855641601558
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/JdwSjyoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a23f4e00c-b1ea-4819-9655-e825855c0a48",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/a339ef594bc44df08614a382f17617c5",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.3586,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "1684116",
+              "univariateStatistics": {
+                "standardDeviation": 9815.591111135027
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/HUSHXioj3Ow",
+              "measurementConsumers/DZG7LP8dadw/measurements/AyGS4Coj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a0fb64429-f724-4eaf-a3c1-5125b732eea9",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc5748706e3a4b31989f759bc7c72432"
+    },
+    {
+      "displayName": "METRICS_reach_CUMULATIVE_false",
+      "reportingSet": "measurementConsumers/DZG7LP8dadw/reportingSets/c5b25476fe5461da17e33e076e5002b",
+      "resultAttributes": [
+        {
+          "groupingPredicates": [],
+          "metricSpec": {
+            "reach": {
+              "multipleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.022,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.3586,
+                  "width": 0.33
+                }
+              },
+              "singleDataProviderParams": {
+                "privacyParams": {
+                  "epsilon": 0.00387,
+                  "delta": 1.0E-15
+                },
+                "vidSamplingInterval": {
+                  "start": 0.0,
+                  "width": 1.0
+                }
+              }
+            }
+          },
+          "timeInterval": {
+            "startTime": "2025-07-31T00:00:00Z",
+            "endTime": "2025-10-02T00:00:00Z"
+          },
+          "metricResult": {
+            "reach": {
+              "value": "942931",
+              "univariateStatistics": {
+                "standardDeviation": 3068.5395581257353
+              }
+            },
+            "cmmsMeasurements": [
+              "measurementConsumers/DZG7LP8dadw/measurements/YUc74NXcIxQ",
+              "measurementConsumers/DZG7LP8dadw/measurements/GW13aCoj3Ow"
+            ]
+          },
+          "filter": "(common.sex\u003d\u003d2\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))||(common.sex\u003d\u003d1\u0026\u0026(common.age_group\u003d\u003d1||common.age_group\u003d\u003d2||common.age_group\u003d\u003d3))",
+          "metric": "measurementConsumers/DZG7LP8dadw/metrics/a69ef5aec-db8b-429a-9ff7-dc51980d9c93",
+          "state": "SUCCEEDED"
+        }
+      ],
+      "metricCalculationSpec": "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc5748706e3a4b31989f759bc7c72432"
+    }
+  ],
+  "reportSchedule": "",
+  "tags": {
+    "brands": "\u0027Call Connect\u0027 \u0027Call Connect\u0027 \u0027Lucky Lipstick\u0027 \u0027Mega Mobile\u0027",
+    "campaign_name": "TEST_ORGN_Validation_GGMETA_ 281025",
+    "end_date": "2025-10-02T00:00:00Z",
+    "filter_video_viewability_mrc": "video.viewable_100_percent",
+    "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/da995a4415ad0b8b8e1eaf3678": "{common_filter\u003dFEMALE_AGE_GROUP1;FEMALE_AGE_GROUP2;FEMALE_AGE_GROUP3;MALE_AGE_GROUP1;MALE_AGE_GROUP2;MALE_AGE_GROUP3;, cumulative\u003dfalse, grouping\u003d-, metric_frequency\u003d-, metrics\u003dfrequency5,impressions, set_operation\u003dunion}",
+    "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc5748706e3a4b31989f759bc7c72432": "{common_filter\u003dFEMALE_AGE_GROUP1;FEMALE_AGE_GROUP2;FEMALE_AGE_GROUP3;MALE_AGE_GROUP1;MALE_AGE_GROUP2;MALE_AGE_GROUP3;, cumulative\u003dfalse, grouping\u003d-, metric_frequency\u003d-, metrics\u003dreach, set_operation\u003ddifference}",
+    "measurementConsumers/DZG7LP8dadw/metricCalculationSpecs/dc98dc43754bafa17a11bc26180130": "{common_filter\u003dFEMALE_AGE_GROUP1;FEMALE_AGE_GROUP2;FEMALE_AGE_GROUP3;MALE_AGE_GROUP1;MALE_AGE_GROUP2;MALE_AGE_GROUP3;, cumulative\u003dtrue, grouping\u003d-, metric_frequency\u003dweekly4, metrics\u003dreach, set_operation\u003dcumulative}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/a339ef594bc44df08614a382f17617c5": "{anchor\u003ddataProviders/b_c2t_MXJGA, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003df61d1a5fbed74bc0a17c725b67664505, measured_entity\u003ddataProviders/b_c2t_MXJGA, measurement_entities\u003ddataProviders/NyXtavMArrQ, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dOTHER VIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003db8e694bc558c471e8e977b6fd7185b6d, set_operation\u003ddifference,incrementality, target\u003ddataProviders/NyXtavMArrQ,dataProviders/b_c2t_MXJGA, unique_Reach_Target\u003ddataProviders/b_c2t_MXJGA, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/ae4be7b332ca4315b6836de79a3f4c52": "{anchor\u003ddataProviders/b_c2t_MXJGA, campaign_id\u003d8f792148-ad8a-4223-b81d-a89e0063ee5e, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003db8e694bc558c471e8e977b6fd7185b6d f61d1a5fbed74bc0a17c725b67664505, measured_entity\u003ddataProviders/NyXtavMArrQ,dataProviders/b_c2t_MXJGA, measurement_entities\u003ddataProviders/NyXtavMArrQ, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dOTHER VIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,cumulative,marked unions for reach only, target\u003ddataProviders/NyXtavMArrQ,dataProviders/b_c2t_MXJGA, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/b8e694bc558c471e8e977b6fd7185b6d": "{anchor\u003ddataProviders/b_c2t_MXJGA, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/NyXtavMArrQ, measurement_entities\u003ddataProviders/NyXtavMArrQ, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dOTHER, position_in_incrementality\u003d, primitive_egroup_id\u003dC5hXR5DZYsY KZYJfG8mmhk, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,cumulative,marked unions for reach only, target\u003ddataProviders/NyXtavMArrQ, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/c5b25476fe5461da17e33e076e5002b": "{anchor\u003ddataProviders/b_c2t_MXJGA, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003db8e694bc558c471e8e977b6fd7185b6d, measured_entity\u003ddataProviders/NyXtavMArrQ, measurement_entities\u003ddataProviders/NyXtavMArrQ, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dOTHER VIDEO, position_in_incrementality\u003dmeasuredEntity2, primitive_egroup_id\u003d, rhs_reporting_set_ids\u003df61d1a5fbed74bc0a17c725b67664505, set_operation\u003ddifference,incrementality, target\u003ddataProviders/NyXtavMArrQ,dataProviders/b_c2t_MXJGA, unique_Reach_Target\u003ddataProviders/NyXtavMArrQ, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/df0e15da60864f6e81f386139b58da4b": "{anchor\u003d, campaign_id\u003d, channels\u003d, incrementality_type\u003d, lhs_reporting_set_ids\u003d, measured_entity\u003d, measurement_entities\u003d, measurement_policy\u003dMRC, measurement_policy_incrementality\u003d, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003dBPyIZqMMMpA LJQ4U1zzz2s, rhs_reporting_set_ids\u003d, set_operation\u003dunion,cumulative, target\u003ddataProviders/b_c2t_MXJGA, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003dviewable_100_percent}",
+    "measurementConsumers/DZG7LP8dadw/reportingSets/f61d1a5fbed74bc0a17c725b67664505": "{anchor\u003ddataProviders/b_c2t_MXJGA, campaign_id\u003d, channels\u003d, incrementality_type\u003dENTITY, lhs_reporting_set_ids\u003d, measured_entity\u003ddataProviders/b_c2t_MXJGA, measurement_entities\u003ddataProviders/NyXtavMArrQ, measurement_policy\u003dAMI, measurement_policy_incrementality\u003dAMI, media_type\u003dVIDEO, position_in_incrementality\u003d, primitive_egroup_id\u003dBPyIZqMMMpA LJQ4U1zzz2s, rhs_reporting_set_ids\u003d, set_operation\u003dunion,incrementality,cumulative,marked unions for reach only, target\u003ddataProviders/b_c2t_MXJGA, unique_Reach_Target\u003d, version\u003d1.0, video_completion\u003d, viewability\u003d}",
+    "media_types": "OTHER VIDEO",
+    "population": "MALE_AGE_GROUP1\u003d8163000;MALE_AGE_GROUP2\u003d8292000;MALE_AGE_GROUP3\u003d10136000;FEMALE_AGE_GROUP1\u003d7819000;FEMALE_AGE_GROUP2\u003d9229000;FEMALE_AGE_GROUP3\u003d11328000",
+    "report_name": "TEST_ORGN_Validation_GGMETA_281025",
+    "start_date": "2025-07-31T00:00:00Z",
+    "target": "\u0027dataProviders/NyXtavMArrQ\u0027 \u0027dataProviders/b_c2t_MXJGA\u0027"
+  },
+  "reportingInterval": {
+    "reportStart": {
+      "year": 2025,
+      "month": 7,
+      "day": 31,
+      "hours": 0,
+      "minutes": 0,
+      "seconds": 0,
+      "nanos": 0,
+      "utcOffset": "0s"
+    },
+    "reportEnd": {
+      "year": 2025,
+      "month": 10,
+      "day": 2
+    }
+  }
+}

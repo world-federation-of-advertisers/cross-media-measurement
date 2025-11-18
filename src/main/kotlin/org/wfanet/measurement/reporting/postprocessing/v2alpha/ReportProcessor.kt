@@ -28,10 +28,19 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.logging.Logger
 import kotlin.io.path.name
+import kotlin.math.roundToLong
 import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog.ReportPostProcessorIssue
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorStatus
 import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessor.Default.currentStorageFactory
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -247,7 +256,7 @@ interface ReportProcessor {
      */
     private fun processReport(report: Report, verbose: Boolean = false): ReportProcessingOutput {
       val reportSummaries = report.toReportSummaries()
-      val correctedMeasurementsMap = mutableMapOf<String, Long>()
+      val correctedMeasurementsMap = mutableMapOf<String, Double>()
       val resultMap = mutableMapOf<String, ReportPostProcessorResult>()
       val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
 
@@ -277,7 +286,7 @@ interface ReportProcessor {
           result.status.statusCode != ReportPostProcessorStatus.StatusCode.SOLUTION_NOT_FOUND &&
             result.status.statusCode != ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR
         ) {
-          val updatedMeasurements = mutableMapOf<String, Long>()
+          val updatedMeasurements = mutableMapOf<String, Double>()
           result.updatedMeasurementsMap.forEach { (key, value) -> updatedMeasurements[key] = value }
           correctedMeasurementsMap.putAll(updatedMeasurements)
         }
@@ -331,7 +340,23 @@ interface ReportProcessor {
         ) {
           foundIssues.add(ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION)
         }
+
+        // Checks for large corrections.
+        if (result.largeCorrectionsList.isNotEmpty()) {
+          foundIssues.add(ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS)
+        }
       }
+
+      val isSuccessful =
+        foundIssues
+          .intersect(
+            listOf(
+              ReportPostProcessorIssue.INTERNAL_ERROR,
+              ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS,
+              ReportPostProcessorIssue.QP_SOLUTION_NOT_FOUND,
+            )
+          )
+          .isEmpty()
 
       val updatedReport: Report = updateReport(report, correctedMeasurementsMap)
 
@@ -340,6 +365,7 @@ interface ReportProcessor {
         createTime = report.createTime
         results.putAll(resultMap)
         issues.addAll(foundIssues)
+        postProcessingSuccessful = isSuccessful
       }
 
       return ReportProcessingOutput(
@@ -411,7 +437,7 @@ interface ReportProcessor {
      */
     private fun updateMetricCalculationResult(
       metricCalculationResult: Report.MetricCalculationResult,
-      correctedMeasurementsMap: Map<String, Long>,
+      correctedMeasurementsMap: Map<String, Double>,
     ): Report.MetricCalculationResult {
       val updatedMetricCalculationResult =
         metricCalculationResult.copy {
@@ -426,7 +452,9 @@ interface ReportProcessor {
                       metricResult =
                         metricResult.copy {
                           reach =
-                            reach.copy { value = correctedMeasurementsMap.getValue(entry.metric) }
+                            reach.copy {
+                              value = correctedMeasurementsMap.getValue(entry.metric).roundToLong()
+                            }
                         }
                     }
                     entry.metricResult.hasReachAndFrequency() -> {
@@ -436,7 +464,8 @@ interface ReportProcessor {
                             reachAndFrequency.copy {
                               reach =
                                 reach.copy {
-                                  value = correctedMeasurementsMap.getValue(entry.metric)
+                                  value =
+                                    correctedMeasurementsMap.getValue(entry.metric).roundToLong()
                                 }
                               frequencyHistogram =
                                 frequencyHistogram.copy {
@@ -465,7 +494,7 @@ interface ReportProcessor {
                         metricResult.copy {
                           impressionCount =
                             impressionCount.copy {
-                              value = correctedMeasurementsMap.getValue(entry.metric)
+                              value = correctedMeasurementsMap.getValue(entry.metric).roundToLong()
                             }
                         }
                     }
@@ -479,7 +508,10 @@ interface ReportProcessor {
     }
 
     /** Returns a [Report] with updated reach values from the [correctedMeasurementsMap]. */
-    private fun updateReport(report: Report, correctedMeasurementsMap: Map<String, Long>): Report {
+    private fun updateReport(
+      report: Report,
+      correctedMeasurementsMap: Map<String, Double>,
+    ): Report {
       val correctedMetricCalculationResults =
         report.metricCalculationResultsList.map { result ->
           updateMetricCalculationResult(result, correctedMeasurementsMap)

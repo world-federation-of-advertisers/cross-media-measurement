@@ -1,0 +1,76 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.postprocessing;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/postprocessing/report_post_processor_result.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
+option java_multiple_files = true;
+option java_outer_classname = "ReportPostProcessorLogProto";
+
+// Represents a log entry containing the results and metadata associated with
+// running the report post-processing pipeline on a report.
+message ReportPostProcessorLog {
+  // A unique identifier for the report that was processed.
+  string report_id = 1;
+
+  // The creation date of the original report.
+  google.protobuf.Timestamp create_time = 2;
+
+  // The detailed outcome of the post-processing pipeline for the filtered
+  // demographic group or for each demographic slice, including solver status,
+  // quality check results (pre/post), and the corrected measurements if a
+  // solution is found.
+  map<string, ReportPostProcessorResult> results = 3;
+
+  // Defines specific issues that can be identified during report processing
+  // or quality checks, potentially both before and after noise correction.
+  enum ReportPostProcessorIssue {
+    // Default value, issue type not specified or unknown.
+    ISSUE_UNSPECIFIED = 0;
+
+    // The QP solver failed to find any feasible solution for the whole report.
+    QP_SOLUTION_NOT_FOUND = 1;
+
+    // Zero variance measurements failed consistency checks before correction.
+    ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_PRE_CORRECTION = 2;
+
+    // Zero variance measurements failed consistency checks after correction.
+    ZERO_VARIANCE_MEASUREMENTS_INCONSISTENT_POST_CORRECTION = 3;
+
+    // Independence check for union failed before correction.
+    INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION = 4;
+
+    // Independence check for union failed after correction.
+    INDEPENDENCE_CHECK_FAILS_POST_CORRECTION = 5;
+
+    // The process crashed or terminated unexpectedly due to an internal error.
+    INTERNAL_ERROR = 6;
+
+    // There are large corrections.
+    HAS_LARGE_CORRECTIONS = 7;
+  }
+
+  repeated ReportPostProcessorIssue issues = 4;
+
+  // True if the post-processing pipeline completed without fatal errors and the
+  // resulting corrected report is considered reliable. This will be false if
+  // the solver fails, or an internal error occurs, or there are some large
+  // corrections.
+  bool post_processing_successful = 5;
+}

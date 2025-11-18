@@ -72,7 +72,34 @@ variable "data_watcher_tls_pem" {
   })
 }
 
+variable "data_availability_tls_key" {
+  description = "Data Availability tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "data_availability_tls_pem" {
+  description = "Data Availability tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
 variable "secure_computation_root_ca" {
+  description = "Secure Computation root CA"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "metadata_storage_root_ca" {
   description = "Secure Computation root CA"
   type = object({
     secret_id         = string
@@ -228,6 +255,12 @@ variable "event_group_sync_function_name" {
   nullable    = false
 }
 
+variable "data_availability_sync_function_name" {
+  description = "Name of the DataAvailabilitySync cloud function."
+  type        = string
+  nullable    = false
+}
+
 variable "cloud_function_configs" {
   type = map(object({
     function_name       = string
@@ -244,6 +277,30 @@ variable "results_fulfiller_disk_image_family" {
   default     = "confidential-space"
 }
 
+variable "private_subnetwork_name" {
+  description = "The name of the subnetwork for the MIG instances."
+  type        = string
+  default     = "private-subnet"
+}
+
+variable "private_router_name" {
+  description = "The name for the Cloud Router for the private network."
+  type        = string
+  default     = "nat-router"
+}
+
+variable "nat_name" {
+  description = "The name for the Cloud NAT gateway."
+  type        = string
+  default     = "nat-gateway"
+}
+
+variable "dns_managed_zone_name" {
+  description = "The name for Google DNS Managed Zone."
+  type        = string
+  default     = "nat-gateway"
+}
+
 variable "requisition_fetcher_scheduler_config" {
   description = "Configuration for Google Cloud Scheduler to trigger the RequisitionFetcher"
   type = object({
@@ -256,6 +313,18 @@ variable "requisition_fetcher_scheduler_config" {
     scheduler_job_description   = string
   })
   nullable = false
+}
+
+variable "private_subnetwork_cidr_range" {
+  description = "The range of IP addresses belonging to this subnetwork."
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "private_subnetwork_network" {
+  description = "The network this subnet belongs to"
+  type        = string
+  default     = "default"
 }
 
 variable "edp_aggregator_service_account_name" {
@@ -277,4 +346,29 @@ variable "spanner_database_name" {
   type        = string
   default     = "edp-aggregator"
   nullable    = false
+}
+
+variable "requisition_fetcher_tls_key" {
+  description = "Requisition Fetcher tls key"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "requisition_fetcher_tls_pem" {
+  description = "Requisition Fetcher tls pem"
+  type = object({
+    secret_id         = string
+    secret_local_path = string
+    is_binary_format  = bool
+  })
+}
+
+variable "edp_aggregator_api_server_ip_address" {
+  description = "IP address for edp aggregator public API server"
+  type        = string
+  nullable    = true
+  default     = null
 }

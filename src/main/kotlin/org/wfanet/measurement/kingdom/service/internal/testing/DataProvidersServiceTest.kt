@@ -18,6 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
 import com.google.rpc.errorInfo
 import com.google.type.copy
 import com.google.type.interval
@@ -38,6 +40,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -116,6 +119,8 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       .contains("Details field of DataProvider is missing fields.")
   }
 
+  // TODO:Add test for availability outside of active range
+
   @Test
   fun `createDataProvider returns created DataProvider`() = runBlocking {
     val request = CREATE_DATA_PROVIDER_REQUEST
@@ -136,7 +141,6 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   @Test
   fun `createDataProvider returns created DataProvider with availability intervals`() =
     runBlocking {
-      val now: Instant = clock.instant()
       val modelLines: List<ModelLine> =
         (1..3).map {
           population.createModelLine(
@@ -156,9 +160,9 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
                   externalModelLineId = modelLine.externalModelLineId
                 }
                 value = interval {
-                  val start = now.minus((index + 3) * 90L, ChronoUnit.DAYS)
-                  startTime = start.toProtoTime()
-                  endTime = start.plus(180L, ChronoUnit.DAYS).toProtoTime()
+                  startTime =
+                    Timestamps.add(modelLine.activeStartTime, Durations.fromDays(index.toLong()))
+                  endTime = Timestamps.add(modelLine.activeStartTime, Durations.fromDays(90L))
                 }
               }
           }
@@ -187,6 +191,45 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELD_DESCRIPTORS)
       .ignoringFieldDescriptors(EXTERNAL_ID_FIELD_DESCRIPTORS)
       .isEqualTo(request)
+  }
+
+  @Test
+  fun `createDataProvider throws FAILED_PRECONDITION when ModelLine not active`() = runBlocking {
+    val modelProvider = population.createModelProvider(services.modelProvidersService)
+    val modelSuite = population.createModelSuite(services.modelSuitesService, modelProvider)
+    val modelLine = population.createModelLine(services.modelLinesService, modelSuite)
+    val request =
+      CREATE_DATA_PROVIDER_REQUEST.copy {
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = modelLine.externalModelProviderId
+              externalModelSuiteId = modelLine.externalModelSuiteId
+              externalModelLineId = modelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = Timestamps.subtract(modelLine.activeStartTime, Durations.fromDays(1L))
+              endTime = Timestamps.add(modelLine.activeStartTime, Durations.fromDays(30L))
+            }
+          }
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { dataProvidersService.createDataProvider(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = KingdomInternalException.DOMAIN
+          reason = ErrorCode.MODEL_LINE_NOT_ACTIVE.name
+          metadata["external_model_provider_id"] = modelLine.externalModelProviderId.toString()
+          metadata["external_model_suite_id"] = modelLine.externalModelSuiteId.toString()
+          metadata["external_model_line_id"] = modelLine.externalModelLineId.toString()
+          metadata["active_start_time"] = modelLine.activeStartTime.toInstant().toString()
+          metadata["active_end_time"] = Timestamps.MAX_VALUE.toInstant().toString()
+        }
+      )
   }
 
   @Test
@@ -297,7 +340,6 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
 
   @Test
   fun `replaceDataAvailabilityIntervals updates DataProvider`() = runBlocking {
-    val now: Instant = clock.instant()
     val modelLines: List<ModelLine> =
       (1..3).map {
         population.createModelLine(
@@ -318,9 +360,9 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
                   externalModelLineId = modelLine.externalModelLineId
                 }
                 value = interval {
-                  val start = now.minus((index + 3) * 90L, ChronoUnit.DAYS)
-                  startTime = start.toProtoTime()
-                  endTime = start.plus(180L, ChronoUnit.DAYS).toProtoTime()
+                  startTime =
+                    Timestamps.add(modelLine.activeStartTime, Durations.fromDays(index.toLong()))
+                  endTime = Timestamps.add(modelLine.activeStartTime, Durations.fromDays(90L))
                 }
               }
           }
@@ -331,7 +373,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       // Keep/update one entry.
       dataAvailabilityIntervals +=
         dataProvider.dataAvailabilityIntervalsList.first().copy {
-          value = value.copy { endTime = now.minus(30L, ChronoUnit.DAYS).toProtoTime() }
+          value = value.copy { endTime = Timestamps.add(endTime, Durations.fromDays(1L)) }
         }
       // Add a new entry.
       dataAvailabilityIntervals +=
@@ -343,8 +385,8 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             externalModelLineId = modelLine.externalModelLineId
           }
           value = interval {
-            startTime = now.minus(100L, ChronoUnit.DAYS).toProtoTime()
-            endTime = now.minus(40L, ChronoUnit.DAYS).toProtoTime()
+            startTime = Timestamps.add(modelLine.activeStartTime, Durations.fromDays(10L))
+            endTime = Timestamps.add(modelLine.activeStartTime, Durations.fromDays(100L))
           }
         }
     }
@@ -410,6 +452,59 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             metadata["external_model_provider_id"] = modelLine.externalModelProviderId.toString()
             metadata["external_model_suite_id"] = modelLine.externalModelSuiteId.toString()
             metadata["external_model_line_id"] = "404"
+          }
+        )
+    }
+
+  @Test
+  fun `replaceDataAvailabilityIntervals throws FAILED_PRECONDITION when ModelLine not active`() =
+    runBlocking {
+      val now = clock.instant()
+      val activeInterval = interval {
+        startTime = now.plus(1L, ChronoUnit.DAYS).toProtoTime()
+        endTime = now.plus(91L, ChronoUnit.DAYS).toProtoTime()
+      }
+      val modelProvider = population.createModelProvider(services.modelProvidersService)
+      val modelSuite = population.createModelSuite(services.modelSuitesService, modelProvider)
+      val modelLine =
+        population.createModelLine(
+          services.modelLinesService,
+          modelSuite,
+          activeInterval = activeInterval,
+        )
+      val dataProvider = dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
+      val request = replaceDataAvailabilityIntervalsRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        dataAvailabilityIntervals +=
+          DataProviderKt.dataAvailabilityMapEntry {
+            key = modelLineKey {
+              externalModelProviderId = modelLine.externalModelProviderId
+              externalModelSuiteId = modelLine.externalModelSuiteId
+              externalModelLineId = modelLine.externalModelLineId
+            }
+            value = interval {
+              startTime = Timestamps.add(activeInterval.startTime, Durations.fromDays(1))
+              endTime = Timestamps.add(activeInterval.endTime, Durations.fromDays(1))
+            }
+          }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          dataProvidersService.replaceDataAvailabilityIntervals(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = KingdomInternalException.DOMAIN
+            reason = ErrorCode.MODEL_LINE_NOT_ACTIVE.name
+            metadata["external_model_provider_id"] = modelLine.externalModelProviderId.toString()
+            metadata["external_model_suite_id"] = modelLine.externalModelSuiteId.toString()
+            metadata["external_model_line_id"] = modelLine.externalModelLineId.toString()
+            metadata["active_start_time"] = modelLine.activeStartTime.toInstant().toString()
+            metadata["active_end_time"] = modelLine.activeEndTime.toInstant().toString()
           }
         )
     }

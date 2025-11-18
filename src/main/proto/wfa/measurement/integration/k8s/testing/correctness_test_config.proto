@@ -49,6 +49,29 @@ message CorrectnessTestConfig {
   string reporting_public_api_cert_host = 6;
 
   // DataProvider resource names of simulated EDPs, in order.
-  repeated string data_providers = 7
+  repeated string event_data_providers = 7
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // Resource name of the Population `DataProvider` (PDP).
+  string population_data_provider = 8
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // Resource name of the `ModelProvider` (MP).
+  string model_provider = 9
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelProvider"];
+
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 10;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 11;
+
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 12;
+
+  // Expected hostname (DNS-ID) in the access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 13;
 }

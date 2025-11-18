@@ -142,33 +142,14 @@ variable "secure_computation_public_api_target" {
   type        = string
 }
 
+variable "metadata_storage_public_api_target" {
+  description = "Metadata storage public api target"
+  type        = string
+}
+
 variable "image_tag" {
   description = "Tag of container images"
   type        = string
-}
-
-variable "data_watcher_function_name" {
-  description = "Name of the DataWatcher function"
-  type        = string
-  nullable    = false
-}
-
-variable "requisition_fetcher_function_name" {
-  description = "Name of the RequisitionFetcher function"
-  type        = string
-  nullable    = false
-}
-
-variable "event_group_sync_function_name" {
-  description = "Name of the EventGroupSync function"
-  type        = string
-  nullable    = false
-}
-
-variable "data_availability_sync_function_name" {
-  description = "Name of the DataAvailabilitySync function"
-  type        = string
-  nullable    = false
 }
 
 variable "data_watcher_env_var" {
@@ -248,6 +229,11 @@ variable "results_fulfiller_event_template_type_name" {
 
 variable "results_fulfiller_population_spec_blob_uri" {
   description = "GCS blob uri of the Results Fulfiller population spec."
+  type = string
+}
+
+variable "edpa_model_line_map" {
+  description = "Mapping of available model line for the Results Fulfiller"
   type = string
 }
 

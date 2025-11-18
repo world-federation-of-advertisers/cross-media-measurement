@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.ModelLine
+import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.ModelOutage
 import org.wfanet.measurement.internal.kingdom.Requisition
 
@@ -157,6 +158,52 @@ class ModelLineInvalidArgsException(
         "external_model_suite_id" to externalModelSuiteId.value.toString(),
         "external_model_line_id" to externalModelLineId?.value.toString(),
       )
+}
+
+class ModelLineNotActiveException
+private constructor(
+  val externalModelProviderId: ExternalId,
+  val externalModelSuiteId: ExternalId,
+  val externalModelLineId: ExternalId,
+  val activeRange: OpenEndRange<Instant>,
+  override val context: Map<String, String>,
+) : KingdomInternalException(ErrorCode.MODEL_LINE_NOT_ACTIVE, buildMessage(context)) {
+
+  constructor(
+    externalModelLineKey: ModelLineKey,
+    activeRange: OpenEndRange<Instant>,
+  ) : this(
+    ExternalId(externalModelLineKey.externalModelProviderId),
+    ExternalId(externalModelLineKey.externalModelSuiteId),
+    ExternalId(externalModelLineKey.externalModelLineId),
+    activeRange,
+    buildContext(externalModelLineKey, activeRange),
+  )
+
+  companion object {
+    private fun buildContext(
+      externalModelLineKey: ModelLineKey,
+      activeRange: OpenEndRange<Instant>,
+    ): Map<String, String> {
+      return mapOf(
+        "external_model_provider_id" to externalModelLineKey.externalModelProviderId.toString(),
+        "external_model_suite_id" to externalModelLineKey.externalModelSuiteId.toString(),
+        "external_model_line_id" to externalModelLineKey.externalModelLineId.toString(),
+        "active_start_time" to activeRange.start.toString(),
+        "active_end_time" to activeRange.endExclusive.toString(),
+      )
+    }
+
+    private fun buildMessage(context: Map<String, String>): String {
+      val externalKey =
+        "(${context.getValue("external_model_provider_id")}, " +
+          "${context.getValue("external_model_suite_id")}, " +
+          "${context.getValue("external_model_line_id")})"
+      val activeRange =
+        "[${context.getValue("active_start_time")}, ${context.getValue("active_end_time")})"
+      return "ModelLine with external key $externalKey not active outside of range $activeRange"
+    }
+  }
 }
 
 class ModelReleaseNotFoundException(

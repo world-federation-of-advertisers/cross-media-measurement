@@ -90,6 +90,16 @@ message ListEventGroupsRequest {
     // must be on or before.
     google.protobuf.Timestamp data_availability_end_time_on_or_before = 4
         [(google.api.field_behavior) = OPTIONAL];
+    // Time which
+    // [EventGroup.data_availability_interval.start_time][google.type.Interval.start_time]
+    // must be on or before.
+    google.protobuf.Timestamp data_availability_start_time_on_or_before = 6
+        [(google.api.field_behavior) = OPTIONAL];
+    // Time which
+    // [EventGroup.data_availability_interval.end_time][google.type.Interval.end_time]
+    // must be on or after.
+    google.protobuf.Timestamp data_availability_end_time_on_or_after = 7
+        [(google.api.field_behavior) = OPTIONAL];
     // Query for text search on string fields in
     // [EventGroup.event_group_metadata][].
     string metadata_search_query = 5 [(google.api.field_behavior) = OPTIONAL];

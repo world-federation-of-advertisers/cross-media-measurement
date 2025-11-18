@@ -43,7 +43,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingSet
 /** [MetricCalculationSpec] fields for equality check */
 private data class MetricCalculationSpecInfoKey(
   val filter: String,
-  val groupings: List<MetricCalculationSpec.Grouping>,
+  val groupings: Set<MetricCalculationSpec.Grouping>,
   val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec?,
   val trailingWindow: MetricCalculationSpec.TrailingWindow?,
 )
@@ -53,7 +53,6 @@ private data class MetricCalculationSpecInfo(
   var includeFrequency: Boolean = false,
   var includeReach: Boolean = false,
   var includeImpressionCount: Boolean = false,
-  var includePopulation: Boolean = false,
 )
 
 /**
@@ -66,7 +65,7 @@ private data class MetricCalculationSpecInfo(
  * @param dataProviderPrimitiveReportingSetMap Map of [DataProvider] resource name to primitive
  *   [ReportingSet] containing associated [EventGroup] resource names
  * @param resultGroupSpecs List of [ResultGroupSpec] to transform
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  * @return Map of [ReportingSet] to [MetricCalculationSpec.Details]
  */
@@ -75,11 +74,11 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
     impressionQualificationFilterSpecsLists.map {
-      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsMap)
+      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsByPath)
     }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
@@ -93,7 +92,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         val groupings: List<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
             resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
-              eventTemplateFieldsMap
+              eventTemplateFieldsByPath
             )
           } else {
             emptyList()
@@ -105,7 +104,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           createMetricCalculationSpecFilters(
             impressionQualificationFilterSpecsFilters,
             resultGroupSpec.dimensionSpec.filtersList,
-            eventTemplateFieldsMap,
+            eventTemplateFieldsByPath,
           )
 
         // The Primitive ReportingSets for the ReportingUnit
@@ -136,12 +135,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  * Transforms [ImpressionQualificationFilterSpec]s into a single CEL string
  *
  * @param impressionQualificationFilterSpecs List of [ImpressionQualificationFilterSpec]
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  */
-private fun createImpressionQualificationFilterSpecsFilter(
+fun createImpressionQualificationFilterSpecsFilter(
   impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): String {
   return impressionQualificationFilterSpecs
     .map { impressionQualificationFilterSpec ->
@@ -155,7 +154,7 @@ private fun createImpressionQualificationFilterSpecsFilter(
             when (term.value.selectorCase) {
               EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
               EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-                eventTemplateFieldsMap
+                eventTemplateFieldsByPath
                   .getValue(term.path)
                   .enumType
                   ?.findValueByName(term.value.enumValue)
@@ -178,26 +177,26 @@ private fun createImpressionQualificationFilterSpecsFilter(
 /**
  * Transforms a [DimensionSpec.Grouping] into a List of [MetricCalculationSpec.Grouping]
  *
- * @param eventTemplateFieldsMap Map of EventTemplate field name with respect to Event message to
+ * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  * @return List of [MetricCalculationSpec.Grouping]
  */
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>
 ): List<MetricCalculationSpec.Grouping> {
   if (eventTemplateFieldsList.isEmpty()) {
     return emptyList()
   }
 
   for (field in eventTemplateFieldsList) {
-    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     if (fieldInfo.enumType == null) {
       return emptyList()
     }
   }
 
   return eventTemplateFieldsList.map { field ->
-    val fieldInfo = eventTemplateFieldsMap.getValue(field)
+    val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
     val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
@@ -228,9 +227,7 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
       metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
     }
 
-    if (source.value.includePopulation) {
-      metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-    }
+    metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
   }
 }
 
@@ -240,12 +237,12 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
  *   [ReportingImpressionQualificationFilter]s
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
- * @param eventTemplateFieldsMap for creating a CEL string from [EventTemplateField]
+ * @param eventTemplateFieldsByPath for creating a CEL string from [EventTemplateField]
  */
-private fun createMetricCalculationSpecFilters(
+fun createMetricCalculationSpecFilters(
   impressionQualificationFilterSpecsFilters: List<String>,
   dimensionSpecFilters: List<EventFilter>,
-  eventTemplateFieldsMap: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
 ): List<String> {
   val dimensionSpecFilter =
     dimensionSpecFilters
@@ -258,7 +255,7 @@ private fun createMetricCalculationSpecFilters(
           when (term.value.selectorCase) {
             EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
             EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-              eventTemplateFieldsMap
+              eventTemplateFieldsByPath
                 .getValue(term.path)
                 .enumType
                 ?.findValueByName(term.value.enumValue)
@@ -339,7 +336,6 @@ private fun MutableMap<
       primitiveReportingSets.first(),
       primitiveReportingSetNames,
       campaignGroupName,
-      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 
@@ -353,7 +349,6 @@ private fun MutableMap<
       primitiveReportingSets,
       primitiveReportingSetNames,
       campaignGroupName,
-      resultGroupSpec.resultGroupMetricSpec.populationSize,
     )
   }
 }
@@ -371,7 +366,6 @@ private fun MutableMap<
  * @param firstComponentReportingSet Primitive [ReportingSet] for first component in [ReportingUnit]
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
  * @param campaignGroupName resource name of CampaignGroup [ReportingSet]
- * @param includePopulation whether to include the population
  */
 private fun MutableMap<
   ReportingSet,
@@ -386,7 +380,6 @@ private fun MutableMap<
   firstComponentReportingSet: ReportingSet,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
-  includePopulation: Boolean,
 ) {
   val metricCalculationSpecInfoMap = computeIfAbsent(reportingUnitReportingSet) { mutableMapOf() }
 
@@ -397,7 +390,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative, includePopulation)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.nonCumulative)
     }
   }
 
@@ -408,7 +401,7 @@ private fun MutableMap<
       // Insert or update entry in map belonging to ReportingSet containing ReportingUnit
       metricCalculationSpecInfoMap
         .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative, includePopulation)
+        .updateRequestedMetricSpecs(reportingUnitMetricSetSpec.cumulative)
     }
   }
 
@@ -467,7 +460,6 @@ private fun MutableMap<
  *   components
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
  * @param campaignGroupName resource name of CampaignGroup [ReportingSet]
- * @param includePopulation whether to include the population
  */
 private fun MutableMap<
   ReportingSet,
@@ -482,7 +474,6 @@ private fun MutableMap<
   primitiveReportingSets: List<ReportingSet>,
   primitiveReportingSetNames: List<String>,
   campaignGroupName: String,
-  includePopulation: Boolean,
 ) {
   for (primitiveReportingSet in primitiveReportingSets) {
     val metricCalculationSpecInfoMap = computeIfAbsent(primitiveReportingSet) { mutableMapOf() }
@@ -494,7 +485,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative, includePopulation)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.nonCumulative)
       }
     }
 
@@ -505,7 +496,7 @@ private fun MutableMap<
         // Insert or update entry in map belonging to Primitive ReportingSet
         metricCalculationSpecInfoMap
           .computeIfAbsent(key) { MetricCalculationSpecInfo() }
-          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative, includePopulation)
+          .updateRequestedMetricSpecs(componentMetricSetSpec.cumulative)
       }
     }
   }
@@ -616,11 +607,9 @@ private fun MutableMap<
  * Set which [MetricSpec]s will be needed
  *
  * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec]
- * @param includePopulation whether to include the population
  */
 private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
-  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
-  includePopulation: Boolean,
+  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
 ) {
   if (basicMetricSetSpec.reach) {
     this.includeReach = true
@@ -628,7 +617,6 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
 
   if (basicMetricSetSpec.percentReach) {
     this.includeReach = true
-    this.includePopulation = true
   }
 
   if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
@@ -639,15 +627,10 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
   if (basicMetricSetSpec.percentKPlusReach || basicMetricSetSpec.grps) {
     this.includeFrequency = true
     this.includeReach = true
-    this.includePopulation = true
   }
 
   if (basicMetricSetSpec.impressions) {
     this.includeImpressionCount = true
-  }
-
-  if (includePopulation) {
-    this.includePopulation = true
   }
 }
 
@@ -702,7 +685,7 @@ private fun createMetricCalculationSpecInfoKey(
 
   return MetricCalculationSpecInfoKey(
     filter = metricCalculationSpecFilter,
-    groupings = groupings,
+    groupings = groupings.toSet(),
     metricFrequencySpec = metricFrequencySpec,
     trailingWindow = trailingWindow,
   )

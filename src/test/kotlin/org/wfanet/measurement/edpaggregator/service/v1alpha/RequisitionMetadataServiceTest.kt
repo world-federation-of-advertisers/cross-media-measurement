@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -35,20 +36,30 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.CanonicalRequisitionKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRequisitionMetadataService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RequisitionMetadataKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.fetchLatestCmmsCreateTimeRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
@@ -56,8 +67,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPageTokenKt as InternalListRequisitionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase as InternalRequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceStub
+import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken as internalListRequisitionMetadataPageToken
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 @RunWith(JUnit4::class)
@@ -227,6 +240,323 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
+  fun `batchCreateRequisitionMetadata returns created RequisitionMetadata`() = runBlocking {
+    val request1 = createRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      requisitionMetadata = REQUISITION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val startTime = Instant.now()
+
+    val response =
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requests += request1
+          requests += request2
+        }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchCreateRequisitionMetadataResponse {
+          requisitionMetadata +=
+            request1.requisitionMetadata.copy {
+              clearName()
+              clearCreateTime()
+              clearUpdateTime()
+              clearEtag()
+            }
+          requisitionMetadata +=
+            request2.requisitionMetadata.copy {
+              clearName()
+              clearCreateTime()
+              clearUpdateTime()
+              clearEtag()
+            }
+        }
+      )
+
+    assertThat(response.requisitionMetadataList.all { it.name.isNotEmpty() }).isTrue()
+    assertThat(response.requisitionMetadataList.all { it.createTime.toInstant() >= startTime })
+      .isTrue()
+    assertThat(
+        response.requisitionMetadataList.all {
+          it.updateTime.toInstant() == it.createTime.toInstant()
+        }
+      )
+      .isTrue()
+    assertThat(
+        response.requisitionMetadataList.all { it.state == RequisitionMetadata.State.STORED }
+      )
+      .isTrue()
+  }
+
+  @Test
+  fun `batchCreateRequisitionMetadata is idempotent`() = runBlocking {
+    val idempotentRequest = createRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val initialResponse =
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requests += idempotentRequest
+        }
+      )
+    val existingRequisitionMetadata = initialResponse.requisitionMetadataList.single()
+
+    val newRequest = createRequisitionMetadataRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      requisitionMetadata = REQUISITION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+    val secondResponse =
+      service.batchCreateRequisitionMetadata(
+        batchCreateRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requests += idempotentRequest
+          requests += newRequest
+        }
+      )
+
+    assertThat(secondResponse.requisitionMetadataList.first())
+      .isEqualTo(existingRequisitionMetadata)
+
+    val newRequisitionMetadata = secondResponse.requisitionMetadataList.last()
+    assertThat(newRequisitionMetadata.name).isNotEqualTo(existingRequisitionMetadata.name)
+    assertThat(newRequisitionMetadata.createTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.createTime.toInstant())
+    assertThat(newRequisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(newRequisitionMetadata.state).isEqualTo(RequisitionMetadata.State.STORED)
+  }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for missing parent`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            requests += createRequisitionMetadataRequest {
+              requisitionMetadata = REQUISITION_METADATA
+              requestId = REQUEST_ID
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for malformed parent`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = "invalid-parent"
+              requests += createRequisitionMetadataRequest {
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = REQUEST_ID
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for inconsistent parent`() =
+    runBlocking {
+      val dataProviderId2 = externalIdToApiId(222L)
+      val dataProviderKey2 = DataProviderKey(dataProviderId2)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = dataProviderKey2.toName()
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = REQUEST_ID
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.DATA_PROVIDER_MISMATCH.name
+            metadata[Errors.Metadata.PARENT.key] = dataProviderKey2.toName()
+            metadata[Errors.Metadata.DATA_PROVIDER.key] = DATA_PROVIDER_KEY.toName()
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for malformed request id`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = "invalid-request-id"
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.0.request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate request id`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = REQUEST_ID
+              }
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA_2
+                requestId = REQUEST_ID
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.request_id"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate blob uri`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = REQUEST_ID
+              }
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA_3
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "requests.1.requisition_metadata.blob_uri"
+          }
+        )
+    }
+
+  @Test
+  fun `batchCreateRequisitionMetadata throws INVALID_ARGUMENT for duplicate cmms requisition metadata`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRequisitionMetadata(
+            batchCreateRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata = REQUISITION_METADATA
+                requestId = REQUEST_ID
+              }
+              requests += createRequisitionMetadataRequest {
+                parent = DATA_PROVIDER_KEY.toName()
+                requisitionMetadata =
+                  REQUISITION_METADATA_2.copy {
+                    cmmsRequisition = REQUISITION_METADATA.cmmsRequisition
+                  }
+                requestId = UUID.randomUUID().toString()
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "requests.1.requisition_metadata.cmms_requisition"
+          }
+        )
+    }
+
+  @Test
   fun `getRequisitionMetadata returns a RequisitionMetadata successfully`() = runBlocking {
     val existingRequisitionMetadata =
       service.createRequisitionMetadata(
@@ -266,27 +596,6 @@ class RequisitionMetadataServiceTest {
       val request = lookupRequisitionMetadataRequest {
         parent = DATA_PROVIDER_KEY.toName()
         cmmsRequisition = CMMS_REQUISITION_KEY.toName()
-      }
-      val result = service.lookupRequisitionMetadata(request)
-
-      assertThat(result).isEqualTo(existingRequisitionMetadata)
-    }
-
-  @Test
-  fun `lookupRequisitionMetadata by blobUri returns a RequisitionMetadata successfully`() =
-    runBlocking {
-      val existingRequisitionMetadata =
-        service.createRequisitionMetadata(
-          createRequisitionMetadataRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            requisitionMetadata = NEW_REQUISITION_METADATA
-            requestId = REQUEST_ID
-          }
-        )
-
-      val request = lookupRequisitionMetadataRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        blobUri = BLOB_URI
       }
       val result = service.lookupRequisitionMetadata(request)
 
@@ -516,6 +825,29 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
+  fun `markWithdrawnRequisitionMetadata updates state successfully`() = runBlocking {
+    val existingRequisitionMetadata =
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          requisitionMetadata = NEW_REQUISITION_METADATA
+          requestId = REQUEST_ID
+        }
+      )
+
+    val request = markWithdrawnRequisitionMetadataRequest {
+      name = existingRequisitionMetadata.name
+      etag = existingRequisitionMetadata.etag
+    }
+    val requisitionMetadata = service.markWithdrawnRequisitionMetadata(request)
+
+    assertThat(requisitionMetadata.state).isEqualTo(RequisitionMetadata.State.WITHDRAWN)
+    assertThat(requisitionMetadata.updateTime.toInstant())
+      .isGreaterThan(existingRequisitionMetadata.updateTime.toInstant())
+    assertThat(requisitionMetadata.etag).isNotEqualTo(existingRequisitionMetadata.etag)
+  }
+
+  @Test
   fun `refuseRequisitionMetadata updates state successfully`() = runBlocking {
     val existingRequisitionMetadata =
       service.createRequisitionMetadata(
@@ -577,24 +909,223 @@ class RequisitionMetadataServiceTest {
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
+  @Test
+  fun `listRequisitionMetadata returns RequisitionMetadata`() = runBlocking {
+    val created = createRequisitionMetadata(REQUISITION_METADATA)
+
+    val response =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+      )
+
+    assertThat(response)
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created })
+  }
+
+  @Test
+  fun `listRequisitionMetadata with page size returns RequisitionMetadata`() = runBlocking {
+    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_2)
+    val sortedCreated = created.sortedBy { it.name }
+
+    val internalPageToken = internalListRequisitionMetadataPageToken {
+      after =
+        InternalListRequisitionMetadataPageTokenKt.after {
+          updateTime = sortedCreated[0].updateTime
+          requisitionMetadataResourceId =
+            RequisitionMetadataKey.fromName(sortedCreated[0].name)!!.requisitionMetadataId
+        }
+    }
+
+    val response =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += sortedCreated[0]
+          nextPageToken = internalPageToken.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
+  @Test
+  fun `listRequisitionMetadata with page token returns RequisitionMetadata`() = runBlocking {
+    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_2)
+    val sortedCreated = created.sortedBy { it.name }
+
+    val firstResponse =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+        }
+      )
+
+    val secondResponse =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          pageSize = 1
+          pageToken = firstResponse.nextPageToken
+        }
+      )
+
+    assertThat(secondResponse)
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += sortedCreated[1] })
+  }
+
+  @Test
+  fun `listRequisitionMetadata with GroupId filter returns RequisitionMetadata`() = runBlocking {
+    val created = createRequisitionMetadata(REQUISITION_METADATA, REQUISITION_METADATA_3)
+
+    val response =
+      service.listRequisitionMetadata(
+        listRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListRequisitionMetadataRequestKt.filter { groupId = created[0].groupId }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listRequisitionMetadataResponse { requisitionMetadata += created[0] })
+  }
+
+  @Test
+  fun `listRequisitionMetadata throws INVALID_ARGUMENT when parent is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRequisitionMetadata(ListRequisitionMetadataRequest.getDefaultInstance())
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listRequisitionMetadata throws INVALID_ARGUMENT when parent is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRequisitionMetadata(
+          listRequisitionMetadataRequest { parent = "invalid-parent" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listRequisitionMetadata throws INVALID_ARGUMENT when page size is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listRequisitionMetadata(
+          listRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            pageSize = -1
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
+        }
+      )
+  }
+
+  @Test
+  fun `listRequisitionMetadata throws INVALID_ARGUMENT when page token is malformed`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listRequisitionMetadata(
+            listRequisitionMetadataRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              pageToken = "this-is-not-base64-or-a-proto"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+          }
+        )
+    }
+
+  private suspend fun createRequisitionMetadata(
+    vararg requisitionMetadata: RequisitionMetadata
+  ): List<RequisitionMetadata> {
+    return requisitionMetadata.map { metadata ->
+      service.createRequisitionMetadata(
+        createRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          this.requisitionMetadata = metadata
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
+  }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     private val DATA_PROVIDER_ID = externalIdToApiId(111L)
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
     private val REQUISITION_METADATA_ID = externalIdToApiId(222L)
+    private val REQUISITION_METADATA_ID_2 = externalIdToApiId(444L)
+    private val REQUISITION_METADATA_ID_3 = externalIdToApiId(345L)
     private val REQUISITION_METADATA_KEY =
       RequisitionMetadataKey(DATA_PROVIDER_KEY, REQUISITION_METADATA_ID)
+    private val REQUISITION_METADATA_KEY_2 =
+      RequisitionMetadataKey(DATA_PROVIDER_KEY, REQUISITION_METADATA_ID_2)
+    private val REQUISITION_METADATA_KEY_3 =
+      RequisitionMetadataKey(DATA_PROVIDER_KEY, REQUISITION_METADATA_ID_3)
     private val CMMS_REQUISITION_ID = externalIdToApiId(333L)
+    private val CMMS_REQUISITION_ID_2 = externalIdToApiId(123L)
+    private val CMMS_REQUISITION_ID_3 = externalIdToApiId(456L)
     private val CMMS_REQUISITION_KEY =
       CanonicalRequisitionKey(DATA_PROVIDER_KEY, CMMS_REQUISITION_ID)
+    private val CMMS_REQUISITION_KEY_2 =
+      CanonicalRequisitionKey(DATA_PROVIDER_KEY, CMMS_REQUISITION_ID_2)
+    private val CMMS_REQUISITION_KEY_3 =
+      CanonicalRequisitionKey(DATA_PROVIDER_KEY, CMMS_REQUISITION_ID_3)
     private val MEASUREMENT_CONSUMER_ID = externalIdToApiId(444L)
     private val REPORT_ID = externalIdToApiId(555L)
     private val REPORT_KEY = ReportKey(MEASUREMENT_CONSUMER_ID, REPORT_ID)
     private val REQUEST_ID = UUID.randomUUID().toString()
     private const val BLOB_URI = "path/to/blob"
+    private const val BLOB_URI_2 = "path/to/blob2"
     private const val BLOB_TYPE = "blob.type"
     private const val GROUP_ID = "group_id"
+    private const val GROUP_ID_2 = "group_id_2"
     private val CMMS_CREATE_TIME = timestamp { seconds = 12345 }
     private val CREATE_TIME = timestamp { seconds = 12345 }
     private val UPDATE_TIME_1 = timestamp { seconds = 12345 }
@@ -623,6 +1154,28 @@ class RequisitionMetadataServiceTest {
         createTime = CREATE_TIME
         updateTime = UPDATE_TIME_1
         etag = ETAG_1
+      }
+
+    private val REQUISITION_METADATA_2 =
+      NEW_REQUISITION_METADATA.copy {
+        blobUri = BLOB_URI_2
+        cmmsRequisition = CMMS_REQUISITION_KEY_2.toName()
+        name = REQUISITION_METADATA_KEY_2.toName()
+        state = RequisitionMetadata.State.STORED
+        createTime = CREATE_TIME
+        updateTime = UPDATE_TIME_1
+        etag = ETAG_2
+      }
+
+    private val REQUISITION_METADATA_3 =
+      NEW_REQUISITION_METADATA.copy {
+        cmmsRequisition = CMMS_REQUISITION_KEY_3.toName()
+        name = REQUISITION_METADATA_KEY_3.toName()
+        state = RequisitionMetadata.State.STORED
+        createTime = CREATE_TIME
+        updateTime = UPDATE_TIME_1
+        groupId = GROUP_ID_2
+        etag = ETAG_2
       }
   }
 }

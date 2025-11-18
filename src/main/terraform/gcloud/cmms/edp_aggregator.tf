@@ -40,11 +40,41 @@ locals {
     is_binary_format  = false
   }
 
+  data_availability_tls_key = {
+    secret_id         = "edpa-data-availability-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.key"),
+    is_binary_format  = false
+  }
+
+  data_availability_tls_pem = {
+    secret_id         = "edpa-data-availability-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/data_availability_tls.pem"),
+    is_binary_format  = false
+  }
+
+  requisition_fetcher_tls_key = {
+    secret_id         = "edpa-requisition-fetcher-tls-key"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.key"),
+    is_binary_format  = false
+  }
+
+  requisition_fetcher_tls_pem = {
+    secret_id         = "edpa-requisition-fetcher-tls-pem"
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/requisition_fetcher_tls.pem"),
+    is_binary_format  = false
+  }
+
   secure_computation_root_ca = {
     secret_id         = "securecomputation-root-ca"
     secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/secure_computation_root.pem"),
     is_binary_format  = false
   }
+
+  metadata_storage_root_ca = {
+      secret_id         = "edpaggregator-root-ca"
+      secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/edp_aggregator_root.pem"),
+      is_binary_format  = false
+    }
 
   trusted_root_ca_collection = {
     secret_id         = "trusted-root-ca"
@@ -91,7 +121,7 @@ locals {
     worker = {
       instance_template_name        = "requisition-fulfiller-template"
       base_instance_name            = "secure-computation"
-      managed_instance_group_name   = "results-fulfiller-mig"
+      managed_instance_group_name   = "results-fulfiller-mig-v2"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
       min_replicas                  = 1
@@ -101,14 +131,21 @@ locals {
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [
                                           "--edpa-tls-cert-secret-id", "edpa-tee-app-tls-pem",
+                                          "--edpa-tls-cert-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.pem",
                                           "--edpa-tls-key-secret-id", "edpa-tee-app-tls-key",
+                                          "--edpa-tls-key-file-path", "/tmp/edpa_certs/edpa_tee_app_tls.key",
                                           "--secure-computation-cert-collection-secret-id", "securecomputation-root-ca",
+                                          "--secure-computation-cert-collection-file-path", "/tmp/edpa_certs/secure_computation_root.pem",
+                                          "--metadata-storage-cert-collection-secret-id", "edpaggregator-root-ca",
+                                          "--metadata-storage-cert-collection-file-path", "/tmp/edpa_certs/edp_aggregator_root.pem",
                                           "--trusted-cert-collection-secret-id", "trusted-root-ca",
+                                          "--trusted-cert-collection-file-path", "/tmp/edpa_certs/trusted_root.pem",
                                           "--kingdom-public-api-target", var.kingdom_public_api_target,
                                           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
+                                          "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
                                           "--subscription-id", "results-fulfiller-subscription",
                                           "--google-project-id", data.google_client_config.default.project,
-                                          "--model-line", "some-model-line",
+                                          "--model-line", var.edpa_model_line_map,
                                           "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
                                           "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
                                           "--event-template-type-name", var.results_fulfiller_event_template_type_name,
@@ -121,10 +158,10 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule                    = "* * * * *"  # Every minute
+    schedule                    = "*/15 * * * *"  # Every 15 minutes
     time_zone                   = "UTC"
     name                        = "requisition-fetcher-scheduler"
-    function_url                = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/${var.requisition_fetcher_function_name}"
+    function_url                = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
     scheduler_sa_display_name   = "Requisition Fetcher Scheduler"
     scheduler_sa_description    = "Service account for Cloud Scheduler to trigger requisition fetcher"
     scheduler_job_description   = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
@@ -157,28 +194,28 @@ locals {
 
   cloud_function_configs = {
     data_watcher = {
-      function_name       = var.data_watcher_function_name
+      function_name       = "data-watcher"
       entry_point         = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
       extra_env_vars      = var.data_watcher_env_var
       secret_mappings     = var.data_watcher_secret_mapping
       uber_jar_path       = var.data_watcher_uber_jar_path
     },
     requisition_fetcher = {
-      function_name       = var.requisition_fetcher_function_name
+      function_name       = "requisition-fetcher"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
       extra_env_vars      = var.requisition_fetcher_env_var
       secret_mappings     = var.requisition_fetcher_secret_mapping
       uber_jar_path       = var.requisition_fetcher_uber_jar_path
     },
     event_group_sync = {
-      function_name       = var.event_group_sync_function_name
+      function_name       = "event-group-sync"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
       extra_env_vars      = var.event_group_env_var
       secret_mappings     = var.event_group_secret_mapping
       uber_jar_path       = var.event_group_uber_jar_path
     }
     data_availability_sync = {
-      function_name       = var.data_availability_sync_function_name
+      function_name       = "data-availability-sync"
       entry_point         = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
       extra_env_vars      = var.data_availability_env_var
       secret_mappings     = var.data_availability_secret_mapping
@@ -208,11 +245,17 @@ module "edp_aggregator" {
   results_fulfiller_population_spec             = local.results_fulfiller_population_spec
   event_group_sync_service_account_name         = "edpa-event-group-sync"
   event_group_sync_function_name                = "event-group-sync"
+  data_availability_sync_function_name          = "data-availability-sync"
   edpa_tee_app_tls_key                          = local.edpa_tee_app_tls_key
   edpa_tee_app_tls_pem                          = local.edpa_tee_app_tls_pem
   data_watcher_tls_key                          = local.data_watcher_tls_key
   data_watcher_tls_pem                          = local.data_watcher_tls_pem
+  data_availability_tls_key                     = local.data_availability_tls_key
+  data_availability_tls_pem                     = local.data_availability_tls_pem
+  requisition_fetcher_tls_key                   = local.requisition_fetcher_tls_key
+  requisition_fetcher_tls_pem                   = local.requisition_fetcher_tls_pem
   secure_computation_root_ca                    = local.secure_computation_root_ca
+  metadata_storage_root_ca                      = local.metadata_storage_root_ca
   trusted_root_ca_collection                    = local.trusted_root_ca_collection
   edps_certs                                    = local.edps_certs
   requisition_fetcher_scheduler_config          = local.requisition_fetcher_scheduler_config

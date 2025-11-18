@@ -76,6 +76,8 @@ message StreamEventGroupsRequest {
     repeated MediaType media_types_intersect = 9;
     google.protobuf.Timestamp data_availability_start_time_on_or_after = 10;
     google.protobuf.Timestamp data_availability_end_time_on_or_before = 11;
+    google.protobuf.Timestamp data_availability_start_time_on_or_before = 14;
+    google.protobuf.Timestamp data_availability_end_time_on_or_after = 15;
     string metadata_search_query = 12;
 
     // Specification of where the results should start within the ordering.

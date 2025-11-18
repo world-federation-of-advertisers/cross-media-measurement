@@ -16,6 +16,11 @@ data "google_client_config" "default" {}
 data "google_project" "project" {}
 
 locals {
+
+  # IP addresses for private.googleapis.com (Private Google Access default VIPs)
+  # Reference: https://cloud.google.com/vpc/docs/configure-private-google-access#ip-addr-defaults
+  private_googleapis_ipv4 = ["199.36.153.8","199.36.153.9","199.36.153.10","199.36.153.11"]
+
   common_secrets_to_access = [
     {
       secret_id  = var.edpa_tee_app_tls_key.secret_id
@@ -31,6 +36,10 @@ locals {
     },
     {
       secret_id  = var.trusted_root_ca_collection.secret_id
+      version    = "latest"
+    },
+    {
+      secret_id  = var.metadata_storage_root_ca.secret_id
       version    = "latest"
     },
   ]
@@ -76,7 +85,12 @@ locals {
     { edpa_tee_app_tls_pem                          = var.edpa_tee_app_tls_pem },
     { data_watcher_tls_key                          = var.data_watcher_tls_key },
     { data_watcher_tls_pem                          = var.data_watcher_tls_pem },
+    { data_availability_tls_key                     = var.data_availability_tls_key },
+    { data_availability_tls_pem                     = var.data_availability_tls_pem },
+    { requisition_fetcher_tls_pem                   = var.requisition_fetcher_tls_pem },
+    { requisition_fetcher_tls_key                   = var.requisition_fetcher_tls_key },
     { secure_computation_root_ca                    = var.secure_computation_root_ca },
+    { metadata_storage_root_ca                      = var.metadata_storage_root_ca },
     { trusted_root_ca_collection                    = var.trusted_root_ca_collection },
     local.edps_secrets
   )
@@ -95,8 +109,23 @@ locals {
     ]
   ])
 
+  data_availability_sync_secrets_access = concat(
+    [
+      "metadata_storage_root_ca",
+      "trusted_root_ca_collection",
+      "data_availability_tls_key",
+      "data_availability_tls_pem",
+    ],
+    local.edp_tls_keys
+  )
+
   requisition_fetcher_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "requisition_fetcher_tls_pem",
+      "requisition_fetcher_tls_key",
+      "metadata_storage_root_ca"
+    ],
     local.edp_tls_keys
   )
 
@@ -104,11 +133,6 @@ locals {
     ["trusted_root_ca_collection"],
     local.edp_tls_keys
   )
-
-  data_availability_sync_secrets_access = concat(
-      ["trusted_root_ca_collection"],
-      local.edp_tls_keys
-    )
 
   cloud_function_secret_pairs = tomap({
     data_watcher            = local.data_watcher_secrets_access,
@@ -299,6 +323,7 @@ module "result_fulfiller_tee_app" {
   tee_cmd                       = var.requisition_fulfiller_config.worker.app_flags
   disk_image_family             = var.results_fulfiller_disk_image_family
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
+  subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
   edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
 }
@@ -313,6 +338,13 @@ resource "google_storage_bucket_iam_member" "result_fulfiller_storage_creator" {
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${module.result_fulfiller_tee_app.mig_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "data_availability_storage_viewer" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_binding" "aggregator_storage_admin" {
@@ -349,11 +381,18 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_invoker" {
   member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
 }
 
+resource "google_cloud_run_service_iam_member" "data_availability_sync_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service  = var.data_availability_sync_function_name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.data_watcher_cloud_function.cloud_function_service_account.email}"
+}
+
 resource "google_compute_subnetwork" "private_subnetwork" {
   name                     = var.private_subnetwork_name
   region                   = data.google_client_config.default.region
-  network                  = "default"
-  ip_cidr_range            = "10.0.0.0/24"
+  network                  = var.private_subnetwork_network
+  ip_cidr_range            = var.private_subnetwork_cidr_range
   private_ip_google_access = true
 }
 
@@ -451,4 +490,30 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   lifecycle {
     replace_triggered_by = [google_spanner_database.edp_aggregator.id]
   }
+}
+
+resource "google_compute_address" "edp_aggregator_api_server" {
+  name    = "edp-aggregator-system"
+  address = var.edp_aggregator_api_server_ip_address
+}
+
+resource "google_project_iam_member" "telemetry_log_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/logging.logWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_metric_writer" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/monitoring.metricWriter"
+  member   = "serviceAccount:${each.value}"
+}
+
+resource "google_project_iam_member" "telemetry_trace_agent" {
+  for_each = local.service_accounts
+  project  = data.google_project.project.project_id
+  role     = "roles/cloudtrace.agent"
+  member   = "serviceAccount:${each.value}"
 }

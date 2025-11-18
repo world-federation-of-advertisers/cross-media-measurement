@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineSt
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.InProcessServersMethods.startInProcessServerWithService
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -46,11 +47,12 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
-import org.wfanet.measurement.reporting.deploy.v2.common.InProcessServersMethods.startInProcessServerWithService
+import org.wfanet.measurement.reporting.deploy.v2.common.EventMessageFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
@@ -76,6 +78,7 @@ private fun run(
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
+  @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -193,6 +196,10 @@ private fun run(
       measurementConsumerConfigs,
       InternalBasicReportsCoroutineStub(channel),
       ReportsCoroutineStub(inProcessReportsChannel),
+      InternalReportingSetsCoroutineStub(channel),
+      InternalMetricCalculationSpecsCoroutineStub(channel),
+      ReportResultsCoroutineStub(channel),
+      eventMessageFlags.eventDescriptor,
     )
 
   runBlocking { basicReportsReportsJob.execute() }

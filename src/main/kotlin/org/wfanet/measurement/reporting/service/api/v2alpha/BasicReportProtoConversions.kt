@@ -18,7 +18,9 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
+import org.wfanet.measurement.internal.reporting.v2.BasicReportKt as InternalBasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpec as InternalDimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventFilter as InternalEventFilter
@@ -58,6 +60,7 @@ import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
@@ -92,6 +95,8 @@ fun BasicReport.toInternal(
   basicReportId: String,
   campaignGroupId: String,
   createReportRequestId: String,
+  internalReportingImpressionQualificationFilters:
+    List<InternalReportingImpressionQualificationFilter>,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -101,8 +106,11 @@ fun BasicReport.toInternal(
 
     details = internalBasicReportDetails {
       title = source.title
+      impressionQualificationFilters += internalReportingImpressionQualificationFilters
       for (reportingImpressionQualificationFilter in source.impressionQualificationFiltersList) {
-        impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
+        if (reportingImpressionQualificationFilter.hasCustom()) {
+          impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
+        }
       }
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
@@ -114,6 +122,15 @@ fun BasicReport.toInternal(
     }
 
     this.createReportRequestId = createReportRequestId
+    if (modelLine.isNotEmpty()) {
+      val modelLineKey = ModelLineKey.fromName(modelLine)
+      this.modelLineKey =
+        InternalBasicReportKt.modelLineKey {
+          cmmsModelProviderId = modelLineKey!!.modelProviderId
+          cmmsModelSuiteId = modelLineKey.modelSuiteId
+          cmmsModelLineId = modelLineKey.modelLineId
+        }
+    }
   }
 }
 
@@ -391,6 +408,16 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
         InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
         InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
       }
+
+    if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
+      modelLine =
+        ModelLineKey(
+            modelLineKey.cmmsModelProviderId,
+            modelLineKey.cmmsModelSuiteId,
+            modelLineKey.cmmsModelLineId,
+          )
+          .toName()
+    }
   }
 }
 
@@ -567,14 +594,24 @@ fun InternalReportingImpressionQualificationFilter.toReportingImpressionQualific
     } else {
       custom = customImpressionQualificationFilterSpec {
         for (internalFilterSpec in source.filterSpecsList) {
-          filterSpec += impressionQualificationFilterSpec {
-            mediaType = internalFilterSpec.mediaType.toMediaType()
-            for (internalEventFilter in internalFilterSpec.filtersList) {
-              filters += internalEventFilter.toEventFilter()
-            }
-          }
+          filterSpec += internalFilterSpec.toImpressionQualificationFilterSpec()
         }
       }
+    }
+  }
+}
+
+/**
+ * Converts the internal [InternalImpressionQualificationFilterSpec] to the public
+ * [ImpressionQualificationFilterSpec].
+ */
+fun InternalImpressionQualificationFilterSpec.toImpressionQualificationFilterSpec():
+  ImpressionQualificationFilterSpec {
+  val source = this
+  return impressionQualificationFilterSpec {
+    mediaType = source.mediaType.toMediaType()
+    for (internalEventFilter in source.filtersList) {
+      filters += internalEventFilter.toEventFilter()
     }
   }
 }
