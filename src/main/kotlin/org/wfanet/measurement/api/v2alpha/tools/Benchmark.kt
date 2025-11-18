@@ -61,10 +61,15 @@ import java.time.Instant
 import java.util.Collections
 import java.util.UUID
 import kotlin.properties.Delegates
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -418,14 +423,14 @@ class Benchmark(
     }
   }
 
-  /** Creates list of requests and sends them to the Kingdom for EDPs. */
-  private fun generateEventRequests(
+  /** Creates list of requests and sends them to the Kingdom for EDPs, in parallel. */
+  suspend fun generateEventRequests(
     measurementConsumerStub: MeasurementConsumersCoroutineStub,
     measurementStub: MeasurementsCoroutineStub,
     dataProviderStub: DataProvidersCoroutineStub,
-  ) {
+  ) = coroutineScope {
     val measurementConsumer =
-      runBlocking(Dispatchers.IO) {
+      withContext(Dispatchers.IO) {
         measurementConsumerStub
           .withAuthenticationKey(apiAuthenticationKey)
           .getMeasurementConsumer(
@@ -448,8 +453,10 @@ class Benchmark(
         .map(charPool::get)
         .joinToString("")
 
+    val deferredTasks = mutableListOf<Deferred<Unit>>()
+
     for (replica in 1..flags.repetitionCount) {
-      val collectionIntervalEndTimes =
+      val overrideCollectionIntervalEndTimes =
         if (eventMeasurementParams.cumulative) {
           // getEventDataProviderEntry checks to make sure all entries are identical for cumulative
           val firstEntryStartTime =
@@ -474,11 +481,11 @@ class Benchmark(
           endTimes.add(firstEntryEndTime)
           endTimes
         } else {
-          // This should never be accessed
+          // Null means to not override the collection interval end time
           listOf(null)
         }
 
-      for (endTime in collectionIntervalEndTimes) {
+      for (overrideEndTime in overrideCollectionIntervalEndTimes) {
         val cumulativeCollectionInterval =
           if (eventMeasurementParams.cumulative) {
             interval {
@@ -489,11 +496,12 @@ class Benchmark(
                   .first()
                   .eventStartTime
                   .toProtoTime()
-              this.endTime = endTime!!.toProtoTime()
+              this.endTime = overrideEndTime!!.toProtoTime()
             }
           } else {
             null
           }
+
         val eventDataProviderInputsList =
           if (
             eventMeasurementParams.directMeasurementParams.createDirect &&
@@ -504,6 +512,7 @@ class Benchmark(
           } else {
             listOf(eventMeasurementParams.eventDataProviderInputs)
           }
+
         for (eventDataProviderInputs in eventDataProviderInputsList) {
           val eventFilters: List<String> =
             eventDataProviderInputs.first().eventFilters.map { it.eventFilter }
@@ -578,25 +587,34 @@ class Benchmark(
             val task = MeasurementTask(replica, Instant.now(clock))
             task.referenceId = referenceId
 
-            val response =
-              runBlocking(Dispatchers.IO) {
-                measurementStub
-                  .withAuthenticationKey(apiAuthenticationKey)
-                  .createMeasurement(
-                    createMeasurementRequest {
-                      parent = measurementConsumer.name
-                      this.measurement = measurement
-                    }
-                  )
+            // Launch each createMeasurement in parallel
+            val deferred: Deferred<Unit> =
+              async(Dispatchers.IO) {
+                val response =
+                  measurementStub
+                    .withAuthenticationKey(apiAuthenticationKey)
+                    .createMeasurement(
+                      createMeasurementRequest {
+                        parent = measurementConsumer.name
+                        this.measurement = measurement
+                      }
+                    )
+                println("Measurement Name: ${response.name}")
+                task.ackTime = Instant.now(clock)
+                task.measurementName = response.name
+                taskList.add(task)
               }
-            println("Measurement Name: ${response.name}")
-
-            task.ackTime = Instant.now(clock)
-            task.measurementName = response.name
-            taskList.add(task)
+            deferredTasks.add(deferred)
           }
         }
       }
+    }
+
+    // Await all createMeasurement calls in parallel
+    try {
+      deferredTasks.awaitAll()
+    } catch (e: Exception) {
+      throw e
     }
   }
 
