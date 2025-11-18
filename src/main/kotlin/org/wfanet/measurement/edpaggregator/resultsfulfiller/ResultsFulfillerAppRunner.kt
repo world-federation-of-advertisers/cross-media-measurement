@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.LoggingHandler
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
@@ -29,6 +30,8 @@ import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
+import java.util.logging.Level
+import java.util.logging.LogManager
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -554,7 +557,33 @@ class ResultsFulfillerAppRunner : Runnable {
     }
 
     init {
+      configureCloudLoggingHandler()
       EdpaTelemetry.ensureInitialized()
+    }
+
+    private fun configureCloudLoggingHandler() {
+      try {
+        val rootLogger = LogManager.getLogManager().getLogger("")
+        if (rootLogger.handlers.none { it is LoggingHandler }) {
+          val otelServiceName = System.getenv("OTEL_SERVICE_NAME")
+          val handler =
+            if (otelServiceName.isNullOrBlank()) {
+              LoggingHandler()
+            } else {
+              LoggingHandler(otelServiceName)
+            }
+          rootLogger.addHandler(handler)
+          if (otelServiceName.isNullOrBlank()) {
+            logger.info("Configured Google Cloud Logging handler for java.util.logging")
+          } else {
+            logger.info(
+              "Configured Google Cloud Logging handler for java.util.logging (logName=$otelServiceName)"
+            )
+          }
+        }
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Failed to configure Google Cloud Logging handler", e)
+      }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)

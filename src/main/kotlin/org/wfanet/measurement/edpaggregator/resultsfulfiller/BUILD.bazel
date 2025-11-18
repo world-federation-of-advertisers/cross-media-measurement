@@ -334,6 +334,7 @@ kt_jvm_library(
     deps = [
         ":requisition_stub_factory_impl",
         ":results_fulfiller_app",
+        "//imports/java/com/google/cloud/logging",
         "//imports/java/com/google/cloud/secretmanager",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
