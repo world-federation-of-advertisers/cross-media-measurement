@@ -23,6 +23,7 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
@@ -42,6 +43,7 @@ object Errors {
     REPORT_RESULT_NOT_FOUND,
     REPORTING_SET_RESULT_NOT_FOUND,
     REPORTING_WINDOW_RESULT_NOT_FOUND,
+    BASIC_REPORT_STATE_INVALID,
   }
 
   enum class Metadata(val key: String) {
@@ -55,7 +57,8 @@ object Errors {
     EXTERNAL_REPORT_RESULT_ID("externalReportResultId"),
     EXTERNAL_REPORTING_SET_RESULT_ID("externalReportingSetResultId"),
     REPORTING_WINDOW_NON_CUMULATIVE_START("reportingWindowNonCumulativeStart"),
-    REPORTING_WINDOW_END("reportingWindowEnd");
+    REPORTING_WINDOW_END("reportingWindowEnd"),
+    BASIC_REPORT_STATE("basicReportState");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -153,6 +156,23 @@ class BasicReportAlreadyExistsException(
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
+    cause,
+  )
+
+class BasicReportStateInvalidException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  state: BasicReport.State,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.BASIC_REPORT_STATE_INVALID,
+    "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) is in state ${state.name} which is invalid for the operation",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+      Errors.Metadata.BASIC_REPORT_STATE to state.name,
     ),
     cause,
   )

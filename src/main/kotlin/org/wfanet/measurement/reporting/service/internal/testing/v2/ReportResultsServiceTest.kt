@@ -48,6 +48,7 @@ import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConf
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
@@ -77,6 +78,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
@@ -84,6 +86,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
@@ -130,6 +133,10 @@ abstract class ReportResultsServiceTest {
     )
   }
 
+  private val basicReportsStub by lazy { BasicReportsGrpc.newBlockingV2Stub(grpcChannel) }
+
+  private val reportResultsStub by lazy { ReportResultsGrpc.newBlockingV2Stub(grpcChannel) }
+
   protected abstract fun createServices(
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
@@ -139,7 +146,6 @@ abstract class ReportResultsServiceTest {
   @Test
   fun `createReportResult creates ReportResult`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val request = CREATE_REPORT_RESULT_REQUEST
 
     val response: ReportResult = reportResultsStub.createReportResult(request)
@@ -168,7 +174,6 @@ abstract class ReportResultsServiceTest {
   @Test
   fun `batchCreateReportingSetResults creates ReportingSetResults`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
     val request =
@@ -232,9 +237,39 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `batchCreateReportingSetResults updates BasicReport state`() {
+    val basicReport: BasicReport = ensureMeasurementConsumer()
+    val externalReportId = "report-1"
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        this.externalReportId = externalReportId
+      }
+    )
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+          reportResult.externalReportResultId
+        )
+        .copy { externalBasicReportId = basicReport.externalBasicReportId }
+
+    reportResultsStub.batchCreateReportingSetResults(request)
+
+    val updatedBasicReport: BasicReport =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+          externalBasicReportId = request.externalBasicReportId
+        }
+      )
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.NOISY_RESULTS_READY)
+  }
+
+  @Test
   fun `batchCreateReportingSetResults throws when event filters are not normalized`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
     val request =
@@ -285,7 +320,6 @@ abstract class ReportResultsServiceTest {
   @Test
   fun `batchCreateReportingSetResults throws when non-cumulative result missing for non-cumulative window`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
     val request =
@@ -328,7 +362,6 @@ abstract class ReportResultsServiceTest {
   @Test
   fun `addDenoisedResultValues adds values to existing ReportingSetResults`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
     val reportingSetResults: List<ReportingSetResult> =
@@ -440,7 +473,6 @@ abstract class ReportResultsServiceTest {
   @Test
   fun `addDenoisedResultValues throws if reporting window not found`() {
     ensureMeasurementConsumer()
-    val reportResultsStub = ReportResultsGrpc.newBlockingV2Stub(grpcChannel)
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
     val reportingSetResults: List<ReportingSetResult> =
@@ -496,9 +528,8 @@ abstract class ReportResultsServiceTest {
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
-  private fun ensureMeasurementConsumer() {
+  private fun ensureMeasurementConsumer(): BasicReport {
     val reportingSetsStub = ReportingSetsGrpc.newBlockingV2Stub(grpcChannel)
-    val basicReportsStub = BasicReportsGrpc.newBlockingV2Stub(grpcChannel)
     val measurementConsumersStub = MeasurementConsumersGrpc.newBlockingV2Stub(grpcChannel)
 
     measurementConsumersStub.createMeasurementConsumer(
@@ -525,7 +556,7 @@ abstract class ReportResultsServiceTest {
 
     // Creating a BasicReport is what ensures that the MeasurementConsumer exists in the DB, as it
     // uses a different DB than the Measurements service.
-    basicReportsStub.createBasicReport(
+    return basicReportsStub.createBasicReport(
       createBasicReportRequest {
         basicReport = basicReport {
           cmmsMeasurementConsumerId = campaignGroup.cmmsMeasurementConsumerId
