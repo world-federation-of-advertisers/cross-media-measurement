@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import com.google.cloud.spanner.Options
 import com.google.protobuf.Descriptors
+import com.google.protobuf.Empty
 import com.google.type.DateTime
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
@@ -30,6 +31,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
@@ -49,10 +51,14 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSet
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingSetResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readNoisyReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
@@ -65,6 +71,8 @@ import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueExcept
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.service.internal.ReportResultNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetResultNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingWindowResultNotFoundException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
 /** Spanner implementation of ReportResults gRPC service. */
@@ -400,8 +408,12 @@ class SpannerReportResultsService(
             reportResultId,
           )
         ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL ->
-          throw Status.UNIMPLEMENTED.withDescription("FULL view not yet implemented")
-            .asRuntimeException()
+          txn.readFullReportingSetResults(
+            impressionQualificationFilterMapping,
+            groupingDimensions,
+            measurementConsumerId,
+            reportResultId,
+          )
         ReportingSetResultView.UNRECOGNIZED ->
           throw InvalidFieldValueException("view")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -409,6 +421,108 @@ class SpannerReportResultsService(
 
     return listReportingSetResultsResponse {
       resultsFlow.collect { reportingSetResults += it.reportingSetResult }
+    }
+  }
+
+  override suspend fun addDenoisedResultValues(request: AddDenoisedResultValuesRequest): Empty {
+    val cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+    val externalReportResultId = request.externalReportResultId
+    try {
+      validate(request)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val txnRunner =
+      spannerClient.readWriteTransaction(Options.tag("action=addDenoisedResultValues"))
+    txnRunner.run { txn ->
+      val (measurementConsumerId, reportResultId, _) =
+        try {
+          txn.readReportResult(cmmsMeasurementConsumerId, externalReportResultId)
+        } catch (e: ReportResultNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        }
+      val reportingSetResultIds: Map<Long, Long> =
+        txn.readReportingSetResultIds(
+          measurementConsumerId,
+          reportResultId,
+          request.reportingSetResultsMap.keys,
+        )
+
+      for ((externalReportingSetResultId, denoisedResult) in request.reportingSetResultsMap) {
+        val reportingSetResultId: Long =
+          reportingSetResultIds[externalReportingSetResultId]
+            ?: throw ReportingSetResultNotFoundException(
+                cmmsMeasurementConsumerId,
+                externalReportResultId,
+                externalReportingSetResultId,
+              )
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        val reportingWindowResultIds: Map<ReportingSetResult.ReportingWindow, Long> =
+          txn.readReportingWindowResultIds(
+            measurementConsumerId,
+            reportResultId,
+            reportingSetResultId,
+            denoisedResult.reportingWindowResultsList.map { it.key },
+          )
+
+        for (entry in denoisedResult.reportingWindowResultsList) {
+          val reportingWindow: ReportingSetResult.ReportingWindow = entry.key
+          val reportingWindowResultId: Long =
+            reportingWindowResultIds[reportingWindow]
+              ?: throw ReportingWindowResultNotFoundException(
+                  cmmsMeasurementConsumerId,
+                  externalReportResultId,
+                  externalReportingSetResultId,
+                  reportingWindow,
+                )
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          txn.insertReportResultValues(
+            measurementConsumerId,
+            reportResultId,
+            reportingSetResultId,
+            reportingWindowResultId,
+            entry.value,
+          )
+        }
+      }
+    }
+
+    return Empty.getDefaultInstance()
+  }
+
+  private fun validate(request: AddDenoisedResultValuesRequest) {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+    }
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+    }
+
+    for ((externalReportingSetResultId, denoisedResults) in request.reportingSetResultsMap) {
+      val reportingSetResultPath = "reporting_set_results[$externalReportingSetResultId]"
+      denoisedResults.reportingWindowResultsList.mapIndexed { index, entry ->
+        val windowEntryPath = "$reportingSetResultPath.reporting_window_results[$index]"
+        if (entry.key.hasNonCumulativeStart() && !entry.value.hasNonCumulativeResults()) {
+          throw RequiredFieldNotSetException("$windowEntryPath.value.non_cumulative_results") {
+            fieldPath ->
+            "$fieldPath is required when window has non-cumulative start"
+          }
+        }
+        if (entry.value.hasNonCumulativeResults() && !entry.key.hasNonCumulativeStart()) {
+          throw RequiredFieldNotSetException("$windowEntryPath.key.non_cumulative_start") {
+            fieldPath ->
+            "$fieldPath is required when window has non-cumulative results"
+          }
+        }
+        if (!entry.value.hasCumulativeResults() && !entry.value.hasNonCumulativeResults()) {
+          throw InvalidFieldValueException("$windowEntryPath.value") { fieldPath ->
+            "$fieldPath must have a result"
+          }
+        }
+      }
     }
   }
 }
