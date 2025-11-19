@@ -12,7 +12,6 @@ kt_jvm_library(
     name = "basic_reports_service",
     srcs = ["SpannerBasicReportsService.kt"],
     deps = [
-        ":basic_report_noise_corrected_results_transformation",
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:measurement_consumers",
@@ -38,6 +37,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_report_noise_corrected_results_transformation",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:measurement_consumers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:noisy_report_result_values",
@@ -45,6 +45,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:report_results",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:reporting_set_results",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:reporting_window_results",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:grouping_dimensions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",

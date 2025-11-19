@@ -176,6 +176,8 @@ message ReportingSetResult {
     ReportingWindowResult value = 2;
   }
   // Map of `ReportingWindow` to `ReportingWindowResult`.
+  //
+  // Not set in responses when view is `REPORTING_SET_RESULT_VIEW_BASIC`.
   repeated ReportingWindowEntry reporting_window_results = 6;
 
   // Fingerprint of `ReportingSetResult.Dimension.metric_frequency_spec`.
@@ -196,4 +198,6 @@ enum ReportingSetResultView {
   REPORTING_SET_RESULT_VIEW_NOISY = 1;
   // View which includes all values (noisy and de-noised).
   REPORTING_SET_RESULT_VIEW_FULL = 2;
+  // View which does not include reporting window results.
+  REPORTING_SET_RESULT_VIEW_BASIC = 3;
 }

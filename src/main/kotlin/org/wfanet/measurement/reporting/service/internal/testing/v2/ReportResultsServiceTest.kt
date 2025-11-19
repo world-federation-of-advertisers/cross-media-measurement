@@ -21,6 +21,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Descriptors
+import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import com.google.type.date
@@ -43,18 +44,21 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
+import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpc
+import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
@@ -66,9 +70,15 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reporti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reportingWindowResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
+import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroup
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.addDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -76,19 +86,29 @@ import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
+import org.wfanet.measurement.internal.reporting.v2.dataProviderKey
+import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.reportingUnit
+import org.wfanet.measurement.internal.reporting.v2.resultGroup
+import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
+import org.wfanet.measurement.reporting.service.internal.testing.v2.ReportResultsServiceTest.Companion.BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST
 
 @RunWith(JUnit4::class)
 abstract class ReportResultsServiceTest {
@@ -265,6 +285,8 @@ abstract class ReportResultsServiceTest {
         }
       )
     assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.NOISY_RESULTS_READY)
+    assertThat(updatedBasicReport.externalReportResultId)
+      .isEqualTo(reportResult.externalReportResultId)
   }
 
   @Test
@@ -372,47 +394,7 @@ abstract class ReportResultsServiceTest {
           )
         )
         .reportingSetResultsList
-    val request = addDenoisedResultValuesRequest {
-      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-      externalReportResultId = reportResult.externalReportResultId
-      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  cumulativeResults = basicMetricSet {
-                    reach = 2
-                    impressions = 10
-                  }
-                  nonCumulativeResults = basicMetricSet {
-                    reach = 1
-                    impressions = 5
-                  }
-                }
-            }
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[1].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[1].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-    }
+    val request = buildAddDenoisedResultValuesRequest(reportingSetResults)
 
     reportResultsStub.addDenoisedResultValues(request)
 
@@ -525,6 +507,280 @@ abstract class ReportResultsServiceTest {
       )
   }
 
+  @Test
+  fun `addDenoisedResultValues updates BasicReport state`() {
+    val basicReport: BasicReport = ensureMeasurementConsumer()
+    val externalReportId = "report-1"
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        this.externalReportId = externalReportId
+      }
+    )
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    // Ensure that BasicReport is associated with ReportResult.
+    val reportingSetResults =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+              reportResult.externalReportResultId
+            )
+            .copy { externalBasicReportId = basicReport.externalBasicReportId }
+        )
+        .reportingSetResultsList
+    val request = buildAddDenoisedResultValuesRequest(reportingSetResults)
+
+    reportResultsStub.addDenoisedResultValues(request)
+
+    val updatedBasicReport: BasicReport =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertThat(updatedBasicReport.resultDetails)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(
+        ResultGroup.getDescriptor().findFieldByNumber(ResultGroup.RESULTS_FIELD_NUMBER)
+      )
+      .isEqualTo(
+        basicReportResultDetails {
+          resultGroups += resultGroup {
+            title = "result-group-1"
+            results +=
+              ResultGroupKt.result {
+                metadata =
+                  ResultGroupKt.metricMetadata {
+                    reportingUnitSummary =
+                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                        reportingUnitComponentSummary +=
+                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                            cmmsDataProviderId = "edp-1"
+                            eventGroupSummaries +=
+                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                                .eventGroupSummary {
+                                  cmmsMeasurementConsumerId = "mc-1"
+                                  cmmsEventGroupId = "eg-1"
+                                }
+                          }
+                      }
+                    nonCumulativeMetricStartTime = timestamp { seconds = 1736150400 }
+                    cumulativeMetricStartTime = timestamp { seconds = 1736150400 }
+                    metricEndTime = timestamp { seconds = 1736755200 }
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                    dimensionSpecSummary =
+                      ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                        groupings += eventTemplateField {
+                          path = "person.age_group"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_35_TO_54" }
+                        }
+                        groupings += eventTemplateField {
+                          path = "person.gender"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        }
+                        filters += eventFilter {
+                          terms += eventTemplateField {
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          }
+                        }
+                      }
+                    filter = ReportingImpressionQualificationFilter.getDefaultInstance()
+                  }
+                metricSet =
+                  ResultGroupKt.metricSet {
+                    reportingUnit =
+                      ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                        cumulative = ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance()
+                        stackedIncrementalReach += 0
+                      }
+                    components +=
+                      ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                        key = "edp-1"
+                        value =
+                          ResultGroupKt.MetricSetKt.componentMetricSet {
+                            cumulative = ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance()
+                          }
+                      }
+                  }
+              }
+            results +=
+              ResultGroupKt.result {
+                metadata =
+                  ResultGroupKt.metricMetadata {
+                    reportingUnitSummary =
+                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                        reportingUnitComponentSummary +=
+                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                            cmmsDataProviderId = "edp-1"
+                            eventGroupSummaries +=
+                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                                .eventGroupSummary {
+                                  cmmsMeasurementConsumerId = "mc-1"
+                                  cmmsEventGroupId = "eg-1"
+                                }
+                          }
+                      }
+                    nonCumulativeMetricStartTime = timestamp { seconds = 1736150400 }
+                    cumulativeMetricStartTime = timestamp { seconds = 1736150400 }
+                    metricEndTime = timestamp { seconds = 1736755200 }
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                    dimensionSpecSummary =
+                      ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                        groupings += eventTemplateField {
+                          path = "person.age_group"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                        }
+                        groupings += eventTemplateField {
+                          path = "person.gender"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        }
+                        filters += eventFilter {
+                          terms += eventTemplateField {
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          }
+                        }
+                      }
+                    filter = REPORTING_AMI_IQF
+                  }
+                metricSet =
+                  ResultGroupKt.metricSet {
+                    populationSize = 1000
+                    reportingUnit =
+                      ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                        cumulative = basicMetricSet { reach = 2 }
+                        stackedIncrementalReach += 2
+                      }
+                    components +=
+                      ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                        key = "edp-1"
+                        value =
+                          ResultGroupKt.MetricSetKt.componentMetricSet {
+                            cumulative = basicMetricSet { impressions = 10 }
+                          }
+                      }
+                  }
+              }
+            results +=
+              ResultGroupKt.result {
+                metadata =
+                  ResultGroupKt.metricMetadata {
+                    reportingUnitSummary =
+                      ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                        reportingUnitComponentSummary +=
+                          ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                            cmmsDataProviderId = "edp-1"
+                            eventGroupSummaries +=
+                              ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                                .eventGroupSummary {
+                                  cmmsMeasurementConsumerId = "mc-1"
+                                  cmmsEventGroupId = "eg-1"
+                                }
+                          }
+                      }
+                    nonCumulativeMetricStartTime = timestamp { seconds = 1736755200 }
+                    cumulativeMetricStartTime = timestamp { seconds = 1736150400 }
+                    metricEndTime = timestamp { seconds = 1737360000 }
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                    dimensionSpecSummary =
+                      ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                        groupings += eventTemplateField {
+                          path = "person.age_group"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                        }
+                        groupings += eventTemplateField {
+                          path = "person.gender"
+                          value = EventTemplateFieldKt.fieldValue { enumValue = "MALE" }
+                        }
+                        filters += eventFilter {
+                          terms += eventTemplateField {
+                            path = "person.age_group"
+                            value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                          }
+                        }
+                      }
+                    filter = REPORTING_AMI_IQF
+                  }
+                metricSet =
+                  ResultGroupKt.metricSet {
+                    populationSize = 1000
+                    reportingUnit =
+                      ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                        cumulative = ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance()
+                        stackedIncrementalReach += 0
+                      }
+                    components +=
+                      ResultGroupKt.MetricSetKt.dataProviderComponentMetricSetMapEntry {
+                        key = "edp-1"
+                        value =
+                          ResultGroupKt.MetricSetKt.componentMetricSet {
+                            cumulative = ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance()
+                          }
+                      }
+                  }
+              }
+          }
+        }
+      )
+  }
+
+  /**
+   * Builds a test [AddDenoisedResultValuesRequest].
+   *
+   * @param reportingSetResults Results created from [BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST].
+   */
+  private fun buildAddDenoisedResultValuesRequest(
+    reportingSetResults: List<ReportingSetResult>
+  ): AddDenoisedResultValuesRequest {
+    val cmmsMeasurementConsumerId = reportingSetResults.first().cmmsMeasurementConsumerId
+    val externalReportResultId = reportingSetResults.first().externalReportResultId
+    return addDenoisedResultValuesRequest {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.externalReportResultId = externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                  nonCumulativeResults = basicMetricSet {
+                    reach = 1
+                    impressions = 5
+                  }
+                }
+            }
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[1].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[1].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+    }
+  }
+
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
@@ -535,10 +791,11 @@ abstract class ReportResultsServiceTest {
     measurementConsumersStub.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
+    val cmmsDataProviderId = "edp-1"
     val campaignGroup: ReportingSet =
       reportingSetsStub.createReportingSet(
         createReportingSetRequest {
-          externalReportingSetId = "reporting-set-1"
+          externalReportingSetId = "primitive-1"
           reportingSet = reportingSet {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
@@ -546,7 +803,7 @@ abstract class ReportResultsServiceTest {
               ReportingSetKt.primitive {
                 this.eventGroupKeys +=
                   ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = "edp-1"
+                    this.cmmsDataProviderId = cmmsDataProviderId
                     cmmsEventGroupId = "eg-1"
                   }
               }
@@ -562,6 +819,53 @@ abstract class ReportResultsServiceTest {
           cmmsMeasurementConsumerId = campaignGroup.cmmsMeasurementConsumerId
           externalBasicReportId = "basic-report-1"
           externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+          details = basicReportDetails {
+            reportingInterval = reportingInterval {
+              reportStart = CREATE_REPORT_RESULT_REQUEST.reportResult.reportStart
+            }
+            impressionQualificationFilters += REPORTING_AMI_IQF
+            resultGroupSpecs += resultGroupSpec {
+              title = "result-group-1"
+              reportingUnit = reportingUnit {
+                dataProviderKeys =
+                  ReportingUnitKt.dataProviderKeys {
+                    dataProviderKeys += dataProviderKey {
+                      this.cmmsDataProviderId = cmmsDataProviderId
+                    }
+                  }
+              }
+              metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+              dimensionSpec = dimensionSpec {
+                grouping =
+                  DimensionSpecKt.grouping {
+                    eventTemplateFields += "person.age_group"
+                    eventTemplateFields += "person.gender"
+                  }
+                filters += eventFilter {
+                  terms += eventTemplateField {
+                    path = "person.age_group"
+                    value =
+                      EventTemplateFieldKt.fieldValue {
+                        enumValue = Person.AgeGroup.YEARS_18_TO_34.name
+                      }
+                  }
+                }
+              }
+              resultGroupMetricSpec = resultGroupMetricSpec {
+                populationSize = true
+                reportingUnit =
+                  ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                    cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                    stackedIncrementalReach = true
+                  }
+                component =
+                  ResultGroupMetricSpecKt.componentMetricSetSpec {
+                    cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
+                    cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                  }
+              }
+            }
+          }
         }
       }
     )
@@ -575,12 +879,38 @@ abstract class ReportResultsServiceTest {
       )
 
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc-1"
-    val AMI_IQF = impressionQualificationFilter {
-      externalImpressionQualificationFilterId = "ami"
-      impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+    val AMI_IQF =
+      ImpressionQualificationFilterConfigKt.impressionQualificationFilter {
+        externalImpressionQualificationFilterId = "ami"
+        impressionQualificationFilterId = 1
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+                .DISPLAY
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER
+          }
+      }
+    val REPORTING_AMI_IQF = reportingImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = ImpressionQualificationFilterSpec.MediaType.VIDEO
+      }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = ImpressionQualificationFilterSpec.MediaType.DISPLAY
+      }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = ImpressionQualificationFilterSpec.MediaType.OTHER
+      }
     }
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
       impressionQualificationFilters += AMI_IQF
