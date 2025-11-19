@@ -152,26 +152,6 @@ bazel_dep(
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
-    name = "aspect_rules_ts",
-    version = "3.1.0",
-)
-bazel_dep(
-    name = "aspect_rules_js",
-    version = "2.0.0",
-)
-bazel_dep(
-    name = "aspect_rules_webpack",
-    version = "0.16.0",
-)
-bazel_dep(
-    name = "aspect_rules_jest",
-    version = "0.22.0",
-)
-bazel_dep(
-    name = "aspect_bazel_lib",
-    version = "2.7.7",
-)
-bazel_dep(
     name = "abseil-cpp",
     version = "20240722.0.bcr.2",
     repo_name = "com_google_absl",
@@ -317,15 +297,6 @@ maven.install(
     strict_visibility = True,
 )
 use_repo(maven, "maven")
-
-npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
-npm.npm_translate_lock(
-    name = "npm",
-    npmrc = "//:.npmrc",
-    pnpm_lock = "//:pnpm-lock.yaml",
-    verify_node_modules_ignored = "//:.bazelignore",
-)
-use_repo(npm, "npm")
 
 GO_GENPROTO_VERSION = "v0.0.0-20250115164207-1a7da9e5054f"
 
