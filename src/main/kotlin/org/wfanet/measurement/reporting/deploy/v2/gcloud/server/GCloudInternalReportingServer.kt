@@ -16,15 +16,19 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import java.io.File
-import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.ServiceFlags
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
@@ -36,6 +40,7 @@ import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternal
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
+import picocli.CommandLine.Option
 
 /** Implementation of [AbstractInternalReportingServer] using Google Cloud Postgres. */
 @CommandLine.Command(
@@ -59,9 +64,25 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   )
   private lateinit var impressionQualificationFilterConfigFile: File
 
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies. This can be specified multiple times"
+      ],
+    required = false,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description = ["Protobuf type URL of the event message for the CMMS instance"],
+    required = false,
+  )
+  private lateinit var eventMessageTypeUrl: String
+
   override fun run() = runBlocking {
-    val clock = Clock.systemUTC()
-    val idGenerator = RandomIdGenerator(clock)
+    val idGenerator = RandomIdGenerator()
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
@@ -80,6 +101,14 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
         )
       }
 
+      if (!::eventMessageDescriptorSetFiles.isInitialized || !::eventMessageTypeUrl.isInitialized) {
+        throw CommandLine.MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--event-message-descriptor-set and --event-message-type-url are required if --basic-reports-enabled is set to true",
+        )
+      }
+
       val impressionQualificationFiltersConfig =
         parseTextProto(
           impressionQualificationFilterConfigFile,
@@ -87,6 +116,10 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
         )
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
+      val eventMessageDescriptor =
+        checkNotNull(buildTypeRegistry().getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+          "Event message type not found in descriptor sets"
+        }
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
@@ -96,6 +129,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            eventMessageDescriptor,
             disableMetricsReuse,
             serviceDispatcher,
           )
@@ -106,13 +140,39 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
         DataServices.create(
           idGenerator,
           postgresClient,
-          null,
-          null,
+          spannerClient = null,
+          impressionQualificationFilterMapping = null,
+          eventMessageDescriptor = null,
           disableMetricsReuse,
           serviceDispatcher,
         )
       )
     }
+  }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      loadFileDescriptorSets(eventMessageDescriptorSetFiles)
+    return TypeRegistry.newBuilder()
+      .apply { add(ProtoReflection.buildDescriptors(fileDescriptorSets)) }
+      .build()
+  }
+
+  private fun loadFileDescriptorSets(
+    files: Iterable<File>
+  ): List<DescriptorProtos.FileDescriptorSet> {
+    return files.map { file ->
+      file.inputStream().use { input ->
+        DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+      }
+    }
+  }
+
+  companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
   }
 }
 

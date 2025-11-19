@@ -43,7 +43,7 @@ free to use whichever you prefer.
         -   `reporting-v2alpha-public-api-server-network-policy`
         -   `reporting-grpc-gateway-network-policy`
         -   `report-scheduling-network-policy`
-        -   `basic-reports-reports` 
+        -   `basic-reports-reports`
         -   `access-internal-api-server-network-policy`
         -   `access-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
@@ -104,14 +104,17 @@ values):
 
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
+  --define container_registry=ghcr.io \
+  --define image_repo_prefix=world-federation-of-advertisers \
+  --define image_tag=0.5.28 \
   --define reporting_public_api_address_name=reporting-v2alpha \
   --define google_cloud_project=halo-cmm-dev \
   --define postgres_instance=dev-postgres \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001 \
-  --define basic_reports_enabled=true --define spanner_instance=instance
+  --define 'event_message_type_url=type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.EventMessage' \
+  --define basic_reports_enabled=true \
+  --define spanner_instance=instance
 ```
 
 Note: The value of the `spanner_instance` variable is only used when
@@ -244,7 +247,7 @@ configuration uses one named `config-files`.
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 *   `basic_report_metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
-* `event_message_descriptor_set.pb`
+*   `event_message_descriptor_set.pb`
     *   Serialized Protobuf `FileDescriptorSet` containing Event Message and its
         dependencies.
 *   `known_event_group_metadata_type_set.pb`

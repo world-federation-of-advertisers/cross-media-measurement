@@ -18,19 +18,19 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import io.grpc.BindableService
 import java.io.File
-import java.time.Clock
 import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
@@ -104,8 +104,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
   private var impressionQualificationFilterConfigFile: File? = null
 
   override fun run() = runBlocking {
-    val clock = Clock.systemUTC()
-    val idGenerator = RandomIdGenerator(clock)
+    val idGenerator = RandomIdGenerator()
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
@@ -140,6 +139,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            TestEvent.getDescriptor(),
             disableMetricsReuse,
             serviceDispatcher,
           )
@@ -150,6 +150,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
         DataServices.create(
           idGenerator,
           postgresClient,
+          null,
           null,
           null,
           disableMetricsReuse,
