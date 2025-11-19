@@ -37,7 +37,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.126.0",
+    version = "0.127.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -274,6 +274,7 @@ maven.install(
         "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.cloud:google-cloud-secretmanager",
+        "com.google.cloud:google-cloud-logging",
 
         # AWS
         "software.amazon.awssdk:acmpca",

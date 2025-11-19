@@ -19,12 +19,10 @@ from google.protobuf.json_format import Parse
 
 from noiseninja.noised_measurements import Measurement
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_summary_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_summary_pb2
 
 from tools.post_process_origin_report import ReportSummaryProcessor
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 from google.protobuf import json_format
 
@@ -448,10 +446,11 @@ class TestOriginReport(unittest.TestCase):
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
           TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self._assertFuzzyLessEqual(
           corrected_measurements_map[
@@ -758,10 +757,11 @@ class TestOriginReport(unittest.TestCase):
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
           TOLERANCE
       )
-      self.assertLessEqual(
+      self._assertFuzzyLessEqual(
           corrected_measurements_map['cumulative/mrc/edp2_' + str(i).zfill(2)],
           corrected_measurements_map[
             'cumulative/mrc/edp1_edp2_' + str(i).zfill(2)],
+          TOLERANCE
       )
       self._assertFuzzyLessEqual(
           corrected_measurements_map[

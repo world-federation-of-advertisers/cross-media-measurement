@@ -305,7 +305,9 @@ class ResourceSetup(
           Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
             writer.appendLine("build:$configName --define=mp_name=${resource.name}")
           }
-          Resources.Resource.ResourceCase.MODEL_LINE -> continue
+          Resources.Resource.ResourceCase.MODEL_LINE -> {
+            writer.appendLine("build:$configName --define=model_line_name=${resource.name}")
+          }
           Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
         }
       }
@@ -415,7 +417,7 @@ class ResourceSetup(
         modelLine {
           this.externalModelProviderId = externalModelProviderId
           externalModelSuiteId = internalModelSuite.externalModelSuiteId
-          activeStartTime = timestamp { seconds = 100L }
+          activeStartTime = timestamp { seconds = 1609502400 }
           type = InternalModelLine.Type.PROD
         }
       )

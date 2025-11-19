@@ -132,6 +132,9 @@ class InvokeDataWatcherFunctionTest() {
             "PRIVATE_KEY_FILE_PATH" to SECRETS_DIR.resolve("edp7_tls.key").toString(),
             "CERT_COLLECTION_FILE_PATH" to SECRETS_DIR.resolve("kingdom_root.pem").toString(),
             "EDPA_CONFIG_STORAGE_BUCKET" to DATA_WATCHER_CONFIG_FILE_SYSTEM_PATH,
+            "OTEL_METRICS_EXPORTER" to "none",
+            "OTEL_TRACES_EXPORTER" to "none",
+            "OTEL_LOGS_EXPORTER" to "none",
           ) + additionalFlags
         )
       logger.info("Started DataWatcher process on port $port")

@@ -20,42 +20,17 @@ import com.google.common.truth.Truth.assertThat
 import io.cloudevents.CloudEvent
 import io.cloudevents.CloudEventData
 import io.cloudevents.SpecVersion
-import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.trace.Span
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.trace.SdkTracerProvider
 import java.net.URI
 import java.time.OffsetDateTime
-import java.util.concurrent.TimeUnit
 import kotlin.text.Charsets
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 
 @RunWith(JUnit4::class)
 class DataWatcherFunctionTracingTest {
-
-  private lateinit var openTelemetry: OpenTelemetrySdk
-  private lateinit var tracerProvider: SdkTracerProvider
-
-  @Before
-  fun setUpTelemetry() {
-    GlobalOpenTelemetry.resetForTest()
-    Instrumentation.resetForTest()
-
-    tracerProvider = SdkTracerProvider.builder().build()
-    openTelemetry =
-      OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).buildAndRegisterGlobal()
-  }
-
-  @After
-  fun tearDownTelemetry() {
-    tracerProvider.shutdown().join(5, TimeUnit.SECONDS)
-    openTelemetry.close()
-  }
 
   @Test
   fun `propagates traceparent from CloudEvent to DataWatcher work`() {
@@ -130,6 +105,15 @@ class DataWatcherFunctionTracingTest {
   }
 
   companion object {
+    init {
+      // Disable OTLP exporters for testing before EdpaTelemetry initializes
+      System.setProperty("otel.metrics.exporter", "none")
+      System.setProperty("otel.traces.exporter", "none")
+      System.setProperty("otel.logs.exporter", "none")
+
+      EdpaTelemetry.ensureInitialized()
+    }
+
     private const val EVENT_ID = "trace-test"
     private const val EVENT_SOURCE = "//storage.googleapis.com/projects/_/buckets/test-bucket"
     private const val EVENT_TYPE = "google.cloud.storage.object.v1.finalized"

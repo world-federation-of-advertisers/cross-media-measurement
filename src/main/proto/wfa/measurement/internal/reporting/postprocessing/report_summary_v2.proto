@@ -51,7 +51,7 @@ message ReportSummaryV2 {
     // Represents a frequency distribution result.
     message FrequencyResult {
       message BinResult {
-        int64 value = 1;
+        double value = 1;
         double standard_deviation = 2;
       }
       // Map of bin label to `BinResult`.

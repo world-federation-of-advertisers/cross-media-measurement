@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.LoggingHandler
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
@@ -29,7 +30,10 @@ import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
+import java.util.logging.Level
+import java.util.logging.LogManager
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
@@ -52,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.Stora
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.ParallelInMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.kms.GCloudKmsClientFactory
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
+import org.wfanet.measurement.gcloud.pubsub.GooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -283,7 +288,8 @@ class ResultsFulfillerAppRunner : Runnable {
     // Create KMS clients for EDPs
     createKmsClients()
 
-    val queueSubscriber = createQueueSubscriber()
+    val pubSubClient = DefaultGooglePubSubClient()
+    val queueSubscriber = createQueueSubscriber(pubSubClient)
     val parser = createWorkItemParser()
 
     // Get client certificates for secure computation API from server flags
@@ -494,10 +500,21 @@ class ResultsFulfillerAppRunner : Runnable {
     }
   }
 
-  private fun createQueueSubscriber(): QueueSubscriber {
-    logger.info("Creating DefaultGooglePubSubclient: ${googleProjectId}.")
-    val pubSubClient = DefaultGooglePubSubClient()
-    return Subscriber(projectId = googleProjectId, googlePubSubClient = pubSubClient)
+  private fun createQueueSubscriber(pubSubClient: GooglePubSubClient): QueueSubscriber {
+    logger.info("Creating Subscriber for project: $googleProjectId, subscription: $subscriptionId")
+    logger.info("Subscriber config: maxMessages=1, pullIntervalMillis=100ms")
+    val subscriber =
+      Subscriber(
+        projectId = googleProjectId,
+        googlePubSubClient = pubSubClient,
+        maxMessages = 1, // Pull one message at a time for long-running processing
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
+    logger.info("Subscriber created successfully")
+    return subscriber
   }
 
   private fun createWorkItemParser(): Parser<WorkItem> {
@@ -540,7 +557,33 @@ class ResultsFulfillerAppRunner : Runnable {
     }
 
     init {
+      configureCloudLoggingHandler()
       EdpaTelemetry.ensureInitialized()
+    }
+
+    private fun configureCloudLoggingHandler() {
+      try {
+        val rootLogger = LogManager.getLogManager().getLogger("")
+        if (rootLogger.handlers.none { it is LoggingHandler }) {
+          val otelServiceName = System.getenv("OTEL_SERVICE_NAME")
+          val handler =
+            if (otelServiceName.isNullOrBlank()) {
+              LoggingHandler()
+            } else {
+              LoggingHandler(otelServiceName)
+            }
+          rootLogger.addHandler(handler)
+          if (otelServiceName.isNullOrBlank()) {
+            logger.info("Configured Google Cloud Logging handler for java.util.logging")
+          } else {
+            logger.info(
+              "Configured Google Cloud Logging handler for java.util.logging (logName=$otelServiceName)"
+            )
+          }
+        }
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Failed to configure Google Cloud Logging handler", e)
+      }
     }
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(ResultsFulfillerAppRunner(), args)

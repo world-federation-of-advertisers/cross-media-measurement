@@ -39,7 +39,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
   val totalMeasurements: Map<Set<String>, Long>,
-  val kreach: Map<Set<String>, Map<Int, Long>>,
+  val kreach: Map<Set<String>, Map<Int, Double>>,
   val impression: Map<Set<String>, Long>,
 )
 
@@ -527,7 +527,7 @@ class ReportProcessorTest {
     private fun ReportSummary.toMetricReport(measurementPolicy: String): MetricReport {
       val cumulativeMeasurements: MutableMap<Set<String>, List<Long>> = mutableMapOf()
       val totalMeasurements: MutableMap<Set<String>, Long> = mutableMapOf()
-      val kreach: MutableMap<Set<String>, Map<Int, Long>> = mutableMapOf()
+      val kreach: MutableMap<Set<String>, Map<Int, Double>> = mutableMapOf()
       val impression: MutableMap<Set<String>, Long> = mutableMapOf()
 
       // Processes cumulative measurements.
@@ -629,8 +629,8 @@ class ReportProcessorTest {
 
       // Verifies that the relationship between kreach and impression holds.
       for (edpCombination in impression.keys.intersect(kreach.keys)) {
-        val kReachByEdpCombination: Map<Int, Long> = kreach.getValue(edpCombination)
-        val kreachWeightedSum: Long =
+        val kReachByEdpCombination: Map<Int, Double> = kreach.getValue(edpCombination)
+        val kreachWeightedSum: Double =
           kReachByEdpCombination.entries.sumOf { (key, value) -> key * value }
         val totalWeight: Int = kReachByEdpCombination.entries.sumOf { (key, _) -> key }
         if (

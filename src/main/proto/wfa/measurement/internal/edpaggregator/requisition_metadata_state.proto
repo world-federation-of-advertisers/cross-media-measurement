@@ -34,4 +34,6 @@ enum RequisitionMetadataState {
   REQUISITION_METADATA_STATE_FULFILLED = 4;
   // The requisition was refused.
   REQUISITION_METADATA_STATE_REFUSED = 5;
+  // The requisition was withdrawn.
+  REQUISITION_METADATA_STATE_WITHDRAWN = 6;
 }

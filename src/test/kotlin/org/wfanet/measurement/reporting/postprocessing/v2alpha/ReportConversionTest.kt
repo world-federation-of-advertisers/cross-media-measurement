@@ -64,12 +64,12 @@ class ReportConversionTest {
           frequency = frequencyResult {
             bins += binResult {
               label = "5"
-              value = 40199
+              value = 40199.565217391304
               standardDeviation = 80625.84487265335
             }
             bins += binResult {
               label = "2"
-              value = 52259
+              value = 52259.43478260869
               standardDeviation = 96293.33072911394
             }
             bins += binResult {
@@ -275,22 +275,22 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "1"
-                value = 100
+                value = 100.0
                 standardDeviation = 29448.118727440287
               }
               bins += binResult {
                 label = "2"
-                value = 200
+                value = 200.0
                 standardDeviation = 29448.118727440287
               }
               bins += binResult {
                 label = "3"
-                value = 300
+                value = 300.0
                 standardDeviation = 29448.118727440287
               }
               bins += binResult {
                 label = "4"
-                value = 400
+                value = 400.0
                 standardDeviation = 29448.118727440287
               }
               bins += binResult {
@@ -329,7 +329,7 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "1"
-                value = 74640
+                value = 74640.0
                 standardDeviation = 108362.92537282953
               }
               bins += binResult {
@@ -426,7 +426,7 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "1"
-                value = 187439
+                value = 187439.0
                 standardDeviation = 119219.35283812648
               }
               bins += binResult {
@@ -466,12 +466,12 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "2"
-                value = 79431
+                value = 79431.3870967742
                 standardDeviation = 129325.07135157812
               }
               bins += binResult {
                 label = "1"
-                value = 11767
+                value = 11767.612903225807
                 standardDeviation = 50960.5941803963
               }
             }
@@ -617,12 +617,12 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "1"
-                value = 3450
+                value = 3450.033742465593
                 standardDeviation = 3253.2458892873115
               }
               bins += binResult {
                 label = "2"
-                value = 1725
+                value = 1725.0168712327966
                 standardDeviation = 3238.0460772496767
               }
               bins += binResult {
@@ -635,7 +635,7 @@ class ReportConversionTest {
               }
               bins += binResult {
                 label = "5"
-                value = 4070563
+                value = 4070563.9493863015
                 standardDeviation = 103254.58360196998
               }
             }
@@ -696,22 +696,22 @@ class ReportConversionTest {
             frequency = frequencyResult {
               bins += binResult {
                 label = "1"
-                value = 659
+                value = 659.9998379731919
                 standardDeviation = 3223.469791075696
               }
               bins += binResult {
                 label = "2"
-                value = 4259
+                value = 4259.9989541906025
                 standardDeviation = 3223.469791075696
               }
               bins += binResult {
                 label = "3"
-                value = 4859
+                value = 4859.9988068935045
                 standardDeviation = 3223.469791075696
               }
               bins += binResult {
                 label = "5"
-                value = 4063619
+                value = 4063619.0024009426
                 standardDeviation = 102946.78989273963
               }
               bins += binResult {
@@ -767,12 +767,12 @@ class ReportConversionTest {
               }
               bins += binResult {
                 label = "2"
-                value = 2360
+                value = 2360.587605368836
                 standardDeviation = 3248.2700501747786
               }
               bins += binResult {
                 label = "3"
-                value = 931
+                value = 931.8108968561196
                 standardDeviation = 3235.3231393200517
               }
               bins += binResult {
@@ -781,7 +781,7 @@ class ReportConversionTest {
               }
               bins += binResult {
                 label = "5"
-                value = 1713786
+                value = 1713786.601497775
                 standardDeviation = 102513.74351444335
               }
             }
