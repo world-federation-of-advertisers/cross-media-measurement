@@ -26,6 +26,10 @@ locals {
       "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
       "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
       "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+
+      "google-logging-enabled"                        = "true"
+      "google-monitoring-enabled"                     = "true"
+      "tee-container-log-redirect"                    = "true"
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
@@ -132,14 +136,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     subnetwork = var.subnetwork_name
   }
 
-  metadata = merge(
-    {
-        "google-logging-enabled"    = "true"
-        "google-monitoring-enabled" = "true"
-        "tee-container-log-redirect" = "true"
-    },
-    local.metadata_map
-  )
+  metadata = local.metadata_map
+
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
