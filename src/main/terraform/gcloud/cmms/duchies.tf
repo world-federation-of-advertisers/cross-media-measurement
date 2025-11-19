@@ -77,7 +77,7 @@ locals {
       "--consent-signaling-private-key-der-file", "/tmp/secrets/aggregator_cs_private.der",
       "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
 
-      "--computations-service-target", "35.223.49.72:8443",
+      "--computations-service-target", "10.128.0.34:8443",
       "--computations-service-cert-host", "localhost",
       "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
       "--kingdom-system-api-cert-host", "localhost",
