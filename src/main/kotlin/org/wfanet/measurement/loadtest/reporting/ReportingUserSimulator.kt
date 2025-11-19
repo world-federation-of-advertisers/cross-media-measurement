@@ -344,6 +344,7 @@ class ReportingUserSimulator(
         basicReport.copy {
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
+          effectiveModelLine = retrievedBasicReport.effectiveModelLine
         }
       )
 
