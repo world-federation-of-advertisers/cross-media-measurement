@@ -48,4 +48,6 @@ databaseChangeLog:
 - include:
     file: add-report-results-missing-columns.sql
     relativeToChangeLogFile: true
-
+- include:
+    file: add-model-line-boolean-to-basic-report.sql
+    relativeToChangeLogFile: true
