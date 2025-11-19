@@ -77,3 +77,18 @@ py_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
     ],
 )
+
+py_library(
+    name = "post_process_report_result",
+    srcs = ["post_process_report_result.py"],
+    deps = [
+        requirement("absl-py"),
+        requirement("google-api-core"),
+        requirement("protobuf"),
+        ":report_conversion",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_sets_service_py_pb2",
+    ]
+)

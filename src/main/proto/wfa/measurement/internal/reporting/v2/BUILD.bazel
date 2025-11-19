@@ -372,6 +372,7 @@ proto_library(
 SERVICE_LIBS = [
     "basic_reports",
     "report_results",
+    "reporting_sets",
 ]
 
 proto_library(
@@ -416,6 +417,14 @@ proto_library(
         deps = [":{prefix}_proto".format(prefix = prefix)],
     )
     for prefix in MESSAGE_LIBS
+]
+
+[
+    py_proto_library(
+        name = "{prefix}_service_py_pb2".format(prefix = prefix),
+        protos = [":{prefix}_service_proto".format(prefix = prefix)],
+    )
+    for prefix in SERVICE_LIBS
 ]
 
 proto_descriptor_set(
