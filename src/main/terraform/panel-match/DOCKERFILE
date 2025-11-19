@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ghcr.io/world-federation-of-advertisers/bazel:0.1.0
+FROM ghcr.io/world-federation-of-advertisers/bazel:0.1.0@sha256:ba4807a8a85a7a79dc69ee82f2b71819479990142a807af083995099fc526078
 
 RUN apt-get update && apt-get install -y sudo wget gpg curl
 
