@@ -283,6 +283,23 @@ fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToNoisyResultsRead
   }
 }
 
+/**
+ * Buffers an update mutation to set the State of a BasicReports row to
+ * [BasicReport.State.SUCCEEDED].
+ */
+fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToSucceeded(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  resultDetails: BasicReportResultDetails,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("State").to(BasicReport.State.SUCCEEDED)
+    set("BasicReportResultDetails").to(resultDetails)
+  }
+}
+
 /** Returns whether a [BasicReport] with the specified [basicReportId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(
   measurementConsumerId: Long,

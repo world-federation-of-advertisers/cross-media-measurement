@@ -47,6 +47,7 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
     return listOf(
       SpannerReportResultsService(
         spannerClient,
+        postgresClient,
         impressionQualificationFilterMapping,
         eventMessageDescriptor,
         idGenerator = idGenerator,

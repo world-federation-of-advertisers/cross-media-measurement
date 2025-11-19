@@ -121,7 +121,9 @@ message AddDenoisedResultValuesRequest {
   // Map of external ReportingSetResult ID to `DenoisedReportingSetResult`.
   map<fixed64, DenoisedReportingSetResult> reporting_set_results = 4;
 
-  // TODO(@SanjayVas): Support specifying BasicReports to mark as completed.
+  // External ID of the `BasicReport` to associate results with.
+  string external_basic_report_id = 5;
+
   // TODO(@SanjayVas): Support including log entry for processor once the format
   // is defined.
 }

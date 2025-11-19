@@ -49,7 +49,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
    */
   fun buildResultGroups(
     basicReport: BasicReport,
-    reportingSetResults: Iterable<ReportingSetResult>,
+    reportingSetResults: Iterable<ProcessedReportingSetResult>,
     primitiveInfoByDataProviderId: Map<String, PrimitiveInfo>,
     compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String>,
   ): List<ResultGroup> {
@@ -429,14 +429,14 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
   /** Builds a Map for finding all results for each [ResultGroupSpec] in the [BasicReport] */
   private fun buildReportingWindowResultValuesByResultGroupSpecKey(
-    reportingSetResults: Iterable<ReportingSetResult>
+    reportingSetResults: Iterable<ProcessedReportingSetResult>
   ): Map<ResultGroupSpecKey, Map<ReportingWindowResultKey, ReportingWindowResultValues>> {
     return buildMap<
       ResultGroupSpecKey,
       MutableMap<ReportingWindowResultKey, ReportingWindowResultValues>,
     > {
       for (reportingSetResult in reportingSetResults) {
-        for (reportingWindowEntry in reportingSetResult.reportingWindowResultsList) {
+        for (reportingWindowEntry in reportingSetResult.windowResults) {
           val externalImpressionQualificationFilterId: String? =
             if (reportingSetResult.dimension.custom) {
               null
@@ -483,8 +483,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
             reportingWindowResultMap.getOrPut(key) { value }
 
           reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
-              reportingSetResult.dimension.externalReportingSetId] =
-            reportingWindowEntry.value.denoisedReportResultValues
+              reportingSetResult.dimension.externalReportingSetId] = reportingWindowEntry.value
         }
       }
     }
@@ -712,5 +711,17 @@ object BasicReportNoiseCorrectedResultsTransformation {
   data class PrimitiveInfo(
     val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>,
     val externalReportingSetId: String,
+  )
+
+  data class CampaignGroup(val reportingSet: ReportingSet, val reportingSets: List<ReportingSet>)
+
+  data class ProcessedReportingSetResult(
+    val dimension: ReportingSetResult.Dimension,
+    val populationSize: Int,
+    val windowResults:
+      Map<
+        ReportingSetResult.ReportingWindow,
+        ReportingSetResult.ReportingWindowResult.ReportResultValues,
+      >,
   )
 }

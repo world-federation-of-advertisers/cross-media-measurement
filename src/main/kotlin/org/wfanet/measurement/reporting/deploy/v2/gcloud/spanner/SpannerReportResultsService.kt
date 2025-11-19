@@ -24,10 +24,15 @@ import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
+import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -41,14 +46,22 @@ import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsReque
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
+import org.wfanet.measurement.internal.reporting.v2.ResultGroup
+import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
+import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.batchReadBasicReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
@@ -59,7 +72,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readNoisyReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
@@ -67,6 +79,8 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSet
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToNoisyResultsReady
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
@@ -76,6 +90,7 @@ import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueExcept
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.service.internal.ReportResultNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetResultNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingWindowResultNotFoundException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
@@ -83,6 +98,7 @@ import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetExce
 /** Spanner implementation of ReportResults gRPC service. */
 class SpannerReportResultsService(
   private val spannerClient: AsyncDatabaseClient,
+  private val postgresClient: DatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   eventMessageDescriptor: Descriptors.Descriptor,
   private val idGenerator: IdGenerator = RandomIdGenerator(),
@@ -470,6 +486,11 @@ class SpannerReportResultsService(
             measurementConsumerId,
             reportResultId,
           )
+        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_BASIC ->
+          throw Status.UNIMPLEMENTED.withDescription(
+              "REPORTING_SET_RESULT_VIEW_BASIC not implemented for this method"
+            )
+            .asRuntimeException()
         ReportingSetResultView.UNRECOGNIZED ->
           throw InvalidFieldValueException("view")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -500,16 +521,21 @@ class SpannerReportResultsService(
         } catch (e: ReportResultNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
-      val reportingSetResultIds: Map<Long, Long> =
-        txn.readReportingSetResultIds(
-          measurementConsumerId,
-          reportResultId,
-          request.reportingSetResultsMap.keys,
-        )
+      val reportingSetResultsByExternalId = buildMap {
+        txn
+          .batchReadBasicReportingSetResults(
+            impressionQualificationFilterMapping,
+            groupingDimensions,
+            measurementConsumerId,
+            reportResultId,
+            request.reportingSetResultsMap.keys,
+          )
+          .collect { put(it.reportingSetResult.externalReportingSetResultId, it) }
+      }
 
       for ((externalReportingSetResultId, denoisedResult) in request.reportingSetResultsMap) {
         val reportingSetResultId: Long =
-          reportingSetResultIds[externalReportingSetResultId]
+          reportingSetResultsByExternalId[externalReportingSetResultId]?.reportingSetResultId
             ?: throw ReportingSetResultNotFoundException(
                 cmmsMeasurementConsumerId,
                 externalReportResultId,
@@ -542,6 +568,22 @@ class SpannerReportResultsService(
             reportingWindowResultId,
             entry.value,
           )
+        }
+      }
+
+      if (request.externalBasicReportId.isNotEmpty()) {
+        try {
+          markBasicReportCompleted(
+            txn,
+            request.cmmsMeasurementConsumerId,
+            request.externalBasicReportId,
+            reportingSetResultsByExternalId.values.map { it.reportingSetResult },
+            request.reportingSetResultsMap,
+          )
+        } catch (e: BasicReportNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: ReportingSetNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL)
         }
       }
     }
@@ -580,5 +622,154 @@ class SpannerReportResultsService(
         }
       }
     }
+  }
+
+  /**
+   * Marks a [BasicReport] as completed with the specified processed results.
+   *
+   * @param reportingSetResults [ReportingSetResult]s with
+   *   [ReportingSetResultView.REPORTING_SET_RESULT_VIEW_BASIC]
+   * @param processedResultsByExternalId map of external [ReportingSetResult] ID to processed
+   *   results
+   * @throws BasicReportNotFoundException if the [BasicReport] is not found
+   * @throws ReportingSetNotFoundException if the [ReportingSet] representing the campaign group of
+   *   the [BasicReport] is not found
+   */
+  private suspend fun markBasicReportCompleted(
+    txn: AsyncDatabaseClient.TransactionContext,
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+    reportingSetResults: Iterable<ReportingSetResult>,
+    processedResultsByExternalId:
+      Map<Long, AddDenoisedResultValuesRequest.DenoisedReportingSetResult>,
+  ) {
+    val processedReportingSetResults =
+      reportingSetResults.map { reportingSetResult ->
+        val windowResults =
+          processedResultsByExternalId
+            .getValue(reportingSetResult.externalReportingSetResultId)
+            .reportingWindowResultsList
+            .associate { it.key to it.value }
+        BasicReportNoiseCorrectedResultsTransformation.ProcessedReportingSetResult(
+          reportingSetResult.dimension,
+          reportingSetResult.populationSize,
+          windowResults,
+        )
+      }
+
+    val basicReportResult: BasicReportResult =
+      txn.getBasicReportByExternalId(cmmsMeasurementConsumerId, externalBasicReportId)
+    if (basicReportResult.basicReport.state != BasicReport.State.NOISY_RESULTS_READY) {
+      throw BasicReportStateInvalidException(
+        cmmsMeasurementConsumerId,
+        externalBasicReportId,
+        basicReportResult.basicReport.state,
+      )
+    }
+
+    val postgresTxn: ReadContext = postgresClient.readTransaction()
+    val campaignGroup =
+      try {
+        val reportingSet =
+          ReportingSetReader(postgresTxn)
+            .batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                externalReportingSetIds += basicReportResult.basicReport.externalCampaignGroupId
+              }
+            )
+            .singleOrNullIfEmpty()
+            ?.reportingSet ?: throw ReportingSetNotFoundException()
+        val reportingSets =
+          ReportingSetReader(postgresTxn)
+            .readReportingSets(
+              streamReportingSetsRequest {
+                filter =
+                  StreamReportingSetsRequestKt.filter {
+                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                    this.externalCampaignGroupId = externalCampaignGroupId
+                  }
+                limit = Int.MAX_VALUE
+              }
+            )
+            .map { it.reportingSet }
+            .toList()
+        BasicReportNoiseCorrectedResultsTransformation.CampaignGroup(reportingSet, reportingSets)
+      } finally {
+        postgresTxn.close()
+      }
+
+    val resultGroups: List<ResultGroup> =
+      transformReportResultIntoResultGroups(
+        basicReportResult.basicReport,
+        campaignGroup,
+        processedReportingSetResults,
+      )
+    txn.setBasicReportStateToSucceeded(
+      basicReportResult.measurementConsumerId,
+      basicReportResult.basicReportId,
+      basicReportResultDetails { this.resultGroups += resultGroups },
+    )
+  }
+
+  private sealed class ReportingSetKey {
+    data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()
+
+    data class Primitive(val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey>) :
+      ReportingSetKey()
+  }
+
+  private fun transformReportResultIntoResultGroups(
+    basicReport: BasicReport,
+    campaignGroup: BasicReportNoiseCorrectedResultsTransformation.CampaignGroup,
+    processedReportingSetResults:
+      Iterable<BasicReportNoiseCorrectedResultsTransformation.ProcessedReportingSetResult>,
+  ): List<ResultGroup> {
+    val campaignGroupReportingSetIdByReportingSetKey: Map<ReportingSetKey, String> =
+      campaignGroup.reportingSets.associate {
+        if (it.hasComposite()) {
+          ReportingSetKey.Composite(setExpression = it.composite) to it.externalReportingSetId
+        } else {
+          ReportingSetKey.Primitive(eventGroupKeys = it.primitive.eventGroupKeysList.toSet()) to
+            it.externalReportingSetId
+        }
+      }
+
+    val eventGroupKeysByDataProviderId: Map<String, List<ReportingSet.Primitive.EventGroupKey>> =
+      campaignGroup.reportingSet.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
+
+    val primitiveInfoByDataProviderId:
+      Map<String, BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo> =
+      buildMap {
+        for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
+          val primitiveEventGroupKeys =
+            eventGroupKeysByDataProviderId.getValue(dataProviderId).toSet()
+          val reportingSetKey = ReportingSetKey.Primitive(eventGroupKeys = primitiveEventGroupKeys)
+
+          if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
+            put(
+              dataProviderId,
+              BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+                eventGroupKeys = primitiveEventGroupKeys,
+                externalReportingSetId =
+                  campaignGroupReportingSetIdByReportingSetKey.getValue(reportingSetKey),
+              ),
+            )
+          }
+        }
+      }
+
+    val compositeReportingSetIdBySetExpression: Map<ReportingSet.SetExpression, String> = buildMap {
+      campaignGroupReportingSetIdByReportingSetKey
+        .filter { it.key is ReportingSetKey.Composite }
+        .forEach { put((it.key as ReportingSetKey.Composite).setExpression, it.value) }
+    }
+
+    return BasicReportNoiseCorrectedResultsTransformation.buildResultGroups(
+      basicReport,
+      processedReportingSetResults,
+      primitiveInfoByDataProviderId,
+      compositeReportingSetIdBySetExpression,
+    )
   }
 }

@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -45,12 +46,6 @@ data class ReportingSetResultResult(
   val reportResultId: Long,
   val reportingSetResultId: Long,
   val reportingSetResult: ReportingSetResult,
-)
-
-data class ReportingSetResultIds(
-  val measurementConsumerId: Long,
-  val reportResultId: Long,
-  val reportingSetResultIdByExternalId: Map<Long, Long>,
 )
 
 suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExists(
@@ -171,6 +166,51 @@ private data class MutableReportingSetResultResult(
     )
 }
 
+/**
+ * Reads a batch of [ReportingSetResult]s with
+ * [org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView.REPORTING_SET_RESULT_VIEW_BASIC].
+ */
+fun AsyncDatabaseClient.ReadContext.batchReadBasicReportingSetResults(
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  groupingDimensions: GroupingDimensions,
+  measurementConsumerId: Long,
+  reportResultId: Long,
+  externalReportingSetResultIds: Iterable<Long>,
+): Flow<ReportingSetResultResult> {
+  val sql =
+    """
+    SELECT
+      ${ReportingSetResultsInternal.BASIC_COLUMNS}
+    FROM
+      MeasurementConsumers
+      JOIN ReportResults USING (MeasurementConsumerId)
+      JOIN ReportingSetResults USING (MeasurementConsumerId, ReportResultId)
+    WHERE
+      MeasurementConsumerId = @measurementConsumerId
+      AND ReportResultId = @reportResultId
+      AND ExternalReportingSetResultId IN UNNEST(@externalReportingSetResultIds)
+    """
+      .trimIndent()
+  val query =
+    statement(sql) {
+      bind("measurementConsumerId").to(measurementConsumerId)
+      bind("reportResultId").to(reportResultId)
+      bind("externalReportingSetResultIds").toInt64Array(externalReportingSetResultIds)
+    }
+  return executeQuery(query, Options.tag("action=batchReadBasicReportingSetResults")).map { row ->
+    val reportingSetResult =
+      ReportingSetResult.newBuilder()
+        .apply { fillBasicView(impressionQualificationFilterMapping, groupingDimensions, row) }
+        .build()
+    ReportingSetResultResult(
+      measurementConsumerId,
+      reportResultId,
+      row.getLong("ReportingSetResultId"),
+      reportingSetResult,
+    )
+  }
+}
+
 fun AsyncDatabaseClient.ReadContext.readNoisyReportingSetResults(
   impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   groupingDimensions: GroupingDimensions,
@@ -240,51 +280,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
 
         val builder =
           ReportingSetResult.newBuilder().apply {
-            cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
-            externalReportResultId = row.getLong("ExternalReportResultId")
-            externalReportingSetResultId = row.getLong("ExternalReportingSetResultId")
-            populationSize = row.getLong("PopulationSize").toInt()
-            metricFrequencySpecFingerprint = row.getLong("MetricFrequencySpecFingerprint")
-            groupingDimensionFingerprint = row.getLong("GroupingDimensionFingerprint")
-            filterFingerprint = row.getLong("FilterFingerprint")
-            dimension =
-              ReportingSetResultKt.dimension {
-                externalReportingSetId = row.getString("ExternalReportingSetId")
-                vennDiagramRegionType =
-                  row.getProtoEnum(
-                    "VennDiagramRegionType",
-                    ReportingSetResult.Dimension.VennDiagramRegionType::forNumber,
-                  )
-                val impressionQualificationFilterId = row.getLong("ImpressionQualificationFilterId")
-                if (
-                  impressionQualificationFilterId ==
-                    ReportingSetResults.CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID
-                ) {
-                  custom = true
-                } else {
-                  val impressionQualificationFilter =
-                    checkNotNull(
-                      impressionQualificationFilterMapping.getImpressionQualificationFilterById(
-                        impressionQualificationFilterId
-                      )
-                    ) {
-                      "ImpressionQualificationFilter with internal ID $impressionQualificationFilterId not found"
-                    }
-                  externalImpressionQualificationFilterId =
-                    impressionQualificationFilter.externalImpressionQualificationFilterId
-                }
-                metricFrequencySpec =
-                  row.getProtoMessage(
-                    "MetricFrequencySpec",
-                    MetricFrequencySpec.getDefaultInstance(),
-                  )
-                grouping =
-                  groupingDimensions.groupingByFingerprint.getValue(
-                    row.getLong("GroupingDimensionFingerprint")
-                  )
-                eventFilters +=
-                  row.getProtoMessageList("EventFilters", EventFilter.getDefaultInstance())
-              }
+            fillBasicView(impressionQualificationFilterMapping, groupingDimensions, row)
           }
         current = MutableReportingSetResultResult(pKey, builder)
       }
@@ -357,8 +353,56 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
   }
 }
 
+private fun ReportingSetResult.Builder.fillBasicView(
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  groupingDimensions: GroupingDimensions,
+  row: Struct,
+) {
+  cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
+  externalReportResultId = row.getLong("ExternalReportResultId")
+  externalReportingSetResultId = row.getLong("ExternalReportingSetResultId")
+  populationSize = row.getLong("PopulationSize").toInt()
+  metricFrequencySpecFingerprint = row.getLong("MetricFrequencySpecFingerprint")
+  groupingDimensionFingerprint = row.getLong("GroupingDimensionFingerprint")
+  filterFingerprint = row.getLong("FilterFingerprint")
+  dimension =
+    ReportingSetResultKt.dimension {
+      externalReportingSetId = row.getString("ExternalReportingSetId")
+      vennDiagramRegionType =
+        row.getProtoEnum(
+          "VennDiagramRegionType",
+          ReportingSetResult.Dimension.VennDiagramRegionType::forNumber,
+        )
+      val impressionQualificationFilterId = row.getLong("ImpressionQualificationFilterId")
+      if (
+        impressionQualificationFilterId ==
+          ReportingSetResults.CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID
+      ) {
+        custom = true
+      } else {
+        val impressionQualificationFilter =
+          checkNotNull(
+            impressionQualificationFilterMapping.getImpressionQualificationFilterById(
+              impressionQualificationFilterId
+            )
+          ) {
+            "ImpressionQualificationFilter with internal ID $impressionQualificationFilterId not found"
+          }
+        externalImpressionQualificationFilterId =
+          impressionQualificationFilter.externalImpressionQualificationFilterId
+      }
+      metricFrequencySpec =
+        row.getProtoMessage("MetricFrequencySpec", MetricFrequencySpec.getDefaultInstance())
+      grouping =
+        groupingDimensions.groupingByFingerprint.getValue(
+          row.getLong("GroupingDimensionFingerprint")
+        )
+      eventFilters += row.getProtoMessageList("EventFilters", EventFilter.getDefaultInstance())
+    }
+}
+
 private object ReportingSetResultsInternal {
-  private val COMMON_COLUMNS =
+  val BASIC_COLUMNS =
     """
     MeasurementConsumerId,
     ReportResultId,
@@ -375,6 +419,12 @@ private object ReportingSetResultsInternal {
     EventFilters,
     FilterFingerprint,
     PopulationSize,
+    """
+      .trimIndent()
+
+  private val WINDOW_COLUMNS =
+    """
+    $BASIC_COLUMNS
     ReportingWindowResultId,
     ReportingWindowStartDate,
     ReportingWindowEndDate,
@@ -383,7 +433,7 @@ private object ReportingSetResultsInternal {
     """
       .trimIndent()
 
-  private val COMMON_TABLES =
+  private val WINDOW_TABLES =
     """
     MeasurementConsumers
     JOIN ReportResults USING (MeasurementConsumerId)
@@ -393,7 +443,7 @@ private object ReportingSetResultsInternal {
     """
       .trimIndent()
 
-  private val COMMON_CLAUSES =
+  private val WINDOW_CLAUSES =
     """
     WHERE
       MeasurementConsumerId = @measurementConsumerId
@@ -406,24 +456,24 @@ private object ReportingSetResultsInternal {
   val NOISY_SQL =
     """
     SELECT
-      $COMMON_COLUMNS
+      $WINDOW_COLUMNS
     FROM
-      $COMMON_TABLES
-    $COMMON_CLAUSES
+      $WINDOW_TABLES
+    $WINDOW_CLAUSES
     """
       .trimIndent()
 
   val FULL_SQL =
     """
     SELECT
-      $COMMON_COLUMNS
+      $WINDOW_COLUMNS
       ReportResultValues.CumulativeResults,
       ReportResultValues.NonCumulativeResults,
     FROM
-      $COMMON_TABLES
+      $WINDOW_TABLES
       LEFT JOIN ReportResultValues USING
         (MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId)
-    $COMMON_CLAUSES
+    $WINDOW_CLAUSES
     """
       .trimIndent()
 }

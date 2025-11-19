@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
@@ -217,7 +218,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportingSetResults,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -506,7 +507,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportingSetResults,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -762,7 +763,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportingSetResults,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -921,7 +922,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportingSetResults, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(
+        basicReport,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
+        primitiveInfoByDataProviderId,
+        mapOf(),
+      )
 
     val expectedResultGroups =
       listOf(
@@ -1158,7 +1164,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportingSetResults,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -1301,7 +1307,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -1597,7 +1603,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -1764,7 +1770,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -1905,7 +1911,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(
+        basicReport,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
+        primitiveInfoByDataProviderId,
+        mapOf(),
+      )
 
     val expectedResultGroups =
       listOf(
@@ -2088,7 +2099,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -2289,7 +2300,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(
+        basicReport,
+        reportingSetResults.map(ReportingSetResult::toProcessedResult),
+        primitiveInfoByDataProviderId,
+        mapOf(),
+      )
 
     val expectedResultGroups =
       listOf(
@@ -2556,4 +2572,17 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
         }
     }
   }
+}
+
+/**
+ * Converts this [ReportingSetResult] with processed ("de-noised") values to a
+ * [BasicReportNoiseCorrectedResultsTransformation.ProcessedReportingSetResult].
+ */
+private fun ReportingSetResult.toProcessedResult():
+  BasicReportNoiseCorrectedResultsTransformation.ProcessedReportingSetResult {
+  return BasicReportNoiseCorrectedResultsTransformation.ProcessedReportingSetResult(
+    dimension,
+    populationSize,
+    reportingWindowResultsList.associate { it.key to it.value.denoisedReportResultValues },
+  )
 }
