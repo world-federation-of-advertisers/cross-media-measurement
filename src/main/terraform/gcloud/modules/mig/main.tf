@@ -119,9 +119,9 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   disk {
     boot                   = true
     source_image           = data.google_compute_image.confidential_space.self_link
-    disk_type              = "hyperdisk-balanced"
-    provisioned_iops       = 5000
-    provisioned_throughput = 1250
+#     disk_type              = "hyperdisk-balanced"
+#     provisioned_iops       = 5000
+#     provisioned_throughput = 1250
   }
 
   shielded_instance_config {
@@ -152,7 +152,6 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 resource "google_compute_region_instance_group_manager" "mig" {
   name                    = var.managed_instance_group_name
   base_instance_name      = var.base_instance_name
-  target_size             = var.min_replicas
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
@@ -169,8 +168,6 @@ resource "google_compute_region_instance_group_manager" "mig" {
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
-  count  = var.min_replicas < var.max_replicas ? 1 : 0
-
   name   = "autoscaler-for-${google_compute_region_instance_group_manager.mig.name}"
   target = google_compute_region_instance_group_manager.mig.id
 
