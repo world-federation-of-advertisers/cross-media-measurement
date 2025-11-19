@@ -30,10 +30,10 @@ jobs:
       id-token: write
     steps:
       - name: Check out revision
-        uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+      - uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - name: Write auth.bazelrc
         env:
@@ -64,14 +64,13 @@ jobs:
         run: >
           bazel build
           //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
-
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v4.0.0
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
           cosign-release: 'v3.0.2'
 
       - name: Authenticate to Google Cloud for image signing
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}

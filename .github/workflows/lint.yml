@@ -18,11 +18,11 @@ jobs:
     name: Lint changed files
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       with:
         fetch-depth: 0
 
-    - uses: world-federation-of-advertisers/actions/lint@v2
+    - uses: world-federation-of-advertisers/actions/lint@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
       with:
         license-type: apache
         copyright-holder: The Cross-Media Measurement Authors
