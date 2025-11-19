@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -30,6 +31,8 @@ import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.reportResultValues
+import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
@@ -42,6 +45,12 @@ data class ReportingSetResultResult(
   val reportResultId: Long,
   val reportingSetResultId: Long,
   val reportingSetResult: ReportingSetResult,
+)
+
+data class ReportingSetResultIds(
+  val measurementConsumerId: Long,
+  val reportResultId: Long,
+  val reportingSetResultIdByExternalId: Map<Long, Long>,
 )
 
 suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExists(
@@ -67,6 +76,45 @@ suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExistsByExternalId
     Key.of(measurementConsumerId, reportResultId, externalReportingSetResultId),
     listOf("ReportResultId"),
   ) != null
+}
+
+/**
+ * Reads ReportingSetResult IDs with the given external ReportingSetResult IDs for a parent
+ * ReportResult.
+ *
+ * @return a map of external ReportingSetResult ID to ReportingSetResult ID
+ */
+suspend fun AsyncDatabaseClient.ReadContext.readReportingSetResultIds(
+  measurementConsumerId: Long,
+  reportResultId: Long,
+  externalReportingSetResultIds: Iterable<Long>,
+): Map<Long, Long> {
+  val sql =
+    """
+    SELECT
+      ReportingSetResultId,
+      ExternalReportingSetResultId,
+    FROM
+      ReportingSetResults
+    WHERE
+      MeasurementConsumerId = @measurementConsumerId
+      AND ReportResultId = @reportResultId
+      AND ExternalReportingSetResultId IN UNNEST(@externalReportingSetResultIds)
+    """
+      .trimIndent()
+  val query =
+    statement(sql) {
+      bind("measurementConsumerId").to(measurementConsumerId)
+      bind("reportResultId").to(reportResultId)
+      bind("externalReportingSetResultIds").toInt64Array(externalReportingSetResultIds)
+    }
+  val rows: Flow<Struct> = executeQuery(query, Options.tag("action=readReportingSetResultIds"))
+
+  return buildMap {
+    rows.collect { row ->
+      put(row.getLong("ExternalReportingSetResultId"), row.getLong("ReportingSetResultId"))
+    }
+  }
 }
 
 fun AsyncDatabaseClient.TransactionContext.insertReportingSetResult(
@@ -129,42 +177,43 @@ fun AsyncDatabaseClient.ReadContext.readNoisyReportingSetResults(
   measurementConsumerId: Long,
   reportResultId: Long,
 ): Flow<ReportingSetResultResult> {
+  return readReportingSetResults(
+    impressionQualificationFilterMapping,
+    groupingDimensions,
+    measurementConsumerId,
+    reportResultId,
+    fullView = false,
+  )
+}
+
+fun AsyncDatabaseClient.ReadContext.readFullReportingSetResults(
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  groupingDimensions: GroupingDimensions,
+  measurementConsumerId: Long,
+  reportResultId: Long,
+): Flow<ReportingSetResultResult> {
+  return readReportingSetResults(
+    impressionQualificationFilterMapping,
+    groupingDimensions,
+    measurementConsumerId,
+    reportResultId,
+    fullView = true,
+  )
+}
+
+private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  groupingDimensions: GroupingDimensions,
+  measurementConsumerId: Long,
+  reportResultId: Long,
+  fullView: Boolean,
+): Flow<ReportingSetResultResult> {
   val sql =
-    """
-    SELECT
-      MeasurementConsumerId,
-      ReportResultId,
-      ReportingSetResultId,
-      CmmsMeasurementConsumerId,
-      ExternalReportResultId,
-      ExternalReportingSetResultId,
-      ExternalReportingSetId,
-      VennDiagramRegionType,
-      ImpressionQualificationFilterId,
-      MetricFrequencySpec,
-      MetricFrequencySpecFingerprint,
-      GroupingDimensionFingerprint,
-      EventFilters,
-      FilterFingerprint,
-      PopulationSize,
-      ReportingWindowResultId,
-      ReportingWindowStartDate,
-      ReportingWindowEndDate,
-      CumulativeResults,
-      NonCumulativeResults,
-    FROM
-      MeasurementConsumers
-      JOIN ReportResults USING (MeasurementConsumerId)
-      JOIN ReportingSetResults USING (MeasurementConsumerId, ReportResultId)
-      JOIN ReportingWindowResults USING (MeasurementConsumerId, ReportResultId, ReportingSetResultId)
-      JOIN NoisyReportResultValues USING (MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId)
-    WHERE
-      MeasurementConsumerId = @measurementConsumerId
-      AND ReportResultId = @reportResultId
-    ORDER BY
-      MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId
-    """
-      .trimIndent()
+    if (fullView) {
+      ReportingSetResultsInternal.FULL_SQL
+    } else {
+      ReportingSetResultsInternal.NOISY_SQL
+    }
   val query =
     statement(sql) {
       bind("measurementConsumerId").to(measurementConsumerId)
@@ -254,23 +303,45 @@ fun AsyncDatabaseClient.ReadContext.readNoisyReportingSetResults(
             value =
               ReportingSetResultKt.reportingWindowResult {
                 noisyReportResultValues = noisyReportResultValues {
-                  if (!row.isNull("CumulativeResults")) {
+                  if (!row.isNull("NoisyCumulativeResults")) {
                     cumulativeResults =
                       row.getProtoMessage(
-                        "CumulativeResults",
+                        "NoisyCumulativeResults",
                         ReportingSetResult.ReportingWindowResult.NoisyReportResultValues
                           .NoisyMetricSet
                           .getDefaultInstance(),
                       )
                   }
-                  if (!row.isNull("NonCumulativeResults")) {
+                  if (!row.isNull("NoisyNonCumulativeResults")) {
                     nonCumulativeResults =
                       row.getProtoMessage(
-                        "NonCumulativeResults",
+                        "NoisyNonCumulativeResults",
                         ReportingSetResult.ReportingWindowResult.NoisyReportResultValues
                           .NoisyMetricSet
                           .getDefaultInstance(),
                       )
+                  }
+                }
+                if (fullView) {
+                  val hasCumulativeResults = !row.isNull("CumulativeResults")
+                  val hasNonCumulativeResults = !row.isNull("NonCumulativeResults")
+                  if (hasCumulativeResults || hasNonCumulativeResults) {
+                    denoisedReportResultValues = reportResultValues {
+                      if (hasCumulativeResults) {
+                        cumulativeResults =
+                          row.getProtoMessage(
+                            "CumulativeResults",
+                            ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance(),
+                          )
+                      }
+                      if (hasNonCumulativeResults) {
+                        nonCumulativeResults =
+                          row.getProtoMessage(
+                            "NonCumulativeResults",
+                            ResultGroup.MetricSet.BasicMetricSet.getDefaultInstance(),
+                          )
+                      }
+                    }
                   }
                 }
               }
@@ -284,4 +355,75 @@ fun AsyncDatabaseClient.ReadContext.readNoisyReportingSetResults(
       emit(final.build())
     }
   }
+}
+
+private object ReportingSetResultsInternal {
+  private val COMMON_COLUMNS =
+    """
+    MeasurementConsumerId,
+    ReportResultId,
+    ReportingSetResultId,
+    CmmsMeasurementConsumerId,
+    ExternalReportResultId,
+    ExternalReportingSetResultId,
+    ExternalReportingSetId,
+    VennDiagramRegionType,
+    ImpressionQualificationFilterId,
+    MetricFrequencySpec,
+    MetricFrequencySpecFingerprint,
+    GroupingDimensionFingerprint,
+    EventFilters,
+    FilterFingerprint,
+    PopulationSize,
+    ReportingWindowResultId,
+    ReportingWindowStartDate,
+    ReportingWindowEndDate,
+    NoisyReportResultValues.CumulativeResults AS NoisyCumulativeResults,
+    NoisyReportResultValues.NonCumulativeResults AS NoisyNonCumulativeResults,
+    """
+      .trimIndent()
+
+  private val COMMON_TABLES =
+    """
+    MeasurementConsumers
+    JOIN ReportResults USING (MeasurementConsumerId)
+    JOIN ReportingSetResults USING (MeasurementConsumerId, ReportResultId)
+    JOIN ReportingWindowResults USING (MeasurementConsumerId, ReportResultId, ReportingSetResultId)
+    JOIN NoisyReportResultValues USING (MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId)
+    """
+      .trimIndent()
+
+  private val COMMON_CLAUSES =
+    """
+    WHERE
+      MeasurementConsumerId = @measurementConsumerId
+      AND ReportResultId = @reportResultId
+    ORDER BY
+      MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId
+    """
+      .trimIndent()
+
+  val NOISY_SQL =
+    """
+    SELECT
+      $COMMON_COLUMNS
+    FROM
+      $COMMON_TABLES
+    $COMMON_CLAUSES
+    """
+      .trimIndent()
+
+  val FULL_SQL =
+    """
+    SELECT
+      $COMMON_COLUMNS
+      ReportResultValues.CumulativeResults,
+      ReportResultValues.NonCumulativeResults,
+    FROM
+      $COMMON_TABLES
+      LEFT JOIN ReportResultValues USING
+        (MeasurementConsumerId, ReportResultId, ReportingSetResultId, ReportingWindowResultId)
+    $COMMON_CLAUSES
+    """
+      .trimIndent()
 }
