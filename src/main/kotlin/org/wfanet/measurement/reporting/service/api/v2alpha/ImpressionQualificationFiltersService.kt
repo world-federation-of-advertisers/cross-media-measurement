@@ -77,6 +77,8 @@ class ImpressionQualificationFiltersService(
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
