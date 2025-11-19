@@ -63,12 +63,12 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       # Authenticate to Google Cloud. This will export some environment
       # variables, including GCLOUD_PROJECT.
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -98,13 +98,13 @@ jobs:
           EOF
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - name: Export BAZEL_BIN
         run: echo "BAZEL_BIN=$(bazel info bazel-bin)" >> $GITHUB_ENV
 
       - name: Get GKE cluster credentials
-        uses: google-github-actions/get-gke-credentials@v2
+        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
         with:
           cluster_name: kingdom
           location: ${{ vars.GCLOUD_ZONE }}
@@ -147,7 +147,7 @@ jobs:
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/event_message_descriptor_set.pb"
 
       - name: Upload Kustomization artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
           name: pdp-kustomization
