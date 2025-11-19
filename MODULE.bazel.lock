@@ -21,8 +21,7 @@
     "https://bcr.bazel.build/modules/apple_support/1.5.0/MODULE.bazel": "50341a62efbc483e8a2a6aec30994a58749bd7b885e18dd96aa8c33031e558ef",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/1.36.0/MODULE.bazel": "710d3560d8891d209f7985f3e4223011c3fefed0cd4d23d3e7b77b0f8287ef64",
     "https://bcr.bazel.build/modules/aspect_bazel_lib/2.7.2/MODULE.bazel": "780d1a6522b28f5edb7ea09630748720721dfe27690d65a2d33aa7509de77e07",
-    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.7.7/MODULE.bazel": "491f8681205e31bb57892d67442ce448cda4f472a8e6b3dc062865e29a64f89c",
-    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.7.7/source.json": "87f12b449cd1d27d3e83840a59a6966d557e7c3c5f19e7b2e0361da5edc6b397",
+    "https://bcr.bazel.build/modules/aspect_bazel_lib/2.7.2/source.json": "a9ee2898e86eb8106e67b2adcd63de788cd922dd82f90f6775f13b0bf2248d75",
     "https://bcr.bazel.build/modules/bazel_features/1.1.0/MODULE.bazel": "cfd42ff3b815a5f39554d97182657f8c4b9719568eb7fded2b9135f084bf760b",
     "https://bcr.bazel.build/modules/bazel_features/1.1.1/MODULE.bazel": "27b8c79ef57efe08efccbd9dd6ef70d61b4798320b8d3c134fd571f78963dbcd",
     "https://bcr.bazel.build/modules/bazel_features/1.10.0/MODULE.bazel": "f75e8807570484a99be90abcd52b5e1f390362c258bcb73106f4544957a48101",
@@ -303,7 +302,6 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/apple_support/1.5.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/aspect_bazel_lib/1.36.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/aspect_bazel_lib/2.7.2/MODULE.bazel": "not found",
-    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/aspect_bazel_lib/2.7.7/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/bazel_features/1.1.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/bazel_features/1.1.1/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/bazel_features/1.10.0/MODULE.bazel": "not found",
@@ -684,8 +682,8 @@
     },
     "@@aspect_bazel_lib~//lib:extensions.bzl%toolchains": {
       "general": {
-        "bzlTransitiveDigest": "lIywunPSkJhCp6mXUfksrSPKxf9cWiIiLudbktooWUQ=",
-        "usagesDigest": "q2PbAee/wgWa7TSOyJUMCAEfEFXBVeN6ZnEeKZT2OYA=",
+        "bzlTransitiveDigest": "qjpcu+jbmeT2L5+ioH/HKy64NswEV29s9cVZee/Nh3Y=",
+        "usagesDigest": "iAeakSI8SxMGo2/sSnwqiqnE+yGjodU5MpbW/bZaNt4=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -913,7 +911,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "darwin_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_darwin_arm64": {
@@ -921,7 +919,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "darwin_arm64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_linux_amd64": {
@@ -929,7 +927,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "linux_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_linux_arm64": {
@@ -937,7 +935,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "linux_arm64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_windows_amd64": {
@@ -945,7 +943,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "windows_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_toolchains": {
@@ -2258,7 +2256,7 @@
     },
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
-        "bzlTransitiveDigest": "wqFszNmqCC3h/8M7QShIbUDQp7kRIXVRZRuM17KI1jA=",
+        "bzlTransitiveDigest": "rY7xghkG6P9TjNM++lUTe5FGP/nMgqy+MqPLCm41tcU=",
         "usagesDigest": "WYFvsrMRUUBayLYea4gZtnY1wPsNyB16BO14oQA2w9E=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -2549,7 +2547,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "darwin_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_darwin_arm64": {
@@ -2557,7 +2555,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "darwin_arm64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_linux_amd64": {
@@ -2565,7 +2563,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "linux_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_linux_arm64": {
@@ -2573,7 +2571,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "linux_arm64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_windows_amd64": {
@@ -2581,7 +2579,7 @@
             "ruleClassName": "coreutils_platform_repo",
             "attributes": {
               "platform": "windows_amd64",
-              "version": "0.0.26"
+              "version": "0.0.23"
             }
           },
           "coreutils_toolchains": {
