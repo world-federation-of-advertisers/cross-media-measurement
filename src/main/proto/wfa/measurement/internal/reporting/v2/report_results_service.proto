@@ -74,6 +74,8 @@ message BatchCreateReportingSetResultsRequest {
   fixed64 external_report_result_id = 2;
   // Batch of requests.
   repeated CreateReportingSetResultRequest requests = 3;
+  // External ID of the `BasicReport` to associate noisy results with.
+  string external_basic_report_id = 4;
 }
 
 message BatchCreateReportingSetResultsResponse {
