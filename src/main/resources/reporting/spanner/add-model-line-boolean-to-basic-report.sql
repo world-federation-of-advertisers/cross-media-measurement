@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset tristanvuong2021:11 dbms:cloudspanner
+-- changeset tristanvuong2021:12 dbms:cloudspanner
 -- comment: Add ModelLine Boolean to BasicReport
 
 ALTER TABLE BasicReports
