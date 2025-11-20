@@ -29,7 +29,8 @@ service EventGroups {
 
   rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup);
 
-  rpc BatchUpdateEventGroup(BatchUpdateEventGroupsRequest) returns (BatchUpdateEventGroupsResponse);
+  rpc BatchUpdateEventGroup(BatchUpdateEventGroupsRequest)
+      returns (BatchUpdateEventGroupsResponse);
 
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
