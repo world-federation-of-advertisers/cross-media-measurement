@@ -36,7 +36,7 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 
-object BasicReportNoiseCorrectedResultsTransformation {
+object BasicReportProcessedResultsTransformation {
   /**
    * Builds a list of [ResultGroup]s for the [BasicReport] given the [ReportResult]
    *
@@ -484,7 +484,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
           reportingWindowResultValues.reportResultValuesByExternalReportingSetId[
               reportingSetResult.dimension.externalReportingSetId] =
-            reportingWindowEntry.value.denoisedReportResultValues
+            reportingWindowEntry.value.processedReportResultValues
         }
       }
     }
@@ -492,7 +492,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
 
   /**
    * Builds a [ResultGroup.MetricSet.ReportingUnitMetricSet] from a
-   * [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] and denoised values
+   * [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] and processed values
    *
    * @param reportingUnitMetricSetSpec [ResultGroupMetricSpec.ReportingUnitMetricSetSpec] specifies
    *   which fields to set.
@@ -503,7 +503,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
    *   the ID of the Composite ReportingSet for the first two components of the ReportingUnit, etc.,
    *   until the ID of the Composite ReportingSet for the entire ReportingUnit. Is empty if it isn't
    *   used.
-   * @param reportResultValuesByExternalReportingSetId Map containing denoised values.
+   * @param reportResultValuesByExternalReportingSetId Map containing processed values.
    */
   private fun buildReportingUnitMetricSet(
     reportingUnitMetricSetSpec: ResultGroupMetricSpec.ReportingUnitMetricSetSpec,
@@ -513,14 +513,14 @@ object BasicReportNoiseCorrectedResultsTransformation {
       Map<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   ): ResultGroup.MetricSet.ReportingUnitMetricSet {
     return ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
-      val reportingUnitDenoisedResultValues =
+      val reportingUnitProcessedResultValues =
         reportResultValuesByExternalReportingSetId.getValue(reportingUnitReportingSetId)
 
       if (reportingUnitMetricSetSpec.hasNonCumulative()) {
         nonCumulative =
           buildBasicMetricSet(
             reportingUnitMetricSetSpec.nonCumulative,
-            reportingUnitDenoisedResultValues.nonCumulativeResults,
+            reportingUnitProcessedResultValues.nonCumulativeResults,
           )
       }
 
@@ -528,7 +528,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
         cumulative =
           buildBasicMetricSet(
             reportingUnitMetricSetSpec.cumulative,
-            reportingUnitDenoisedResultValues.cumulativeResults,
+            reportingUnitProcessedResultValues.cumulativeResults,
           )
       }
 
@@ -536,9 +536,9 @@ object BasicReportNoiseCorrectedResultsTransformation {
         var prevReach = 0
         // Subtracts the previous reach to get the difference in reach.
         for (reportingSetId in incrementalReportingSetIds) {
-          val denoisedValues = reportResultValuesByExternalReportingSetId.getValue(reportingSetId)
-          stackedIncrementalReach += denoisedValues.cumulativeResults.reach - prevReach
-          prevReach = denoisedValues.cumulativeResults.reach
+          val processedValues = reportResultValuesByExternalReportingSetId.getValue(reportingSetId)
+          stackedIncrementalReach += processedValues.cumulativeResults.reach - prevReach
+          prevReach = processedValues.cumulativeResults.reach
         }
       }
     }
@@ -550,7 +550,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
     reportResultValuesByExternalReportingSetId:
       Map<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   ): ResultGroup.MetricSet.ComponentMetricSet {
-    val componentDenoisedResultValues =
+    val componentProcessedResultValues =
       reportResultValuesByExternalReportingSetId.getValue(
         componentReportingSetIds.componentReportingSetId
       )
@@ -560,7 +560,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
         nonCumulative =
           buildBasicMetricSet(
             componentMetricSetSpec.nonCumulative,
-            componentDenoisedResultValues.nonCumulativeResults,
+            componentProcessedResultValues.nonCumulativeResults,
           )
       }
 
@@ -568,7 +568,7 @@ object BasicReportNoiseCorrectedResultsTransformation {
         cumulative =
           buildBasicMetricSet(
             componentMetricSetSpec.cumulative,
-            componentDenoisedResultValues.cumulativeResults,
+            componentProcessedResultValues.cumulativeResults,
           )
       }
 
@@ -618,34 +618,34 @@ object BasicReportNoiseCorrectedResultsTransformation {
    *
    * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] specifies which fields to
    *   set.
-   * @param denoisedValues [ResultGroup.MetricSet.BasicMetricSet] contains all the denoised values,
-   *   which may have fields set that the basicMetricSetSpec doesn't ask for.
+   * @param processedValues [ResultGroup.MetricSet.BasicMetricSet] contains all the processed
+   *   values, which may have fields set that the basicMetricSetSpec doesn't ask for.
    */
   private fun buildBasicMetricSet(
     basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
-    denoisedValues: ResultGroup.MetricSet.BasicMetricSet,
+    processedValues: ResultGroup.MetricSet.BasicMetricSet,
   ): ResultGroup.MetricSet.BasicMetricSet {
     return ResultGroupKt.MetricSetKt.basicMetricSet {
       if (basicMetricSetSpec.reach) {
-        reach = denoisedValues.reach
+        reach = processedValues.reach
       }
       if (basicMetricSetSpec.percentReach) {
-        percentReach = denoisedValues.percentReach
+        percentReach = processedValues.percentReach
       }
       if (basicMetricSetSpec.kPlusReach > 0) {
-        kPlusReach += denoisedValues.kPlusReachList
+        kPlusReach += processedValues.kPlusReachList
       }
       if (basicMetricSetSpec.percentKPlusReach) {
-        percentKPlusReach += denoisedValues.percentKPlusReachList
+        percentKPlusReach += processedValues.percentKPlusReachList
       }
       if (basicMetricSetSpec.averageFrequency) {
-        averageFrequency = denoisedValues.averageFrequency
+        averageFrequency = processedValues.averageFrequency
       }
       if (basicMetricSetSpec.impressions) {
-        impressions = denoisedValues.impressions
+        impressions = processedValues.impressions
       }
       if (basicMetricSetSpec.grps) {
-        grps = denoisedValues.grps
+        grps = processedValues.grps
       }
     }
   }

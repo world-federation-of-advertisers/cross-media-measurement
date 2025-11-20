@@ -50,10 +50,10 @@ import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportProcessedResultsTransformation.buildResultGroups
 
 @RunWith(JUnit4::class)
-class BasicReportNoiseCorrectedResultsTransformationTest {
+class BasicReportProcessedResultsTransformationTest {
   @Test
   fun `buildResultGroups creates result groups correctly`() {
     val basicReport = basicReport {
@@ -116,7 +116,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -150,7 +150,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -184,7 +184,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
@@ -196,12 +196,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
@@ -405,7 +405,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -439,7 +439,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -473,7 +473,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
@@ -485,12 +485,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
@@ -729,7 +729,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
@@ -741,12 +741,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
@@ -893,7 +893,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -909,12 +909,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
@@ -1044,7 +1044,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1082,7 +1082,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1120,7 +1120,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
@@ -1132,17 +1132,17 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
         DATA_PROVIDER_3_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
           ),
@@ -1330,7 +1330,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1368,7 +1368,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1406,7 +1406,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1444,7 +1444,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 25 }
                     }
@@ -1478,7 +1478,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 30 }
                     }
@@ -1512,7 +1512,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 45 }
                     }
@@ -1546,7 +1546,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       nonCumulativeResults = ResultGroupKt.MetricSetKt.basicMetricSet { reach = 55 }
                     }
@@ -1558,17 +1558,17 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
         DATA_PROVIDER_3_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_3.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_3_ID,
           ),
@@ -1786,7 +1786,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1816,7 +1816,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1847,7 +1847,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1877,7 +1877,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
               key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -1893,12 +1893,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),
@@ -2127,7 +2127,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2170,7 +2170,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2218,7 +2218,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2261,7 +2261,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
                 }
               value =
                 ReportingSetResultKt.reportingWindowResult {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
                       cumulativeResults =
                         ResultGroupKt.MetricSetKt.basicMetricSet {
@@ -2277,12 +2277,12 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val primitiveInfoByDataProviderId =
       mapOf(
         DATA_PROVIDER_1_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
           ),
         DATA_PROVIDER_2_ID to
-          BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
             eventGroupKeys = PRIMITIVE_REPORTING_SET_2.primitive.eventGroupKeysList.toSet(),
             externalReportingSetId = PRIMITIVE_REPORTING_SET_2_ID,
           ),

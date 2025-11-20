@@ -163,13 +163,13 @@ message ReportingSetResult {
       ResultGroup.MetricSet.BasicMetricSet non_cumulative_results = 2;
     }
 
-    // Noisy report result values. Required. Immutable.
-    NoisyReportResultValues noisy_report_result_values = 1;
+    // Unprocessed report result values. Required. Immutable.
+    NoisyReportResultValues unprocessed_report_result_values = 1;
 
-    // Denoised report result values. Output-only.
+    // Processed report result values. Output-only.
     //
     // In responses, only set when view is `REPORTING_SET_RESULT_VIEW_FULL`.
-    ReportResultValues denoised_report_result_values = 2;
+    ReportResultValues processed_report_result_values = 2;
   }
   message ReportingWindowEntry {
     ReportingWindow key = 1;
@@ -190,10 +190,10 @@ message ReportingSetResult {
 }
 
 enum ReportingSetResultView {
-  // Default value. The API will default to the NOISY view.
+  // Default value. The API will default to the UNPROCESSED view.
   REPORTING_SET_RESULT_VIEW_UNSPECIFIED = 0;
-  // View which includes noisy values only.
-  REPORTING_SET_RESULT_VIEW_NOISY = 1;
-  // View which includes all values (noisy and de-noised).
+  // View which includes unprocessed values only.
+  REPORTING_SET_RESULT_VIEW_UNPROCESSED = 1;
+  // View which includes all values (unprocessed and processed).
   REPORTING_SET_RESULT_VIEW_FULL = 2;
 }
