@@ -68,7 +68,8 @@ reporting: #Reporting & {
 		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"
 	}
-	_kingdomApiTarget: #KingdomApiTarget
+	_kingdomApiTarget:    #KingdomApiTarget
+	_eventMessageTypeUrl: string @tag("event_message_type_url")
 
 	_postgresConfig: {
 		iamUserLocal:     "reporting-v2-internal"

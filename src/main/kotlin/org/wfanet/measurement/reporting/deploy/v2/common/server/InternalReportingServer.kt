@@ -16,21 +16,26 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.common.server
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
 import io.grpc.BindableService
 import java.io.File
-import java.time.Clock
 import kotlin.properties.Delegates
 import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.ServiceFlags
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
@@ -40,22 +45,77 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import picocli.CommandLine
-import picocli.CommandLine.MissingParameterException
 
 abstract class AbstractInternalReportingServer : Runnable {
   @CommandLine.Spec lateinit var spec: CommandLine.Model.CommandSpec
 
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
+  @CommandLine.Mixin
+  protected lateinit var spannerFlags: SpannerFlags
+    private set
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--basic-reports-enabled"],
     description =
       [
         "Whether the BasicReports service is enabled. This includes services it exclusively depends on."
       ],
     required = false,
+    defaultValue = "false",
   )
-  var basicReportsEnabled: Boolean = false
+  protected var basicReportsEnabled by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--impression-qualification-filter-config-file"],
+    description =
+      [
+        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in  " +
+          "text format.",
+        "Required if --basic-reports-enabled is true.",
+      ],
+    required = false,
+  )
+  protected lateinit var impressionQualificationFilterConfigFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      [
+        "Serialized FileDescriptorSet for the event message and its dependencies. " +
+          "This can be specified multiple times.",
+        "Required if --basic-reports-enabled is true.",
+      ],
+    required = false,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
+  @CommandLine.Option(
+    names = ["--event-message-type-url"],
+    description =
+      [
+        "Protobuf type URL of the event message for the CMMS instance",
+        "Required if --basic-reports-enabled is true.",
+      ],
+    required = false,
+  )
+  private lateinit var eventMessageTypeUrl: String
+
+  protected fun getEventMessageDescriptor(): Descriptors.Descriptor {
+    val typeRegistry: TypeRegistry = buildTypeRegistry()
+    return checkNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+      "Event message type not found in descriptor sets"
+    }
+  }
+
+  private fun buildTypeRegistry(): TypeRegistry {
+    val fileDescriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      loadFileDescriptorSets(eventMessageDescriptorSetFiles)
+    return TypeRegistry.newBuilder()
+      .apply { add(ProtoReflection.buildDescriptors(fileDescriptorSets)) }
+      .build()
+  }
 
   // TODO(@tristanvuong2021): Delete flag when there is a better alternative.
   @set:CommandLine.Option(
@@ -66,13 +126,67 @@ abstract class AbstractInternalReportingServer : Runnable {
   var disableMetricsReuse by Delegates.notNull<Boolean>()
     private set
 
+  private var validated = false
+
+  protected fun validateCommandLine() {
+    if (basicReportsEnabled) {
+      if (
+        spannerFlags.projectName.isEmpty() ||
+          spannerFlags.instanceName.isEmpty() ||
+          spannerFlags.databaseName.isEmpty()
+      ) {
+        throw CommandLine.MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--spanner-project, --spanner-instance, and --spanner-database are all required if " +
+            "--basic-reports-enabled is true",
+        )
+      }
+
+      if (!::impressionQualificationFilterConfigFile.isInitialized) {
+        throw CommandLine.MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--impression-qualification-filter-config-file is required if " +
+            "--basic-reports-enabled is true",
+        )
+      }
+
+      if (!::eventMessageDescriptorSetFiles.isInitialized || !::eventMessageTypeUrl.isInitialized) {
+        throw CommandLine.MissingParameterException(
+          spec.commandLine(),
+          spec.args(),
+          "--event-message-descriptor-set and --event-message-type-url are required if " +
+            "--basic-reports-enabled is true",
+        )
+      }
+    }
+    validated = true
+  }
+
   protected suspend fun run(services: Services) {
+    require(validated)
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
 
     runInterruptible { server.start().blockUntilShutdown() }
   }
 
   companion object {
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
+
+    private fun loadFileDescriptorSets(
+      files: Iterable<File>
+    ): List<DescriptorProtos.FileDescriptorSet> {
+      return files.map { file ->
+        file.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+    }
+
     fun Services.toList(): List<BindableService> {
       return Services::class.declaredMemberProperties.mapNotNull {
         it.get(this) as BindableService?
@@ -90,47 +204,24 @@ abstract class AbstractInternalReportingServer : Runnable {
 class InternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
-  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
-
-  @CommandLine.Option(
-    names = ["--impression-qualification-filter-config-file"],
-    description =
-      [
-        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format. " +
-          "Required if --basic-reports-enabled is true."
-      ],
-    required = false,
-  )
-  private var impressionQualificationFilterConfigFile: File? = null
 
   override fun run() = runBlocking {
-    val clock = Clock.systemUTC()
-    val idGenerator = RandomIdGenerator(clock)
+    validateCommandLine()
+    val idGenerator = RandomIdGenerator()
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val postgresClient = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     if (basicReportsEnabled) {
-      if (
-        spannerFlags.projectName.isEmpty() ||
-          spannerFlags.instanceName.isEmpty() ||
-          spannerFlags.databaseName.isEmpty() ||
-          impressionQualificationFilterConfigFile == null
-      ) {
-        throw MissingParameterException(
-          spec.commandLine(),
-          spec.args(),
-          "--spanner-project, --spanner-instance, --spanner-database, and --impression-qualification-filter-config-file are all required if --basic-reports-enabled is set to true",
-        )
-      }
-
       val impressionQualificationFilterConfig =
         parseTextProto(
-          impressionQualificationFilterConfigFile!!,
+          impressionQualificationFilterConfigFile,
           ImpressionQualificationFilterConfig.getDefaultInstance(),
         )
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(impressionQualificationFilterConfig)
+
+      val eventMessageDescriptor = getEventMessageDescriptor()
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
@@ -140,6 +231,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            eventMessageDescriptor,
             disableMetricsReuse,
             serviceDispatcher,
           )
@@ -150,6 +242,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
         DataServices.create(
           idGenerator,
           postgresClient,
+          null,
           null,
           null,
           disableMetricsReuse,

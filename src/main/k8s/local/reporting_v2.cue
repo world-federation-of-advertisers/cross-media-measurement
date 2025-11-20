@@ -37,6 +37,7 @@ reporting: #Reporting & {
 	}
 	_verboseGrpcServerLogging: true
 	_verboseGrpcClientLogging: true
+	_eventMessageTypeUrl:      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 
 	let EnvVars = #EnvVarMap & {
 		"POSTGRES_USER": {
