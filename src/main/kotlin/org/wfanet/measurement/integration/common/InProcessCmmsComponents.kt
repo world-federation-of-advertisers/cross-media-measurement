@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import java.security.cert.X509Certificate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
@@ -30,22 +31,35 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
+import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
+import org.wfanet.measurement.api.v2alpha.modelRelease
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -191,12 +205,16 @@ class InProcessCmmsComponents(
   private lateinit var populationDataProviderResource: Resources.Resource
   private lateinit var population: Population
   private lateinit var modelProviderResource: Resources.Resource
+  private lateinit var modelLineName: String
 
   val populationResourceName: String
     get() = population.name
 
   val modelProviderResourceName: String
     get() = modelProviderResource.name
+
+  val modelLineResourceName: String
+    get() = modelLineName
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -205,6 +223,8 @@ class InProcessCmmsComponents(
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         internalCertificatesClient = kingdom.internalCertificatesClient,
         internalModelProvidersClient = kingdom.internalModelProvidersClient,
+        internalModelSuitesClient = kingdom.internalModelSuitesClient,
+        internalModelLinesClient = kingdom.internalModelLinesClient,
         accountsClient = publicAccountsClient,
         apiKeysClient = publicApiKeysClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
@@ -241,6 +261,12 @@ class InProcessCmmsComponents(
       resourceSetup.createDataProviderResource(createEntityContent(PDP_DISPLAY_NAME))
     modelProviderResource =
       resourceSetup.createModelProviderResource(MP_ROOT_CERT.subjectKeyIdentifier!!)
+    modelLineName =
+      resourceSetup
+        .createModelLineResource(
+          apiIdToExternalId(ModelProviderKey.fromName(modelProviderResource.name)!!.modelProviderId)
+        )
+        .name
 
     val populationsClient = PopulationsGrpcKt.PopulationsCoroutineStub(kingdom.publicApiChannel)
     population =
@@ -252,6 +278,47 @@ class InProcessCmmsComponents(
             population = population { populationSpec = POPULATION_SPEC }
           }
         )
+
+    val modelSuiteName = ModelLineKey.fromName(modelLineName)!!.parentKey.toName()
+
+    val modelReleasesClient =
+      ModelReleasesGrpcKt.ModelReleasesCoroutineStub(kingdom.publicApiChannel)
+    val modelRelease =
+      modelReleasesClient
+        .withPrincipalName(modelProviderResourceName)
+        .createModelRelease(
+          createModelReleaseRequest {
+            parent = modelSuiteName
+            modelRelease = modelRelease {
+              this.population = this@InProcessCmmsComponents.population.name
+            }
+          }
+        )
+
+    val modelLinesClient = ModelLinesGrpcKt.ModelLinesCoroutineStub(kingdom.publicApiChannel)
+    val modelLine =
+      modelLinesClient
+        .withPrincipalName(modelProviderResourceName)
+        .getModelLine(getModelLineRequest { name = modelLineName })
+
+    val modelRolloutsClient =
+      ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(kingdom.publicApiChannel)
+    modelRolloutsClient
+      .withPrincipalName(modelProviderResourceName)
+      .createModelRollout(
+        createModelRolloutRequest {
+          parent = modelLineName
+          modelRollout = modelRollout {
+            instantRolloutDate =
+              modelLine.activeStartTime
+                .toInstant()
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+                .toProtoDate()
+            this.modelRelease = modelRelease.name
+          }
+        }
+      )
   }
 
   fun getMeasurementConsumerData(): MeasurementConsumerData {

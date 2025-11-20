@@ -33,7 +33,9 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineStub as InternalModelLinesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub as InternalModelProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineStub as InternalModelSuitesCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -66,6 +68,8 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
   val internalCertificatesStub = InternalCertificatesCoroutineStub(kingdomInternalApiChannel)
   val internalModelProvidersStub = InternalModelProvidersCoroutineStub(kingdomInternalApiChannel)
+  val internalModelSuitesStub = InternalModelSuitesCoroutineStub(kingdomInternalApiChannel)
+  val internalModelLinesStub = InternalModelLinesCoroutineStub(kingdomInternalApiChannel)
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
   val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
 
@@ -96,17 +100,19 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   runBlocking {
     // Runs the resource setup job.
     ResourceSetup(
-        internalAccountsStub,
-        internalDataProvidersStub,
-        internalCertificatesStub,
-        accountsStub,
-        apiKeysStub,
-        measurementConsumersStub,
-        flags.runId,
-        flags.requiredDuchies,
-        internalModelProvidersStub,
-        flags.bazelConfigName,
-        flags.outputDir,
+        internalAccountsClient = internalAccountsStub,
+        internalDataProvidersClient = internalDataProvidersStub,
+        internalCertificatesClient = internalCertificatesStub,
+        accountsClient = accountsStub,
+        apiKeysClient = apiKeysStub,
+        measurementConsumersClient = measurementConsumersStub,
+        runId = flags.runId,
+        requiredDuchies = flags.requiredDuchies,
+        bazelConfigName = flags.bazelConfigName,
+        outputDir = flags.outputDir,
+        internalModelProvidersClient = internalModelProvidersStub,
+        internalModelSuitesClient = internalModelSuitesStub,
+        internalModelLinesClient = internalModelLinesStub,
       )
       .process(dataProviderContents, measurementConsumerContent, duchyCerts, modelProviderAkid)
   }

@@ -26,7 +26,6 @@ import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.Blocking
 import org.junit.Test
@@ -54,29 +53,20 @@ import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
-import org.wfanet.measurement.api.v2alpha.ModelRelease
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
-import org.wfanet.measurement.api.v2alpha.createModelLineRequest
-import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.integration.common.EventQuery
 import org.wfanet.measurement.integration.common.PERMISSIONS_CONFIG
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -138,7 +128,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     testHarness.testPopulation(
       "$runId-population",
       measurementSystem.getPopulationData(),
-      measurementSystem.modelLine.name,
+      measurementSystem.modelLineName,
       "person.gender == ${Person.Gender.FEMALE_VALUE} && " +
         "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
       TestEvent.getDescriptor(),
@@ -167,8 +157,8 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
      */
     abstract val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec>
 
-    /** [ModelLine] resource for the value returned by [ensurePopulation]. */
-    abstract val modelLine: ModelLine
+    /** [ModelLine] Resource Name of an active ModelLine. */
+    abstract val modelLineName: String
 
     fun buildEventQuery(dataProviderNames: Iterable<String>) =
       EventQuery(syntheticPopulationSpec, syntheticEventGroupSpecs, dataProviderNames)
@@ -191,45 +181,6 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       }
 
       return startDate
-    }
-
-    /**
-     * Creates a [ModelLine] with a corresponding [org.wfanet.measurement.api.v2alpha.ModelRollout]
-     * for the specified [ModelRelease].
-     */
-    @Blocking
-    protected fun createModelLine(
-      mpKingdomPublicApiChannel: Channel,
-      modelSuiteName: String,
-      modelReleaseName: String,
-    ): ModelLine {
-      val modelLineActiveStartDate: LocalDate = getMinModelLineStartDate()
-
-      val modelLinesStub = ModelLinesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
-      val modelLine =
-        modelLinesStub.createModelLine(
-          createModelLineRequest {
-            parent = modelSuiteName
-            modelLine = modelLine {
-              type = ModelLine.Type.PROD
-              activeStartTime =
-                modelLineActiveStartDate.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-            }
-          }
-        )
-
-      val modelRolloutsStub = ModelRolloutsGrpc.newBlockingStub(mpKingdomPublicApiChannel)
-      modelRolloutsStub.createModelRollout(
-        createModelRolloutRequest {
-          parent = modelLine.name
-          modelRollout = modelRollout {
-            instantRolloutDate = modelLineActiveStartDate.toProtoDate()
-            this.modelRelease = modelReleaseName
-          }
-        }
-      )
-
-      return modelLine
     }
 
     /**
