@@ -1,8 +1,8 @@
 version: 1.0
 profile:
   name: qodana.recommended
-linter: jetbrains/qodana-jvm-community
+linter: jetbrains/qodana-jvm-community:2025.2
 fixesStrategy: NONE
-#include:
-#  - name: JvmTaintAnalysis
-#  - name: VulnerableLibrariesLocal
+include:
+  - name: JvmTaintAnalysis
+  - name: VulnerableLibrariesLocal
