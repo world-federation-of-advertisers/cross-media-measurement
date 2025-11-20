@@ -51,14 +51,16 @@ import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsReques
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -90,6 +92,7 @@ class DataAvailabilitySyncTest {
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
+    private const val DEFAULT_BATCH_SIZE = 100
   }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -128,6 +131,13 @@ class DataAvailabilitySyncTest {
                   state = ImpressionMetadata.State.ACTIVE
                 },
               )
+          }
+        }
+      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata += request.requestsList.map { it.impressionMetadata }
           }
         }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
@@ -199,11 +209,16 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -220,11 +235,16 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-      )
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+    )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -241,11 +261,16 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -259,15 +284,16 @@ class DataAvailabilitySyncTest {
       val dataAvailabilitySync =
         DataAvailabilitySync(
           storageClient,
-          dataProvidersStub,
-          impressionMetadataStub,
-          "dataProviders/dataProvider123",
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        )
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+    )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
       verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-      verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+      verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
       verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
     }
 
@@ -289,11 +315,12 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(3)) { createImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -315,6 +342,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     try {
@@ -338,6 +366,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     try {
@@ -361,6 +390,7 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     try {
@@ -384,11 +414,12 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(0)) { createImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { computeModelLineBounds(any()) }
   }
 
@@ -403,12 +434,13 @@ class DataAvailabilitySyncTest {
       val dataAvailabilitySync =
         DataAvailabilitySync(
           storageClient,
-          dataProvidersStub,
-          impressionMetadataStub,
-          "dataProviders/dataProvider123",
-          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          metrics = metricsEnv.metrics,
-        )
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        metrics = metricsEnv.metrics,
+      )
 
       dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
@@ -446,6 +478,7 @@ class DataAvailabilitySyncTest {
           impressionMetadataStub,
           "dataProviders/dataProvider123",
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
           metrics = metricsEnv.metrics,
         )
 
@@ -499,24 +532,58 @@ class DataAvailabilitySyncTest {
         impressionMetadataStub,
         "dataProviders/dataProvider123",
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
       )
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
     // Capture both requests
-    val captor = argumentCaptor<CreateImpressionMetadataRequest>()
+    val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(2)) {
-      createImpressionMetadata(captor.capture())
+      batchCreateImpressionMetadata(captor.capture())
     }
 
-    val requestIds = mutableListOf<String>()
-    captor.allValues.forEach { req ->
-      req.requestId
-      requestIds.add(req.requestId)
-    }
+    val requestIds =
+      captor.allValues.flatMap { request ->
+        request.requestsList.map { it.requestId }
+      }
     assertThat(requestIds.distinct().size).isEqualTo(1)
   }
+
+  @Test
+  fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
+    runBlocking {
+      val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(100L to 200L, 200L to 300L, 300L to 400L),
+        BlobEncoding.JSON,
+      )
+
+      val recordingThrottler = RecordingThrottler()
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          recordingThrottler,
+          impressionMetadataBatchSize = 2,
+        )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock, times(2)) {
+        batchCreateImpressionMetadata(captor.capture())
+      }
+      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
+      // Two batches plus one call when updating availability intervals.
+      assertThat(recordingThrottler.onReadyCalls).isEqualTo(3)
+    }
 
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
@@ -582,4 +649,13 @@ class DataAvailabilitySyncTest {
       BlobEncoding.JSON -> ByteString.copyFromUtf8(JsonFormat.printer().print(this))
       BlobEncoding.EMPTY -> ByteString.copyFrom(this.toByteArray())
     }
+
+  private class RecordingThrottler : Throttler {
+    var onReadyCalls: Int = 0
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      onReadyCalls++
+      return block()
+    }
+  }
 }

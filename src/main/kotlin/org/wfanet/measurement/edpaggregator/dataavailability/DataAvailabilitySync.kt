@@ -35,11 +35,12 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -86,8 +87,15 @@ class DataAvailabilitySync(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
+  private val impressionMetadataBatchSize: Int,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
+  init {
+    require(impressionMetadataBatchSize > 0) {
+      "impressionMetadataBatchSize must be greater than zero"
+    }
+  }
+
   /**
    * Synchronizes impression availability data after a completion signal.
    *
@@ -216,22 +224,21 @@ class DataAvailabilitySync(
   }
 
   private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
-    val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
-      mutableListOf()
-    impressionMetadataList.forEach {
-      createImpressionMetadataRequests.add(
-        createImpressionMetadataRequest {
-          parent = dataProviderName
-          this.impressionMetadata = it
-          requestId = uuidV4FromPath(it.blobUri)
-        }
-      )
-    }
     try {
-      throttler.onReady {
-        createImpressionMetadataRequests.forEach {
-          impressionMetadataServiceStub.createImpressionMetadata(it)
-        }
+      impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
+        val batchRequest: BatchCreateImpressionMetadataRequest =
+          batchCreateImpressionMetadataRequest {
+            parent = dataProviderName
+            chunk.forEach { metadata ->
+              requests +=
+                createImpressionMetadataRequest {
+                  parent = dataProviderName
+                  impressionMetadata = metadata
+                  requestId = uuidV4FromPath(metadata.blobUri)
+                }
+            }
+          }
+        throttler.onReady { impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest) }
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)
