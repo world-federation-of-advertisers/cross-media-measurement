@@ -859,7 +859,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `batchUpdateEventGroup throws INVALID_ARGUMENT for invalid modification params`(): Unit =
     runBlocking {
-      val now: Instant = testClock.instant()
       val externalMeasurementConsumerId =
         population
           .createMeasurementConsumer(measurementConsumersService, accountsService)
