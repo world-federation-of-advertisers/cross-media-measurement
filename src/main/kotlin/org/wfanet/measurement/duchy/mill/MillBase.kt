@@ -216,7 +216,9 @@ abstract class MillBase(
         dataClients.computationsClient.claimWork(claimWorkRequest)
       } catch (e: StatusException) {
         if (!computationsServerReady && e.status.code == Status.Code.UNAVAILABLE) {
-          logger.info("Computations server not ready. $e", )
+          logger.log(Level.INFO, e) {
+            "Computations server not ready."
+          }
           return false
         }
         throw Exception("Error claiming work", e)
