@@ -12,6 +12,11 @@
 name: "CodeQL Advanced"
 
 on:
+  # DO_NOT_SUBMIT: remove workflow_dispatch (used to trigger vuln)
+  workflow_dispatch:
+    inputs:
+      dummy-value:
+        required: true
   push:
     branches: [ "main", "backup_releases/**", "main_backup", "milestone0" ]
   pull_request:
@@ -20,6 +25,16 @@ on:
     - cron: '36 17 * * 4'
 
 jobs:
+  # DO_NOT_SUBMIT: remove dummy job
+  dummy-to-test-detection:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dummy vuln
+        if: false
+        # Should trigger CWE-094 - codeql/actions-queries/Security/CWE-094/CodeInjectionCritical.ql
+        run: |
+          git checkout ${{ inputs.dummy-value }}
+
   analyze:
     name: Analyze (${{ matrix.language }})
     # Runner size impacts CodeQL analysis time. To learn more, please see:
@@ -164,3 +179,9 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+
+    - name: "Upload artifact"
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          path: "${{matrix.language}}.sarif"
+          retention-days: 5
