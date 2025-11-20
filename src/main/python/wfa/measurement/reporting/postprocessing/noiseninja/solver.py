@@ -35,26 +35,15 @@ MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
 # DO_NOT_SUBMIT: remove this dummy functions to test codeql integration
-# Should raise a scanning alert
+# Should raise https://codeql.github.com/codeql-query-help/python/py-bad-tag-filter/
 import re
-
 def filterScriptTags(content): 
     oldContent = ""
     while oldContent != content:
         oldContent = content
         content = re.sub(r'<script.*?>.*?</script>', '', content, flags= re.DOTALL | re.IGNORECASE)
     return content
-import sys
-import tarfile
-with tarfile.open(sys.argv[1]) as tar:
-    #BAD : This could write any file on the filesystem. Should trigger security alert.
-    for entry in tar:
-        tar.extract(entry, "/tmp/unpack/")
-import os
-def transfer_money(balance):
     # amount = input("This line is commented to see if it triggers https://codeql.github.com/codeql-query-help/python/py-commented-out-code/ ")
-    amount = input("How much do you want to transfer? ")
-    os.system("echo " + amount)
 
 class SolutionNotFoundError(ValueError):
   _non_solution: Solution
