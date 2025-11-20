@@ -36,6 +36,9 @@ service ReportResults {
       returns (ListReportingSetResultsResponse);
 
   // Adds denoised result values to a `ReportResult`.
+  //
+  // Any `BasicReport` associated with this `ReportResult` will be transitioned
+  // to the `SUCCEEDED` state.
   rpc AddDenoisedResultValues(AddDenoisedResultValuesRequest)
       returns (google.protobuf.Empty);
 
@@ -121,7 +124,6 @@ message AddDenoisedResultValuesRequest {
   // Map of external ReportingSetResult ID to `DenoisedReportingSetResult`.
   map<fixed64, DenoisedReportingSetResult> reporting_set_results = 4;
 
-  // TODO(@SanjayVas): Support specifying BasicReports to mark as completed.
   // TODO(@SanjayVas): Support including log entry for processor once the format
   // is defined.
 }

@@ -1301,7 +1301,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -1597,7 +1597,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
     val resultGroups =
       buildResultGroups(
         basicReport,
-        reportResult,
+        reportingSetResults,
         primitiveInfoByDataProviderId,
         compositeReportingSetIdBySetExpression,
       )
@@ -1764,7 +1764,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -1905,7 +1905,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportingSetResults, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
@@ -2088,7 +2088,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       }
     }
 
-    val reportResult =
+    val reportingSetResults =
       listOf(
         // Primitive 1
         reportingSetResult {
@@ -2289,7 +2289,7 @@ class BasicReportNoiseCorrectedResultsTransformationTest {
       )
 
     val resultGroups =
-      buildResultGroups(basicReport, reportResult, primitiveInfoByDataProviderId, mapOf())
+      buildResultGroups(basicReport, reportingSetResults, primitiveInfoByDataProviderId, mapOf())
 
     val expectedResultGroups =
       listOf(
