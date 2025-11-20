@@ -106,24 +106,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
 ): BasicReportResult {
   val sql =
     """
-    SELECT
-      MeasurementConsumerId,
-      BasicReportId,
-      CmmsMeasurementConsumerId,
-      ExternalBasicReportId,
-      BasicReports.CreateTime,
-      ExternalCampaignGroupId,
-      BasicReportDetails,
-      BasicReportResultDetails,
-      State,
-      CreateReportRequestId,
-      ExternalReportId,
-      CmmsModelProviderId,
-      CmmsModelSuiteId,
-      CmmsModelLineId
-    FROM
-      MeasurementConsumers
-      JOIN BasicReports USING (MeasurementConsumerId)
+    ${BasicReportsInternal.BASE_SQL}
     WHERE
       CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
       AND ExternalBasicReportId = @externalBasicReportId
@@ -157,29 +140,12 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
   pageToken: ListBasicReportsPageToken? = null,
 ): Flow<BasicReportResult> {
   val sql = buildString {
+    appendLine(BasicReportsInternal.BASE_SQL)
     appendLine(
       """
-      SELECT
-        MeasurementConsumerId,
-        BasicReportId,
-        CmmsMeasurementConsumerId,
-        ExternalBasicReportId,
-        BasicReports.CreateTime,
-        ExternalCampaignGroupId,
-        BasicReportDetails,
-        BasicReportResultDetails,
-        State,
-        CreateReportRequestId,
-        ExternalReportId,
-        CmmsModelProviderId,
-        CmmsModelSuiteId,
-        CmmsModelLineId
-      FROM
-        MeasurementConsumers
-        JOIN BasicReports USING (MeasurementConsumerId)
-        WHERE
-          BasicReportsIndexShardId >= 0
-          AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
+      WHERE
+        BasicReportsIndexShardId >= 0
+        AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
       """
         .trimIndent()
     )
@@ -300,6 +266,23 @@ fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToFailed(
   }
 }
 
+/**
+ * Buffers an update mutation to set the State of a BasicReports row to
+ * [BasicReport.State.NOISY_RESULTS_READY].
+ */
+fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToNoisyResultsReady(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  reportResultId: Long,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("ReportResultId").to(reportResultId)
+    set("State").to(BasicReport.State.NOISY_RESULTS_READY)
+  }
+}
+
 /** Returns whether a [BasicReport] with the specified [basicReportId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(
   measurementConsumerId: Long,
@@ -338,4 +321,29 @@ private fun buildBasicReport(row: Struct): BasicReport {
         }
     }
   }
+}
+
+private object BasicReportsInternal {
+  val BASE_SQL =
+    """
+    SELECT
+      MeasurementConsumerId,
+      BasicReportId,
+      CmmsMeasurementConsumerId,
+      ExternalBasicReportId,
+      BasicReports.CreateTime,
+      ExternalCampaignGroupId,
+      BasicReportDetails,
+      BasicReportResultDetails,
+      State,
+      CreateReportRequestId,
+      ExternalReportId,
+      CmmsModelProviderId,
+      CmmsModelSuiteId,
+      CmmsModelLineId
+    FROM
+      MeasurementConsumers
+      JOIN BasicReports USING (MeasurementConsumerId)
+    """
+      .trimIndent()
 }
