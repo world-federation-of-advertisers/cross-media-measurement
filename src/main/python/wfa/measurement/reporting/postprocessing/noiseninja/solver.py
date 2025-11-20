@@ -35,12 +35,11 @@ MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
 # DO_NOT_SUBMIT: remove this dummy function to test codeql integration
-# Should raise: CWE-20: Improper Input Validation.
+# Should raise a scanning alert
+import os
 def transfer_money(balance):
     amount = input("How much do you want to transfer? ")
-    amount = int(amount)
-    balance -= amount
-    print(f"New balance: {balance}")
+    os.system("echo " + amount)
 
 class SolutionNotFoundError(ValueError):
   _non_solution: Solution
