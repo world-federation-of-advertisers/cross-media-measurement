@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResul
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
@@ -47,6 +48,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResul
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
@@ -56,6 +58,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingSetResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readNoisyReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
@@ -67,6 +70,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSet
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToNoisyResultsReady
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
@@ -544,6 +548,21 @@ class SpannerReportResultsService(
           )
         }
       }
+
+      txn
+        .readBasicReports(
+          ListBasicReportsRequestKt.filter {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportResultId = externalReportResultId
+          }
+        )
+        .collect { basicReportResult ->
+          try {
+            markBasicReportCompleted(txn, basicReportResult)
+          } catch (e: BasicReportStateInvalidException) {
+            throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        }
     }
 
     return Empty.getDefaultInstance()
@@ -580,5 +599,30 @@ class SpannerReportResultsService(
         }
       }
     }
+  }
+
+  /**
+   * Marks a [BasicReport] as completed.
+   *
+   * @throws BasicReportStateInvalidException if the [BasicReport] is not in a valid state for the
+   *   operation
+   */
+  private fun markBasicReportCompleted(
+    txn: AsyncDatabaseClient.TransactionContext,
+    basicReportResult: BasicReportResult,
+  ) {
+    val basicReport = basicReportResult.basicReport
+    if (basicReport.state != BasicReport.State.NOISY_RESULTS_READY) {
+      throw BasicReportStateInvalidException(
+        basicReport.cmmsMeasurementConsumerId,
+        basicReport.externalBasicReportId,
+        basicReport.state,
+      )
+    }
+
+    txn.setBasicReportStateToSucceeded(
+      basicReportResult.measurementConsumerId,
+      basicReportResult.basicReportId,
+    )
   }
 }

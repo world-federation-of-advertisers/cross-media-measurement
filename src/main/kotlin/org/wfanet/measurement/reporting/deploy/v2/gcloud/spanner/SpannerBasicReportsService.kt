@@ -154,7 +154,7 @@ class SpannerBasicReportsService(
     val basicReports =
       spannerClient.singleUse().use { txn ->
         txn
-          .readBasicReports(pageSize + 1, request.filter, pageToken)
+          .readBasicReports(request.filter, limit = pageSize + 1, pageToken = pageToken)
           .map { it.basicReport }
           .toList()
       }

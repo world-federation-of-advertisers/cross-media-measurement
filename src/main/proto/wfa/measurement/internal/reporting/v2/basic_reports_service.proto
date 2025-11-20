@@ -117,6 +117,8 @@ message ListBasicReportsRequest {
     google.protobuf.Timestamp create_time_after = 2;
 
     BasicReport.State state = 3;
+
+    fixed64 external_report_result_id = 4;
   }
   Filter filter = 1;
   // The maximum number of basic reports to return. The service may return fewer

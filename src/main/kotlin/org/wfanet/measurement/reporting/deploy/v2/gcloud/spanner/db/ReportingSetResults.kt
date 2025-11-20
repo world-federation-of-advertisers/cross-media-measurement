@@ -47,12 +47,6 @@ data class ReportingSetResultResult(
   val reportingSetResult: ReportingSetResult,
 )
 
-data class ReportingSetResultIds(
-  val measurementConsumerId: Long,
-  val reportResultId: Long,
-  val reportingSetResultIdByExternalId: Map<Long, Long>,
-)
-
 suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExists(
   measurementConsumerId: Long,
   reportResultId: Long,
