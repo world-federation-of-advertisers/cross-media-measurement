@@ -61,8 +61,8 @@ jobs:
         #  build-mode: autobuild
         #- language: go
         #  build-mode: autobuild
-        - language: java-kotlin
-          build-mode: manual
+        #- language: java-kotlin
+        #  build-mode: manual
         - language: python
           build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
@@ -122,8 +122,8 @@ jobs:
         #echo '  make release'
         #exit 1
         # DO_NOT_SUBMIT: include all kotlin files
-        bazel build --worker_quit_after_build \
-          //src/main/kotlin/org/wfanet/measurement/api/...
+        #bazel build --worker_quit_after_build \
+        #  //src/main/kotlin/org/wfanet/measurement/api/...
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
@@ -136,3 +136,22 @@ jobs:
         name: "${{matrix.language}}.sarif"
         path: "/home/runner/work/cross-media-measurement/results/${{matrix.language}}.sarif"
         retention-days: 5
+
+  qodana:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
+          fetch-depth: 0  # a full history is required for pull request analysis
+
+      - name: 'Qodana Scan'
+        uses: JetBrains/qodana-action@v2025.2
+
+      - uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
