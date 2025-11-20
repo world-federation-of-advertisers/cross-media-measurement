@@ -70,7 +70,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       ExternalReportId,
       CmmsModelProviderId,
       CmmsModelSuiteId,
-      CmmsModelLineId
+      CmmsModelLineId,
+      ModelLineSystemSpecified
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -120,7 +121,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       ExternalReportId,
       CmmsModelProviderId,
       CmmsModelSuiteId,
-      CmmsModelLineId
+      CmmsModelLineId,
+      ModelLineSystemSpecified
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
@@ -173,7 +175,8 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
         ExternalReportId,
         CmmsModelProviderId,
         CmmsModelSuiteId,
-        CmmsModelLineId
+        CmmsModelLineId,
+        ModelLineSystemSpecified
       FROM
         MeasurementConsumers
         JOIN BasicReports USING (MeasurementConsumerId)
@@ -268,6 +271,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
       set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
     }
+    set("ModelLineSystemSpecified").to(basicReport.modelLineSystemSpecified)
   }
 }
 
@@ -337,5 +341,6 @@ private fun buildBasicReport(row: Struct): BasicReport {
           cmmsModelLineId = row.getString("CmmsModelLineId")
         }
     }
+    modelLineSystemSpecified = row.getBoolean("ModelLineSystemSpecified")
   }
 }
