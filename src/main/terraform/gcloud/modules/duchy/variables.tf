@@ -71,7 +71,7 @@ variable "trustee_mill_subnetwork_network" {
 variable "trustee_mill_subnetwork_cidr_range" {
   description = "The range of IP addresses belonging to this subnetwork."
   type        = string
-  default     = "192.169.0.0/16"
+  default     = "10.0.0.0/24"
 }
 
 variable "trustee_config" {

@@ -176,7 +176,13 @@ duchy: #SpannerDuchy & {
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
 		"internal-api-server": {
 			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
-			spec: type: "LoadBalancer"
+			spec: {
+				type: "LoadBalancer"
+				loadBalancerSourceRanges: [
+					// TrusTEE mill from confidential space.
+					"10.0.0.0/24",
+				]
+			}
 		}
 	}
 
