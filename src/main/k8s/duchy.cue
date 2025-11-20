@@ -354,7 +354,6 @@ import ("strings")
 				_object_prefix + "computations-cleaner-app",
 			]
 			_ingresses: {
-				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
 					ports: [{
 						port: #GrpcPort

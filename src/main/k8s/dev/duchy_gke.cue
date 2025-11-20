@@ -178,10 +178,10 @@ duchy: #SpannerDuchy & {
 			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
 			spec: {
 				type: "LoadBalancer"
-				loadBalancerSourceRanges: [
-					// TrusTEE mill from confidential space.
-					"10.0.0.0/24",
-				]
+//				loadBalancerSourceRanges: [
+//					// TrusTEE mill from confidential space.
+//					"10.0.0.0/24",
+//				]
 			}
 		}
 	}
