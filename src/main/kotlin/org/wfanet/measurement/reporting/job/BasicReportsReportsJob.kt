@@ -283,7 +283,7 @@ class BasicReportsReportsJob(
                 this.key = window
                 value =
                   ReportingSetResultKt.reportingWindowResult {
-                    noisyReportResultValues =
+                    unprocessedReportResultValues =
                       ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                         val cumulativeResults: MetricResults? =
                           reportingWindowResultInfoEntry.value.cumulativeResults
