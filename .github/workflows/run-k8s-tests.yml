@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Write auth.bazelrc
       env:
@@ -106,5 +106,5 @@ jobs:
         
     - name: Upload Bazel testlogs
       continue-on-error: true
-      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
       if: failure() && steps.run-tests.outcome == 'failure'
