@@ -29,6 +29,8 @@ service EventGroups {
 
   rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup);
 
+  rpc BatchUpdateEventGroup(BatchUpdateEventGroupsRequest) returns (BatchUpdateEventGroupsResponse);
+
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
   rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
@@ -43,6 +45,21 @@ message CreateEventGroupRequest {
 
 message UpdateEventGroupRequest {
   EventGroup event_group = 1;
+
+  // Optional weakly validated etag computed from update time.
+  // If provided it must match the server's etag or update will be
+  // aborted.
+  string etag = 3;
+}
+
+message BatchUpdateEventGroupsRequest {
+  fixed64 external_data_provider_id = 1;
+
+  repeated UpdateEventGroupRequest requests = 2;
+}
+
+message BatchUpdateEventGroupsResponse {
+  repeated EventGroup event_groups = 1;
 }
 
 message GetEventGroupRequest {

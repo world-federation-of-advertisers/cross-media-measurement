@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -44,6 +46,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
@@ -89,6 +92,61 @@ class SpannerEventGroupsService(
     grpcRequire(request.eventGroup.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
     try {
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
+    } catch (e: EventGroupInvalidArgsException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.INVALID_ARGUMENT,
+        "EventGroup modification param is invalid.",
+      )
+    } catch (e: CertificateIsInvalidException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "MeasurementConsumer's Certificate is invalid.",
+      )
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "MeasurementConsumer's Certificate not found.",
+      )
+    } catch (e: EventGroupNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+    } catch (e: EventGroupStateIllegalException) {
+      when (e.state) {
+        EventGroup.State.DELETED -> {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup state is DELETED.")
+        }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED -> {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+        }
+      }
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
+  override suspend fun batchUpdateEventGroup(
+    request: BatchUpdateEventGroupsRequest
+  ): BatchUpdateEventGroupsResponse {
+    grpcRequire(request.externalDataProviderId > 0L) { "Parent ExternalDataProviderId unspecified" }
+    val parentDataProviderId = request.externalDataProviderId
+
+    request.requestsList.forEachIndexed { index, subRequest ->
+      val dataProviderId = subRequest.eventGroup.externalDataProviderId
+
+      grpcRequire(dataProviderId > 0L) { "Subrequest's externalDataProviderId unspecified" }
+
+      grpcRequire(dataProviderId == parentDataProviderId) {
+        "Subrequest's externalDataProviderId $dataProviderId different from parent's externalDataProviderId $parentDataProviderId"
+      }
+
+      grpcRequire(subRequest.eventGroup.externalEventGroupId > 0L) {
+        "ExternalEventGroupId unspecified"
+      }
+    }
+
+    try {
+      return BatchUpdateEventGroup(request).execute(client, idGenerator)
     } catch (e: EventGroupInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
