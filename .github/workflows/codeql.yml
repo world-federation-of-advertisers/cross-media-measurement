@@ -12,11 +12,8 @@
 name: "CodeQL Advanced"
 
 on:
-  # DO_NOT_SUBMIT: remove workflow_dispatch (used to trigger vuln)
-  workflow_dispatch:
-    inputs:
-      dummy-value:
-        required: true
+  # DO_NOT_SUBMIT: remove issue_comment (just for testing)
+  issue_comment:
   push:
     branches: [ "main", "backup_releases/**", "main_backup", "milestone0" ]
   pull_request:
@@ -33,7 +30,7 @@ jobs:
         if: false
         # Should trigger CWE-094 - codeql/actions-queries/Security/CWE-094/CodeInjectionCritical.ql
         run: |
-          git checkout ${{ inputs.dummy-value }}
+          echo '${{ github.event.comment.body }}'
 
   analyze:
     name: Analyze (${{ matrix.language }})
