@@ -151,11 +151,12 @@ jobs:
 
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2025.2
-
-      - uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
           pr-mode: false
           post-pr-comment: false
           push-fixes: false
           upload-result: true
+
+      - uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
