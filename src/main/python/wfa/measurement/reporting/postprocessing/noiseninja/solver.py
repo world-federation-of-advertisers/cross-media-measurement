@@ -36,6 +36,14 @@ SEMAPHORE = Semaphore()
 
 # DO_NOT_SUBMIT: remove this dummy functions to test codeql integration
 # Should raise a scanning alert
+import re
+
+def filterScriptTags(content): 
+    oldContent = ""
+    while oldContent != content:
+        oldContent = content
+        content = re.sub(r'<script.*?>.*?</script>', '', content, flags= re.DOTALL | re.IGNORECASE)
+    return content
 import sys
 import tarfile
 with tarfile.open(sys.argv[1]) as tar:
