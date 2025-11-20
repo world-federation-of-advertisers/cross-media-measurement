@@ -100,55 +100,7 @@ jobs:
     - name: Set up Bazel
       uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
-    - name: Write auth.bazelrc
-      env:
-        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
-      run: |
-        cat << EOF > auth.bazelrc
-        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
-        EOF
-    
-    - name: Write ~/.bazelrc
-      run: |
-        cat << EOF > ~/.bazelrc
-        common --config=ci
-        build --remote_upload_local_results
-        build --define container_registry=localhost:5001
-        build --define image_repo_prefix=halo
-        build --define image_tag=latest
-        build --define kingdom_public_api_target=kingdom.example.com:8443
-        build --define worker1_id=worker1
-        build --define worker1_cert_name=duchies/worker1/certificates/foo
-        build --define worker1_public_api_target=worker1.example.com:8443
-        build --define worker2_id=worker2
-        build --define worker2_cert_name=duchies/worker2/certificates/foo
-        build --define worker2_public_api_target=worker2.example.com:8443
-        build --define aggregator_cert_name=duchies/aggregator/certificates/foo
-        build --define mc_name=measurementConsumers/foo
-        build --define mc_api_key=foo
-        build --define mc_cert_name=measurementConsumers/foo/certificates/bar
-        build --define edp1_name=dataProviders/foo1
-        build --define edp1_cert_name=dataProviders/foo1/certificates/bar1
-        build --define edp2_name=dataProviders/foo2
-        build --define edp2_cert_name=dataProviders/foo2/certificates/bar2
-        build --define edp3_name=dataProviders/foo3
-        build --define edp3_cert_name=dataProviders/foo3/certificates/bar3
-        build --define edp4_name=dataProviders/foo4
-        build --define edp4_cert_name=dataProviders/foo4/certificates/bar4
-        build --define edp5_name=dataProviders/foo5
-        build --define edp5_cert_name=dataProviders/foo5/certificates/bar5
-        build --define edp6_name=dataProviders/foo6
-        build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
-        build --define pdp_name=dataProviders/foodp1
-        build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
-        build --define google_cloud_project=example-project
-        build --define basic_reports_enabled=true
-        EOF
-
-    # Reduce chance of disconnection from the Build Event Service.
-    - name: Set TCP keepalive
-      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
-
+ 
     #- name: Check lockfile
     #  run: bazel mod deps
 
@@ -170,24 +122,13 @@ jobs:
         #echo '  make release'
         #exit 1
         # DO_NOT_SUBMIT: include all kotlin files
-        sudo apt update
-        sudo apt install clang-14 llvm-14
         bazel build --worker_quit_after_build \
-          --spawn_strategy=local \
-          --strategy=KotlinCompile=local \
-          --noremote_accept_cached \
-          --noremote_upload_local_results \
           //src/main/kotlin/org/wfanet/measurement/api/...
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
-
-    - name: Debug steps
-      run: |
-        ls -lh
-        ls -lh /home/runner/work/cross-media-measurement/results/
 
     - name: "Upload artifact"
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
