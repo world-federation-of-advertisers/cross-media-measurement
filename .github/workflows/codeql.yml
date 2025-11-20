@@ -175,7 +175,7 @@ jobs:
           --strategy=KotlinCompile=local \
           --noremote_accept_cached \
           --noremote_upload_local_results \
-          //src/main/kotlin/org/wfanet/measurement/api/...//src/main/kotlin/org/wfanet/measurement/api/...
+          //src/main/kotlin/org/wfanet/measurement/api/...
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
