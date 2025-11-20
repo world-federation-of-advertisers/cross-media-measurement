@@ -1,0 +1,33 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
+)
+
+kt_jvm_library(
+    name = "trus_tee_mill_daemon",
+    srcs = [
+        "TrusTeeMillDaemon.kt",
+        "TrusTeeMillDaemonFlags.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor_impl",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)

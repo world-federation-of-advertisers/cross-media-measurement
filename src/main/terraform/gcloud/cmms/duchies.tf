@@ -12,6 +12,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+locals {
+  aggregator_tls_cert = {
+    secret_id         = "aggregator-tls-cert",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_tls.pem"),
+    is_binary_format  = false
+  }
+
+  aggregator_tls_key = {
+    secret_id         = "aggregator-tls-key",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_tls.key"),
+    is_binary_format  = false
+  }
+
+  aggregator_cert_collection = {
+    secret_id         = "aggregator-cert-collection",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/all_root_certs.pem"),
+    is_binary_format  = false
+  }
+
+  aggregator_cs_cert = {
+    secret_id         = "aggregator-cs-cert",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_cert.der"),
+    is_binary_format  = true
+  }
+
+  aggregator_cs_private = {
+    secret_id         = "aggregator-cs-private",
+    secret_local_path = abspath("${path.root}/../../../k8s/testing/secretfiles/aggregator_cs_private.der"),
+    is_binary_format  = true
+  }
+
+  aggregator_trustee_config = {
+    instance_template_name        = "trustee-mill-template"
+    base_instance_name            = "trustee-mill"
+    managed_instance_group_name   = "trustee-mill-mig"
+    mig_service_account_name      = "trustee-mill-mig-sa"
+    replicas                      = 1
+    machine_type                  = "n2d-standard-2"
+    docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
+    signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
+    mig_distribution_policy_zones = ["us-central1-a"]
+    disk_image_family             = "confidential-space-debug"
+
+    aggregator_tls_cert           = local.aggregator_tls_cert
+    aggregator_tls_key            = local.aggregator_tls_key
+    aggregator_cert_collection    = local.aggregator_cert_collection
+    aggregator_cs_cert            = local.aggregator_cs_cert
+    aggregator_cs_private         = local.aggregator_cs_private
+    terraform_service_account     = var.terraform_service_account
+
+    app_flags = [
+      "--gcp-project-id", data.google_client_config.default.project,
+      "--tls-cert-secret-id", local.aggregator_tls_cert.secret_id,
+      "--tls-key-secret-id", local.aggregator_tls_key.secret_id,
+      "--cert-collection-secret-id", local.aggregator_cert_collection.secret_id,
+      "--cs-cert-secret-id", local.aggregator_cs_cert.secret_id,
+      "--cs-private-key-secret-id", local.aggregator_cs_private.secret_id,
+
+      "--tls-cert-file", "/tmp/secrets/aggregator_tls.pem",
+      "--tls-key-file", "/tmp/secrets/aggregator_tls.key",
+      "--cert-collection-file", "/tmp/secrets/all_root_certs.pem",
+      "--consent-signaling-certificate-der-file", "/tmp/secrets/aggregator_cs_cert.der",
+      "--consent-signaling-private-key-der-file", "/tmp/secrets/aggregator_cs_private.der",
+      "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
+
+      "--computations-service-target", "10.128.0.69:8443",
+      "--computations-service-cert-host", "localhost",
+      "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
+      "--kingdom-system-api-cert-host", "localhost",
+
+      "--duchy-name", "aggregator",
+      "--work-lock-duration", "10m",
+      "--polling-interval", "5s",
+
+      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/TgZwIV_vGjs",
+
+      "--google-cloud-storage-project", data.google_client_config.default.project,
+      "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
+    ]
+  }
+}
+
 module "clusters" {
   source   = "../modules/cluster"
   for_each = local.duchy_names
@@ -63,6 +145,9 @@ module "aggregator_duchy" {
   database_name    = "aggregator_duchy_computations"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+
+  # TrusTEE MIG configurations
+  trustee_config = local.aggregator_trustee_config
 }
 
 module "worker1_duchy" {
