@@ -1,0 +1,5 @@
+linter: qodana-jvm-community
+fixesStrategy: NONE
+#include:
+#  - name: JvmTaintAnalysis
+#  - name: VulnerableLibrariesLocal
