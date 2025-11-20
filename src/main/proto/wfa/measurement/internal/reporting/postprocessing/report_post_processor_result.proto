@@ -16,8 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.postprocessing;
 
-import "src/main/proto/wfa/measurement/internal/reporting/postprocessing/report_summary.proto";
-import "src/main/proto/wfa/measurement/internal/reporting/postprocessing/report_summary_v2.proto";
+import "wfa/measurement/internal/reporting/postprocessing/report_summary.proto";
+import "wfa/measurement/internal/reporting/postprocessing/report_summary_v2.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
@@ -136,7 +136,7 @@ message ReportPostProcessorResult {
   // the pre_correction_report_summary and the updated_measurements map. Note
   // that this map is populated if and only if the solver found a solution
   // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
-  map<string, int64> updated_measurements = 1;
+  map<string, double> updated_measurements = 1;
 
   // Contains the measurements that are not corrected by the report post
   // post processor. These measurements may be inconsistent. This field is only

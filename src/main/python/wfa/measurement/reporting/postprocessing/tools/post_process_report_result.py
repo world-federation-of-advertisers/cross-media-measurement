@@ -19,31 +19,30 @@ from collections.abc import Iterable
 from absl import flags
 from absl import logging
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
+from wfa.measurement.internal.reporting.postprocessing import \
     report_summary_v2_pb2
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
+from wfa.measurement.internal.reporting.postprocessing import \
     report_post_processor_result_pb2
 from tools import report_conversion
-from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
+from tools import post_process_report_summary_v2
+from wfa.measurement.internal.reporting.v2 import report_result_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
+from wfa.measurement.internal.reporting.v2 import reporting_set_pb2
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import result_group_pb2
 
-ReportingSet = reporting_sets_service_pb2.ReportingSet
+ReportingSet = reporting_set_pb2.ReportingSet
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 ReportSummaryV2 = report_summary_v2_pb2.ReportSummaryV2
-GetNoisyResultValuesRequest = report_results_service_pb2.GetNoisyResultValuesRequest
+ReportSummaryV2Processor = post_process_report_summary_v2.ReportSummaryV2Processor
+ListReportingSetResultsRequest = report_results_service_pb2.ListReportingSetResultsRequest
 
 MeasurementPolicy: TypeAlias = str
 AddDenoisedResultValuesRequest = report_results_service_pb2.AddDenoisedResultValuesRequest
 BatchGetReportingSetsRequest = reporting_sets_service_pb2.BatchGetReportingSetsRequest
-
-FLAGS = flags.FLAGS
-
-flags.DEFINE_boolean("debug", False, "Enable debug mode.")
 
 
 class PostProcessReportResult:
@@ -70,7 +69,7 @@ class PostProcessReportResult:
         self,
         cmms_measurement_consumer_id: str,
         external_report_result_id: int,
-    ) -> None:
+    ) -> report_results_service_pb2.AddDenoisedResultValuesRequest:
         """Executes the full post-processing workflow.
 
         Args:
@@ -78,20 +77,20 @@ class PostProcessReportResult:
             external_report_result_id: The external ID of the report result.
         """
         # Gets the report result.
-        report_result = self._get_report_result(cmms_measurement_consumer_id,
-                                                external_report_result_id)
+        reporting_set_results = self._get_report_result(
+            cmms_measurement_consumer_id, external_report_result_id)
 
         # Gets the set of the external_reporting_set_ids from the reporting sets.
         external_reporting_set_ids = {
-            result.key.external_reporting_set_id
-            for result in report_result.reporting_set_results
+            result.dimension.external_reporting_set_id
+            for result in reporting_set_results
         }
         external_reporting_set_id_map = self._get_external_reporting_set_id_map(
             cmms_measurement_consumer_id, external_reporting_set_ids)
 
         # Converts report result to a list of report summary v2.
-        report_summaries = report_conversion.get_report_summary_v2_from_report_result(
-            report_result, external_reporting_set_id_map)
+        report_summaries = report_conversion.report_summaries_from_reporting_set_results(
+            reporting_set_results, external_reporting_set_id_map)
 
         if not report_summaries:
             logging.info("No report summaries were generated.")
@@ -99,35 +98,52 @@ class PostProcessReportResult:
 
         # Runs report post processor on each report summary v2.
         all_updated_measurements = {}
-        for summary in report_summaries:
-            processor = ReportSummaryV2Processor(summary)
-            result = processor.process()
-            if result.status.status_code == ReportPostProcessorStatus.SUCCESS:
+        for report_summary in report_summaries:
+            result = ReportSummaryV2Processor(report_summary).process()
+            if result.status.status_code in [
+                ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
+                ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
+                ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
+                ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
+            ]:
                 all_updated_measurements.update(result.updated_measurements)
             else:
-                logging.error(
+                raise ValueError(
                     "Noise correction failed for a report summary with status:"
-                    f" {result.status}")
+                    f" {result.status.status_code}")
 
         # Creates AddDenoisedResultValuesRequest for each report summary.
-        requests = self._create_add_denoised_result_values_requests(
+        request = self._create_add_denoised_result_values_requests(
             report_summaries, all_updated_measurements)
-
-        # Writes the denoised results to the spanner.
-        for request in requests:
-            self._report_results_stub.AddDenoisedResultValues(request)
 
         logging.info("Successfully added all denoised results.")
 
+        return request
+
     def _get_report_result(self, cmms_measurement_consumer_id: str,
                            external_report_result_id: int):
-        """Fetches the report result using the internal API."""
+        """Fetches all reporting set results for a report result."""
         logging.info(f"Fetching report result {external_report_result_id}...")
-        request = GetNoisyResultValuesRequest(
+        request = ListReportingSetResultsRequest(
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
             external_report_result_id=external_report_result_id,
+            view=report_result_pb2.ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY,
         )
-        return self._report_results_stub.GetNoisyResultValues(request)
+        results = []
+        response = self._report_results_stub.ListReportingSetResults(request)
+        results.extend(response.reporting_set_results)
+
+#         while response.next_page_token:
+#             next_request = ListReportingSetResultsRequest(
+#                 cmms_measurement_consumer_id=cmms_measurement_consumer_id,
+#                 external_report_result_id=external_report_result_id,
+#                 view=report_result_pb2.ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY,
+#                 page_token=response.next_page_token,
+#             )
+#             response = self._report_results_stub.ListReportingSetResults(next_request)
+#             results.extend(response.reporting_set_results)
+
+        return results
 
     def _get_external_reporting_set_id_map(
             self, cmms_measurement_consumer_id: str,
@@ -157,18 +173,18 @@ class PostProcessReportResult:
 
         def _get_primitive_ids(reporting_set: ReportingSet) -> set[str]:
             """Recursively finds all primitive reporting set IDs."""
-            # A reporting set is composed of a list of weighted subset unions,
-            # each of which references a primitive reporting set. We extract
-            # the external_reporting_set_id from each of these.
-            primitive_ids = set()
-            for weighted_subset_union in reporting_set.weighted_subset_unions:
-                primitive_ids.add(
-                    weighted_subset_union.external_reporting_set_id)
-            return primitive_ids
+            if reporting_set.WhichOneof("value") == "primitive":
+                return {reporting_set.external_reporting_set_id}
+            else:
+                primitive_ids = set()
+                for weighted_subset_union in reporting_set.weighted_subset_unions:
+                    for primitive_reporting_set_base in weighted_subset_union.primitive_reporting_set_bases:
+                        primitive_ids.add(
+                            primitive_reporting_set_base.external_reporting_set_id)
+                return primitive_ids
 
         return {
-            reporting_set_id:
-            _get_primitive_ids(reporting_set_map[reporting_set_id])
+            reporting_set_id: _get_primitive_ids(reporting_set_map[reporting_set_id])
             for reporting_set_id in external_reporting_set_ids
             if reporting_set_id in reporting_set_map
         }
@@ -202,8 +218,8 @@ class PostProcessReportResult:
             )
 
             for set_result in summary.report_summary_set_results:
-                denoised_set_result = request.reporting_set_results[
-                    set_result.external_reporting_set_id]
+                denoised_set_result = request.reporting_set_results.get_or_create(
+                    set_result.external_reporting_set_result_id)
 
                 # This assumes that the windows in cumulative_results and
                 # non_cumulative_results can be uniquely identified by their

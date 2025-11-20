@@ -51,11 +51,11 @@ message ReportSummaryV2 {
     // Represents a frequency distribution result.
     message FrequencyResult {
       message BinResult {
-        int64 value = 1;
+        double value = 1;
         double standard_deviation = 2;
       }
       // Map of bin label to `BinResult`.
-      map<string, BinResult> bins = 1;
+      map<int32, BinResult> bins = 1;
 
       // The unique name that is associated with this result.
       string metric = 2;
@@ -80,21 +80,32 @@ message ReportSummaryV2 {
 
       MetricFrequencyType metric_frequency_type = 1;
 
-      ReachResult reach = 4;
-      FrequencyResult frequency = 5;
-      ImpressionCountResult impression_count = 6;
+      message ReportingWindow {
+        // Start of the window range for non-cumulative metrics, inclusive.
+        //
+        // Required if there are non-cumulative metrics in the corresponding
+        // `ReportingWindowResult`.
+        google.type.Date non_cumulative_start = 1;
+        // End of the window range, inclusive. Required.
+        google.type.Date end = 2;
+      }
+
+      ReportingWindow key = 4;
+
+      ReachResult reach = 5;
+      FrequencyResult frequency = 6;
+      ImpressionCountResult impression_count = 7;
     }
 
     // A list of cumulative results, ordered by the end date of the window.
     repeated ReportSummaryWindowResult cumulative_results = 5;
 
     // A list of non-cumulative results, ordered by the end date of the window.
-    // This can contain both whole-campaign metrics (e.g., where
-    // `metric_frequency_type` is `TOTAL`) and periodic non-cumulative metrics
-    // (e.g., where `metric_frequency_type` is `WEEKLY`).
     repeated ReportSummaryWindowResult non_cumulative_results = 6;
 
-    string external_reporting_set_id = 7;
+    ReportSummaryWindowResult whole_campaign_result = 7;
+
+    string external_reporting_set_id = 8;
   }
 
   // A list containing the details and results for each set of metrics included

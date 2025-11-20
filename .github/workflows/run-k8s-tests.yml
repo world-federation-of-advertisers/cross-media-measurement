@@ -31,6 +31,9 @@ on:
         - qa
         - head
 
+permissions:
+  contents: read
+
 jobs:
   run-tests:
     runs-on: ubuntu-22.04

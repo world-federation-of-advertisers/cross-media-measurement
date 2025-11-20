@@ -47,25 +47,34 @@ py_test(
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
     ],
 )
 
 py_test(
-    name = "post_process_report_reslt_test",
+    name = "post_process_report_result_test",
     size = "small",
     srcs = ["post_process_report_result_test.py"],
+    data = [":sample_reports"],
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
-        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_result_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
-    ]
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
+    ],
 )
+
 filegroup(
     name = "sample_reports",
     srcs = glob([

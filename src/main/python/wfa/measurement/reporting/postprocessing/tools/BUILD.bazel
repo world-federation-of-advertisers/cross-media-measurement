@@ -23,6 +23,7 @@ filegroup(
 py_binary(
     name = "post_process_report_summary_v2",
     srcs = ["post_process_report_summary_v2.py"],
+    imports = ["../"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
@@ -32,6 +33,7 @@ py_binary(
 py_binary(
     name = "post_process_origin_report",
     srcs = ["post_process_origin_report.py"],
+    imports = ["../"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
@@ -45,6 +47,7 @@ py_binary(
 py_binary(
     name = "log_processor",
     srcs = ["log_processor.py"],
+    imports = ["../"],
     deps = [
         requirement("absl-py"),
         requirement("google-cloud-storage"),
@@ -81,14 +84,19 @@ py_library(
 py_library(
     name = "post_process_report_result",
     srcs = ["post_process_report_result.py"],
+    imports = ["../"],
     deps = [
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
         ":report_conversion",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_sets_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
     ]
 )

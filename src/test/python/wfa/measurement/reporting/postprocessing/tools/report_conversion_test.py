@@ -17,10 +17,14 @@ import unittest
 
 from google.protobuf import text_format
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.report_conversion import (
-    get_report_summary_v2_from_report_result, )
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
-    report_summary_v2_pb2, )
+    _create_report_summary_for_group,
+    report_summaries_from_reporting_set_results,
+)
+from wfa.measurement.internal.reporting.postprocessing import (
+    report_summary_v2_pb2,
+)
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
+from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
 
 ReportSummaryWindowResult = (report_summary_v2_pb2.ReportSummaryV2.
@@ -34,9 +38,10 @@ class ReportConversionTest(unittest.TestCase):
         with open(
                 'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_result.textproto',
                 'r') as file:
-            report_result_textproto = file.read()
-        self.report_result = text_format.Parse(
-            report_result_textproto, report_result_pb2.ReportResult())
+            list_response_textproto = file.read()
+        self.reporting_set_results = _parse_reporting_set_results(
+            list_response_textproto
+        )
 
         self.edp_combinations = {
             'edp1': ['edp1'],
@@ -46,11 +51,27 @@ class ReportConversionTest(unittest.TestCase):
             'edp1_edp2_edp3': ['edp1', 'edp2', 'edp3'],
         }
 
+    def test_create_report_summary_for_group_with_empty_results_raises_error(
+            self):
+        with self.assertRaisesRegex(ValueError, "No results found for group"):
+            _create_report_summary_for_group(
+                cmms_measurement_consumer_id="test-mc-id",
+                external_report_result_id=123,
+                group_key=(456, 789),
+                results_for_group=[],
+                primitive_reporting_sets_by_reporting_set_id={
+                    "1": ["EDP1"],
+                    "2": ["EDP2"],
+                },
+            )
+
     def test_empty_edp_combinations_map_raises_error(self):
         with self.assertRaisesRegex(
                 ValueError,
                 'Cannot find the data providers for reporting set'):
-            get_report_summary_v2_from_report_result(self.report_result, {})
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, {}
+            )
 
     def test_report_result_missing_edp_combination_key_raises_error(self):
         """Tests that a ValueError is raised for a missing key in edp_combinations."""
@@ -59,204 +80,212 @@ class ReportConversionTest(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError,
                 'Cannot find the data providers for reporting set edp1'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     invalid_edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, invalid_edp_combinations
+            )
 
     def test_report_result_missing_cmms_measurement_consumer_id_raises_error(
             self):
-        self.report_result.ClearField('cmms_measurement_consumer_id')
+        self.reporting_set_results[0].ClearField('cmms_measurement_consumer_id')
         with self.assertRaisesRegex(
                 ValueError, 'must have a cmms_measurement_consumer_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_external_report_result_id_raises_error(
             self):
-        self.report_result.ClearField('external_report_result_id')
+        self.reporting_set_results[0].ClearField('external_report_result_id')
         with self.assertRaisesRegex(ValueError,
                                     'must have an external_report_result_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
-    def test_report_result_missing_report_start_raises_error(self):
-        self.report_result.ClearField('report_start')
-        with self.assertRaisesRegex(ValueError,
-                                    'must have a report_start date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
-
-    def test_report_result_missing_reporting_set_result_key_raises_error(self):
-        self.report_result.reporting_set_results[0].ClearField('key')
-        with self.assertRaisesRegex(ValueError, 'must have a key'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
-
-    def test_report_result_missing_reporting_set_result_value_raises_error(
-            self):
-        self.report_result.reporting_set_results[0].ClearField('value')
-        with self.assertRaisesRegex(ValueError, 'must have a value'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+    def test_report_result_missing_reporting_set_result_dimension_raises_error(
+        self,
+    ):
+        self.reporting_set_results[0].ClearField('dimension')
+        with self.assertRaisesRegex(ValueError, 'dimension'):
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_external_reporting_set_id_raises_error(
             self):
-        self.report_result.reporting_set_results[0].key.ClearField(
-            'external_reporting_set_id')
+        self.reporting_set_results[0].dimension.ClearField(
+            'external_reporting_set_id'
+        )
         with self.assertRaisesRegex(ValueError,
                                     'must have an external_reporting_set_id'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_unspecified_venn_diagram_region_type_raises_error(
             self):
-        self.report_result.reporting_set_results[
-            0].key.venn_diagram_region_type = (
-                report_result_pb2.ReportResult.VennDiagramRegionType.
-                VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED)
+        self.reporting_set_results[0].dimension.venn_diagram_region_type = (
+            report_result_pb2.ReportingSetResult.Dimension.VennDiagramRegionType.VENN_DIAGRAM_REGION_TYPE_UNSPECIFIED
+        )
         with self.assertRaisesRegex(ValueError,
                                     'must have a venn_diagram_region_type'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_impression_qualification_filter_raises_error(
             self):
-        self.report_result.reporting_set_results[0].key.ClearField(
-            'impression_qualification_filter')
+        self.reporting_set_results[0].dimension.ClearField(
+            'impression_qualification_filter'
+        )
         with self.assertRaisesRegex(
                 ValueError, 'must have an impression_qualification_filter'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_metric_frequency_spec_raises_error(self):
-        self.report_result.reporting_set_results[0].key.ClearField(
-            'metric_frequency_spec')
+        self.reporting_set_results[0].dimension.ClearField(
+            'metric_frequency_spec'
+        )
         with self.assertRaisesRegex(ValueError,
                                     'must have a metric_frequency_spec'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_window_start_raises_error(self):
-        self.report_result.reporting_set_results[
-            0].value.reporting_window_results[0].key.ClearField(
-                'non_cumulative_start')
+        self.reporting_set_results[0].reporting_window_results[
+            0
+        ].key.ClearField('non_cumulative_start')
         with self.assertRaisesRegex(ValueError,
                                     'must have a non-cumulative start date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_window_end_raises_error(self):
-        self.report_result.reporting_set_results[
-            0].value.reporting_window_results[0].key.ClearField('end')
+        self.reporting_set_results[0].reporting_window_results[
+            0
+        ].key.ClearField('end')
         with self.assertRaisesRegex(ValueError, 'must have an end date'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_missing_noisy_report_result_values_raises_error(
             self):
-        self.report_result.reporting_set_results[
-            0].value.reporting_window_results[0].value.ClearField(
-                'noisy_report_result_values')
+        self.reporting_set_results[0].reporting_window_results[
+            0
+        ].value.ClearField('noisy_report_result_values')
         with self.assertRaisesRegex(ValueError,
                                     'Missing noisy_report_result_values'):
-            get_report_summary_v2_from_report_result(self.report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                self.reporting_set_results, self.edp_combinations
+            )
 
     def test_report_result_with_mismatched_population_raises_error(self):
         mismatched_population_report_result_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              external_impression_qualification_filter_id: "ami"
-              metric_frequency_spec { total: true }
-              groupings {
-                path: "person.age_group"
-                value { enum_value: "YEARS_18_TO_34" }
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { total: true }
+                grouping {
+                  value_by_path {
+                    key: "person.age_group"
+                    value { enum_value: "YEARS_18_TO_34" }
+                  }
+                }
+            
               }
-            }
-            value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
                 value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
               }
             }
-          }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp2"
-              venn_diagram_region_type: UNION
-              external_impression_qualification_filter_id: "ami"
-              metric_frequency_spec { total: true }
-              groupings {
-                path: "person.age_group"
-                value { enum_value: "YEARS_18_TO_34" }
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 2
+              dimension {
+                external_reporting_set_id: "edp2"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { total: true }
+                grouping {
+                  value_by_path {
+                    key: "person.age_group"
+                    value { enum_value: "YEARS_18_TO_34" }
+                  }
+                }
               }
-            }
-            value {
               population_size: 20000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
                 value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
               }
             }
-          }
         """
-        report_result = text_format.Parse(
-            mismatched_population_report_result_textproto,
-            report_result_pb2.ReportResult())
+        reporting_set_results = _parse_reporting_set_results(
+            mismatched_population_report_result_textproto
+        )
         with self.assertRaisesRegex(
                 ValueError,
                 'Inconsistent population sizes found within the same result group.'
         ):
-            get_report_summary_v2_from_report_result(report_result,
-                                                     self.edp_combinations)
+            report_summaries_from_reporting_set_results(
+                reporting_set_results, self.edp_combinations
+            )
 
-    def test_get_report_summary_v2_from_empty_report_results(self):
-        report_result = report_result_pb2.ReportResult()
-        report_result.cmms_measurement_consumer_id = 'faked_id'
-        report_result.external_report_result_id = 1
-        report_result.report_start.year = 2025
-        report_result.report_start.month = 1
-        report_result.report_start.day = 1
+    def test_get_report_summary_v2_from_empty_report_results_raises_error(
+            self):
+        with self.assertRaisesRegex(ValueError, 'at least one'):
+            report_summaries_from_reporting_set_results(
+                [], self.edp_combinations
+            )
 
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
-
-        self.assertEqual(report_summaries, [])
-
-    def test_report_result_with_only_ami_total_measurements(self):
-        """Tests conversion for a report with only non-cumulative total measurements."""
+    def test_validate_report_result_non_cumulative_with_total_spec_fails(self):
         ami_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              external_impression_qualification_filter_id: "ami"
-              metric_frequency_spec { total: true }
-              groupings {
-                path: "person.age_group"
-                value { enum_value: "YEARS_18_TO_34" }
-              }
-              groupings {
-                path: "person.gender"
-                value { enum_value: "MALE" }
-              }
-              event_filters {
-                terms {
-                  path: "banner_ad.viewable"
-                  value { bool_value: true }
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { total: true }
+                grouping {
+                  value_by_path {
+                    key: "person.age_group"
+                    value { enum_value: "YEARS_18_TO_34" }
+                  }
+                  value_by_path {
+                    key: "person.gender"
+                    value { enum_value: "MALE" }
+                  }
+                }
+            
+                event_filters {
+                  terms {
+                    path: "banner_ad.viewable"
+                    value { bool_value: true }
+                  }
                 }
               }
-            }
-            value {
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
+              filter_fingerprint: 5
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -271,14 +300,78 @@ class ReportConversionTest(unittest.TestCase):
                       }
                       impression_count { value: 50000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 2500 } }
+                        bin_results { key: 1 value { value: 2500 } }
                       }
                     }
                   }
                 }
               }
             }
-          }
+        """
+        reporting_set_results = _parse_reporting_set_results(
+            ami_report_textproto
+        )
+        with self.assertRaisesRegex(
+                ValueError,
+                "Non cumulative results cannot have metric frequency spec of TOTAL.",
+        ):
+            report_summaries_from_reporting_set_results(
+                reporting_set_results, self.edp_combinations
+            )
+
+    def test_report_result_with_only_ami_total_measurements(self):
+        """Tests conversion for a report with only non-cumulative total measurements."""
+        ami_report_textproto = """
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { total: true }
+                grouping {
+                  value_by_path {
+                    key: "person.age_group"
+                    value { enum_value: "YEARS_18_TO_34" }
+                  }
+                  value_by_path {
+                    key: "person.gender"
+                    value { enum_value: "MALE" }
+                  }
+                }
+                event_filters {
+                  terms {
+                    path: "banner_ad.viewable"
+                    value { bool_value: true }
+                  }
+                }
+              }
+              population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
+              grouping_dimension_fingerprint: 2
+              filter_fingerprint: 5
+              reporting_window_results {
+                key {
+                  non_cumulative_start { year: 2025 month: 10 day: 1 }
+                  end { year: 2025 month: 10 day: 15 }
+                }
+                value {
+                  noisy_report_result_values {
+                    cumulative_results {
+                      reach {
+                        value: 5000
+                        univariate_statistics { standard_deviation: 200 }
+                      }
+                      impression_count { value: 50000 }
+                      frequency_histogram {
+                        bin_results { key: 1 value { value: 2500 } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
         """
         expected_ami_report_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -302,31 +395,33 @@ class ReportConversionTest(unittest.TestCase):
             impression_filter: "ami"
             set_operation: "union"
             data_providers: "edp1"
-            non_cumulative_results {
+            whole_campaign_result {
               metric_frequency_type: TOTAL
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_non_cumulative_edp1_ami_2025_10_15"
+                metric: "reach_whole_campaign_edp1_ami_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_non_cumulative_edp1_ami_2025_10_15"
+                metric: "impression_whole_campaign_edp1_ami_2025_10_15"
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
+                metric: "frequency_whole_campaign_edp1_ami_2025_10_15"
               }
             }
           }
         """
-        report_result = text_format.Parse(ami_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            ami_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_ami_report_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2(),
@@ -338,18 +433,18 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_custom_total_measurements(self):
         """Tests conversion for a report with only non-cumulative total measurements."""
         custom_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              custom: true
-              metric_frequency_spec { total: true }
-            }
-            value {
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                custom: true
+                metric_frequency_spec { total: true }
+              }
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -357,21 +452,20 @@ class ReportConversionTest(unittest.TestCase):
                 }
                 value {
                   noisy_report_result_values {
-                    non_cumulative_results {
+                    cumulative_results {
                       reach {
                         value: 5000
                         univariate_statistics { standard_deviation: 200 }
                       }
                       impression_count { value: 50000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 2500 } }
+                        bin_results { key: 1 value { value: 2500 } }
                       }
                     }
                   }
                 }
               }
             }
-          }
         """
         expected_custom_report_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -381,31 +475,33 @@ class ReportConversionTest(unittest.TestCase):
             impression_filter: "custom"
             set_operation: "union"
             data_providers: "edp1"
-            non_cumulative_results {
+            whole_campaign_result {
               metric_frequency_type: TOTAL
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_non_cumulative_edp1_custom_2025_10_15"
+                metric: "reach_whole_campaign_edp1_custom_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_non_cumulative_edp1_custom_2025_10_15"
+                metric: "impression_whole_campaign_edp1_custom_2025_10_15"
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
+                metric: "frequency_whole_campaign_edp1_custom_2025_10_15"
               }
             }
           }
         """
-        report_result = text_format.Parse(custom_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            custom_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_custom_report_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2(),
@@ -418,18 +514,18 @@ class ReportConversionTest(unittest.TestCase):
             self):
         """Tests conversion for a report with only non-cumulative weekly measurements."""
         ami_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              external_impression_qualification_filter_id: "ami"
-              metric_frequency_spec { weekly: MONDAY }
-            }
-            value {
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { weekly: MONDAY }
+              }
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -441,7 +537,7 @@ class ReportConversionTest(unittest.TestCase):
                       reach { value: 2000 }
                       impression_count { value: 20000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1000 } }
+                        bin_results { key: 1 value { value: 1000 } }
                       }
                     }
                   }
@@ -461,14 +557,13 @@ class ReportConversionTest(unittest.TestCase):
                       }
                       impression_count { value: 30000 }
                       frequency_histogram {
-                        bin_results { key: "1" value { value: 1500 } }
+                        bin_results { key: 1 value { value: 1500 } }
                       }
                     }
                   }
                 }
               }
             }
-          }
         """
         expected_ami_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -490,7 +585,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1000 }
                 }
                 metric: "frequency_non_cumulative_edp1_ami_2025_10_08"
@@ -509,7 +604,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1500 }
                 }
                 metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
@@ -517,10 +612,12 @@ class ReportConversionTest(unittest.TestCase):
             }
           }
         """
-        report_result = text_format.Parse(ami_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            ami_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_ami_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2())
@@ -532,71 +629,74 @@ class ReportConversionTest(unittest.TestCase):
             self):
         """Tests conversion for a report with only non-cumulative weekly measurements."""
         custom_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              custom: true
-              metric_frequency_spec { weekly: MONDAY }
-              groupings {
-                path: "person.age_group"
-                value { enum_value: "YEARS_18_TO_34" }
-              }
-              groupings {
-                path: "person.gender"
-                value { enum_value: "MALE" }
-              }
-              event_filters {
-                terms {
-                  path: "banner_ad.viewable"
-                  value { bool_value: true }
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                custom: true
+                metric_frequency_spec { weekly: MONDAY }
+                grouping {
+                  value_by_path {
+                    key: "person.age_group"
+                    value { enum_value: "YEARS_18_TO_34" }
+                  }
+                  value_by_path {
+                    key: "person.gender"
+                    value { enum_value: "MALE" }
+                  }
+                }
+                event_filters {
+                  terms {
+                    path: "banner_ad.viewable"
+                    value { bool_value: true }
+                  }
                 }
               }
-            }
-            value {
-              population_size: 10000
-              reporting_window_results {
-                key {
-                  non_cumulative_start { year: 2025 month: 10 day: 1 }
-                  end { year: 2025 month: 10 day: 8 }
-                }
-                value {
-                  noisy_report_result_values {
-                    non_cumulative_results {
-                      reach { value: 2000 }
-                      impression_count { value: 20000 }
-                      frequency_histogram {
-                        bin_results { key: "1" value { value: 1000 } }
+                population_size: 10000
+                metric_frequency_spec_fingerprint: 1234
+                grouping_dimension_fingerprint: 2
+                filter_fingerprint: 5
+                reporting_window_results {
+                  key {
+                    non_cumulative_start { year: 2025 month: 10 day: 1 }
+                    end { year: 2025 month: 10 day: 8 }
+                  }
+                  value {
+                    noisy_report_result_values {
+                      non_cumulative_results {
+                        reach { value: 2000 }
+                        impression_count { value: 20000 }
+                        frequency_histogram {
+                          bin_results { key: 1 value { value: 1000 } }
+                        }
                       }
                     }
                   }
                 }
-              }
-              reporting_window_results {
-                key {
-                  non_cumulative_start { year: 2025 month: 10 day: 8 }
-                  end { year: 2025 month: 10 day: 15 }
-                }
-                value {
-                  noisy_report_result_values {
-                    non_cumulative_results {
-                      reach {
-                        value: 3000
-                        univariate_statistics { standard_deviation: 150 }
-                      }
-                      impression_count { value: 30000 }
-                      frequency_histogram {
-                        bin_results { key: "1" value { value: 1500 } }
+                reporting_window_results {
+                  key {
+                    non_cumulative_start { year: 2025 month: 10 day: 8 }
+                    end { year: 2025 month: 10 day: 15 }
+                  }
+                  value {
+                    noisy_report_result_values {
+                      non_cumulative_results {
+                        reach {
+                          value: 3000
+                          univariate_statistics { standard_deviation: 150 }
+                        }
+                        impression_count { value: 30000 }
+                        frequency_histogram {
+                          bin_results { key: 1 value { value: 1500 } }
+                        }
                       }
                     }
                   }
                 }
-              }
             }
-          }
         """
         expected_custom_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -632,7 +732,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1000 }
                 }
                 metric: "frequency_non_cumulative_edp1_custom_2025_10_08"
@@ -651,7 +751,7 @@ class ReportConversionTest(unittest.TestCase):
               }
               frequency {
                 bins {
-                  key: "1"
+                  key: 1
                   value { value: 1500 }
                 }
                 metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
@@ -659,10 +759,12 @@ class ReportConversionTest(unittest.TestCase):
             }
          }
         """
-        report_result = text_format.Parse(custom_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            custom_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_custom_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2(),
@@ -674,18 +776,18 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_cumulative_ami_measurements(self):
         """Tests conversion for a report with only cumulative weekly measurements."""
         ami_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              external_impression_qualification_filter_id: "ami"
-              metric_frequency_spec { weekly: MONDAY }
-            }
-            value {
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                external_impression_qualification_filter_id: "ami"
+                metric_frequency_spec { weekly: MONDAY }
+              }
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -716,7 +818,6 @@ class ReportConversionTest(unittest.TestCase):
                 }
               }
             }
-          }
         """
         expected_ami_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -743,10 +844,12 @@ class ReportConversionTest(unittest.TestCase):
             }
           }
         """
-        report_result = text_format.Parse(ami_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            ami_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_ami_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2())
@@ -757,18 +860,18 @@ class ReportConversionTest(unittest.TestCase):
     def test_report_result_with_only_cumulative_custom_measurements(self):
         """Tests conversion for a report with only cumulative measurements."""
         custom_report_textproto = """
-          cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: 123
-          report_start { year: 2025 month: 10 day: 1 }
-          reporting_set_results {
-            key {
-              external_reporting_set_id: "edp1"
-              venn_diagram_region_type: UNION
-              custom: true
-              metric_frequency_spec { weekly: MONDAY }
-            }
-            value {
+            reporting_set_results {
+              cmms_measurement_consumer_id: "abcd"
+              external_report_result_id: 123
+              external_reporting_set_result_id: 1
+              dimension {
+                external_reporting_set_id: "edp1"
+                venn_diagram_region_type: UNION
+                custom: true
+                metric_frequency_spec { weekly: MONDAY }
+              }
               population_size: 10000
+              metric_frequency_spec_fingerprint: 1234
               reporting_window_results {
                 key {
                   non_cumulative_start { year: 2025 month: 10 day: 1 }
@@ -799,7 +902,6 @@ class ReportConversionTest(unittest.TestCase):
                 }
               }
             }
-          }
         """
         expected_custom_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
@@ -826,10 +928,12 @@ class ReportConversionTest(unittest.TestCase):
             }
           }
         """
-        report_result = text_format.Parse(custom_report_textproto,
-                                          report_result_pb2.ReportResult())
-        report_summaries = get_report_summary_v2_from_report_result(
-            report_result, self.edp_combinations)
+        reporting_set_results = _parse_reporting_set_results(
+            custom_report_textproto
+        )
+        report_summaries = report_summaries_from_reporting_set_results(
+            reporting_set_results, self.edp_combinations
+        )
         expected_report_summary = text_format.Parse(
             expected_custom_summary_textproto,
             report_summary_v2_pb2.ReportSummaryV2(),
@@ -841,8 +945,9 @@ class ReportConversionTest(unittest.TestCase):
     def test_get_report_summary_v2_from_a_large_sample_report_result(self):
         """Tests that the full report result is parsed into a summary correctly."""
 
-        report_summaries = get_report_summary_v2_from_report_result(
-            self.report_result, self.edp_combinations)
+        report_summaries = report_summaries_from_reporting_set_results(
+            self.reporting_set_results, self.edp_combinations
+        )
 
         # Checks that there are two demographic groups in the sample report result.
         # One is (MALE, 18_34, banner_ad.viewable=True), the other is
@@ -904,30 +1009,30 @@ class ReportConversionTest(unittest.TestCase):
         expected_reporting_set_result_18_34.data_providers.extend(
             ['edp1', 'edp2', 'edp3'])
         # There are only non-cumulative whole campaign measurements.
-        non_cumulative = (
-            expected_reporting_set_result_18_34.non_cumulative_results.add())
-        non_cumulative.metric_frequency_type = (
+        whole_campaign = (
+            expected_reporting_set_result_18_34.whole_campaign_result)
+        whole_campaign.metric_frequency_type = (
             ReportSummaryWindowResult.MetricFrequencyType.TOTAL)
-        non_cumulative.reach.value = 19030737
-        non_cumulative.reach.standard_deviation = 10000.0
-        non_cumulative.reach.metric = (
-            'reach_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
-        non_cumulative.impression_count.value = 35936915
-        non_cumulative.impression_count.standard_deviation = 10000.0
-        non_cumulative.impression_count.metric = (
-            'impression_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
-        non_cumulative.frequency.metric = (
-            'frequency_non_cumulative_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.reach.value = 19030737
+        whole_campaign.reach.standard_deviation = 10000.0
+        whole_campaign.reach.metric = (
+            'reach_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.impression_count.value = 35936915
+        whole_campaign.impression_count.standard_deviation = 10000.0
+        whole_campaign.impression_count.metric = (
+            'impression_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
+        whole_campaign.frequency.metric = (
+            'frequency_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
         freq_bins = {
-            '1': (9822316, 10000.0),
-            '2': (4911158, 10000.0),
-            '3': (2455579, 10000.0),
-            '4': (1227790, 10000.0),
-            '5': (613894, 10000.0),
+            1: (9822316, 10000.0),
+            2: (4911158, 10000.0),
+            3: (2455579, 10000.0),
+            4: (1227790, 10000.0),
+            5: (613894, 10000.0),
         }
         for k, v in freq_bins.items():
-            non_cumulative.frequency.bins[k].value = v[0]
-            non_cumulative.frequency.bins[k].standard_deviation = v[1]
+            whole_campaign.frequency.bins[k].value = v[0]
+            whole_campaign.frequency.bins[k].standard_deviation = v[1]
 
         self.assertIn(expected_reporting_set_result_18_34,
                       report_summary_18_34.report_summary_set_results)
@@ -963,11 +1068,11 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative1.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_08'
         non_cumulative1.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_08'
         freq_bins1 = {
-            '1': (5165486, 10000.0),
-            '2': (2582743, 10000.0),
-            '3': (1291372, 10000.0),
-            '4': (645686, 10000.0),
-            '5': (322843, 10000.0),
+            1: (5165486, 10000.0),
+            2: (2582743, 10000.0),
+            3: (1291372, 10000.0),
+            4: (645686, 10000.0),
+            5: (322843, 10000.0),
         }
         for k, v in freq_bins1.items():
             non_cumulative1.frequency.bins[k].value = v[0]
@@ -995,11 +1100,11 @@ class ReportConversionTest(unittest.TestCase):
         non_cumulative2.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_15'
         non_cumulative2.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_15'
         freq_bins2 = {
-            '1': (1265549, 10000.0),
-            '2': (632775, 10000.0),
-            '3': (316388, 10000.0),
-            '4': (158194, 10000.0),
-            '5': (79095, 10000.0),
+            1: (1265549, 10000.0),
+            2: (632775, 10000.0),
+            3: (316388, 10000.0),
+            4: (158194, 10000.0),
+            5: (79095, 10000.0),
         }
         for k, v in freq_bins2.items():
             non_cumulative2.frequency.bins[k].value = v[0]
@@ -1007,6 +1112,16 @@ class ReportConversionTest(unittest.TestCase):
 
         self.assertIn(expected_reporting_set_result_35_54,
                       report_summary_35_54.report_summary_set_results)
+
+
+def _parse_reporting_set_results(
+    list_response_textproto,
+) -> list[report_result_pb2.ReportingSetResult]:
+    response = text_format.Parse(
+        list_response_textproto,
+        report_results_service_pb2.ListReportingSetResultsResponse(),
+    )
+    return response.reporting_set_results
 
 
 if __name__ == '__main__':

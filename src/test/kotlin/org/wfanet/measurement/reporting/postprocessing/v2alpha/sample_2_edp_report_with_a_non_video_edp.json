@@ -2165,7 +2165,7 @@
                   {
                     "label": "5",
                     "binResult": {
-                      "value": 10729.0
+                      "value": 10729.2122
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2183,7 +2183,7 @@
                   {
                     "label": "4",
                     "binResult": {
-                      "value": 14591.0
+                      "value": 14590.7878
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2201,7 +2201,7 @@
                   {
                     "label": "13",
                     "binResult": {
-                      "value": 4.0
+                      "value": 4.111
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2219,7 +2219,7 @@
                   {
                     "label": "7",
                     "binResult": {
-                      "value": 28188.0
+                      "value": 28187.889
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2237,7 +2237,7 @@
                   {
                     "label": "1",
                     "binResult": {
-                      "value": 613337.0
+                      "value": 613336.9996
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2255,7 +2255,7 @@
                   {
                     "label": "10",
                     "binResult": {
-                      "value": 3359.0
+                      "value": 3359.0004
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2273,7 +2273,7 @@
                   {
                     "label": "9",
                     "binResult": {
-                      "value": 13294.0
+                      "value": 13293.667
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2291,7 +2291,7 @@
                   {
                     "label": "3",
                     "binResult": {
-                      "value": 56431.0
+                      "value": 56431.333
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2327,7 +2327,7 @@
                   {
                     "label": "15",
                     "binResult": {
-                      "value": 11901.0
+                      "value": 11900.5
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0
@@ -2345,7 +2345,7 @@
                   {
                     "label": "6",
                     "binResult": {
-                      "value": 20822.0
+                      "value": 20822.5
                     },
                     "resultUnivariateStatistics": {
                       "standardDeviation": 0.0

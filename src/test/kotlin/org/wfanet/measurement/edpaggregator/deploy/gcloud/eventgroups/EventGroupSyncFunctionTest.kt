@@ -182,6 +182,20 @@ class EventGroupSyncFunctionTest() {
     grpcServer.shutdown()
   }
 
+  private suspend fun startFunction(envOverrides: Map<String, String> = emptyMap()): Int {
+    val defaultEnv =
+      mapOf(
+        "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
+        "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+        "KINGDOM_CERT_HOST" to "localhost",
+        "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
+        "OTEL_METRICS_EXPORTER" to "logging",
+        "OTEL_TRACES_EXPORTER" to "logging",
+        "OTEL_LOGS_EXPORTER" to "logging",
+      )
+    return functionProcess.start(defaultEnv + envOverrides)
+  }
+
   @Test
   fun `sync registersUnregisteredEventGroups`() {
     val newCampaign = eventGroup {
@@ -216,16 +230,7 @@ class EventGroupSyncFunctionTest() {
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
-        )
-      )
-    }
+    val port = runBlocking { startFunction() }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -333,16 +338,7 @@ class EventGroupSyncFunctionTest() {
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
-        )
-      )
-    }
+    val port = runBlocking { startFunction() }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -445,16 +441,7 @@ class EventGroupSyncFunctionTest() {
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
-        )
-      )
-    }
+    val port = runBlocking { startFunction() }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")
@@ -518,16 +505,7 @@ class EventGroupSyncFunctionTest() {
     }
     File("${tempFolder.root}/some/path").mkdirs()
     File("${tempFolder.root}/some/other/path").mkdirs()
-    val port = runBlocking {
-      functionProcess.start(
-        mapOf(
-          "FILE_STORAGE_ROOT" to tempFolder.root.toString(),
-          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
-          "KINGDOM_CERT_HOST" to "localhost",
-          "KINGDOM_SHUTDOWN_DURATION_SECONDS" to "3",
-        )
-      )
-    }
+    val port = runBlocking { startFunction() }
 
     val url = "http://localhost:$port"
     logger.info("Testing Cloud Function at: $url")

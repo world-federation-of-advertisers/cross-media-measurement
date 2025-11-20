@@ -6,7 +6,10 @@ load(
     "kt_jvm_grpc_proto_library",
     "kt_jvm_proto_library",
 )
+load("@rules_proto_grpc_python//:defs.bzl", "python_grpc_library")
+
 load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
+
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -85,11 +88,6 @@ proto_library(
     deps = [
         ":reporting_set_proto",
     ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "reporting_sets_service_kt_jvm_grpc_proto",
-    deps = [":reporting_sets_service_proto"],
 )
 
 proto_and_kt_jvm_proto_library(
@@ -422,10 +420,23 @@ proto_library(
 [
     py_proto_library(
         name = "{prefix}_service_py_pb2".format(prefix = prefix),
+        deps = [":{prefix}_service_proto".format(prefix = prefix)],
+    )
+    for prefix in SERVICE_LIBS
+]
+
+[
+    python_grpc_library(
+        name = "{prefix}_service_py_pb2_grpc".format(prefix = prefix),
         protos = [":{prefix}_service_proto".format(prefix = prefix)],
     )
     for prefix in SERVICE_LIBS
 ]
+
+py_proto_library(
+    name = "reporting_set_py_pb2",
+    deps = [":reporting_set_proto"]
+)
 
 proto_descriptor_set(
     name = "descriptor_set",

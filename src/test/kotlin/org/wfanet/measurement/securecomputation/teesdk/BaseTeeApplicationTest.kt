@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -114,8 +115,17 @@ class BaseTeeApplicationTest {
 
   @Test
   fun `test processing protobuf message`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
-    val publisher = Publisher<WorkItem>(PROJECT_ID, emulatorClient)
+    val pubSubClient =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
+    val publisher = Publisher<WorkItem>(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
 
@@ -185,7 +195,9 @@ class BaseTeeApplicationTest {
     val testWork = createTestWork()
     val workItem = createWorkItem(testWork)
     val consumer = TestMessageConsumer()
-    fakeSubscriber.send(QueueSubscriber.QueueMessage(body = workItem, consumer = consumer))
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(body = workItem, consumer = consumer, ackId = "some-ack-id")
+    )
 
     consumer.disposition.await()
 
