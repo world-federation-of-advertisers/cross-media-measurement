@@ -806,7 +806,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    print("debug: $exception")
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("EventGroup not found")
   }
