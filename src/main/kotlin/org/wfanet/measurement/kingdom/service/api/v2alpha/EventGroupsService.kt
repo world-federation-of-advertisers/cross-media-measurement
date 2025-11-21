@@ -81,7 +81,6 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalG
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as InternalUpdateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest

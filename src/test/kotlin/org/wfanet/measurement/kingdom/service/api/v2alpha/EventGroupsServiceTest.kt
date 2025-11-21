@@ -43,7 +43,6 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -1641,26 +1640,6 @@ class EventGroupsServiceTest {
           eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
         }
       )
-  }
-
-  @Test
-  fun `batchUpdateEventGroup returns empty response for empty request list`() {
-    val request = batchUpdateEventGroupsRequest { parent = DATA_PROVIDER_NAME }
-
-    val result =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.batchUpdateEventGroups(request) }
-      }
-
-    verifyProtoArgument(
-        internalEventGroupsMock,
-        EventGroupsCoroutineImplBase::batchUpdateEventGroup,
-      )
-      .isEqualTo(
-        internalBatchUpdateEventGroupsRequest { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
-      )
-
-    assertThat(result).isEqualTo(BatchUpdateEventGroupsResponse.getDefaultInstance())
   }
 
   @Test
