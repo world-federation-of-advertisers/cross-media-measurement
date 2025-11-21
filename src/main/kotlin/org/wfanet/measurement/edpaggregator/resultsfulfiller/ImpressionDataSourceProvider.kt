@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import com.google.protobuf.ByteString
-import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import io.grpc.StatusException
 import java.util.logging.Logger
@@ -28,14 +26,12 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Describes an impression data source for a specific time interval.
@@ -82,7 +78,8 @@ class ImpressionDataSourceProvider(
     return impressionMetadata
       .map { metadata ->
         logger.info("Processing impression metadata: $metadata")
-        val blobDetails = readBlobDetails(metadata.blobUri)
+        val blobDetails =
+          BlobDetailsLoader.load(metadata.blobUri, impressionsMetadataStorageConfig)
 
         ImpressionDataSource(
           modelLine = modelLine,
@@ -131,45 +128,6 @@ class ImpressionDataSourceProvider(
         ResourceList(response.impressionMetadataList, response.nextPageToken)
       }
       .flattenConcat()
-  }
-
-  /**
-   * Reads `BlobDetails` from a metadata blob.
-   *
-   * @param metadataPath blob URI for the metadata (e.g., `file:///bucket/key`).
-   * @return parsed [BlobDetails].
-   * @throws ImpressionReadException with [ImpressionReadException.Code.BLOB_NOT_FOUND] when the
-   *   blob is missing.
-   * @throws com.google.protobuf.InvalidProtocolBufferException if parsing fails due to invalid
-   *   metadata contents.
-   */
-  private suspend fun readBlobDetails(metadataPath: String): BlobDetails {
-    val storageClientUri = SelectedStorageClient.parseBlobUri(metadataPath)
-    val storageClient =
-      SelectedStorageClient(
-        storageClientUri,
-        impressionsMetadataStorageConfig.rootDirectory,
-        impressionsMetadataStorageConfig.projectId,
-      )
-    logger.info("Reading impression metadata from $metadataPath")
-    val blob =
-      storageClient.getBlob(storageClientUri.key)
-        ?: throw ImpressionReadException(
-          metadataPath,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
-          "BlobDetails metadata not found",
-        )
-
-    val bytes: ByteString = blob.read().flatten()
-    // TODO(world-federation-of-advertisers/cross-media-measurement#2948): Determine blob parsing
-    // logic based on file extension
-    return try {
-      BlobDetails.parseFrom(bytes)
-    } catch (e: com.google.protobuf.InvalidProtocolBufferException) {
-      val builder = BlobDetails.newBuilder()
-      JsonFormat.parser().ignoringUnknownFields().merge(bytes.toString(Charsets.UTF_8), builder)
-      builder.build()
-    }
   }
 
   companion object {
