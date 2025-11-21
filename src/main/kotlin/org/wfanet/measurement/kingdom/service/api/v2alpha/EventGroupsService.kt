@@ -78,6 +78,7 @@ import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalG
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
@@ -431,7 +432,7 @@ class EventGroupsService(
     return streamEventGroupsRequest {
       allowStaleReads = true
       this.filter =
-        StreamEventGroupsRequestKt.filter {
+        InternalStreamEventGroupsRequests.filter {
           if (parentKey is DataProviderKey) {
             externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
           }
