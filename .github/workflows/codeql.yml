@@ -58,7 +58,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: c-cpp
-          build-mode: autobuild
+          build-mode: manual
         #- language: go
         #  build-mode: autobuild
         #- language: java-kotlin
@@ -122,7 +122,9 @@ jobs:
         #echo '  make release'
         #exit 1
         # DO_NOT_SUBMIT: include all kotlin files
-        #bazel build --worker_quit_after_build \
+        bazel build --worker_quit_after_build \
+          //src/main/cc/...
+          //src/tets/cc/...
         #  //src/main/kotlin/org/wfanet/measurement/api/...
 
     - name: Perform CodeQL Analysis
