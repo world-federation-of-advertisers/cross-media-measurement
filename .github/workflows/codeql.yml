@@ -58,7 +58,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: c-cpp
-          build-mode: none
+          build-mode: autobuild
         #- language: go
         #  build-mode: autobuild
         #- language: java-kotlin
