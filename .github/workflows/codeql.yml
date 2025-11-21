@@ -57,8 +57,8 @@ jobs:
         include:
         - language: actions
           build-mode: none
-        #- language: c-cpp
-        #  build-mode: autobuild
+        - language: c-cpp
+          build-mode: none
         #- language: go
         #  build-mode: autobuild
         #- language: java-kotlin
@@ -157,6 +157,6 @@ jobs:
           push-fixes: false
           upload-result: true
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
