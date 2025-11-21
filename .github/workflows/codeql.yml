@@ -57,14 +57,17 @@ jobs:
         include:
         - language: actions
           build-mode: none
+          sarif-file: actions
         - language: c-cpp
-          build-mode: manual
+          build-mode: none
+          sarif-file: cpp
         #- language: go
         #  build-mode: autobuild
         #- language: java-kotlin
         #  build-mode: manual
         - language: python
           build-mode: none
+          sarif-file: python
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
@@ -122,9 +125,9 @@ jobs:
         #echo '  make release'
         #exit 1
         # DO_NOT_SUBMIT: include all kotlin files
-        bazel build --worker_quit_after_build \
-          //src/main/cc/...
-          //src/tets/cc/...
+        # bazel build --worker_quit_after_build \
+        #  //src/main/cc/...
+        #  //src/tets/cc/...
         #  //src/main/kotlin/org/wfanet/measurement/api/...
 
     - name: Perform CodeQL Analysis
@@ -135,8 +138,8 @@ jobs:
     - name: "Upload artifact"
       uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       with:
-        name: "${{matrix.language}}.sarif"
-        path: "/home/runner/work/cross-media-measurement/results/${{matrix.language}}.sarif"
+        name: "${{matrix.sarif-file}}.sarif"
+        path: "/home/runner/work/cross-media-measurement/results/${{matrix.sarif-file}}.sarif"
         retention-days: 5
 
   qodana:
