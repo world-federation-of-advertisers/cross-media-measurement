@@ -498,7 +498,7 @@ class EventGroupsService(
     return streamEventGroupsRequest {
       allowStaleReads = true
       this.filter =
-        InternalStreamEventGroupsRequests.filter {
+        StreamEventGroupsRequestKt.filter {
           if (parentKey is DataProviderKey) {
             externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
           }
