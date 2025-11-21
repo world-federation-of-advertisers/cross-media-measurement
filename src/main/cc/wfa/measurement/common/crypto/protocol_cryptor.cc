@@ -362,6 +362,11 @@ absl::StatusOr<bool> ProtocolCryptorImpl::IsDecryptLocalElGamalResultZero(
     const ElGamalCiphertext& ciphertext) {
   absl::StatusOr<std::string> decryption =
       local_el_gamal_cipher_->Decrypt(ciphertext);
+  // DO_NOT_SUBMIT: remove code used to raise CWE-014
+  int MAX_PASSWORD_LENGTH=10;
+  char password[MAX_PASSWORD_LENGTH];
+  // read and verify password
+  memset(password, 0, MAX_PASSWORD_LENGTH);
   if (decryption.ok()) {
     return false;
   } else if (absl::IsInternal(decryption.status()) &&
