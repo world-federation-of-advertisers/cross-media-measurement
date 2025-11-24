@@ -44,23 +44,24 @@ locals {
   }
 
   aggregator_trustee_config = {
-    instance_template_name        = "trustee-mill-template"
-    base_instance_name            = "trustee-mill"
-    managed_instance_group_name   = "trustee-mill-mig"
-    mig_service_account_name      = "trustee-mill-mig-sa"
-    replicas                      = 1
-    machine_type                  = "n2d-standard-2"
-    docker_image                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
-    signed_image_repo             = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
-    mig_distribution_policy_zones = ["us-central1-a"]
-    disk_image_family             = "confidential-space-debug"
+    instance_template_name             = "trustee-mill-template"
+    base_instance_name                 = "trustee-mill"
+    managed_instance_group_name        = "trustee-mill-mig"
+    mig_service_account_name           = "trustee-mill-mig-sa"
+    replicas                           = 1
+    machine_type                       = "c4d-standard-2"
+    docker_image                       = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
+    signed_image_repo                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
+    mig_distribution_policy_zones      = ["us-central1-a"]
+    disk_image_family                  = "confidential-space-debug"
+    trustee_mill_subnetwork_cidr_range = var.trustee_mill_subnetwork_cidr_range
 
-    aggregator_tls_cert           = local.aggregator_tls_cert
-    aggregator_tls_key            = local.aggregator_tls_key
-    aggregator_cert_collection    = local.aggregator_cert_collection
-    aggregator_cs_cert            = local.aggregator_cs_cert
-    aggregator_cs_private         = local.aggregator_cs_private
-    terraform_service_account     = var.terraform_service_account
+    aggregator_tls_cert                = local.aggregator_tls_cert
+    aggregator_tls_key                 = local.aggregator_tls_key
+    aggregator_cert_collection         = local.aggregator_cert_collection
+    aggregator_cs_cert                 = local.aggregator_cs_cert
+    aggregator_cs_private              = local.aggregator_cs_private
+    terraform_service_account          = var.terraform_service_account
 
     app_flags = [
       "--gcp-project-id", data.google_client_config.default.project,
@@ -77,19 +78,19 @@ locals {
       "--consent-signaling-private-key-der-file", "/tmp/secrets/aggregator_cs_private.der",
       "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
 
-      "--computations-service-target", "10.128.0.69:8443",
+      "--computations-service-target", ${var.duchy_aggregator_computations_service_target},
       "--computations-service-cert-host", "localhost",
-      "--kingdom-system-api-target", "v1alpha.system.kingdom.dev.halo-cmm.org:8443",
+      "--kingdom-system-api-target", ${var.kingdom_system_api_target},
       "--kingdom-system-api-cert-host", "localhost",
 
       "--duchy-name", "aggregator",
       "--work-lock-duration", "10m",
       "--polling-interval", "5s",
 
-      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/TgZwIV_vGjs",
+      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/${AGGREGATOR_DUCHY_CERT_ID}",
 
       "--google-cloud-storage-project", data.google_client_config.default.project,
-      "--google-cloud-storage-bucket", "halo-cmm-dev-bucket",
+      "--google-cloud-storage-bucket", ${storage_bucket_name},
     ]
   }
 }

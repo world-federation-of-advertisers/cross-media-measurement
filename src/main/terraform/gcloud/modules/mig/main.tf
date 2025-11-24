@@ -21,11 +21,6 @@ locals {
       "tee-signed-image-repos"                        = var.tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
       "tee-cmd"                                       = jsonencode(var.tee_cmd),
-#       "tee-env-OTEL_SERVICE_NAME"                     = var.otel_service_name
-#       "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
-#       "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
-#       "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
-#       "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
 
       "google-logging-enabled"                        = "true"
       "google-monitoring-enabled"                     = "true"
@@ -123,9 +118,9 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   disk {
     boot                   = true
     source_image           = data.google_compute_image.confidential_space.self_link
-#     disk_type              = "hyperdisk-balanced"
-#     provisioned_iops       = 5000
-#     provisioned_throughput = 1250
+    disk_type              = "hyperdisk-balanced"
+    provisioned_iops       = 5000
+    provisioned_throughput = 1250
   }
 
   shielded_instance_config {
