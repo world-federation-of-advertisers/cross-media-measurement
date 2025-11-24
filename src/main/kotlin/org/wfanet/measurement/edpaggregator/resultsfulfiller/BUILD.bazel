@@ -382,6 +382,35 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "reach_frequency_tool",
+    srcs = ["ReachFrequencyTool.kt"],
+    deps = [
+        ":blob_details_loader",
+        ":event_batch",
+        ":event_processing_orchestrator",
+        ":filter_spec",
+        ":frequency_vector",
+        ":parallel_batched_pipeline",
+        ":results_fulfiller",
+        ":storage_event_reader",
+        ":storage_event_source",
+        "//imports/java/com/google/crypto/tink",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//imports/java/picocli",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common",
+        "//src/main/proto/google/type:interval_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "results_fulfiller_app_runner",
     srcs = ["ResultsFulfillerAppRunner.kt"],
     deps = [
@@ -436,6 +465,12 @@ java_binary(
     name = "ImpressionStats",
     main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ImpressionStatsToolKt",
     runtime_deps = [":impression_stats_tool"],
+)
+
+java_binary(
+    name = "ReachFrequency",
+    main_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ReachFrequencyToolKt",
+    runtime_deps = [":reach_frequency_tool"],
 )
 
 kt_jvm_library(
