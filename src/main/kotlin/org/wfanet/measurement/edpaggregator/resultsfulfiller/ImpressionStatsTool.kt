@@ -20,7 +20,14 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
+import com.google.protobuf.ExtensionRegistry
+import com.google.protobuf.TypeRegistry
+import com.google.protobuf.Timestamp
+import com.google.type.Interval
 import java.io.File
+import java.time.Instant
 import java.util.LinkedHashSet
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.filter
@@ -28,6 +35,8 @@ import kotlinx.coroutines.flow.forEach
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -85,6 +94,42 @@ class ImpressionStatsCommand : Runnable {
   )
   private lateinit var kmsType: KmsType
 
+  @Option(
+    names = ["--event-message-descriptor-set"],
+    description =
+      ["Serialized FileDescriptorSet containing the event message definition. May be repeated."],
+    required = true,
+  )
+  private lateinit var eventMessageDescriptorSetFiles: List<File>
+
+  @Option(
+    names = ["--event-message-type-url"],
+    description = ["Type URL for the event message packed into LabeledImpression.event"],
+    required = true,
+  )
+  private lateinit var eventMessageTypeUrl: String
+
+  @Option(
+    names = ["--cel-filter"],
+    description = ["CEL expression to filter events. Leave empty to disable filtering."],
+    required = false,
+  )
+  private var celFilters: List<String> = emptyList()
+
+  @Option(
+    names = ["--collection-start"],
+    description = ["Optional ISO-8601 start time (inclusive) for filtering (e.g. 2024-01-01T00:00:00Z)."],
+    required = false,
+  )
+  private var collectionStartTime: String? = null
+
+  @Option(
+    names = ["--collection-end"],
+    description = ["Optional ISO-8601 end time (exclusive) for filtering (e.g. 2024-02-01T00:00:00Z)."],
+    required = false,
+  )
+  private var collectionEndTime: String? = null
+
   enum class KmsType {
     GCP,
     NONE,
@@ -96,7 +141,15 @@ class ImpressionStatsCommand : Runnable {
 
     val storageConfig = StorageConfig(rootDirectory = storageRoot, projectId = projectId)
     val resolvedMetadataUris = resolveMetadataUris(storageConfig)
-    val statsCalculator = ImpressionStatsCalculator(storageConfig, buildKmsClient())
+    val eventDescriptor = loadEventMessageDescriptor()
+    val statsCalculator =
+      ImpressionStatsCalculator(
+        storageConfig = storageConfig,
+        kmsClient = buildKmsClient(),
+        eventDescriptor = eventDescriptor,
+        celExpressions = celFilters,
+        collectionIntervalOverride = parseCollectionIntervalOverride(),
+      )
     val stats = statsCalculator.compute(resolvedMetadataUris)
     printSummary(stats)
   }
@@ -135,9 +188,6 @@ class ImpressionStatsCommand : Runnable {
     val storageClient =
       SelectedStorageClient(blobUri, storageConfig.rootDirectory, storageConfig.projectId)
 
-    print(regexes)
-    storageClient.listBlobs(listPrefix).collect { print(it.blobKey + "\n") }
-
     val discovered =
       storageClient
         .listBlobs(listPrefix)
@@ -151,18 +201,80 @@ class ImpressionStatsCommand : Runnable {
   }
 
   private fun printSummary(stats: ImpressionStats) {
-    println("Processed ${stats.blobStats.size} metadata blobs")
-    stats.blobStats.forEach { blob ->
-      println(
-        "- ${blob.metadataUri} -> ${blob.blobUri}: records=${blob.recordCount}, newDistinctVids=${blob.newDistinctVids}"
-      )
+    stats.filterStats.forEach { filterStat ->
+      val label = if (filterStat.celExpression.isBlank()) "<no CEL filter>" else filterStat.celExpression
+      println("Filter: $label")
+      println("  Processed ${filterStat.blobStats.size} metadata blobs")
+      filterStat.blobStats.forEach { blob ->
+        println(
+          "  - ${blob.metadataUri} -> ${blob.blobUri}: records=${blob.recordCount}, newDistinctVids=${blob.newDistinctVids}"
+        )
+      }
+      println("  Total records: ${filterStat.totalRecords}")
+      println("  Distinct VIDs: ${filterStat.distinctVids}")
+      println()
     }
-    println("Total records: ${stats.totalRecords}")
-    println("Distinct VIDs: ${stats.distinctVids}")
   }
 
   companion object {
     private val logger = Logger.getLogger(ImpressionStatsCommand::class.java.name)
+
+    private val KNOWN_TYPES =
+      ProtoReflection.WELL_KNOWN_TYPES + EventAnnotationsProto.getDescriptor()
+
+    private val EXTENSION_REGISTRY =
+      ExtensionRegistry.newInstance()
+        .also { EventAnnotationsProto.registerAllExtensions(it) }
+        .unmodifiable
+
+    private const val MAX_TIMESTAMP_SECONDS = 253402300799L // 9999-12-31T23:59:59Z
+  }
+
+  private fun loadEventMessageDescriptor(): Descriptors.Descriptor {
+    val descriptorSets: List<DescriptorProtos.FileDescriptorSet> =
+      eventMessageDescriptorSetFiles.map { file ->
+        file.inputStream().use { input ->
+          DescriptorProtos.FileDescriptorSet.parseFrom(input, EXTENSION_REGISTRY)
+        }
+      }
+
+    val typeRegistry: TypeRegistry =
+      TypeRegistry.newBuilder()
+        .add(ProtoReflection.buildDescriptors(descriptorSets, KNOWN_TYPES))
+        .build()
+
+    return checkNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+      "Event message type not found in descriptor sets"
+    }
+  }
+
+  private fun parseCollectionIntervalOverride(): Interval? {
+    if (collectionStartTime.isNullOrBlank() && collectionEndTime.isNullOrBlank()) {
+      return null
+    }
+
+    val startInstant = collectionStartTime?.let(Instant::parse) ?: Instant.EPOCH
+    val endInstant =
+      collectionEndTime?.let(Instant::parse) ?: Instant.ofEpochSecond(MAX_TIMESTAMP_SECONDS)
+
+    require(startInstant.isBefore(endInstant)) {
+      "Provided collection interval start must be before end"
+    }
+
+    return Interval.newBuilder()
+      .setStartTime(
+        Timestamp.newBuilder()
+          .setSeconds(startInstant.epochSecond)
+          .setNanos(startInstant.nano)
+          .build()
+      )
+      .setEndTime(
+        Timestamp.newBuilder()
+          .setSeconds(endInstant.epochSecond)
+          .setNanos(endInstant.nano)
+          .build()
+      )
+      .build()
   }
 }
 

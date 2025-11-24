@@ -17,15 +17,15 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.Message
+import com.google.protobuf.Timestamp
+import com.google.type.Interval
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet
 import java.util.logging.Logger
-import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Per-blob statistics when scanning impression data. */
 data class BlobImpressionStats(
@@ -37,28 +37,50 @@ data class BlobImpressionStats(
 )
 
 /** Aggregated statistics across all processed impression blobs. */
-data class ImpressionStats(
+data class FilteredImpressionStats(
+  val celExpression: String,
   val totalRecords: Long,
   val distinctVids: Long,
   val blobStats: List<BlobImpressionStats>,
 )
 
+/** Aggregated statistics across all processed impression blobs. */
+data class ImpressionStats(val filterStats: List<FilteredImpressionStats>)
+
 /**
  * Scans impression blobs described by [BlobDetails] metadata and computes record/VID counts.
  *
- * The calculator deliberately skips filtering or batching logic; it reads each impression record
- * and tallies:
- * - Total records across all blobs
- * - Distinct VIDs across all blobs
+ * The calculator reads impression records, applies filtering using [FilterProcessor], and tallies:
+ * - Total records across all blobs after filtering
+ * - Distinct VIDs across all blobs after filtering
  *
  * @param storageConfig storage configuration for accessing metadata and impression blobs.
  * @param kmsClient KMS client used to decrypt impression blobs. If null, blobs are read as
  *   plaintext.
+ * @param eventDescriptor descriptor for the impression event message contained in
+ *   `LabeledImpression.event`.
+ * @param celExpressions CEL expressions used to filter events before counting. An empty list is
+ *   treated as a single no-op filter for backwards compatibility.
+ * @param collectionIntervalOverride optional interval to use for filtering. If null, a match-all
+ *   interval is used for stats.
  */
 class ImpressionStatsCalculator(
   private val storageConfig: StorageConfig,
   private val kmsClient: KmsClient?,
+  private val eventDescriptor: Descriptors.Descriptor,
+  private val celExpressions: List<String>,
+  private val collectionIntervalOverride: Interval? = null,
 ) {
+
+  /**
+   * Container for per-filter aggregates. Equals/hashCode use reference identity to avoid issues
+   * from mutating internal state.
+   */
+  private class FilterAccumulator(val id: Int, val celExpression: String) {
+    val globalVids: LongOpenHashSet = LongOpenHashSet()
+    val blobStats: MutableList<BlobImpressionStats> = mutableListOf()
+    var totalRecords: Long = 0
+  }
 
   /**
    * Computes statistics for the provided metadata URIs.
@@ -71,50 +93,73 @@ class ImpressionStatsCalculator(
 
     logger.info("Scanning ${metadataUris.size} metadata blobs for impression stats")
 
-    val globalVids = LongOpenHashSet()
-    val perBlobStats = mutableListOf<BlobImpressionStats>()
+    val filters: List<FilterAccumulator> =
+      celExpressions.ifEmpty { listOf("") }.mapIndexed { index, expr ->
+        FilterAccumulator(index, expr)
+      }
 
     for (metadataUri in metadataUris) {
       val blobDetails = BlobDetailsLoader.load(metadataUri, storageConfig)
-      perBlobStats += scanBlob(metadataUri, blobDetails, globalVids)
+      scanBlob(metadataUri, blobDetails, filters)
     }
 
-    val totalRecords = perBlobStats.sumOf { it.recordCount }
-    return ImpressionStats(
-      totalRecords = totalRecords,
-      distinctVids = globalVids.size.toLong(),
-      blobStats = perBlobStats,
-    )
+    val filterStats =
+      filters.map { accumulator ->
+        FilteredImpressionStats(
+          celExpression = accumulator.celExpression,
+          totalRecords = accumulator.totalRecords,
+          distinctVids = accumulator.globalVids.size.toLong(),
+          blobStats = accumulator.blobStats,
+        )
+      }
+    return ImpressionStats(filterStats = filterStats)
   }
 
   private suspend fun scanBlob(
     metadataUri: String,
     blobDetails: BlobDetails,
-    globalVids: LongOpenHashSet,
-  ): BlobImpressionStats {
+    filters: List<FilterAccumulator>,
+  ) {
     require(blobDetails.blobUri.isNotBlank()) {
       "BlobDetails at $metadataUri missing blob_uri"
     }
 
-    val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
-    val impressionsStorage = buildImpressionsStorage(blobDetails)
-    val impressionBlob =
-      impressionsStorage.getBlob(storageClientUri.key)
-        ?: throw ImpressionReadException(
-          blobDetails.blobUri,
-          ImpressionReadException.Code.BLOB_NOT_FOUND,
-        )
+    if (filters.isEmpty()) {
+      return
+    }
+
+    val processors: Map<FilterAccumulator, FilterProcessor<Message>> =
+      filters.associateWith { createFilterProcessor(blobDetails, it.celExpression) }
+    val eventReader =
+      StorageEventReader(blobDetails, kmsClient, storageConfig, eventDescriptor)
 
     logger.info("Counting impressions in ${blobDetails.blobUri}")
 
-    var recordCount = 0L
-    val startingDistinct = globalVids.size.toLong()
+    val startingDistinctByFilter =
+      filters.associateWith { it.globalVids.size.toLong() }.toMutableMap()
+    val recordCountByFilter = filters.associateWith { 0L }.toMutableMap()
 
     try {
-      impressionBlob.read().collect { bytes ->
-        val impression = LabeledImpression.parseFrom(bytes)
-        recordCount++
-        globalVids.add(impression.vid)
+      eventReader.readEvents().collect { events ->
+        if (events.isEmpty()) {
+          return@collect
+        }
+        val eventBatch =
+          EventBatch(
+            events = events,
+            minTime = events.minOf { it.timestamp },
+            maxTime = events.maxOf { it.timestamp },
+            eventGroupReferenceId = blobDetails.eventGroupReferenceId,
+          )
+        for ((accumulator, processor) in processors) {
+          val filteredBatch = processor.processBatch(eventBatch)
+          if (filteredBatch.events.isEmpty()) {
+            continue
+          }
+          val updatedCount = recordCountByFilter.getValue(accumulator) + filteredBatch.events.size
+          recordCountByFilter[accumulator] = updatedCount
+          filteredBatch.events.forEach { accumulator.globalVids.add(it.vid) }
+        }
       }
     } catch (e: InvalidProtocolBufferException) {
       throw ImpressionReadException(
@@ -124,43 +169,50 @@ class ImpressionStatsCalculator(
       )
     }
 
-    val newDistinct = globalVids.size.toLong() - startingDistinct
-    logger.info(
-      "Finished ${blobDetails.blobUri}: records=$recordCount, new distinct VIDs=$newDistinct"
-    )
-    return BlobImpressionStats(
-      metadataUri = metadataUri,
-      blobUri = blobDetails.blobUri,
-      recordCount = recordCount,
-      newDistinctVids = newDistinct,
-    )
-  }
-
-  private fun buildImpressionsStorage(blobDetails: BlobDetails): MesosRecordIoStorageClient {
-    val selectedStorageClient =
-      SelectedStorageClient(
-        blobDetails.blobUri,
-        storageConfig.rootDirectory,
-        storageConfig.projectId,
-      )
-
-    val encryptedDek = blobDetails.encryptedDek
-    return if (kmsClient == null || encryptedDek.ciphertext.isEmpty) {
-      check(encryptedDek.ciphertext.isEmpty) {
-        "KMS client is required to decrypt encrypted blob ${blobDetails.blobUri}"
+    for (filter in filters) {
+      val recordCount = recordCountByFilter.getValue(filter)
+      val newDistinct = filter.globalVids.size.toLong() - startingDistinctByFilter.getValue(filter)
+      if (recordCount > 0 || newDistinct > 0) {
+        filter.blobStats +=
+          BlobImpressionStats(
+            metadataUri = metadataUri,
+            blobUri = blobDetails.blobUri,
+            recordCount = recordCount,
+            newDistinctVids = newDistinct,
+          )
+        filter.totalRecords += recordCount
       }
-      MesosRecordIoStorageClient(selectedStorageClient)
-    } else {
-      EncryptedStorage.buildEncryptedMesosStorageClient(
-        selectedStorageClient,
-        kmsClient,
-        kekUri = encryptedDek.kekUri,
-        encryptedDek = encryptedDek,
+      logger.info(
+        "Finished ${blobDetails.blobUri} for filter '${filter.celExpression}': records=$recordCount, new distinct VIDs=$newDistinct"
       )
     }
   }
 
+  private fun createFilterProcessor(
+    blobDetails: BlobDetails,
+    celExpression: String,
+  ): FilterProcessor<Message> {
+    val interval =
+      collectionIntervalOverride ?: matchAllInterval
+
+    val filterSpec =
+      FilterSpec(
+        celExpression = celExpression,
+        collectionInterval = interval,
+        eventGroupReferenceIds = listOf(blobDetails.eventGroupReferenceId),
+      )
+
+    return FilterProcessor<Message>(filterSpec, eventDescriptor)
+  }
+
   companion object {
     private val logger = Logger.getLogger(ImpressionStatsCalculator::class.java.name)
+
+    private const val MAX_TIMESTAMP_SECONDS = 253402300799L // 9999-12-31T23:59:59Z
+    private val matchAllInterval: Interval =
+      Interval.newBuilder()
+        .setStartTime(Timestamp.newBuilder().setSeconds(0).build())
+        .setEndTime(Timestamp.newBuilder().setSeconds(MAX_TIMESTAMP_SECONDS).build())
+        .build()
   }
 }

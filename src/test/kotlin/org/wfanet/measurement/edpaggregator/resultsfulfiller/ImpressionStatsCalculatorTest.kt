@@ -38,6 +38,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -49,7 +50,7 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-private val TEST_EVENT: Any = Any.getDefaultInstance()
+private val TEST_EVENT: Any = Any.pack(TestEvent.getDefaultInstance())
 
 @RunWith(JUnit4::class)
 class ImpressionStatsCalculatorTest {
@@ -57,6 +58,7 @@ class ImpressionStatsCalculatorTest {
   @get:Rule val tmp = TemporaryFolder()
 
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+  private val testEventDescriptor = TestEvent.getDescriptor()
 
   @Before
   fun setupTink() {
@@ -91,15 +93,23 @@ class ImpressionStatsCalculatorTest {
         serializedEncryptionKey = serializedEncryptionKey,
       )
 
-    val calculator = ImpressionStatsCalculator(storageConfig, kmsClient)
+    val calculator =
+      ImpressionStatsCalculator(
+        storageConfig = storageConfig,
+        kmsClient = kmsClient,
+        eventDescriptor = testEventDescriptor,
+        celExpressions = listOf(""),
+      )
 
     val result = calculator.compute(listOf(metadataUriA, metadataUriB))
 
-    assertThat(result.totalRecords).isEqualTo(6)
-    assertThat(result.distinctVids).isEqualTo(5)
-    assertThat(result.blobStats).hasSize(2)
-    assertThat(result.blobStats[0].recordCount).isEqualTo(3)
-    assertThat(result.blobStats[1].recordCount).isEqualTo(3)
+    assertThat(result.filterStats).hasSize(1)
+    val defaultStats = result.filterStats.single()
+    assertThat(defaultStats.totalRecords).isEqualTo(6)
+    assertThat(defaultStats.distinctVids).isEqualTo(5)
+    assertThat(defaultStats.blobStats).hasSize(2)
+    assertThat(defaultStats.blobStats[0].recordCount).isEqualTo(3)
+    assertThat(defaultStats.blobStats[1].recordCount).isEqualTo(3)
   }
 
   private fun createKmsSetup(): Pair<FakeKmsClient, ByteString> {
