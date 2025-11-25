@@ -480,6 +480,7 @@ class BasicReportsReportsJobTest {
           batchCreateReportingSetResultsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+            externalBasicReportId = basicReport.externalBasicReportId
             requests += createReportingSetResultRequest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               externalReportResultId = EXTERNAL_REPORT_RESULT_ID
