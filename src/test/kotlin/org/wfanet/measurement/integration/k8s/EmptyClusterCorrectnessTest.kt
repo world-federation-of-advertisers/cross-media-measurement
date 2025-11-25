@@ -34,6 +34,7 @@ import java.security.KeyPair
 import java.security.Security
 import java.security.cert.X509Certificate
 import java.time.Duration
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -58,17 +59,19 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
-import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
-import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
+import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
-import org.wfanet.measurement.api.v2alpha.modelSuite
+import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -82,6 +85,8 @@ import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
@@ -90,7 +95,9 @@ import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadTestCertDerFile
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
@@ -143,6 +150,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     /** Map of DataProvider display name to resource. */
     val dataProviders: Map<String, Resources.Resource>,
     val modelProvider: String,
+    val modelLine: String,
   ) {
     val measurementConsumerData =
       MeasurementConsumerData(
@@ -166,6 +174,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         var apiKey: String? = null
         val dataProviders = mutableMapOf<String, Resources.Resource>()
         var modelProvider: String? = null
+        var modelLine: String? = null
 
         for (resource in resources) {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields cannot be null.
@@ -192,6 +201,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             Resources.Resource.ResourceCase.MODEL_PROVIDER -> {
               modelProvider = resource.name
             }
+            Resources.Resource.ResourceCase.MODEL_LINE -> {
+              modelLine = resource.name
+            }
             Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Unhandled type")
           }
         }
@@ -207,6 +219,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           measurementConsumerApiKey = requireNotNull(apiKey),
           dataProviders = dataProviders,
           modelProvider = requireNotNull(modelProvider),
+          modelLine = requireNotNull(modelLine),
         )
       }
     }
@@ -242,9 +255,9 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     override val populationDataProviderName: String
       get() = _populationDataProviderName
 
-    private lateinit var _modelLine: ModelLine
-    override val modelLine: ModelLine
-      get() = _modelLine
+    private lateinit var _modelLineName: String
+    override val modelLineName: String
+      get() = _modelLineName
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -267,12 +280,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 val pdpKingdomPublicApiChannel =
                   buildKingdomPublicApiChannel(kingdomPublicApiTarget, PDP_SIGNING_CERTS)
 
-                _modelLine =
-                  ensureModelLine(
-                    pdpKingdomPublicApiChannel,
-                    mpKingdomPublicApiChannel,
-                    resourceInfo.modelProvider,
-                  )
+                _modelLineName = resourceInfo.modelLine
+                ensureModelLine(pdpKingdomPublicApiChannel, mpKingdomPublicApiChannel)
 
                 _testHarness = createTestHarness(mcKingdomPublicApiChannel, resourceInfo)
                 _reportingTestHarness =
@@ -353,29 +362,38 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private fun ensureModelLine(
       pdpKingdomPublicApiChannel: Channel,
       mpKingdomPublicApiChannel: Channel,
-      modelProviderName: String,
-    ): ModelLine {
+    ) {
       val population: Population = ensurePopulation(pdpKingdomPublicApiChannel)
 
-      val modelSuitesStub = ModelSuitesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
-      val modelSuite =
-        modelSuitesStub.createModelSuite(
-          createModelSuiteRequest {
-            parent = modelProviderName
-            modelSuite = modelSuite { displayName = "K8s test" }
-          }
-        )
+      val modelLinesStub = ModelLinesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      val modelLine = modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
+
+      val modelSuiteName = ModelLineKey.fromName(modelLine.name)!!.parentKey.toName()
 
       val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
       val modelRelease =
         modelReleasesStub.createModelRelease(
           createModelReleaseRequest {
-            parent = modelSuite.name
+            parent = modelSuiteName
             modelRelease = modelRelease { this.population = population.name }
           }
         )
 
-      return createModelLine(mpKingdomPublicApiChannel, modelSuite.name, modelRelease.name)
+      val modelRolloutsStub = ModelRolloutsGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+      modelRolloutsStub.createModelRollout(
+        createModelRolloutRequest {
+          parent = modelLine.name
+          modelRollout = modelRollout {
+            instantRolloutDate =
+              modelLine.activeStartTime
+                .toInstant()
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+                .toProtoDate()
+            this.modelRelease = modelRelease.name
+          }
+        }
+      )
     }
 
     private suspend fun forwardKingdomPublicApiService(): InetSocketAddress {
@@ -496,7 +514,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         reportingGatewayHost = gatewayAddress.hostName,
         reportingGatewayPort = gatewayAddress.port,
         getReportingAccessToken = getAccessToken,
-        modelLineName = modelLine.name,
+        modelLineName = modelLineName,
       )
     }
 
@@ -624,6 +642,10 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                   runId,
                   internalModelProvidersClient =
                     ModelProvidersGrpcKt.ModelProvidersCoroutineStub(internalChannel),
+                  internalModelSuitesClient =
+                    ModelSuitesGrpcKt.ModelSuitesCoroutineStub(internalChannel),
+                  internalModelLinesClient =
+                    ModelLinesGrpcKt.ModelLinesCoroutineStub(internalChannel),
                   requiredDuchies = listOf("aggregator", "worker1", "worker2"),
                   outputDir = outputDir,
                 )

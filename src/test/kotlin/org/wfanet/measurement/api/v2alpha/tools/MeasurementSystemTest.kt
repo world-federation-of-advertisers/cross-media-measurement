@@ -801,16 +801,16 @@ class MeasurementSystemTest {
           "--measurement-ref-id=$measurementReferenceId",
           "--request-id=$requestId",
           "--event-data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
+          "--event-group=dataProviders/1/eventGroups/1",
           "--event-start-time=$TIME_STRING_1",
           "--event-end-time=$TIME_STRING_2",
           "--event-group=dataProviders/1/eventGroups/2",
           "--event-start-time=$TIME_STRING_3",
           "--event-end-time=$TIME_STRING_4",
           "--event-data-provider=dataProviders/2",
-          "--event-group=dataProviders/2/eventGroups/1",
           "--event-filter=ijk",
+          "--event-group=dataProviders/2/eventGroups/1",
           "--event-start-time=$TIME_STRING_5",
           "--event-end-time=$TIME_STRING_6",
         )
@@ -945,6 +945,7 @@ class MeasurementSystemTest {
                         startTime = Instant.parse(TIME_STRING_3).toProtoTime()
                         endTime = Instant.parse(TIME_STRING_4).toProtoTime()
                       }
+                      filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
                     }
                 }
             }
@@ -1015,16 +1016,16 @@ class MeasurementSystemTest {
           "--measurement-ref-id=$measurementReferenceId",
           "--request-id=$requestId",
           "--event-data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
+          "--event-group=dataProviders/1/eventGroups/1",
           "--event-start-time=$TIME_STRING_1",
           "--event-end-time=$TIME_STRING_2",
           "--event-group=dataProviders/1/eventGroups/2",
           "--event-start-time=$TIME_STRING_3",
           "--event-end-time=$TIME_STRING_4",
           "--event-data-provider=dataProviders/2",
-          "--event-group=dataProviders/2/eventGroups/1",
           "--event-filter=ijk",
+          "--event-group=dataProviders/2/eventGroups/1",
           "--event-start-time=$TIME_STRING_5",
           "--event-end-time=$TIME_STRING_6",
         )
@@ -1154,6 +1155,7 @@ class MeasurementSystemTest {
                         startTime = Instant.parse(TIME_STRING_3).toProtoTime()
                         endTime = Instant.parse(TIME_STRING_4).toProtoTime()
                       }
+                      filter = RequisitionSpecKt.eventFilter { expression = "abcd" }
                     }
                 }
             }
@@ -1220,8 +1222,8 @@ class MeasurementSystemTest {
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
           "--event-data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
+          "--event-group=dataProviders/1/eventGroups/1",
           "--event-start-time=$TIME_STRING_1",
           "--event-end-time=$TIME_STRING_2",
         )
@@ -1271,8 +1273,8 @@ class MeasurementSystemTest {
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
           "--event-data-provider=dataProviders/1",
-          "--event-group=dataProviders/1/eventGroups/1",
           "--event-filter=abcd",
+          "--event-group=dataProviders/1/eventGroups/1",
           "--event-start-time=$TIME_STRING_1",
           "--event-end-time=$TIME_STRING_2",
         )

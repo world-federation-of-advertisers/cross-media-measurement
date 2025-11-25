@@ -325,7 +325,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --define edp2_name=dataProviders/cV4YC9sZVKQ \
   --define edp3_name=dataProviders/DJweaNsZVJY \
   --define edp4_name=dataProviders/JxgZTyTmq3k \
-  --define edp5_name=dataProviders/f8NzvNsZVHk
+  --define edp5_name=dataProviders/f8NzvNsZVHk \
+  --define model_line_name=modelProviders/JxgZTyTmq3k/modelSuites/JxgZTyTmq3k/modelLines/JxgZTyTmq3k
 ```
 
 ## Debugging Tips
