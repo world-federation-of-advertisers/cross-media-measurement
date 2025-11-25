@@ -25,3 +25,17 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "TimestampsTest",
+    srcs = ["TimestampsTest.kt"],
+    test_class = "org.wfanet.measurement.common.TimestampsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:datetime_kt_jvm_proto",
+    ],
+)
