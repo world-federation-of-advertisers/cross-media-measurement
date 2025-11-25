@@ -185,6 +185,7 @@ class BasicReportsReportsJob(
                     this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
                     externalReportResultId = reportResult.externalReportResultId
                     requests += reportingSetResultRequests
+                    externalBasicReportId = basicReport.externalBasicReportId
                   }
                 )
               }
