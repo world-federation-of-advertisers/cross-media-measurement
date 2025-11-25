@@ -92,7 +92,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: ExternalId,
     externalEventGroupIds: Collection<ExternalId>,
-  ): Map<Long, Result> {
+  ): Map<ExternalId, Result> {
     return buildMap {
       fillStatementBuilder {
           appendClause(
@@ -106,7 +106,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
           bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
         }
         .execute(readContext)
-        .collect { put(it.eventGroup.externalEventGroupId, it) }
+        .collect { put(ExternalId(it.eventGroup.externalEventGroupId), it) }
     }
   }
 

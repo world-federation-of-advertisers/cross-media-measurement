@@ -569,7 +569,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           eventGroups +=
             request.requestsList.first().eventGroup.copy {
               clearUpdateTime()
-              clearEtag()
               mediaTypes.clear()
               mediaTypes += MediaType.DISPLAY
               mediaTypes += MediaType.OTHER
@@ -577,7 +576,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           eventGroups +=
             request.requestsList.last().eventGroup.copy {
               clearUpdateTime()
-              clearEtag()
               mediaTypes.clear()
               mediaTypes += MediaType.VIDEO
               mediaTypes += MediaType.OTHER
@@ -598,7 +596,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
                 }
               )
               .copy {
-                clearEtag()
                 mediaTypes.clear()
                 mediaTypes += MediaType.DISPLAY
                 mediaTypes += MediaType.OTHER
@@ -613,7 +610,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
                 }
               )
               .copy {
-                clearEtag()
                 mediaTypes.clear()
                 mediaTypes += MediaType.VIDEO
                 mediaTypes += MediaType.OTHER
@@ -657,7 +653,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Parent ExternalDataProviderId")
+    assertThat(exception).hasMessageThat().contains("external_data_provider_id")
   }
 
   @Test
@@ -698,7 +694,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("Subrequest's externalDataProviderId unspecified")
+      .contains("requests.0.event_group.external_data_provider_id")
   }
 
   @Test
@@ -774,7 +770,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("ExternalEventGroupId unspecified")
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group.external_event_group_id")
     }
 
   @Test
@@ -899,7 +897,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("EventGroup modification param is invalid")
+      assertThat(exception).hasMessageThat().contains("invalid arguments")
     }
 
   @Test
