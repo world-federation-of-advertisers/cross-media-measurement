@@ -41,12 +41,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInv
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
@@ -128,42 +130,43 @@ class SpannerEventGroupsService(
   override suspend fun batchUpdateEventGroup(
     request: BatchUpdateEventGroupsRequest
   ): BatchUpdateEventGroupsResponse {
-    grpcRequire(request.externalDataProviderId > 0L) { "Parent ExternalDataProviderId unspecified" }
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val parentDataProviderId = request.externalDataProviderId
 
     request.requestsList.forEachIndexed { index, subRequest ->
       val dataProviderId = subRequest.eventGroup.externalDataProviderId
 
-      grpcRequire(dataProviderId > 0L) { "Subrequest's externalDataProviderId unspecified" }
-
-      grpcRequire(dataProviderId == parentDataProviderId) {
-        "Subrequest's externalDataProviderId $dataProviderId different from parent's externalDataProviderId $parentDataProviderId"
+      if (dataProviderId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.event_group.external_data_provider_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      grpcRequire(subRequest.eventGroup.externalEventGroupId > 0L) {
-        "ExternalEventGroupId unspecified"
+      if (dataProviderId != parentDataProviderId) {
+        throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
+            "Subrequest's externalDataProviderId $dataProviderId different from parent's externalDataProviderId $parentDataProviderId"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (subRequest.eventGroup.externalEventGroupId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.event_group.external_event_group_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 
     try {
-      return BatchUpdateEventGroup(request).execute(client, idGenerator)
+      return BatchUpdateEventGroups(request).execute(client, idGenerator)
     } catch (e: EventGroupInvalidArgsException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        "EventGroup modification param is invalid.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: CertificateIsInvalidException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate is invalid.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.FAILED_PRECONDITION,
-        "MeasurementConsumer's Certificate not found.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: EventGroupNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupStateIllegalException) {
       when (e.state) {
         EventGroup.State.DELETED -> {
