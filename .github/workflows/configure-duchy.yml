@@ -126,6 +126,7 @@ jobs:
         build --define duchy_cert_id=$DUCHY_CERT_ID
         build --define duchy_public_api_address_name=${DUCHY_NAME}-duchy-v2alpha
         build --define duchy_system_api_address_name=${DUCHY_NAME}-duchy-system-v1alpha
+        build --define duchy_internal_api_address_name=${DUCHY_NAME}-duchy-internal
         build --define duchy_storage_bucket=$STORAGE_BUCKET
         EOF
 

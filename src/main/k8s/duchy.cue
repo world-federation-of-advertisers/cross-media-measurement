@@ -19,6 +19,8 @@ import ("strings")
 #TerminalComputationState: "SUCCEEDED" | "FAILED" | "CANCELLED"
 
 #Duchy: {
+	#TrusteeMillSubnetworkCidrRange: "10.0.0.0/24"
+
 	_duchy: {
 		name:                       string
 		protocols_setup_config:     string
@@ -354,8 +356,12 @@ import ("strings")
 				_object_prefix + "computations-cleaner-app",
 			]
 			_ingresses: {
-				// Exposed for TrusTEE mill only.
 				gRpc: {
+					from: [{
+						ipBlock: {
+							cidr: #TrusteeMillSubnetworkCidrRange
+						}
+					}]
 					ports: [{
 						port: #GrpcPort
 					}]

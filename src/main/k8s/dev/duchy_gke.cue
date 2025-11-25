@@ -21,6 +21,7 @@ _cloudStorageBucket:           string @tag("cloud_storage_bucket")
 _certificateId:                string @tag("certificate_id")
 _publicApiAddressName:         string @tag("public_api_address_name")
 _systemApiAddressName:         string @tag("system_api_address_name")
+_internalApiAddressName:       string @tag("internal_api_address_name")
 _aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
 _worker1SystemApiTarget:       string @tag("worker1_system_api_target")
 _worker2SystemApiTarget:       string @tag("worker2_system_api_target")
@@ -177,6 +178,7 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
 		"internal-api-server": {
+			_ipAddressName: _internalApiAddressName
 			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
 			spec: {
 				type: "LoadBalancer"
