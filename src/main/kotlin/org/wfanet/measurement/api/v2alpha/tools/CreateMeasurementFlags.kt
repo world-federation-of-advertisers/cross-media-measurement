@@ -100,6 +100,25 @@ class CreateMeasurementFlags {
         )
         lateinit var eventGroupInputs: List<EventGroupInput>
           private set
+
+        @ArgGroup(
+          exclusive = false,
+          multiplicity = "1..*",
+          heading = "Add EventGroups filters for an Event Data Provider\n",
+        )
+        lateinit var eventFilters: List<EventGroupFilter>
+          private set
+      }
+
+      class EventGroupFilter {
+        @Option(
+          names = ["--event-filter"],
+          description = ["Raw CEL expression of EventFilter"],
+          required = false,
+          defaultValue = "",
+        )
+        lateinit var eventFilter: String
+          private set
       }
 
       class EventGroupInput {
@@ -109,15 +128,6 @@ class CreateMeasurementFlags {
           required = true,
         )
         lateinit var name: String
-          private set
-
-        @Option(
-          names = ["--event-filter"],
-          description = ["Raw CEL expression of EventFilter"],
-          required = false,
-          defaultValue = "",
-        )
-        lateinit var eventFilter: String
           private set
 
         @Option(
@@ -319,6 +329,43 @@ class CreateMeasurementFlags {
 
       @ArgGroup(exclusive = true, multiplicity = "1", heading = "Event Measurement and params\n")
       var eventMeasurementTypeParams = EventMeasurementTypeParams()
+
+      @Option(
+        names = ["--report"],
+        description = ["API resource name of the Report"],
+        required = false,
+        defaultValue = "",
+      )
+      lateinit var report: String
+
+      @Option(
+        names = ["--cumulative"],
+        description = ["Whether the multiple cumulative requisitions should be created"],
+      )
+      var cumulative: Boolean = false
+        private set
+
+      /** Used when requesting both multi-pub and direct measurements. */
+      class DirectMeasurementParams {
+        @Option(
+          names = ["--create-direct"],
+          description =
+            ["Whether to create direct reports, too, when more than one EDP is provided"],
+        )
+        var createDirect: Boolean = false
+          private set
+
+        @set:Option(
+          names = ["--direct-vid-sampling-width"],
+          description = ["Width of vid sampling interval"],
+          required = true,
+        )
+        var directVidSamplingWidth by Delegates.notNull<Float>()
+          private set
+      }
+
+      @ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
+      var directMeasurementParams = EventMeasurementParams.DirectMeasurementParams()
     }
 
     class PopulationMeasurementParams {
