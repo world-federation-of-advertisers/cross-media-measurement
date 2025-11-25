@@ -215,8 +215,8 @@ class BasicReportsService(
       if (request.basicReport.modelLine.isNotEmpty()) {
         if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
           throw InvalidFieldValueException("basic_report.model_line") { fieldName ->
-            "$fieldName is not active for the specified reporting interval and data providers"
-          }
+              "$fieldName is not active for the specified reporting interval and data providers"
+            }
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
         request.basicReport.modelLine

@@ -703,7 +703,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
     }
 
-
   @Test
   fun `getBasicReport throws NOT_FOUND when basic report not found`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(

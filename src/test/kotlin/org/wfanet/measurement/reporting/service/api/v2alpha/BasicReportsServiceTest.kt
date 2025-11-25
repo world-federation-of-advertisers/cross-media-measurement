@@ -6979,7 +6979,6 @@ class BasicReportsServiceTest {
       assertThat(createdBasicReport.modelLine).isEqualTo(basicReport.modelLine)
       assertThat(createdBasicReport.effectiveModelLine).isEqualTo(createdBasicReport.modelLine)
 
-
       val response =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) {
           service.getBasicReport(getBasicReportRequest { name = createdBasicReport.name })

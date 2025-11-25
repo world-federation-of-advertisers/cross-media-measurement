@@ -2439,7 +2439,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     assertThat(retrievedPublicBasicReport).isEqualTo(createdBasicReport)
     assertThat(retrievedPublicBasicReport.modelLine).isEmpty()
-    assertThat(retrievedPublicBasicReport.effectiveModelLine).isEqualTo(inProcessCmmsComponents.modelLineResourceName)
+    assertThat(retrievedPublicBasicReport.effectiveModelLine)
+      .isEqualTo(inProcessCmmsComponents.modelLineResourceName)
   }
 
   @Test
