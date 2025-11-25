@@ -78,6 +78,7 @@ class ImpressionStatsCalculator(
    */
   private class FilterAccumulator(val id: Int, val celExpression: String) {
     val globalVids: LongOpenHashSet = LongOpenHashSet()
+    val vidsByInterval: MutableMap<Interval, LongOpenHashSet> = mutableMapOf()
     val blobStats: MutableList<BlobImpressionStats> = mutableListOf()
     var totalRecords: Long = 0
   }
@@ -128,6 +129,8 @@ class ImpressionStatsCalculator(
       return
     }
 
+    val blobInterval = blobDetails.interval
+
     val processors: Map<FilterAccumulator, FilterProcessor<Message>> =
       filters.associateWith { createFilterProcessor(blobDetails, it.celExpression) }
     val eventReader =
@@ -135,8 +138,13 @@ class ImpressionStatsCalculator(
 
     logger.info("Counting impressions in ${blobDetails.blobUri}")
 
+    // Get or create the VID set for this interval
+    val intervalVidsByFilter = filters.associateWith { filter ->
+      filter.vidsByInterval.getOrPut(blobInterval) { LongOpenHashSet() }
+    }
+
     val startingDistinctByFilter =
-      filters.associateWith { it.globalVids.size.toLong() }.toMutableMap()
+      intervalVidsByFilter.mapValues { it.value.size.toLong() }.toMutableMap()
     val recordCountByFilter = filters.associateWith { 0L }.toMutableMap()
 
     try {
@@ -158,7 +166,12 @@ class ImpressionStatsCalculator(
           }
           val updatedCount = recordCountByFilter.getValue(accumulator) + filteredBatch.events.size
           recordCountByFilter[accumulator] = updatedCount
-          filteredBatch.events.forEach { accumulator.globalVids.add(it.vid) }
+          // Add VIDs to both the interval-specific set and the global set
+          val intervalVids = intervalVidsByFilter.getValue(accumulator)
+          filteredBatch.events.forEach { event ->
+            intervalVids.add(event.vid)
+            accumulator.globalVids.add(event.vid)
+          }
         }
       }
     } catch (e: InvalidProtocolBufferException) {
@@ -171,7 +184,8 @@ class ImpressionStatsCalculator(
 
     for (filter in filters) {
       val recordCount = recordCountByFilter.getValue(filter)
-      val newDistinct = filter.globalVids.size.toLong() - startingDistinctByFilter.getValue(filter)
+      val intervalVids = intervalVidsByFilter.getValue(filter)
+      val newDistinct = intervalVids.size.toLong() - startingDistinctByFilter.getValue(filter)
       if (recordCount > 0 || newDistinct > 0) {
         filter.blobStats +=
           BlobImpressionStats(

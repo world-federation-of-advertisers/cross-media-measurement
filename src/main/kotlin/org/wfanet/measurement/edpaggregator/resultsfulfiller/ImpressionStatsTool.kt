@@ -25,6 +25,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.Interval
 import java.io.File
 import java.time.Instant
@@ -38,7 +39,9 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -98,16 +101,16 @@ class ImpressionStatsCommand : Runnable {
     names = ["--event-message-descriptor-set"],
     description =
       ["Serialized FileDescriptorSet containing the event message definition. May be repeated."],
-    required = true,
+    required = false,
   )
-  private lateinit var eventMessageDescriptorSetFiles: List<File>
+  private var eventMessageDescriptorSetFiles: List<File> = emptyList()
 
   @Option(
     names = ["--event-message-type-url"],
     description = ["Type URL for the event message packed into LabeledImpression.event"],
-    required = true,
+    required = false,
   )
-  private lateinit var eventMessageTypeUrl: String
+  private var eventMessageTypeUrl: String? = null
 
   @Option(
     names = ["--cel-filter"],
@@ -115,6 +118,13 @@ class ImpressionStatsCommand : Runnable {
     required = false,
   )
   private var celFilters: List<String> = emptyList()
+
+  @Option(
+    names = ["--print-blob-details"],
+    description = ["Print BlobDetails for each blob without performing calculations."],
+    required = false,
+  )
+  private var printBlobDetails: Boolean = false
 
   @Option(
     names = ["--collection-start"],
@@ -141,6 +151,20 @@ class ImpressionStatsCommand : Runnable {
 
     val storageConfig = StorageConfig(rootDirectory = storageRoot, projectId = projectId)
     val resolvedMetadataUris = resolveMetadataUris(storageConfig)
+
+    if (printBlobDetails) {
+      printBlobDetailsOnly(resolvedMetadataUris, storageConfig)
+      return@runBlocking
+    }
+
+    // Validate required options for stats calculation
+    require(eventMessageDescriptorSetFiles.isNotEmpty()) {
+      "--event-message-descriptor-set is required when not using --print-blob-details"
+    }
+    requireNotNull(eventMessageTypeUrl) {
+      "--event-message-type-url is required when not using --print-blob-details"
+    }
+
     val eventDescriptor = loadEventMessageDescriptor()
     val statsCalculator =
       ImpressionStatsCalculator(
@@ -216,6 +240,91 @@ class ImpressionStatsCommand : Runnable {
     }
   }
 
+  private suspend fun printBlobDetailsOnly(metadataUris: List<String>, storageConfig: StorageConfig) {
+    logger.info("Printing BlobDetails for ${metadataUris.size} metadata blobs")
+    val jsonPrinter = JsonFormat.printer()
+
+    metadataUris.forEach { metadataUri ->
+      val blobDetails = BlobDetailsLoader.load(metadataUri, storageConfig)
+      println("=" .repeat(80))
+      println("Metadata URI: $metadataUri")
+      println("-".repeat(80))
+      println("BlobDetails:")
+      println(jsonPrinter.print(blobDetails))
+      println()
+
+      // Print blob content summary
+      printBlobContentSummary(blobDetails, storageConfig)
+      println()
+    }
+  }
+
+  private suspend fun printBlobContentSummary(blobDetails: BlobDetails, storageConfig: StorageConfig) {
+    try {
+      val storageClientUri = SelectedStorageClient.parseBlobUri(blobDetails.blobUri)
+      val selectedStorageClient =
+        SelectedStorageClient(
+          storageClientUri,
+          storageConfig.rootDirectory,
+          storageConfig.projectId,
+        )
+
+      // Build storage client - try encrypted if KMS is configured, otherwise plaintext
+      val impressionsStorage = try {
+        val kmsClient = buildKmsClient()
+        if (kmsClient != null) {
+          org.wfanet.measurement.edpaggregator.EncryptedStorage.buildEncryptedMesosStorageClient(
+            selectedStorageClient,
+            kekUri = blobDetails.encryptedDek.kekUri,
+            kmsClient = kmsClient,
+            encryptedDek = blobDetails.encryptedDek,
+          )
+        } else {
+          org.wfanet.measurement.storage.MesosRecordIoStorageClient(selectedStorageClient)
+        }
+      } catch (e: Exception) {
+        logger.warning("Could not initialize encrypted storage, trying plaintext: ${e.message}")
+        org.wfanet.measurement.storage.MesosRecordIoStorageClient(selectedStorageClient)
+      }
+
+      val impressionBlob = impressionsStorage.getBlob(storageClientUri.key)
+      if (impressionBlob == null) {
+        println("Blob Content Summary: BLOB NOT FOUND at ${blobDetails.blobUri}")
+        return
+      }
+
+      var recordCount = 0L
+      var minTime: Instant? = null
+      var maxTime: Instant? = null
+      val eventGroupRefIdCounts = mutableMapOf<String, Long>()
+
+      impressionBlob.read().collect { impressionByteString ->
+        val impression = org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression.parseFrom(impressionByteString)
+        recordCount++
+
+        val eventTime = impression.eventTime.toInstant()
+        minTime = if (minTime == null) eventTime else minOf(minTime!!, eventTime)
+        maxTime = if (maxTime == null) eventTime else maxOf(maxTime!!, eventTime)
+
+        val refId = impression.eventGroupReferenceId
+        eventGroupRefIdCounts[refId] = eventGroupRefIdCounts.getOrDefault(refId, 0) + 1
+      }
+
+      println("Blob Content Summary:")
+      println("  Total Records: $recordCount")
+      println("  Time Range:")
+      println("    Min: ${minTime ?: "N/A"}")
+      println("    Max: ${maxTime ?: "N/A"}")
+      println("  Event Group Reference IDs:")
+      eventGroupRefIdCounts.entries.sortedByDescending { it.value }.forEach { (refId, count) ->
+        println("    $refId: $count records")
+      }
+    } catch (e: Exception) {
+      println("Blob Content Summary: ERROR - ${e.message}")
+      logger.warning("Failed to read blob content: ${e.message}")
+    }
+  }
+
   companion object {
     private val logger = Logger.getLogger(ImpressionStatsCommand::class.java.name)
 
@@ -243,7 +352,7 @@ class ImpressionStatsCommand : Runnable {
         .add(ProtoReflection.buildDescriptors(descriptorSets, KNOWN_TYPES))
         .build()
 
-    return checkNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
+    return checkNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl!!)) {
       "Event message type not found in descriptor sets"
     }
   }
