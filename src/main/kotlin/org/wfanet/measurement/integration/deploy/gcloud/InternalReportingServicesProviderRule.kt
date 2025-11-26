@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import java.time.Clock
 import kotlin.coroutines.EmptyCoroutineContext
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -49,10 +49,11 @@ class InternalReportingServicesProviderRule(
         override fun evaluate() {
           services =
             DataServices.create(
-              RandomIdGenerator(Clock.systemUTC()),
+              RandomIdGenerator(),
               postgresDatabaseProvider.createDatabase(),
               spannerDatabase.databaseClient,
               impressionQualificationFilterMapping,
+              TestEvent.getDescriptor(),
               false,
               EmptyCoroutineContext,
             )
