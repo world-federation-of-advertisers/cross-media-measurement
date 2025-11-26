@@ -41,12 +41,13 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
     val spannerDatabaseClient = spannerDatabase.databaseClient
     val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
-      basicReportsService = SpannerBasicReportsService(
-        spannerClient = spannerDatabaseClient,
-        postgresClient = postgresDatabaseClient,
-        impressionQualificationFilterMapping = impressionQualificationFilterMapping,
-        eventMessageDescriptor = TestEvent.getDescriptor(),
-      ),
+      basicReportsService =
+        SpannerBasicReportsService(
+          spannerClient = spannerDatabaseClient,
+          postgresClient = postgresDatabaseClient,
+          impressionQualificationFilterMapping = impressionQualificationFilterMapping,
+          eventMessageDescriptor = TestEvent.getDescriptor(),
+        ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
       PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
       SpannerReportResultsService(

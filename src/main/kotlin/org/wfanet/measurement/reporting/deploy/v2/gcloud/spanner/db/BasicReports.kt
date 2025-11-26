@@ -177,9 +177,7 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       }
     }
 
-  return executeQuery(query).map { row ->
-    buildBasicReportResult(row)
-  }
+  return executeQuery(query).map { row -> buildBasicReportResult(row) }
 }
 
 /** Buffers an insert mutation for the BasicReports table. */

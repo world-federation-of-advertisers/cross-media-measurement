@@ -124,29 +124,20 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
 
-    val campaignGroup = getCampaignGroup(
-      request.cmmsMeasurementConsumerId,
-      basicReport.externalCampaignGroupId,
-    )
+    val campaignGroup =
+      getCampaignGroup(request.cmmsMeasurementConsumerId, basicReport.externalCampaignGroupId)
 
     return if (basicReport.state != BasicReport.State.SUCCEEDED) {
-      basicReport.copy {
-        campaignGroupDisplayName = campaignGroup.displayName
-      }
+      basicReport.copy { campaignGroupDisplayName = campaignGroup.displayName }
     } else {
       val campaignGroupReportingSets =
         listReportingSetsByCampaignGroup(
-          basicReport.cmmsMeasurementConsumerId,
-          basicReport.externalCampaignGroupId,
-        )
+            basicReport.cmmsMeasurementConsumerId,
+            basicReport.externalCampaignGroupId,
+          )
           .filter { it.filter.isEmpty() }
 
-      updateBasicReport(
-        basicReport,
-        campaignGroup,
-        campaignGroupReportingSets,
-        reportingSetResults
-      )
+      updateBasicReport(basicReport, campaignGroup, campaignGroupReportingSets, reportingSetResults)
     }
   }
 
@@ -183,19 +174,15 @@ class SpannerBasicReportsService(
       spannerClient.readOnlyTransaction().use { txn ->
         val basicReportResults =
           txn
-            .readBasicReports(
-              filter = request.filter,
-              limit = pageSize + 1,
-              pageToken = pageToken,
-            )
+            .readBasicReports(filter = request.filter, limit = pageSize + 1, pageToken = pageToken)
             .toList()
 
         val reportingSetByExternalId: Map<String, ReportingSet> = buildMap {
           putAll(
             getReportingSets(
-              request.filter.cmmsMeasurementConsumerId,
-              basicReportResults.map { it.basicReport.externalCampaignGroupId }.distinct(),
-            )
+                request.filter.cmmsMeasurementConsumerId,
+                basicReportResults.map { it.basicReport.externalCampaignGroupId }.distinct(),
+              )
               .map { it.reportingSet }
               .associateBy { it.externalReportingSetId }
           )
@@ -205,8 +192,12 @@ class SpannerBasicReportsService(
           mutableMapOf()
 
         basicReports +=
-          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).map { basicReportResult ->
-            val campaignGroup = reportingSetByExternalId.getValue(basicReportResult.basicReport.externalCampaignGroupId)
+          basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).map {
+            basicReportResult ->
+            val campaignGroup =
+              reportingSetByExternalId.getValue(
+                basicReportResult.basicReport.externalCampaignGroupId
+              )
 
             if (basicReportResult.basicReport.state != BasicReport.State.SUCCEEDED) {
               basicReportResult.basicReport.copy {
@@ -214,14 +205,15 @@ class SpannerBasicReportsService(
               }
             } else {
               val campaignGroupReportingSets: List<ReportingSet> =
-                reportingSetsByExternalCampaignGroupId
-                  .getOrPut(basicReportResult.basicReport.externalCampaignGroupId) {
-                    listReportingSetsByCampaignGroup(
+                reportingSetsByExternalCampaignGroupId.getOrPut(
+                  basicReportResult.basicReport.externalCampaignGroupId
+                ) {
+                  listReportingSetsByCampaignGroup(
                       basicReportResult.basicReport.cmmsMeasurementConsumerId,
                       basicReportResult.basicReport.externalCampaignGroupId,
                     )
-                      .filter { it.filter.isEmpty() }
-                  }
+                    .filter { it.filter.isEmpty() }
+                }
 
               val reportingSetResults: List<ReportingSetResult> =
                 txn.getReportingSetResults(basicReportResult)
@@ -230,7 +222,7 @@ class SpannerBasicReportsService(
                 basicReportResult.basicReport,
                 campaignGroup,
                 campaignGroupReportingSets,
-                reportingSetResults
+                reportingSetResults,
               )
             }
           }
@@ -346,15 +338,13 @@ class SpannerBasicReportsService(
 
     if (existingBasicReport != null) {
       if (existingBasicReport.state != BasicReport.State.SUCCEEDED) {
-        return existingBasicReport.copy {
-          campaignGroupDisplayName = campaignGroup.displayName
-        }
+        return existingBasicReport.copy { campaignGroupDisplayName = campaignGroup.displayName }
       } else {
         val campaignGroupReportingSets =
           listReportingSetsByCampaignGroup(
-            existingBasicReport.cmmsMeasurementConsumerId,
-            existingBasicReport.externalCampaignGroupId,
-          )
+              existingBasicReport.cmmsMeasurementConsumerId,
+              existingBasicReport.externalCampaignGroupId,
+            )
             .filter { it.filter.isEmpty() }
 
         return updateBasicReport(
@@ -673,21 +663,24 @@ class SpannerBasicReportsService(
     }
   }
 
-  private suspend fun AsyncDatabaseClient.ReadContext.getReportingSetResults(basicReportResult: BasicReportResult): List<ReportingSetResult> {
+  private suspend fun AsyncDatabaseClient.ReadContext.getReportingSetResults(
+    basicReportResult: BasicReportResult
+  ): List<ReportingSetResult> {
     val reportResultId: Long? = basicReportResult.reportResultId
-    return if (reportResultId != null
-        && basicReportResult.basicReport.state == BasicReport.State.SUCCEEDED) {
-        readFullReportingSetResults(
+    return if (
+      reportResultId != null && basicReportResult.basicReport.state == BasicReport.State.SUCCEEDED
+    ) {
+      readFullReportingSetResults(
           impressionQualificationFilterMapping,
           groupingDimensions,
           basicReportResult.measurementConsumerId,
           reportResultId,
-        ).map {
-          it.reportingSetResult
-        }.toList()
-      } else {
-        emptyList()
-      }
+        )
+        .map { it.reportingSetResult }
+        .toList()
+    } else {
+      emptyList()
+    }
   }
 
   private fun updateBasicReport(
@@ -701,12 +694,13 @@ class SpannerBasicReportsService(
 
       if (reportingSetResults.isNotEmpty()) {
         resultDetails = basicReportResultDetails {
-          resultGroups += transformReportResultIntoResultGroups(
-            basicReport,
-            reportingSetResults,
-            campaignGroup,
-            campaignGroupReportingSets,
-          )
+          resultGroups +=
+            transformReportResultIntoResultGroups(
+              basicReport,
+              reportingSetResults,
+              campaignGroup,
+              campaignGroupReportingSets,
+            )
         }
       }
     }
