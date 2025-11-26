@@ -118,7 +118,7 @@ class SpannerBasicReportsService(
           val reportingSetResults: List<ReportingSetResult> =
             txn.getReportingSetResults(basicReportResult)
 
-          Pair(basicReportResult.basicReport, reportingSetResults)
+          basicReportResult.basicReport to reportingSetResults
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -137,7 +137,7 @@ class SpannerBasicReportsService(
           )
           .filter { it.filter.isEmpty() }
 
-      updateBasicReport(basicReport, campaignGroup, campaignGroupReportingSets, reportingSetResults)
+      basicReport.withResults(campaignGroup, campaignGroupReportingSets, reportingSetResults)
     }
   }
 
@@ -218,8 +218,7 @@ class SpannerBasicReportsService(
               val reportingSetResults: List<ReportingSetResult> =
                 txn.getReportingSetResults(basicReportResult)
 
-              updateBasicReport(
-                basicReportResult.basicReport,
+              basicReportResult.basicReport.withResults(
                 campaignGroup,
                 campaignGroupReportingSets,
                 reportingSetResults,
@@ -293,7 +292,7 @@ class SpannerBasicReportsService(
             val reportingSetResults: List<ReportingSetResult> =
               txn.getReportingSetResults(existingBasicReportResult)
 
-            Pair(existingBasicReportResult.basicReport, reportingSetResults)
+            existingBasicReportResult.basicReport to reportingSetResults
           } else {
             val basicReportId =
               idGenerator.generateNewId { id ->
@@ -308,7 +307,7 @@ class SpannerBasicReportsService(
               requestId = request.requestId.ifEmpty { null },
             )
 
-            Pair(null, emptyList())
+            null to emptyList()
           }
         }
       } catch (e: SpannerException) {
@@ -327,7 +326,7 @@ class SpannerBasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         // run doesn't support a NULL return value
       } catch (_: NullPointerException) {
-        Pair(null, emptyList())
+        null to emptyList()
       }
 
     val campaignGroup =
@@ -347,8 +346,7 @@ class SpannerBasicReportsService(
             )
             .filter { it.filter.isEmpty() }
 
-        return updateBasicReport(
-          existingBasicReport,
+        return existingBasicReport.withResults(
           campaignGroup,
           campaignGroupReportingSets,
           reportingSetResults,
@@ -683,20 +681,20 @@ class SpannerBasicReportsService(
     }
   }
 
-  private fun updateBasicReport(
-    basicReport: BasicReport,
+  private fun BasicReport.withResults(
     campaignGroup: ReportingSet,
     campaignGroupReportingSets: List<ReportingSet>,
     reportingSetResults: List<ReportingSetResult>,
   ): BasicReport {
-    return basicReport.copy {
+    val source = this
+    return source.copy {
       campaignGroupDisplayName = campaignGroup.displayName
 
       if (reportingSetResults.isNotEmpty()) {
         resultDetails = basicReportResultDetails {
           resultGroups +=
             transformReportResultIntoResultGroups(
-              basicReport,
+              source,
               reportingSetResults,
               campaignGroup,
               campaignGroupReportingSets,
