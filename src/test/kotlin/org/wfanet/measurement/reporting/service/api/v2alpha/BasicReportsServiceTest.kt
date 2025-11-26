@@ -731,9 +731,7 @@ class BasicReportsServiceTest {
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
-        reportingUnit = reportingUnit {
-          components += DATA_PROVIDER_KEY.toName()
-        }
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
         dimensionSpec = DimensionSpec.getDefaultInstance()
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         resultGroupMetricSpec = resultGroupMetricSpec {
@@ -757,11 +755,13 @@ class BasicReportsServiceTest {
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
 
     assertThat(createReportRequest.report.reportingInterval.reportStart)
-      .isEqualTo(basicReport.reportingInterval.reportStart.copy {
-        clearMinutes()
-        clearSeconds()
-        clearNanos()
-      })
+      .isEqualTo(
+        basicReport.reportingInterval.reportStart.copy {
+          clearMinutes()
+          clearSeconds()
+          clearNanos()
+        }
+      )
   }
 
   @Test

@@ -196,11 +196,14 @@ class BasicReportsService(
           enumerateValidModelLinesRequest {
             parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
             timeInterval = interval {
-              startTime = request.basicReport.reportingInterval.reportStart.copy {
-                clearMinutes()
-                clearSeconds()
-                clearNanos()
-              }.toTimestamp()
+              startTime =
+                request.basicReport.reportingInterval.reportStart
+                  .copy {
+                    clearMinutes()
+                    clearSeconds()
+                    clearNanos()
+                  }
+                  .toTimestamp()
               endTime =
                 request.basicReport.reportingInterval.reportStart
                   .copy {
@@ -837,11 +840,12 @@ class BasicReportsService(
 
       reportingInterval =
         ReportKt.reportingInterval {
-          reportStart = basicReport.reportingInterval.reportStart.copy {
-            clearMinutes()
-            clearSeconds()
-            clearNanos()
-          }
+          reportStart =
+            basicReport.reportingInterval.reportStart.copy {
+              clearMinutes()
+              clearSeconds()
+              clearNanos()
+            }
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }
