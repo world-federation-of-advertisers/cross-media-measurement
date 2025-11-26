@@ -16,10 +16,12 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import kotlin.text.toLong
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeKey
 import org.wfanet.measurement.api.v2alpha.CanonicalExchangeStepAttemptKey
@@ -36,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelOutageKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
@@ -45,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelShardKey
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
+import org.wfanet.measurement.common.grpc.Errors as CommonErrors
 import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.ExternalId
@@ -56,7 +60,142 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 
-private const val DOMAIN = "halo.wfanet.org"
+object Errors {
+  const val DOMAIN = "halo.wfanet.org"
+  val INTERNAL_DOMAIN: String = ErrorCode.getDescriptor().fullName
+
+  enum class Metadata(val key: String) {
+    MODEL_LINE("modelLine"),
+    MODEL_LINE_TYPE("modelLineType"),
+  }
+
+  fun getErrorCode(e: StatusException): ErrorCode? {
+    val errorInfo: ErrorInfo = e.errorInfo ?: return null
+    if (errorInfo.domain != ErrorCode.getDescriptor().fullName) {
+      return null
+    }
+
+    return ErrorCode.valueOf(errorInfo.reason)
+  }
+}
+
+sealed class ServiceException(
+  reason: ErrorCode,
+  message: String,
+  metadata: Map<Errors.Metadata, String>,
+  cause: Throwable?,
+) : Exception(message, cause) {
+  override val message: String
+    get() = super.message!!
+
+  private val errorInfo = errorInfo {
+    domain = Errors.DOMAIN
+    this.reason = reason.name
+    this.metadata.putAll(metadata.mapKeys { it.key.key })
+  }
+
+  fun asStatusRuntimeException(code: Status.Code): StatusRuntimeException {
+    return CommonErrors.buildStatusRuntimeException(code, message, errorInfo, this)
+  }
+
+  fun asStatusRuntimeException(status: Status): StatusRuntimeException {
+    return status
+      .withCause(this)
+      .withDescription(status.description ?: message)
+      .asRuntimeException(errorInfo)
+  }
+
+  abstract class Factory<T : ServiceException> {
+    protected abstract val reason: ErrorCode
+
+    protected abstract fun fromInternal(internalMetadata: Map<String, String>, cause: Throwable): T
+
+    fun fromInternal(cause: StatusException): T {
+      val errorInfo = requireNotNull(cause.errorInfo) {"error_info not set"}
+      require(errorInfo.domain == Errors.INTERNAL_DOMAIN) {"Unexpected error domain ${errorInfo.domain}"}
+      require(errorInfo.reason == reason.name) {"Incorrect reason ${errorInfo.reason}"}
+      return fromInternal(errorInfo.metadataMap, cause)
+    }
+  }
+}
+
+class ModelLineNotFoundException(modelLine: String, cause: Throwable) :
+  ServiceException(
+    reason,
+    "$modelLine not found",
+    mapOf(Errors.Metadata.MODEL_LINE to modelLine),
+    cause,
+  ) {
+  companion object : Factory<ModelLineNotFoundException>() {
+    override val reason: ErrorCode = ErrorCode.MODEL_LINE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<String, String>,
+      cause: Throwable,
+    ): ModelLineNotFoundException {
+      val modelLine =
+        ModelLineKey(
+            externalIdToApiId(internalMetadata.getValue("external_model_provider_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_suite_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_line_id").toLong()),
+          )
+          .toName()
+      return ModelLineNotFoundException(modelLine, cause)
+    }
+  }
+}
+
+class ModelLineTypeIllegalException(modelLine: String, type: ModelLine.Type, cause: Throwable) :
+  ServiceException(
+    reason,
+    "$modelLine has type $type which is illegal for the operation",
+    mapOf(Errors.Metadata.MODEL_LINE to modelLine, Errors.Metadata.MODEL_LINE_TYPE to type.name),
+    cause,
+  ) {
+  companion object : Factory<ModelLineTypeIllegalException>() {
+    override val reason: ErrorCode = ErrorCode.MODEL_LINE_TYPE_ILLEGAL
+
+    override fun fromInternal(
+      internalMetadata: Map<String, String>,
+      cause: Throwable,
+    ): ModelLineTypeIllegalException {
+      val modelLine =
+        ModelLineKey(
+            externalIdToApiId(internalMetadata.getValue("external_model_provider_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_suite_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_line_id").toLong()),
+          )
+          .toName()
+      val type: ModelLine.Type =
+        InternalModelLine.Type.valueOf(internalMetadata.getValue("model_line_type")).toType()
+      return ModelLineTypeIllegalException(modelLine, type, cause)
+    }
+  }
+}
+
+class ModelLineInvalidArgsException(
+  modelLine: String,
+  message: String = "The state of $modelLine is incompatible with the request arguments",
+  cause: Throwable? = null,
+) : ServiceException(reason, message, mapOf(Errors.Metadata.MODEL_LINE to modelLine), cause) {
+  companion object : Factory<ModelLineInvalidArgsException>() {
+    override val reason: ErrorCode = ErrorCode.MODEL_LINE_INVALID_ARGS
+
+    override fun fromInternal(
+      internalMetadata: Map<String, String>,
+      cause: Throwable,
+    ): ModelLineInvalidArgsException {
+      val modelLine =
+        ModelLineKey(
+            externalIdToApiId(internalMetadata.getValue("external_model_provider_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_suite_id").toLong()),
+            externalIdToApiId(internalMetadata.getValue("external_model_line_id").toLong()),
+          )
+          .toName()
+      return ModelLineInvalidArgsException(modelLine, cause = cause)
+    }
+  }
+}
 
 /**
  * Converts this [Status] to a [StatusRuntimeException] with details from [internalApiException].
@@ -466,23 +605,9 @@ fun Status.toExternalStatusRuntimeException(
         put("modelSuite", modelSuiteName)
         errorMessage = "ModelSuite $modelSuiteName not found."
       }
-      ErrorCode.MODEL_LINE_NOT_FOUND -> {
-        val modelLineName =
-          ModelLineKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-              ),
-            )
-            .toName()
-        put("modelLine", modelLineName)
-        errorMessage = "ModelLine $modelLineName not found."
-      }
+      ErrorCode.MODEL_LINE_NOT_FOUND ->
+        return ModelLineNotFoundException.fromInternal(internalApiException)
+          .asStatusRuntimeException(this@toExternalStatusRuntimeException)
       ErrorCode.MODEL_LINE_NOT_ACTIVE -> {
         val externalModelProviderId =
           ExternalId(errorInfo.metadataMap.getValue("external_model_provider_id").toLong())
@@ -505,45 +630,13 @@ fun Status.toExternalStatusRuntimeException(
         errorMessage =
           "ModelLine $modelLineName not active outside of range [$activeStartTime, $activeEndTime)"
       }
-      ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
-        val modelLineName =
-          ModelLineKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-              ),
-            )
-            .toName()
-        val modelLineType =
-          InternalModelLine.Type.valueOf(checkNotNull(errorInfo.metadataMap["model_line_type"]))
-            .toType()
-            .toString()
-        put("modelLine", modelLineName)
-        put("modelLineType", modelLineType)
-        errorMessage = "ModelLine $modelLineName type: $modelLineType is illegal."
-      }
-      ErrorCode.MODEL_LINE_INVALID_ARGS -> {
-        val modelLineName =
-          ModelLineKey(
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_provider_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_suite_id"]).toLong()
-              ),
-              externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
-              ),
-            )
-            .toName()
-        put("modelLine", modelLineName)
-        errorMessage = "ModelLine $modelLineName has invalid active times."
-      }
+      ErrorCode.MODEL_LINE_TYPE_ILLEGAL ->
+        return ModelLineTypeIllegalException.fromInternal(internalApiException)
+          .asStatusRuntimeException(this@toExternalStatusRuntimeException)
+
+      ErrorCode.MODEL_LINE_INVALID_ARGS ->
+        return ModelLineInvalidArgsException.fromInternal(internalApiException)
+          .asStatusRuntimeException(this@toExternalStatusRuntimeException)
       ErrorCode.MODEL_OUTAGE_NOT_FOUND -> {
         val modelOutageName =
           ModelOutageKey(
@@ -747,7 +840,7 @@ fun Status.toExternalStatusRuntimeException(
     .withDescription(errorMessage)
     .asRuntimeException(
       errorInfo {
-        domain = DOMAIN
+        domain = Errors.DOMAIN
         reason = errorCode.name
         metadata.putAll(metadataMap)
       }
