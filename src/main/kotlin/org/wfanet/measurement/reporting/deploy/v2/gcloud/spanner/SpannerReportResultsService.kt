@@ -451,40 +451,18 @@ class SpannerReportResultsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    val txn = spannerClient.readOnlyTransaction()
-    val (measurementConsumerId, reportResultId, _) =
-      try {
-        txn.readReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
-      } catch (e: ReportResultNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
-    val resultsFlow: Flow<ReportingSetResultResult> =
-      when (request.view) {
-        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNSPECIFIED,
-        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED ->
-          txn.readUnprocessedReportingSetResults(
-            impressionQualificationFilterMapping,
-            groupingDimensions,
-            measurementConsumerId,
-            reportResultId,
-          )
-        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL ->
-          txn.readFullReportingSetResults(
-            impressionQualificationFilterMapping,
-            groupingDimensions,
-            measurementConsumerId,
-            reportResultId,
-          )
-        ReportingSetResultView.UNRECOGNIZED ->
-          throw InvalidFieldValueException("view")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
+    spannerClient.readOnlyTransaction().use { txn ->
+      val (measurementConsumerId, reportResultId, _) =
+        try {
+          txn.readReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
+        } catch (e: ReportResultNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        }
       val resultsFlow: Flow<ReportingSetResultResult> =
         when (request.view) {
           ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNSPECIFIED,
-          ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY ->
-            txn.readNoisyReportingSetResults(
+          ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED ->
+            txn.readUnprocessedReportingSetResults(
               impressionQualificationFilterMapping,
               groupingDimensions,
               measurementConsumerId,
