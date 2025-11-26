@@ -843,13 +843,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           reportingSetResults[createdReportingSetResults[0].externalReportingSetResultId] =
             AddProcessedResultValuesRequestKt.processedReportingSetResult {
               reportingWindowResults +=
-                AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
-                  key = createdReportingSetResults[0].reportingWindowResultsList[0].key
-                  value =
-                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                      nonCumulativeResults = basicMetricSet { reach = 2 }
-                    }
-                }
+                AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt
+                  .reportingWindowEntry {
+                    key = createdReportingSetResults[0].reportingWindowResultsList[0].key
+                    value =
+                      ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                        nonCumulativeResults = basicMetricSet { reach = 2 }
+                      }
+                  }
             }
         }
       )
