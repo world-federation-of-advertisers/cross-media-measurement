@@ -43,10 +43,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
+import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
@@ -265,6 +265,8 @@ abstract class ReportResultsServiceTest {
         }
       )
     assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.NOISY_RESULTS_READY)
+    assertThat(updatedBasicReport.externalReportResultId)
+      .isEqualTo(reportResult.externalReportResultId)
   }
 
   @Test
@@ -372,47 +374,7 @@ abstract class ReportResultsServiceTest {
           )
         )
         .reportingSetResultsList
-    val request = addDenoisedResultValuesRequest {
-      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-      externalReportResultId = reportResult.externalReportResultId
-      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  cumulativeResults = basicMetricSet {
-                    reach = 2
-                    impressions = 10
-                  }
-                  nonCumulativeResults = basicMetricSet {
-                    reach = 1
-                    impressions = 5
-                  }
-                }
-            }
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[1].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[1].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-    }
+    val request = buildAddDenoisedResultValuesRequest(reportingSetResults)
 
     reportResultsStub.addDenoisedResultValues(request)
 
@@ -525,6 +487,96 @@ abstract class ReportResultsServiceTest {
       )
   }
 
+  @Test
+  fun `addDenoisedResultValues updates BasicReport state`() {
+    val basicReport: BasicReport = ensureMeasurementConsumer()
+    val externalReportId = "report-1"
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        this.externalReportId = externalReportId
+      }
+    )
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    // Ensure that BasicReport is associated with ReportResult.
+    val reportingSetResults =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+              reportResult.externalReportResultId
+            )
+            .copy { externalBasicReportId = basicReport.externalBasicReportId }
+        )
+        .reportingSetResultsList
+    val request = buildAddDenoisedResultValuesRequest(reportingSetResults)
+
+    reportResultsStub.addDenoisedResultValues(request)
+
+    val updatedBasicReport: BasicReport =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+  }
+
+  /**
+   * Builds a test [AddDenoisedResultValuesRequest].
+   *
+   * @param reportingSetResults Results created from [BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST].
+   */
+  private fun buildAddDenoisedResultValuesRequest(
+    reportingSetResults: List<ReportingSetResult>
+  ): AddDenoisedResultValuesRequest {
+    val cmmsMeasurementConsumerId = reportingSetResults.first().cmmsMeasurementConsumerId
+    val externalReportResultId = reportingSetResults.first().externalReportResultId
+    return addDenoisedResultValuesRequest {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.externalReportResultId = externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                  nonCumulativeResults = basicMetricSet {
+                    reach = 1
+                    impressions = 5
+                  }
+                }
+            }
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[1].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
+        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+          reportingWindowResults +=
+            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[1].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+    }
+  }
+
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
@@ -535,10 +587,11 @@ abstract class ReportResultsServiceTest {
     measurementConsumersStub.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
+    val cmmsDataProviderId = "edp-1"
     val campaignGroup: ReportingSet =
       reportingSetsStub.createReportingSet(
         createReportingSetRequest {
-          externalReportingSetId = "reporting-set-1"
+          externalReportingSetId = "primitive-1"
           reportingSet = reportingSet {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
@@ -546,7 +599,7 @@ abstract class ReportResultsServiceTest {
               ReportingSetKt.primitive {
                 this.eventGroupKeys +=
                   ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = "edp-1"
+                    this.cmmsDataProviderId = cmmsDataProviderId
                     cmmsEventGroupId = "eg-1"
                   }
               }
@@ -575,13 +628,27 @@ abstract class ReportResultsServiceTest {
       )
 
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc-1"
-    val AMI_IQF = impressionQualificationFilter {
-      externalImpressionQualificationFilterId = "ami"
-      impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
-    }
+    val AMI_IQF =
+      ImpressionQualificationFilterConfigKt.impressionQualificationFilter {
+        externalImpressionQualificationFilterId = "ami"
+        impressionQualificationFilterId = 1
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+                .DISPLAY
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER
+          }
+      }
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
       impressionQualificationFilters += AMI_IQF
     }
