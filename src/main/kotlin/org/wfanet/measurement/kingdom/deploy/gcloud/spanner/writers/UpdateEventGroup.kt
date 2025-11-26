@@ -67,6 +67,7 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
   }
 }
 
+/** Buffers an update mutation for the EventGroups table. */
 internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
   request: EventGroup,
   result: EventGroupReader.Result,
