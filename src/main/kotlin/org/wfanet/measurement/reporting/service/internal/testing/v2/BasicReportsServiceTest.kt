@@ -43,7 +43,7 @@ import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConf
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
-import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -66,7 +66,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.addDenoisedResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
@@ -822,7 +822,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                     }
 
                     value = reportingWindowResult {
-                      noisyReportResultValues =
+                      unprocessedReportResultValues =
                         ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                           nonCumulativeResults = noisyMetricSet {
                             reach = NoisyMetricSetKt.reachResult { value = 1 }
@@ -836,14 +836,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           )
           .reportingSetResultsList
 
-      reportResultsService.addDenoisedResultValues(
-        addDenoisedResultValuesRequest {
+      reportResultsService.addProcessedResultValues(
+        addProcessedResultValuesRequest {
           cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
           externalReportResultId = reportResult.externalReportResultId
           reportingSetResults[createdReportingSetResults[0].externalReportingSetResultId] =
-            AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+            AddProcessedResultValuesRequestKt.processedReportingSetResult {
               reportingWindowResults +=
-                AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+                AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
                   key = createdReportingSetResults[0].reportingWindowResultsList[0].key
                   value =
                     ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
