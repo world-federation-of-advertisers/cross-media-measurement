@@ -12,7 +12,7 @@ kt_jvm_library(
     name = "basic_reports_service",
     srcs = ["SpannerBasicReportsService.kt"],
     deps = [
-        ":basic_report_noise_corrected_results_transformation",
+        ":basic_report_processed_results_transformation",
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:measurement_consumers",
@@ -59,8 +59,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "basic_report_noise_corrected_results_transformation",
-    srcs = ["BasicReportNoiseCorrectedResultsTransformation.kt"],
+    name = "basic_report_processed_results_transformation",
+    srcs = ["BasicReportProcessedResultsTransformation.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:__pkg__",
