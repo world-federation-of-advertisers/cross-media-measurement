@@ -224,6 +224,7 @@ fun AsyncDatabaseClient.TransactionContext.insertBasicReport(
       set("CmmsModelSuiteId").to(basicReport.modelLineKey.cmmsModelSuiteId)
       set("CmmsModelLineId").to(basicReport.modelLineKey.cmmsModelLineId)
     }
+    set("ModelLineSystemSpecified").to(basicReport.modelLineSystemSpecified)
   }
 }
 
@@ -325,6 +326,7 @@ private fun buildBasicReport(row: Struct): BasicReport {
           cmmsModelLineId = row.getString("CmmsModelLineId")
         }
     }
+    modelLineSystemSpecified = row.getBoolean("ModelLineSystemSpecified")
     if (!row.isNull("ExternalReportResultId")) {
       externalReportResultId = row.getLong("ExternalReportResultId")
     }
@@ -349,6 +351,7 @@ private object BasicReportsInternal {
       CmmsModelProviderId,
       CmmsModelSuiteId,
       CmmsModelLineId,
+      ModelLineSystemSpecified,
       ExternalReportResultId,
     FROM
       MeasurementConsumers

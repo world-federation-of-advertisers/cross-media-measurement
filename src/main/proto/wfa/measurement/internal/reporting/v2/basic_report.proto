@@ -95,4 +95,6 @@ message BasicReport {
   //
   // Set when `state` has been `NOISY_RESULTS_READY`.
   fixed64 external_report_result_id = 13;
+
+  bool model_line_system_specified = 14;
 }

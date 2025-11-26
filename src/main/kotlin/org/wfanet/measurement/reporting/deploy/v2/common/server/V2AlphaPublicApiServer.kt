@@ -363,10 +363,12 @@ private object V2AlphaPublicApiServer {
             InternalReportingSetsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
             ReportsCoroutineStub(inProcessReportsChannel),
+            KingdomModelLinesCoroutineStub(kingdomChannel),
             eventMessageFlags.eventDescriptor,
             basicReportMetricSpecConfig,
             SecureRandom().asKotlinRandom(),
             authorization,
+            measurementConsumerConfigs,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
