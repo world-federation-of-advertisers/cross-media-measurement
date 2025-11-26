@@ -6,7 +6,7 @@ We take the security of this project seriously and appreciate responsible disclo
 
 If you believe you have found a security issue in this project, **please do not open a public issue or pull request**.
 
-Instead, report it privately through [GitHub’s security advisory flow:](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability#privately-reporting-a-security-vulnerability)
+Instead, report it through [GitHub’s security advisory flow:](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability#privately-reporting-a-security-vulnerability)
 
 1. Go to the repository’s **Security** tab.
 2. Click **Report a vulnerability**, or visit the [advisories page](https://github.com/world-federation-of-advertisers/cross-media-measurement/security/advisories/new).
