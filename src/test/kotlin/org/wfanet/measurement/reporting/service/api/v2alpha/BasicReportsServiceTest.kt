@@ -136,6 +136,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalcula
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata as PostgresSchemata
 import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
@@ -204,6 +205,7 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        TestEvent.getDescriptor(),
       )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))

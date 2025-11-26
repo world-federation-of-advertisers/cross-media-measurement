@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
 import org.wfanet.measurement.internal.reporting.v2.addDenoisedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -84,6 +85,7 @@ import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsReque
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
@@ -615,6 +617,16 @@ abstract class ReportResultsServiceTest {
           cmmsMeasurementConsumerId = campaignGroup.cmmsMeasurementConsumerId
           externalBasicReportId = "basic-report-1"
           externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+          details = basicReportDetails {
+            reportingInterval = reportingInterval {
+              reportStart = dateTime {
+                year = 2025
+                month = 1
+                day = 6
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+            }
+          }
         }
       }
     )

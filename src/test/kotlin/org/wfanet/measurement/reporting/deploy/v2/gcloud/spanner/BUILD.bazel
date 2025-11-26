@@ -35,6 +35,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:basic_reports_service_test",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
