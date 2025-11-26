@@ -42,7 +42,7 @@ class BatchUpdateEventGroups(private val request: BatchUpdateEventGroupsRequest)
             ExternalId(subRequest.eventGroup.externalEventGroupId),
           )
 
-      modifyEventGroup(subRequest.eventGroup, result)
+      updateEventGroup(subRequest.eventGroup, result)
     }
 
     return batchUpdateEventGroupsResponse {

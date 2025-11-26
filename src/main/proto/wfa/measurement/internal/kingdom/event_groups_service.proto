@@ -46,11 +46,6 @@ message CreateEventGroupRequest {
 
 message UpdateEventGroupRequest {
   EventGroup event_group = 1;
-
-  // Optional weakly validated etag computed from update time.
-  // If provided it must match the server's etag or update will be
-  // aborted.
-  string etag = 3;
 }
 
 message BatchUpdateEventGroupsRequest {

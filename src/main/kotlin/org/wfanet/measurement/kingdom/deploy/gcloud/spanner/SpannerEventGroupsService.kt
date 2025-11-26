@@ -134,19 +134,19 @@ class SpannerEventGroupsService(
       throw RequiredFieldNotSetException("external_data_provider_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val parentDataProviderId = request.externalDataProviderId
+    val externalDataProviderId = request.externalDataProviderId
 
     request.requestsList.forEachIndexed { index, subRequest ->
-      val dataProviderId = subRequest.eventGroup.externalDataProviderId
+      val subRequestExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
 
-      if (dataProviderId == 0L) {
+      if (subRequestExternalDataProviderId == 0L) {
         throw RequiredFieldNotSetException("requests.$index.event_group.external_data_provider_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (dataProviderId != parentDataProviderId) {
+      if (subRequestExternalDataProviderId != externalDataProviderId) {
         throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
-            "Subrequest's externalDataProviderId $dataProviderId different from parent's externalDataProviderId $parentDataProviderId"
+            "Subrequest's externalDataProviderId $subRequestExternalDataProviderId different from parent's externalDataProviderId $externalDataProviderId"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
