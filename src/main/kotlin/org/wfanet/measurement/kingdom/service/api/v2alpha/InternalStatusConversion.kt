@@ -47,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
@@ -75,11 +76,9 @@ fun Status.toExternalStatusRuntimeException(
     when (errorCode) {
       ErrorCode.REQUIRED_FIELD_NOT_SET -> {
         put("fieldName", errorInfo.metadataMap.getValue("field_name"))
-        Unit
       }
       ErrorCode.INVALID_FIELD_VALUE -> {
         put("fieldName", errorInfo.metadataMap.getValue("field_name"))
-        Unit
       }
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =
@@ -118,8 +117,7 @@ fun Status.toExternalStatusRuntimeException(
         errorMessage = "DataProvider $dataProviderName not found."
       }
       ErrorCode.DUCHY_NOT_FOUND -> {
-        val duchyName =
-          DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+        val duchyName = DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"])).toName()
         put("duchy", duchyName)
         errorMessage = "Duchy $duchyName not found."
       }
@@ -152,7 +150,7 @@ fun Status.toExternalStatusRuntimeException(
         } else if (errorInfo.metadataMap.containsKey("external_duchy_id")) {
           val duchyCertificateName =
             DuchyCertificateKey(
-                checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString(),
+                checkNotNull(errorInfo.metadataMap["external_duchy_id"]),
                 certificateApiId,
               )
               .toName()
@@ -178,8 +176,7 @@ fun Status.toExternalStatusRuntimeException(
         errorMessage = "Certificate is invalid."
       }
       ErrorCode.DUCHY_NOT_ACTIVE -> {
-        val duchyName =
-          DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"]).toString()).toName()
+        val duchyName = DuchyKey(checkNotNull(errorInfo.metadataMap["external_duchy_id"])).toName()
 
         put("duchy", duchyName)
         errorMessage = "Duchy $duchyName is not active."
@@ -242,7 +239,6 @@ fun Status.toExternalStatusRuntimeException(
         // Just pass through since ETags don't need conversion.
         put("actual_etag", errorInfo.metadataMap.getValue("actual_etag"))
         put("request_etag", errorInfo.metadataMap.getValue("request_etag"))
-        Unit
       }
       ErrorCode.REQUISITION_NOT_FOUND -> {
         val dataProviderKey =
@@ -279,7 +275,6 @@ fun Status.toExternalStatusRuntimeException(
       ErrorCode.REQUISITION_ETAG_MISMATCH -> {
         put("requestEtag", checkNotNull(errorInfo.metadataMap["request_etag"]))
         put("actualEtag", checkNotNull(errorInfo.metadataMap["actual_etag"]))
-        Unit
       }
       ErrorCode.ACCOUNT_NOT_FOUND -> {
         val accountName =
@@ -488,6 +483,28 @@ fun Status.toExternalStatusRuntimeException(
         put("modelLine", modelLineName)
         errorMessage = "ModelLine $modelLineName not found."
       }
+      ErrorCode.MODEL_LINE_NOT_ACTIVE -> {
+        val externalModelProviderId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_provider_id").toLong())
+        val externalModelSuiteId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_suite_id").toLong())
+        val externalModelLineId =
+          ExternalId(errorInfo.metadataMap.getValue("external_model_line_id").toLong())
+        val modelLineKey =
+          ModelLineKey(
+            externalModelProviderId.apiId.value,
+            externalModelSuiteId.apiId.value,
+            externalModelLineId.apiId.value,
+          )
+        val modelLineName = modelLineKey.toName()
+        put("modelLine", modelLineName)
+        val activeStartTime = errorInfo.metadataMap.getValue("active_start_time")
+        put("activeStartTime", activeStartTime)
+        val activeEndTime = errorInfo.metadataMap.getValue("active_start_time")
+        put("activeEndTime", activeEndTime)
+        errorMessage =
+          "ModelLine $modelLineName not active outside of range [$activeStartTime, $activeEndTime)"
+      }
       ErrorCode.MODEL_LINE_TYPE_ILLEGAL -> {
         val modelLineName =
           ModelLineKey(
@@ -618,7 +635,7 @@ fun Status.toExternalStatusRuntimeException(
         put("modelRelease", modelReleaseName)
         errorMessage = "ModelRelease $modelReleaseName not found."
       }
-      ErrorCode.MODEL_ROLLOUT_INVALID_ARGS -> {
+      ErrorCode.MODEL_ROLLOUT_OLDER_THAN_PREVIOUS -> {
         val modelRolloutName =
           ModelRolloutKey(
               externalIdToApiId(
@@ -631,12 +648,22 @@ fun Status.toExternalStatusRuntimeException(
                 checkNotNull(errorInfo.metadataMap["external_model_line_id"]).toLong()
               ),
               externalIdToApiId(
-                checkNotNull(errorInfo.metadataMap["external_model_rollout_id"]).toLong()
+                checkNotNull(errorInfo.metadataMap["previous_external_model_rollout_id"]).toLong()
               ),
             )
             .toName()
         put("modelRollout", modelRolloutName)
         errorMessage = "ModelRollout $modelRolloutName invalid rollout period times."
+      }
+      ErrorCode.MODEL_ROLLOUT_ALREADY_STARTED -> {
+        put("rolloutPeriodStartTime", errorInfo.metadataMap.getValue("rolloutPeriodStartTime"))
+      }
+      ErrorCode.MODEL_ROLLOUT_FREEZE_SCHEDULED -> {
+        put("rolloutFreezeTime", errorInfo.metadataMap.getValue("rolloutFreezeTime"))
+      }
+      ErrorCode.MODEL_ROLLOUT_FREEZE_TIME_OUT_OF_RANGE -> {
+        put("rolloutPeriodStartTime", errorInfo.metadataMap.getValue("rolloutPeriodStartTime"))
+        put("rolloutPeriodEndTime", errorInfo.metadataMap.getValue("rolloutPeriodEndTime"))
       }
       ErrorCode.MODEL_ROLLOUT_NOT_FOUND -> {
         val modelRolloutName =

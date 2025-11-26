@@ -26,6 +26,7 @@ import java.nio.file.Paths
 import java.time.ZoneId
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticPopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -70,6 +71,14 @@ class GenerateSyntheticData : Runnable {
     required = true,
   )
   lateinit var eventGroupReferenceId: String
+    private set
+
+  @Option(
+    names = ["--model-line"],
+    description = ["The model line for this campaign."],
+    required = true,
+  )
+  lateinit var modelLine: String
     private set
 
   @Option(
@@ -126,6 +135,14 @@ class GenerateSyntheticData : Runnable {
   lateinit var dataSpecResourcePath: String
     private set
 
+  @Option(
+    names = ["--impression-metadata-base-path"],
+    description = ["Base path where to store the Impressions files"],
+    required = false,
+  )
+  lateinit var impressionMetadataBasePath: String
+    private set
+
   @kotlin.io.path.ExperimentalPathApi
   override fun run() {
     val syntheticPopulationSpec: SyntheticPopulationSpec =
@@ -160,10 +177,13 @@ class GenerateSyntheticData : Runnable {
         }
       }
     }
+    val modelLineName = ModelLineKey.fromName(modelLine)?.modelLineId
+    val eventGroupPath = "model-line/$modelLineName/event-group-reference-id/$eventGroupReferenceId"
     runBlocking {
       val impressionWriter =
         ImpressionsWriter(
           eventGroupReferenceId,
+          eventGroupPath,
           kekUri,
           kmsClient,
           outputBucket,
@@ -171,7 +191,7 @@ class GenerateSyntheticData : Runnable {
           storagePath,
           schema,
         )
-      impressionWriter.writeLabeledImpressionData(events)
+      impressionWriter.writeLabeledImpressionData(events, modelLine, impressionMetadataBasePath)
     }
   }
 

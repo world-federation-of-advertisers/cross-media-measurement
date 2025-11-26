@@ -26,6 +26,7 @@ kt_jvm_library(
         "HonestMajorityShareShuffleStarter.kt",
         "LiquidLegionsV2Starter.kt",
         "ReachOnlyLiquidLegionsV2Starter.kt",
+        "TrusTeeStarter.kt",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [

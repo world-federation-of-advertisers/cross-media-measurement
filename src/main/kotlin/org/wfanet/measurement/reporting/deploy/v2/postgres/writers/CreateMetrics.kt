@@ -478,10 +478,16 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         valuesStartIndex = 1,
         paramCount = 2,
         """
-        UPDATE MetricCalculationSpecReportingMetrics AS m SET MetricId = c.MetricId
-        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-        AS c(MetricId, CreateMetricRequestId)
-        WHERE MeasurementConsumerId = $1 AND m.CreateMetricRequestId = c.CreateMetricRequestId
+        WITH MetricIds AS MATERIALIZED (
+          SELECT
+            MetricId,
+            CreateMetricRequestId
+          FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+          AS c(MetricId, CreateMetricRequestId)
+        )
+        UPDATE MetricCalculationSpecReportingMetrics AS m SET MetricId = MetricIds.MetricId
+        FROM MetricIds
+        WHERE MeasurementConsumerId = $1 AND m.CreateMetricRequestId = MetricIds.CreateMetricRequestId
         """,
       ) {
         bind("$1", measurementConsumerId)

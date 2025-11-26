@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
+//     --)
+//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Update
+//  to comply AIPs.
+
 syntax = "proto3";
 
 package wfa.measurement.securecomputation.impressions;
@@ -27,6 +33,24 @@ message EncryptedDek {
   // The URI for the key encryption key used with KMS
   string kek_uri = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // The encrypted data encryption key
-  bytes encrypted_dek = 2 [(google.api.field_behavior) = REQUIRED];
+  // Protobuf type URL of the serialized key.
+  //
+  // This must be either "type.googleapis.com/google.crypto.tink.Keyset"
+  // or
+  // "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EncryptionKey".
+  string type_url = 2;
+
+  // Supported Protobuf format.
+  enum ProtobufFormat {
+    // PROTOBUF_FORMAT_UNSPECIFIED
+    PROTOBUF_FORMAT_UNSPECIFIED = 0;
+    // BINARY
+    BINARY = 1;
+    // JSON
+    JSON = 2;
+  }
+  ProtobufFormat protobuf_format = 3;
+
+  // DEK ciphertext encrypted with kek_uri.
+  bytes ciphertext = 4;
 }

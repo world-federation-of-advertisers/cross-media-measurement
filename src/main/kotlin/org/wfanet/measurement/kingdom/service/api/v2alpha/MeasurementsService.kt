@@ -94,6 +94,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -108,6 +109,8 @@ class MeasurementsService(
   private val reachOnlyLlV2Enabled: Boolean = false,
   private val hmssEnabled: Boolean = false,
   private val hmssEnabledMeasurementConsumers: List<String> = emptyList(),
+  private val trusTeeEnabled: Boolean = false,
+  private val trusTeeEnabledMeasurementConsumers: List<String> = emptyList(),
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : MeasurementsCoroutineImplBase(coroutineContext) {
 
@@ -509,6 +512,14 @@ class MeasurementsService(
               externalProtocolConfigId = RoLlv2ProtocolConfig.NAME
               reachOnlyLiquidLegionsV2 = RoLlv2ProtocolConfig.protocolConfig
             }
+          } else if (
+            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+              dataProviderCapabilities.all { it.trusTeeSupported }
+          ) {
+            protocolConfig {
+              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
+              trusTee = TrusTeeProtocolConfig.protocolConfig
+            }
           } else {
             protocolConfig {
               externalProtocolConfigId = Llv2ProtocolConfig.NAME
@@ -543,6 +554,14 @@ class MeasurementsService(
             protocolConfig {
               externalProtocolConfigId = HmssProtocolConfig.NAME
               honestMajorityShareShuffle = HmssProtocolConfig.protocolConfig
+            }
+          } else if (
+            (measurementConsumerName in trusTeeEnabledMeasurementConsumers || trusTeeEnabled) &&
+              dataProviderCapabilities.all { it.trusTeeSupported }
+          ) {
+            protocolConfig {
+              externalProtocolConfigId = TrusTeeProtocolConfig.NAME
+              trusTee = TrusTeeProtocolConfig.protocolConfig
             }
           } else {
             protocolConfig {
@@ -904,7 +923,8 @@ private fun validateSamplingInterval(
 ) {
   val interval = measurementSpec.vidSamplingInterval
   when (internalProtocolConfig.protocolCase) {
-    ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+    ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+    ProtocolConfig.ProtocolCase.TRUS_TEE -> {
       grpcRequire(interval.start in 0.0..1.0) {
         "VidSamplingInterval start should be within [0, 1]"
       }

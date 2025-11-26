@@ -28,7 +28,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.EnumerateValidModelLinesResponse
@@ -59,26 +58,18 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
-    val now = clock.instant()
     if (!request.hasActiveStartTime()) {
       throw RequiredFieldNotSetException("active_start_time")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val activeStartTime = request.activeStartTime.toInstant()
-    if (activeStartTime <= now) {
-      throw InvalidFieldValueException("active_start_time") { fieldName ->
-          "$fieldName must be in the future"
+    if (
+      request.hasActiveEndTime() &&
+        Timestamps.compare(request.activeStartTime, request.activeEndTime) > 0
+    ) {
+      throw InvalidFieldValueException("active_end_time") { fieldName ->
+          "$fieldName is before active_start_time"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.hasActiveEndTime()) {
-      val activeEndTime = request.activeEndTime.toInstant()
-      if (activeEndTime < activeStartTime) {
-        throw InvalidFieldValueException("active_end_time") { fieldName ->
-            "$fieldName must be at least active_start_time"
-          }
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     }
     if (request.externalHoldbackModelLineId != 0L && request.type != ModelLine.Type.PROD) {
       throw InvalidFieldValueException("external_holdback_model_line_id") { fieldName ->
@@ -165,6 +156,21 @@ class SpannerModelLinesService(
     ) {
       failGrpc(Status.INVALID_ARGUMENT) { "Missing After filter fields" }
     }
+    if (request.filter.hasActiveIntervalContains()) {
+      val activeIntervalContainsPath = "filter.active_interval_contains"
+      if (!request.filter.activeIntervalContains.hasStartTime()) {
+        throw RequiredFieldNotSetException("$activeIntervalContainsPath.start_time") { fieldName ->
+            "$fieldName is required when $activeIntervalContainsPath is specified"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!request.filter.activeIntervalContains.hasEndTime()) {
+        throw RequiredFieldNotSetException("$activeIntervalContainsPath.end_time") { fieldName ->
+            "$fieldName is required when $activeIntervalContainsPath is specified"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
     return StreamModelLines(request.filter, request.limit).execute(client.singleUse()).map {
       it.modelLine
     }
@@ -209,17 +215,44 @@ class SpannerModelLinesService(
   override suspend fun enumerateValidModelLines(
     request: EnumerateValidModelLinesRequest
   ): EnumerateValidModelLinesResponse {
+    if (request.timeInterval.startTime.seconds == 0L) {
+      throw RequiredFieldNotSetException("time_interval.start_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.timeInterval.endTime.seconds == 0L) {
+      throw RequiredFieldNotSetException("time_interval.end_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val externalModelProviderId: ExternalId? =
+      if (request.externalModelProviderId == 0L) {
+        null
+      } else {
+        ExternalId(request.externalModelProviderId)
+      }
+    val externalModelSuiteId: ExternalId? =
+      if (request.externalModelSuiteId == 0L) {
+        null
+      } else {
+        ExternalId(request.externalModelSuiteId)
+      }
+    if (externalModelProviderId == null && externalModelSuiteId != null) {
+      throw RequiredFieldNotSetException("external_model_provider_id") { fieldName ->
+          "$fieldName is required when external_model_suite_id is specified"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val types: List<ModelLine.Type> =
       if (request.typesList.isEmpty()) {
         listOf(ModelLine.Type.PROD)
       } else {
         request.typesList
       }
+
     val modelLineResults =
       ModelLineReader.readValidModelLines(
         client.singleUseReadOnlyTransaction(),
-        externalModelProviderId = ExternalId(request.externalModelProviderId),
-        externalModelSuiteId = ExternalId(request.externalModelSuiteId),
+        externalModelProviderId,
+        externalModelSuiteId,
         request.timeInterval,
         types,
         request.externalDataProviderIdsList.map { ExternalId(it) },

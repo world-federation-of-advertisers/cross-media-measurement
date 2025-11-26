@@ -1,0 +1,176 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+// Import the message definitions used by this service.
+import "wfa/measurement/internal/edpaggregator/requisition_metadata.proto";
+import "wfa/measurement/internal/edpaggregator/requisition_metadata_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataServiceProto";
+
+// Service for managing RequisitionMetadata.
+service RequisitionMetadataService {
+  // Creates a new RequisitionMetadata entry.
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `refusal_message`. Otherwise, it will be created in the STORED state.
+  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Creates multiple new RequisitionMetadata entries in a single request.
+  rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
+      returns (BatchCreateRequisitionMetadataResponse);
+
+  // Retrieves a specific RequisitionMetadata entry by its resource ID.
+  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Looks up a single RequisitionMetadata resource by an alternative key.
+  rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Lists RequisitionMetadata, ordered by update_time asc and
+  // requisition_metadata_resource_id asc.
+  rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
+      returns (ListRequisitionMetadataResponse);
+
+  // Fetches the latest cmms_create_time for a given DataProvider. This is used
+  // to determine the starting point for fetching new requisitions from the
+  // Kingdom.
+  rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
+      returns (google.protobuf.Timestamp);
+
+  // Transitions a RequisitionMetadata resource to the QUEUED state.
+  rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the PROCESSING state.
+  rpc StartProcessingRequisitionMetadata(
+      StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the FULFILLED state.
+  rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  rpc MarkWithdrawnRequisitionMetadata(MarkWithdrawnRequisitionMetadataRequest)
+      returns (RequisitionMetadata);
+}
+
+message CreateRequisitionMetadataRequest {
+  RequisitionMetadata requisition_metadata = 1;
+  // The request_id is used for idempotency.
+  string request_id = 2;
+}
+
+message BatchCreateRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `refusal_message` in the RequisitionMetadata object. Otherwise, it will be
+  // created in the STORED state.
+  repeated CreateRequisitionMetadataRequest requests = 2;
+}
+
+message BatchCreateRequisitionMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+message GetRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+}
+
+message LookupRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  oneof lookup_key {
+    // The resource name of the requisition in the CMMS (Kingdom).
+    string cmms_requisition = 2;
+  }
+}
+
+message ListRequisitionMetadataPageToken {
+  message After {
+    google.protobuf.Timestamp update_time = 1;
+    string requisition_metadata_resource_id = 2;
+  }
+  After after = 1;
+}
+
+message ListRequisitionMetadataRequest {
+  message Filter {
+    RequisitionMetadataState state = 1;
+    string group_id = 2;
+    string report = 3;
+  }
+  Filter filter = 1;
+
+  int32 page_size = 2;
+
+  ListRequisitionMetadataPageToken page_token = 3;
+
+  string data_provider_resource_id = 4;
+}
+
+message ListRequisitionMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+
+  ListRequisitionMetadataPageToken next_page_token = 2;
+}
+
+message FetchLatestCmmsCreateTimeRequest {
+  string data_provider_resource_id = 1;
+}
+
+message QueueRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
+  // The resource name of the WorkItem to associate with this requisition.
+  string work_item = 4;
+}
+
+message StartProcessingRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
+}
+
+message FulfillRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
+}
+
+message RefuseRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
+  // A human-readable message explaining the reason for refusal.
+  string refusal_message = 4;
+}
+
+message MarkWithdrawnRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string requisition_metadata_resource_id = 2;
+  string etag = 3;
+}

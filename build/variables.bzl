@@ -61,7 +61,7 @@ TEST_K8S_SETTINGS = struct(
     grafana_secret_name = "$(k8s_grafana_secret_name)",
     pdp_name = "$(pdp_name)",
     pdp_cert_name = "$(pdp_cert_name)",
-    population_resource_name = "$(population_resource_name)",
+    mp_name = "$(mp_name)",
 )
 
 GCLOUD_SETTINGS = struct(
@@ -113,6 +113,13 @@ DUCHY_K8S_SETTINGS = struct(
 REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
     basic_reports_enabled = "$(basic_reports_enabled)",
+)
+
+# Settings for Population DataProvider Kubernetes objects.
+PDP_K8S_SETTINGS = struct(
+    pdp_name = "$(pdp_name)",
+    pdp_cert_name = "$(pdp_cert_name)",
+    event_message_type_url = "$(event_message_type_url)",
 )
 
 # Settings for simulator Kubernetes deployments.
@@ -175,4 +182,10 @@ PANEL_EXCHANGE_CLIENT_TEST_GOOGLE_CLOUD_SETTINGS = struct(
     secret_name = "$(k8s_secret_name)",
     cloud_storage_project = "$(cloud_storage_project)",
     cloud_storage_bucket = "$(cloud_storage_bucket)",
+)
+
+TEST_EDPA_SETTINGS = struct(
+    auth_id_token = "$(auth_id_token)",
+    requisition_fetcher_endpoint = "$(requisition_fetcher_endpoint)",
+    storage_bucket = "$(storage_bucket)",
 )

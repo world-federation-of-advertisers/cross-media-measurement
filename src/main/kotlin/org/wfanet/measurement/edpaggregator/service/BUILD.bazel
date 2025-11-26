@@ -1,0 +1,40 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = [
+        "IdVariable.kt",
+        "ImpressionMetadataKey.kt",
+        "RequisitionMetadataKey.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "errors",
+    srcs = ["Errors.kt"],
+    deps = [
+        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)

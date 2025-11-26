@@ -1,0 +1,9 @@
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/edpa_correctness_test_config.proto
+# proto-message: EdpaCorrectnessTestConfig
+kingdom_public_api_target: "{kingdom_public_api_target}"
+kingdom_public_api_cert_host: "{kingdom_public_api_cert_host}"
+measurement_consumer: "{mc_name}"
+api_authentication_key: "{mc_api_key}"
+auth_id_token: "{auth_id_token}"
+requisition_fetcher_endpoint: "{requisition_fetcher_endpoint}"
+storage_bucket: "{storage_bucket}"

@@ -31,12 +31,15 @@ on:
         - qa
         - head
 
+permissions:
+  contents: read
+
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Write auth.bazelrc
       env:
@@ -53,12 +56,19 @@ jobs:
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+        REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+        ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+        REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP2_NAME: ${{ vars.EDP2_NAME }}
         EDP3_NAME: ${{ vars.EDP3_NAME }}
         EDP4_NAME: ${{ vars.EDP4_NAME }}
         EDP5_NAME: ${{ vars.EDP5_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
+        PDP_NAME: ${{ vars.PDP_NAME }}
+        MP_NAME: ${{ vars.MP_NAME }}
+        MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -67,6 +77,9 @@ jobs:
         build --define mc_api_key=$MC_API_KEY
         build --define google_cloud_project=$GCLOUD_PROJECT
         build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+        build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+        build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+        build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
         build --define "edp1_name=$EDP1_NAME"
         build --define "edp2_name=$EDP2_NAME"
@@ -74,6 +87,9 @@ jobs:
         build --define "edp4_name=$EDP4_NAME"
         build --define "edp5_name=$EDP5_NAME"
         build --define "edp6_name=$EDP6_NAME"
+        build --define "pdp_name=$PDP_NAME"
+        build --define "mp_name=$MP_NAME"
+        build --define "model_line_name=$MODEL_LINE_NAME"
         test --test_output=streamed
         test --test_timeout=3600
         EOF
@@ -90,5 +106,5 @@ jobs:
         
     - name: Upload Bazel testlogs
       continue-on-error: true
-      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
       if: failure() && steps.run-tests.outcome == 'failure'

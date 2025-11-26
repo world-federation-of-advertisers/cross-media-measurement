@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.abs
+import kotlin.test.assertEquals
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -26,6 +27,11 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorLog
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest.Companion.hasConsistentMeasurements
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -33,7 +39,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
   val totalMeasurements: Map<Set<String>, Long>,
-  val kreach: Map<Set<String>, Map<Int, Long>>,
+  val kreach: Map<Set<String>, Map<Int, Double>>,
   val impression: Map<Set<String>, Long>,
 )
 
@@ -64,6 +70,135 @@ class ReportProcessorTest {
   }
 
   @Test
+  fun `report post processing output has INTERNAL_ERROR issue when noise correction throws exception`() =
+    runBlocking {
+      // The sample report has cumulative impression count measurement. This causes the noise
+      // correction to throw an exception as only cumulative reach measurement is supported.
+      val reportFile =
+        TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_invalid_cumulative_measurement_type.json")
+          .toFile()
+      val reportAsJson = reportFile.readText()
+
+      val reportProcessingOutput: ReportProcessingOutput =
+        ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+
+      // Verify that the output contains the INTERNAL_ERROR issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.issuesList)
+        .contains(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR)
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      assertThat(
+          reportProcessingOutput.reportPostProcessorLog.results.values.first().status.statusCode
+        )
+        .isEqualTo(ReportPostProcessorStatus.StatusCode.INTERNAL_ERROR)
+      assertEquals(
+        reportProcessingOutput.reportPostProcessorLog.issuesList,
+        listOf(ReportPostProcessorLog.ReportPostProcessorIssue.INTERNAL_ERROR),
+      )
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results.values.first().errorMessage)
+        .contains("Cumulative measurements must be reach measurements.")
+
+      // Verifies that the log result do not have union status due to parsing issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+
+      // Verifies that the field postProcessingSuccessful is set to False due to the INTERNAL_ERROR
+      // issue.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isFalse()
+
+      val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
+
+      // Verify that the log is written to the storage.
+      assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+      assertThat(
+          ReportPostProcessorLog.parseFrom(
+            inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+          )
+        )
+        .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+    }
+
+  @Test
+  fun `run correct 2-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_2_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092623_b25b5bc8c9405da3d16c5e8cfdb070.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
+
+  @Test
+  fun `run correct 3-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_3_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092827_b8854d64906a0dc72dc945b3142.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
+
+  @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
     val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_with_custom_policy.json").toFile()
     val reportAsJson = reportFile.readText()
@@ -76,6 +211,18 @@ class ReportProcessorTest {
     val updatedReport =
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
 
     val expectedBlobKey = "20241213/20241213102410_c8f5ab1b95b44c0691f44111700054c3.textproto"
     assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
@@ -104,6 +251,25 @@ class ReportProcessorTest {
         ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
+      // Verifies that the log result has union status.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+      assertEquals(
+        reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
+        listOf(
+            ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+            ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+          )
+          .sorted(),
+      )
+
+      // Verifies that the field postProcessingSuccessful is set properly.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
       val expectedBlobKey = "20250620/20250620111829_e250ee4dd864ce99f1fe1df77944b48.textproto"
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
 
@@ -129,6 +295,25 @@ class ReportProcessorTest {
     val updatedReport =
       ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
     assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(6)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.OUTSIDE_CONFIDENCE_RANGE)
+    assertEquals(
+      reportProcessingOutput.reportPostProcessorLog.issuesList.sorted(),
+      listOf(
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_PRE_CORRECTION,
+          ReportPostProcessorLog.ReportPostProcessorIssue.INDEPENDENCE_CHECK_FAILS_POST_CORRECTION,
+        )
+        .sorted(),
+    )
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
 
     val expectedBlobKey = "20250206/20250206144635_bd39d48654554a83ba9c8534a5bb7502.textproto"
 
@@ -159,6 +344,18 @@ class ReportProcessorTest {
         ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
       assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
 
+      // Verifies that the log result does not have union status due to the missing population data.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+      val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+      assertThat(result.preCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertThat(result.postCorrectionQuality.unionStatus)
+        .isEqualTo(ReportQuality.IndependenceCheckStatus.INDEPENDENCE_CHECK_STATUS_UNSPECIFIED)
+      assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+      // Verifies that the field postProcessingSuccessful is set properly.
+      assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
       val expectedBlobKey = "20240913/20240913151951_a9c1a2b3fc74ebf8c5ab81d7763aa70.textproto"
 
       assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
@@ -170,6 +367,45 @@ class ReportProcessorTest {
         )
         .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
     }
+
+  @Test
+  fun `run correct report with logging with large corrections successfully`() = runBlocking {
+    // All measurements in the input report has the standard deviation of 1.0. As a result, all
+    // corrections will be large.
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+
+    // Verifies that the log result has issue with large corrections.
+    assertEquals(
+      reportProcessingOutput.reportPostProcessorLog.issuesList,
+      listOf(ReportPostProcessorLog.ReportPostProcessorIssue.HAS_LARGE_CORRECTIONS),
+    )
+
+    // Verifies that the field postProcessingSuccessful is set to False.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isFalse()
+
+    val expectedBlobKey = "20240723/20240723160310_c1acdfb43b3476998977072c89efcc9.textproto"
+
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
 
   @Test
   fun `run correct report without logging with custom policy successfully`() {
@@ -291,7 +527,7 @@ class ReportProcessorTest {
     private fun ReportSummary.toMetricReport(measurementPolicy: String): MetricReport {
       val cumulativeMeasurements: MutableMap<Set<String>, List<Long>> = mutableMapOf()
       val totalMeasurements: MutableMap<Set<String>, Long> = mutableMapOf()
-      val kreach: MutableMap<Set<String>, Map<Int, Long>> = mutableMapOf()
+      val kreach: MutableMap<Set<String>, Map<Int, Double>> = mutableMapOf()
       val impression: MutableMap<Set<String>, Long> = mutableMapOf()
 
       // Processes cumulative measurements.
@@ -339,7 +575,11 @@ class ReportProcessorTest {
           if (measurements.any { it < 0 }) {
             return false
           }
-          if (measurements.zipWithNext().any { (a, b) -> a > b }) {
+          if (
+            measurements.zipWithNext().any { (a, b) ->
+              !fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE)
+            }
+          ) {
             return false
           }
         }
@@ -389,8 +629,8 @@ class ReportProcessorTest {
 
       // Verifies that the relationship between kreach and impression holds.
       for (edpCombination in impression.keys.intersect(kreach.keys)) {
-        val kReachByEdpCombination: Map<Int, Long> = kreach.getValue(edpCombination)
-        val kreachWeightedSum: Long =
+        val kReachByEdpCombination: Map<Int, Double> = kreach.getValue(edpCombination)
+        val kreachWeightedSum: Double =
           kReachByEdpCombination.entries.sumOf { (key, value) -> key * value }
         val totalWeight: Int = kReachByEdpCombination.entries.sumOf { (key, _) -> key }
         if (
@@ -492,7 +732,7 @@ class ReportProcessorTest {
     }
 
     private fun fuzzyLessEqual(val1: Double, val2: Double, tolerance: Double): Boolean {
-      return val1 < val2 + tolerance
+      return val1 <= val2 + tolerance
     }
   }
 }

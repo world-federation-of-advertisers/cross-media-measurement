@@ -34,3 +34,6 @@ message HonestMajorityShareShuffleParams {
   bytes tink_public_key_signature = 2;
   string tink_public_key_signature_algorithm_oid = 3;
 }
+
+// Requisition parameters for TrusTEE protocol.
+message TrusTeeParams {}

@@ -516,7 +516,7 @@ private val ENCRYPTION_KEY_PAIR_STORE =
     )
   )
 
-const private val DEFAULT_VID_MODEL_LINE = "the-model-line"
+private const val DEFAULT_VID_MODEL_LINE = "the-model-line"
 private val MEASUREMENT_CONSUMER_MODEL_LINES: Map<String, String> =
   mapOf(MEASUREMENT_CONSUMERS.values.first().name to "mc-model-line")
 
@@ -547,7 +547,6 @@ private val DATA_PROVIDERS =
         publicKey = signEncryptionPublicKey(DATA_PROVIDER_PUBLIC_KEY, DATA_PROVIDER_SIGNING_KEY)
       }
   }
-private val DATA_PROVIDERS_LIST = DATA_PROVIDERS.values.toList()
 
 // Event group keys
 
@@ -9111,6 +9110,300 @@ class MetricsServiceTest {
                       }
                   }
               }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns rf metric with result of 0 when measurement results are 0`(): Unit =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach =
+                                InternalMeasurementKt.ResultKt.reach {
+                                  value = 0
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  deterministicCountDistinct =
+                                    InternalDeterministicCountDistinct.getDefaultInstance()
+                                }
+                              frequency =
+                                InternalMeasurementKt.ResultKt.frequency {
+                                  relativeFrequencyDistribution.putAll(
+                                    REACH_FREQUENCY_FREQUENCY_VALUE
+                                  )
+                                  noiseMechanism = NoiseMechanism.CONTINUOUS_LAPLACE
+                                  liquidLegionsDistribution = internalLiquidLegionsDistribution {
+                                    decayRate = LL_DISTRIBUTION_DECAY_RATE
+                                    maxSize = LL_DISTRIBUTION_SKETCH_SIZE
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest {
+        name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name
+      }
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+
+      assertThat(result)
+        .isEqualTo(
+          PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+            state = Metric.State.SUCCEEDED
+            this.result = metricResult {
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name
+              reachAndFrequency =
+                MetricResultKt.reachAndFrequencyResult {
+                  reach =
+                    MetricResultKt.reachResult {
+                      value = 0L
+                      univariateStatistics = univariateStatistics {
+                        standardDeviation = sqrt(VARIANCE_VALUE)
+                      }
+                    }
+                  frequencyHistogram =
+                    MetricResultKt.histogramResult {
+                      bins +=
+                        (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
+                          MetricResultKt.HistogramResultKt.bin {
+                            label = frequency.toString()
+                            binResult = MetricResultKt.HistogramResultKt.binResult { value = 0.0 }
+                          }
+                        }
+                    }
+                }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns impression metric with 0 result when measurement results are 0`(): Unit =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              impression = InternalMeasurementKt.ResultKt.impression { value = 0 }
+                            }
+                        }
+                    }
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              impression = InternalMeasurementKt.ResultKt.impression { value = 0 }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+
+      assertThat(result)
+        .isEqualTo(
+          PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            state = Metric.State.SUCCEEDED
+            this.result = metricResult {
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name
+              impressionCount = MetricResultKt.impressionCountResult { value = 0L }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns reach metric with 0 result when measurement results are 0`(): Unit =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach = InternalMeasurementKt.ResultKt.reach { value = 0 }
+                            }
+                        }
+                    }
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              reach = InternalMeasurementKt.ResultKt.reach { value = 0 }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name }
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+
+      assertThat(result)
+        .isEqualTo(
+          PENDING_INCREMENTAL_REACH_METRIC.copy {
+            state = Metric.State.SUCCEEDED
+            this.result = metricResult {
+              cmmsMeasurements += PENDING_UNION_ALL_REACH_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+              reach = MetricResultKt.reachResult { value = 0L }
+            }
+          }
+        )
+    }
+
+  @Test
+  fun `getMetric returns duration metric with 0 result when measurement results are 0`(): Unit =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              watchDuration =
+                                InternalMeasurementKt.ResultKt.watchDuration {
+                                  value = duration {
+                                    seconds = 0
+                                    nanos = 0
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  measurement =
+                    INTERNAL_PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.copy {
+                      state = InternalMeasurement.State.SUCCEEDED
+                      details =
+                        details.copy {
+                          results +=
+                            InternalMeasurementKt.result {
+                              watchDuration =
+                                InternalMeasurementKt.ResultKt.watchDuration {
+                                  value = duration {
+                                    seconds = 0
+                                    nanos = 0
+                                  }
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+          }
+        )
+
+      val request = getMetricRequest { name = SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
+
+      assertThat(result)
+        .isEqualTo(
+          PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
+            state = Metric.State.SUCCEEDED
+            this.result = metricResult {
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+              cmmsMeasurements += PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name
+              watchDuration = MetricResultKt.watchDurationResult { value = 0.0 }
+            }
           }
         )
     }

@@ -1,0 +1,36 @@
+load("@rules_jvm_external//:defs.bzl", "maven_export")
+load("@wfa_common_jvm//build:defs.bzl", "java_native_libraries", "test_target")
+load("@wfa_common_jvm//build/maven:defs.bzl", "artifact_version")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    test_target(":__subpackages__"),
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/fulfillers:__pkg__",
+])
+
+MAVEN_COORDINATES = "org.wfanet.measurement.eventdataprovider:requisition-native:" + artifact_version()
+
+java_native_libraries(
+    name = "native_deps",
+    java_target = "@any_sketch_java//src/main/java/org/wfanet/frequencycount",
+)
+
+kt_jvm_library(
+    name = "native",
+    srcs = ["Native.kt"],
+    resources = [":native_deps"],
+    tags = ["maven_coordinates=" + MAVEN_COORDINATES],
+    deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common"],
+)
+
+maven_export(
+    name = "native_maven",
+    lib_name = "native",
+    maven_coordinates = MAVEN_COORDINATES,
+    tags = [
+        "no-javadocs",
+        "no-remote-cache",
+    ],
+    visibility = ["//visibility:private"],
+)

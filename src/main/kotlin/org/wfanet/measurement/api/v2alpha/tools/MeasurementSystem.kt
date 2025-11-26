@@ -657,8 +657,9 @@ class CreateMeasurement : Runnable {
                     startTime = it.eventStartTime.toProtoTime()
                     endTime = it.eventEndTime.toProtoTime()
                   }
-                  if (it.eventFilter.isNotEmpty())
-                    filter = eventFilter { expression = it.eventFilter }
+                  filter = eventFilter {
+                    expression = eventDataProviderInput.eventFilters.single().eventFilter
+                  }
                 }
             }
           }
@@ -1197,7 +1198,7 @@ private class ModelLines {
       pageSize = listPageSize
       pageToken = listPageToken
       if (modelLineTypes != null) {
-        filter = filter { types += modelLineTypes }
+        filter = filter { typeIn += modelLineTypes }
       }
     }
     val response =

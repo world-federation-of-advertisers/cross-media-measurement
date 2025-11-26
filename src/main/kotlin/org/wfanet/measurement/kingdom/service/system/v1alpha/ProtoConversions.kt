@@ -37,6 +37,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.L
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.honestMajorityShareShuffle
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.trusTee
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
@@ -161,6 +162,8 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
                 }
             }
+            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE ->
+              error("TRUS_TEE is not supported")
             InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }
@@ -334,6 +337,13 @@ private fun buildMpcProtocolConfig(
           reachRingModulus = protocolConfig.honestMajorityShareShuffle.reachRingModulus
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toSystemNoiseMechanism()
+        }
+      }
+    }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE -> {
+      mpcProtocolConfig {
+        trusTee = trusTee {
+          noiseMechanism = protocolConfig.trusTee.noiseMechanism.toSystemNoiseMechanism()
         }
       }
     }

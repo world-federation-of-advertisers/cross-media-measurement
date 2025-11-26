@@ -1,0 +1,136 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/empty.proto";
+import "wfa/measurement/internal/reporting/v2/report_result.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Metric entities.
+service ReportResults {
+  // Creates a `ReportResult`.
+  rpc CreateReportResult(CreateReportResultRequest) returns (ReportResult);
+
+  // Creates a batch of `ReportingSetResult` entities.
+  rpc BatchCreateReportingSetResults(BatchCreateReportingSetResultsRequest)
+      returns (BatchCreateReportingSetResultsResponse);
+
+  // Lists `ReportingSetResult` entities.
+  rpc ListReportingSetResults(ListReportingSetResultsRequest)
+      returns (ListReportingSetResultsResponse);
+
+  // Adds denoised result values to a `ReportResult`.
+  //
+  // Any `BasicReport` associated with this `ReportResult` will be transitioned
+  // to the `SUCCEEDED` state.
+  rpc AddDenoisedResultValues(AddDenoisedResultValuesRequest)
+      returns (google.protobuf.Empty);
+
+  // Gets a `ReportResult`.
+  rpc GetReportResult(GetReportResultRequest) returns (ReportResult);
+}
+
+// Request message for the `CreateReportResult` method.
+message CreateReportResultRequest {
+  // Parent MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+
+  // The `ReportResult` to create. Required.
+  //
+  // The `external_report_result_id` will be ignored and the system will assign
+  // a value.
+  ReportResult report_result = 2;
+}
+
+message CreateReportingSetResultRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  // `ReportingSetResult` to create.
+  //
+  // The `external_reporting_set_result_id` will be ignored and the system will
+  // assign a value.
+  ReportingSetResult reporting_set_result = 3;
+}
+
+message BatchCreateReportingSetResultsRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  // Batch of requests.
+  repeated CreateReportingSetResultRequest requests = 3;
+  // External ID of the `BasicReport` to associate noisy results with.
+  string external_basic_report_id = 4;
+}
+
+message BatchCreateReportingSetResultsResponse {
+  repeated ReportingSetResult reporting_set_results = 1;
+}
+
+message ListReportingSetResultsRequest {
+  // MeasurementConsumer ID from the CMMS public API. Required.
+  string cmms_measurement_consumer_id = 1;
+  // External ID of the parent ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+  ReportingSetResultView view = 3;
+
+  int32 page_size = 4;
+  ListReportingSetResultsPageToken page_token = 5;
+}
+
+message ListReportingSetResultsResponse {
+  repeated ReportingSetResult reporting_set_results = 1;
+  ListReportingSetResultsPageToken next_page_token = 2;
+}
+
+// For future backwards-compatible support of pagination.
+message ListReportingSetResultsPageToken {}
+
+// Request message for the `AddDenoisedResultValues` method.
+message AddDenoisedResultValuesRequest {
+  // The CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+
+  // The external ID of the ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+
+  message DenoisedReportingSetResult {
+    message ReportingWindowEntry {
+      ReportingSetResult.ReportingWindow key = 1;
+      ReportingSetResult.ReportingWindowResult.ReportResultValues value = 2;
+    }
+    // Map of `ReportingWindow` to `ReportResultValues`.
+    repeated ReportingWindowEntry reporting_window_results = 1;
+  }
+
+  // Map of external ReportingSetResult ID to `DenoisedReportingSetResult`.
+  map<fixed64, DenoisedReportingSetResult> reporting_set_results = 4;
+
+  // TODO(@SanjayVas): Support including log entry for processor once the format
+  // is defined.
+}
+
+message GetReportResultRequest {
+  // The CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+  // The external ID of the ReportResult. Required.
+  fixed64 external_report_result_id = 2;
+}

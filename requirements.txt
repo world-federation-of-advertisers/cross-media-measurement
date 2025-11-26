@@ -21,7 +21,7 @@ pyasn1~=0.6.1
 cachetools~=6.0.0
 certifi~=2025.4.26
 charset-normalizer~=3.4.2
-requests~=2.32.3
+requests>=2.32.4
 google-api-core~=2.24.2
 google_auth~=2.40.2
 google-cloud-core~=2.4.3
@@ -32,8 +32,8 @@ idna~=3.10
 proto-plus~=1.26.1
 pyasn1-modules~=0.4.2
 rsa~=4.9.1
-urllib3~=2.4.0
+urllib3>=2.5.0
 # Must be compatible with the protobuf version declared with bazel_dep in MODULE.bazel
 # See https://github.com/protocolbuffers/protobuf/blob/v29.3/python/google/protobuf/__init__.py#L10
-protobuf~=5.29.3
-black
+protobuf>=5.29.5
+black>=24.3.0

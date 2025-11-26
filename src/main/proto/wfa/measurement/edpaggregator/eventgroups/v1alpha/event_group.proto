@@ -75,7 +75,8 @@ message EventGroup {
   // Metadata that describes the events entailed by the EventGroup.
   Metadata event_group_metadata = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // The start and end dates of the campaign. May contain future dates.
+  // Publisher's data availability window for this campaign.
+  // May differ from the campaign dates.
   google.type.Interval data_availability_interval = 3
       [(google.api.field_behavior) = REQUIRED];
 
@@ -88,4 +89,10 @@ message EventGroup {
 
   // The MediaTypes of the events entailed by this `EventGroup`
   repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
+}
+
+// The list of event groups for a data provider. Only used when input is json.
+message EventGroups {
+  // The list of all event groups for a data provider.
+  repeated EventGroup event_groups = 1 [(google.api.field_behavior) = REQUIRED];
 }

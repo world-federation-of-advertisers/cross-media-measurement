@@ -44,9 +44,15 @@ on:
         type: string
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   scan-images:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       matrix:
         # List of images from https://github.com/orgs/world-federation-of-advertisers/packages?repo_name=cross-media-measurement
@@ -72,7 +78,8 @@ jobs:
           - reporting/v2/v2alpha-public-api
           - reporting/v2/gcloud-postgres-update-schema
           - reporting/v2/gcloud-internal-server
-          - simulator/synthetic-generator-edp
+          - simulator/edp
+          - simulator/legacy-metadata-edp
           - duchy/postgres-update-schema
           - duchy/gcloud-postgres-update-schema
           - duchy/postgres-internal-server
@@ -94,7 +101,7 @@ jobs:
         run:
           echo "path=${IMAGE//\//_}.sarif" >> $GITHUB_OUTPUT
       - name: Run Trivy image scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # 0.28.0
         env:
           TRIVY_SKIP_DB_UPDATE: true
           TRIVY_SKIP_JAVA_DB_UPDATE: true
@@ -103,7 +110,7 @@ jobs:
           format: sarif
           output: ${{ steps.get-sarif-file-path.outputs.path }}
       - name: Upload scan results to GitHub
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@c3d42c5d08633d8b33635fbd94b000a0e2585b3c # v3.31.4
         with:
           sarif_file: ${{ steps.get-sarif-file-path.outputs.path }}
           category: trivy-${{ matrix.image }}

@@ -97,9 +97,14 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
     struct(
-        name = "synthetic_generator_edp_simulator_runner_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_edp_simulator_runner_image",
-        repository = _PREFIX + "/simulator/synthetic-generator-edp",
+        name = "edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/edp",
+    ),
+    struct(
+        name = "legacy_metadata_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:legacy_metadata_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/legacy-metadata-edp",
     ),
     struct(
         name = "access_public_api_server_image",
@@ -120,6 +125,21 @@ COMMON_IMAGES = [
         name = "population_requisition_fulfiller_image",
         image = "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller_daemon_image",
         repository = _PREFIX + "/data-provider/population-requisition-fulfiller",
+    ),
+    struct(
+        name = "edp_aggregator_system_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/common/server:system_api_server_image",
+        repository = _PREFIX + "/edp-aggregator/system-api",
+    ),
+    struct(
+        name = "edp_aggregator_internal_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:internal_api_server_image",
+        repository = _PREFIX + "/edp-aggregator/internal-api",
+    ),
+    struct(
+        name = "edp_aggregator_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/edp-aggregator/update-schema",
     ),
 ]
 
@@ -267,6 +287,11 @@ REPORTING_V2_COMMON_IMAGES = [
         name = "report_scheduling_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:report_scheduling_job_executor_image",
         repository = _PREFIX + "/reporting/v2/report-scheduling",
+    ),
+    struct(
+        name = "basic_reports_reports_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_job_executor_image",
+        repository = _PREFIX + "/reporting/v2/basic-reports-reports",
     ),
     struct(
         name = "reporting_spanner_update_schema_image",

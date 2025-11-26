@@ -84,6 +84,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/herald",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup",
@@ -115,6 +116,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "in_process_edp_aggregator_system_api",
+    srcs = [
+        "InProcessEdpAggregatorSystemApi.kt",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":configs",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:services",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "configs",
     srcs = ["Configs.kt"],
     data = [
@@ -122,6 +143,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:all_der_files",
         "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:mp_trusted_certs",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:permissions_config.textproto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:queues_config.textproto",
     ],
@@ -314,6 +336,7 @@ kt_jvm_library(
     ],
     deps = [
         ":configs",
+        ":in_process_edp_aggregator_system_api",
         ":in_process_kingdom",
         ":in_process_secure_computation_public_api",
         ":synthetic_generation_specs",
@@ -410,6 +433,7 @@ kt_jvm_library(
         "InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest.kt",
     ],
     data = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:specs",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [
@@ -423,7 +447,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:edp_aggregator_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:simulator",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
-        "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
@@ -528,6 +551,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:kingdom_tls.pem",
         "//src/main/k8s/testing/secretfiles:mp1_tls.key",
         "//src/main/k8s/testing/secretfiles:mp1_tls.pem",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
@@ -545,6 +569,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:model_suites_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_suites_service_kt_jvm_grpc_proto",

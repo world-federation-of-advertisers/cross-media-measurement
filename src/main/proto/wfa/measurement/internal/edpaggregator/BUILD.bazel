@@ -1,0 +1,107 @@
+load("@rules_proto//proto:defs.bzl", "proto_descriptor_set", "proto_library")
+load(
+    "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
+    "kt_jvm_grpc_proto_library",
+    "kt_jvm_proto_library",
+)
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "impression_metadata_proto",
+    srcs = ["impression_metadata.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "impression_metadata_kt_jvm_proto",
+    deps = [":impression_metadata_proto"],
+)
+
+proto_library(
+    name = "impression_metadata_state_proto",
+    srcs = ["impression_metadata_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "impression_metadata_state_kt_jvm_proto",
+    deps = [":impression_metadata_state_proto"],
+)
+
+proto_library(
+    name = "impression_metadata_service_proto",
+    srcs = ["impression_metadata_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":impression_metadata_proto",
+        ":impression_metadata_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "impression_metadata_service_kt_jvm_grpc_proto",
+    deps = [":impression_metadata_service_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_state_proto",
+    srcs = ["requisition_metadata_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "requisition_metadata_state_kt_jvm_proto",
+    deps = [":requisition_metadata_state_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_proto",
+    srcs = ["requisition_metadata.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":requisition_metadata_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_metadata_kt_jvm_proto",
+    deps = [":requisition_metadata_proto"],
+)
+
+proto_library(
+    name = "requisition_metadata_service_proto",
+    srcs = ["requisition_metadata_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":requisition_metadata_proto",
+        ":requisition_metadata_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "requisition_metadata_service_kt_jvm_grpc_proto",
+    deps = [":requisition_metadata_service_proto"],
+)
+
+proto_descriptor_set(
+    name = "descriptor_set",
+    deps = [
+        ":impression_metadata_state_proto",
+        ":requisition_metadata_state_proto",
+    ],
+)

@@ -16,8 +16,12 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.JsonFormat
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetail.MeasurementResult
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.MeasurementDetailKt.reachResult
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetail
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt
+import org.wfanet.measurement.internal.reporting.postprocessing.MeasurementDetailKt.measurementResult
+import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.measurementDetail
+import org.wfanet.measurement.internal.reporting.postprocessing.reportSummary
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -67,9 +71,34 @@ object ReportConversion {
   }
 
   /**
+   * A map to maintain backward compatibility with the old population coding.
+   *
+   * All these coding are temporary and will be replaced by market-agnostic processing in MC API
+   * Phase II.
+   *
+   * TODO(@ple13): Remove this map when the old population coding has been deprecated.
+   */
+  val populationCodingMap: Map<String, String> =
+    mapOf(
+      "MALE_YEARS_16_TO_34" to "MALE_AGE_GROUP1",
+      "MALE_YEARS_35_TO_54" to "MALE_AGE_GROUP2",
+      "MALE_YEARS_55_PLUS" to "MALE_AGE_GROUP3",
+      "FEMALE_YEARS_16_TO_34" to "FEMALE_AGE_GROUP1",
+      "FEMALE_YEARS_35_TO_54" to "FEMALE_AGE_GROUP2",
+      "FEMALE_YEARS_55_PLUS" to "FEMALE_AGE_GROUP3",
+      "MALE_AGE_GROUP1" to "MALE_AGE_GROUP1",
+      "MALE_AGE_GROUP2" to "MALE_AGE_GROUP2",
+      "MALE_AGE_GROUP3" to "MALE_AGE_GROUP3",
+      "FEMALE_AGE_GROUP1" to "FEMALE_AGE_GROUP1",
+      "FEMALE_AGE_GROUP2" to "FEMALE_AGE_GROUP2",
+      "FEMALE_AGE_GROUP3" to "FEMALE_AGE_GROUP3",
+      "-" to "-",
+    )
+
+  /**
    * A map where the key is a canonical list of predicate strings defining a demographic group and
    * the value is the corresponding canonical string constant representing that group (e.g.,
-   * "MALE_YEARS_16_TO_34").
+   * "MALE_AGE_GROUP1").
    *
    * This map facilitates looking up the string constant based on the set of predicates that define
    * it.
@@ -79,12 +108,12 @@ object ReportConversion {
    */
   val groupingPredicatesToStringMap: Map<List<String>, String> =
     mapOf(
-      listOf("common.sex==1", "common.age_group==1") to "MALE_YEARS_16_TO_34",
-      listOf("common.sex==1", "common.age_group==2") to "MALE_YEARS_35_TO_54",
-      listOf("common.sex==1", "common.age_group==3") to "MALE_YEARS_55_PLUS",
-      listOf("common.sex==2", "common.age_group==1") to "FEMALE_YEARS_16_TO_34",
-      listOf("common.sex==2", "common.age_group==2") to "FEMALE_YEARS_35_TO_54",
-      listOf("common.sex==2", "common.age_group==3") to "FEMALE_YEARS_55_PLUS",
+      listOf("common.sex==1", "common.age_group==1") to "MALE_AGE_GROUP1",
+      listOf("common.sex==1", "common.age_group==2") to "MALE_AGE_GROUP2",
+      listOf("common.sex==1", "common.age_group==3") to "MALE_AGE_GROUP3",
+      listOf("common.sex==2", "common.age_group==1") to "FEMALE_AGE_GROUP1",
+      listOf("common.sex==2", "common.age_group==2") to "FEMALE_AGE_GROUP2",
+      listOf("common.sex==2", "common.age_group==3") to "FEMALE_AGE_GROUP3",
     )
 
   // TODO(@ple13): Move this function to a separate Origin-specific package.
@@ -140,7 +169,7 @@ object ReportConversion {
 
     for (pair in keyValuePairs) {
       val (key, value) = pair.split("=", limit = 2)
-      populationMap[key] =
+      populationMap[populationCodingMap.getValue(key)] =
         value.toLongOrNull()
           ?: throw IllegalArgumentException("Value for key '$key' is not a valid Long: '$value'")
     }
@@ -196,9 +225,13 @@ fun Report.toReportSummaries(): List<ReportSummary> {
   // field is either '-' (i.e. no filtering) or a list of demographic groups separated by
   // semicolons.
   val demographicFilterGroups: List<String> =
-    metricCalculationSpecById.values.firstOrNull()?.commonFilter?.trim(';')?.split(';')?.filter {
-      it.isNotEmpty()
-    } ?: emptyList()
+    metricCalculationSpecById.values
+      .firstOrNull()
+      ?.commonFilter
+      ?.trim(';')
+      ?.split(';')
+      ?.filter { it.isNotEmpty() }
+      ?.map { group -> ReportConversion.populationCodingMap.getValue(group) } ?: emptyList()
 
   // Generates a set of demographic groups. If the report doesn't support demographic slicing,
   // the set contains an empty list, otherwise, it contains all the demographic groups.
@@ -276,7 +309,7 @@ fun Report.toReportSummaries(): List<ReportSummary> {
               .toSet()
               .toList()
               .sorted()
-          var measurementList: List<MeasurementResult> =
+          var measurementList: List<MeasurementDetail.MeasurementResult> =
             value
               .flatMap { it.resultAttributesList }
               .sortedBy { it.timeInterval.endTime.seconds }
@@ -329,9 +362,9 @@ fun Report.toReportSummaries(): List<ReportSummary> {
                                           resultAttribute.metricResult.reachAndFrequency.reach
                                             .value > 0
                                         ) {
-                                          bin.binResult.value.toLong()
+                                          bin.binResult.value
                                         } else {
-                                          0
+                                          0.0
                                         }
                                       // TODO(@ple13): Read the standard deviations directly from
                                       // the frequency buckets when the report populates the

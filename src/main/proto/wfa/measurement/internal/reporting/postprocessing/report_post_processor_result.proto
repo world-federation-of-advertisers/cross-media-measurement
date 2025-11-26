@@ -1,0 +1,184 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.postprocessing;
+
+import "wfa/measurement/internal/reporting/postprocessing/report_summary.proto";
+import "wfa/measurement/internal/reporting/postprocessing/report_summary_v2.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
+option java_multiple_files = true;
+option java_outer_classname = "ReportPostProcessorResultProto";
+
+// Contains details about the outcome of the Quadratic Programming (QP)
+// solver used for report post processing.
+message ReportPostProcessorStatus {
+  // Enum defining the possible outcomes of the QP solver process.
+  enum StatusCode {
+    // Default value, indicating status was not explicitly set or is unknown.
+    STATUS_CODE_UNSPECIFIED = 0;
+
+    // No feasible or optimal solution satisfying constraints was found.
+    SOLUTION_NOT_FOUND = 1;
+
+    // HIGHS solver found a solution meeting the required tolerance (e.g.,
+    // primal residual is smaller than the TOLERANCE).
+    SOLUTION_FOUND_WITH_HIGHS = 2;
+
+    // OSQP solver found a solution meeting the required tolerance (after HIGHS
+    // solver failed).
+    SOLUTION_FOUND_WITH_OSQP = 3;
+
+    // HIGHS solver converged to a solution, but it did not meet the required
+    // tolerance (e.g., primal residual >= TOLERANCE).
+    PARTIAL_SOLUTION_FOUND_WITH_HIGHS = 4;
+
+    // OSQP solver converged to a solution, but it did not meet the required
+    // tolerance.
+    PARTIAL_SOLUTION_FOUND_WITH_OSQP = 5;
+
+    // The process crashed or terminated unexpectedly due to an internal error.
+    INTERNAL_ERROR = 6;
+  }
+
+  // The final status code indicating the overall outcome of the solver stage
+  // (success, partial success, or failure), including which solver produced
+  // the result.
+  StatusCode status_code = 1;
+
+  // The primal equality residual associated with equality constraints Ax = b
+  // for the selected solution. This represents the maximum absolute violation
+  // across all equality constraints: max(||Ax - b||_inf).
+  // If no solution is found, the primal equality residual is set to inf.
+  double primal_equality_residual = 2;
+
+  // The primal inequality residual associated with inequality constraints
+  // Gx <= h for the selected solution. This represents the maximum violation
+  // across all inequality constraints: max(||max(Gx - h, 0)||_inf).
+  // If no solution is found, the primal inequality residual is set to inf.
+  double primal_inequality_residual = 3;
+}
+
+// Stores the results of various data quality checks performed on an Origin
+// report.
+message ReportQuality {
+  // Enum representing the outcome of consistency checks performed on noise-free
+  // measurements (e.g. Linear TV measurements).
+  enum ZeroVarianceMeasurementsStatus {
+    // Default value, status was not determined or is unknown.
+    ZERO_VARIANCE_MEASUREMENTS_STATUS_UNSPECIFIED = 0;
+
+    // All measurements with zero variance are consistent: the cumulative
+    // reaches are non-decreasing, the total reach is equal to the last
+    // cumulative reach, the total reach is equal to the sum of the k-reaches,
+    // the impression is greater than or equal to weighted sum of the k-reaches.
+    CONSISTENT = 1;
+
+    // One of the constraints are violated.
+    INCONSISTENT = 2;
+  }
+
+  // The outcome of the independence check, which tests if the reported reach
+  // of a union of EDPs is statistically consistent with the reported reaches of
+  // the individual EDPs, considering their variance. The calculation of the
+  // expected range of the union reach assumes conditional independence between
+  // the sets of VIDs reached by the different EDPs.
+  enum IndependenceCheckStatus {
+    // Default value, status was not determined or is unknown.
+    INDEPENDENCE_CHECK_STATUS_UNSPECIFIED = 0;
+
+    // The observed noisy union reach value falls within the calculated
+    // statistical confidence interval derived from individual reaches and their
+    // variances. Let sigma be an upper bound of the variance of (expected union
+    // - noisy variance), the noisy union reach is tested if it is in
+    // [expected union - 7*sigma, expected union +7*sigma].
+    WITHIN_CONFIDENCE_RANGE = 1;
+
+    // The observed noisy union reach value falls outside the calculated
+    // statistical confidence interval, suggesting a potential inconsistency
+    // beyond expected noise levels.
+    OUTSIDE_CONFIDENCE_RANGE = 2;
+  }
+
+  // The outcome of the consistency checks on noise-free measurements.
+  ZeroVarianceMeasurementsStatus zero_variance_measurements_status = 1;
+
+  // The outcome of the independence check.
+  IndependenceCheckStatus union_status = 2;
+}
+
+// The result message encapsulating the entire outcome of the post-processing
+// pipeline for a single report.
+message ReportPostProcessorResult {
+  oneof report_summary {
+    // Stores the pre-corrected report summary.
+    ReportSummary pre_correction_report_summary = 5;
+    // Stores the pre-corrected report summary V2.
+    ReportSummaryV2 pre_correction_report_summary_v2 = 9;
+  }
+
+  // Stores the corrected value for each measurement, identified by its unique
+  // name. The names in this map must correspond to names found within the
+  // pre_correction_report_summary. The corrected report can be computed from
+  // the pre_correction_report_summary and the updated_measurements map. Note
+  // that this map is populated if and only if the solver found a solution
+  // (i.e. when the status.status_code is not SOLUTION_NOT_FOUND).
+  map<string, double> updated_measurements = 1;
+
+  // Contains the measurements that are not corrected by the report post
+  // post processor. These measurements may be inconsistent. This field is only
+  // set when the solution or partial solution exists.
+  repeated string uncorrected_measurements = 6;
+
+  // Contains the detailed status and metrics from the QP solver step. The
+  // status indicates if the report post processor found a solution, a partial
+  // solution, or fail to find any. It also provides metrics such as the primal
+  // equality and inequality residuals.
+  ReportPostProcessorStatus status = 2;
+
+  // Contains the results of data quality checks (e.g., zero variance
+  // measurements consistency, Union Test) performed on the original noisy
+  // report data before noise correction was applied.
+  ReportQuality pre_correction_quality = 3;
+
+  // Contains the results of data quality checks performed after applying
+  // the corrected measurements from the 'updated_measurements' map (if a
+  // solution was found).
+  ReportQuality post_correction_quality = 4;
+
+  // If an unhandled exception occurred during processing, this field contains
+  // the error message.
+  string error_message = 7;
+
+  // Contains details about a metric where the correction applied was
+  // statistically out of bound (e.g. |corrected_value - value| > 7*sigma).
+  message LargeCorrection {
+    // The unique name of the metric title that was corrected.
+    string metric_title = 1;
+
+    // The original value of the metric before correction.
+    int64 original_value = 2;
+
+    // The new value of the metric after correction.
+    int64 corrected_value = 3;
+
+    // The standard deviation of the metric.
+    double sigma = 4;
+  }
+
+  // Contains details about all metrics with large correction.
+  repeated LargeCorrection large_corrections = 8;
+}

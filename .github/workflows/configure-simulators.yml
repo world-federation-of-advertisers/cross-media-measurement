@@ -48,7 +48,7 @@ on:
         default: false
 
 permissions:
-  id-token: write
+  contents: read
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
@@ -56,14 +56,17 @@ env:
 jobs:
   update-simulators:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -126,7 +129,7 @@ jobs:
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v2
+      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
       with:
         cluster_name: simulators
         location: ${{ vars.GCLOUD_ZONE }}
@@ -138,14 +141,14 @@ jobs:
     - name: Generate archives
       run: >
         bazelisk build 
-        //src/main/k8s/dev:synthetic_generator_edp_simulators.tar
+        //src/main/k8s/dev:edp_simulators.tar
         //src/main/k8s/testing/secretfiles:kustomization.tar
 
     - name: Make Kustomization dir
       run: mkdir -p "$KUSTOMIZATION_PATH"
     - name: Extract Kustomization archive
       run: >
-        tar -xf "$BAZEL_BIN/src/main/k8s/dev/synthetic_generator_edp_simulators.tar"
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/edp_simulators.tar"
         -C "$KUSTOMIZATION_PATH"
 
     - name: Extract secret files archive
@@ -154,7 +157,7 @@ jobs:
         -C "$KUSTOMIZATION_PATH"
 
     - name: Export KUSTOMIZE_PATH
-      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/synthetic_generator_edp_simulators" >> $GITHUB_ENV
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_simulators" >> $GITHUB_ENV
 
     # Run kubectl diff, treating the command as succeeded even if the exit
     # code is 1 as kubectl uses this code to indicate there's a diff.

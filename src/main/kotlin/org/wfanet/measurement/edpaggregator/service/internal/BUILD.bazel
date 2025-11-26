@@ -1,0 +1,31 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "errors",
+    srcs = ["Errors.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/proto/google/rpc:error_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["Services.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
+    ],
+)

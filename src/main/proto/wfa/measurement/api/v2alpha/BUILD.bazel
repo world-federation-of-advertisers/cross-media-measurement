@@ -175,6 +175,7 @@ GO_DEPS = [
     "@org_golang_google_genproto//googleapis/type/date",
     "@org_golang_google_genproto//googleapis/type/interval",
     "@org_golang_google_genproto_googleapis_api//annotations",
+    "//src/main/proto/wfa/measurement/type:typepb_go_proto",
 ]
 
 go_proto_library(

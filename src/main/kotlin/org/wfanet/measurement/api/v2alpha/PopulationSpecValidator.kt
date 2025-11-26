@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.api.v2alpha
 
+import com.google.protobuf.Descriptors
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import org.wfanet.measurement.api.v2alpha.PopulationSpec.VidRange
 
 /** An exception that encapsulates a list of validation errors. */
@@ -78,9 +82,78 @@ class PopulationSpecValidationException(message: String, val details: List<Detai
         "equal to the startVid."
     }
   }
+
+  data class PopulationFieldNotSetDetail(
+    val field: Descriptors.FieldDescriptor,
+    val subPopulationIndex: Int,
+  ) : Detail {
+    override fun toString(): String {
+      return "Population field ${field.containingType.name}.${field.name} not set in subpopulations[$subPopulationIndex]"
+    }
+  }
 }
 
 object PopulationSpecValidator {
+  /**
+   * Validates the [populationSpec] against the specified [eventMessageDescriptor].
+   *
+   * @throws PopulationSpecValidationException if [populationSpec] is invalid
+   */
+  fun validate(populationSpec: PopulationSpec, eventMessageDescriptor: Descriptors.Descriptor) {
+    validateVidRangesList(populationSpec).getOrThrow()
+
+    val unsetPopulationFields: List<PopulationSpecValidationException.PopulationFieldNotSetDetail> =
+      getUnsetPopulationFields(populationSpec, eventMessageDescriptor)
+    if (unsetPopulationFields.isNotEmpty()) {
+      throw PopulationSpecValidationException(
+        "Not all populations fields are set",
+        unsetPopulationFields,
+      )
+    }
+  }
+
+  private fun getUnsetPopulationFields(
+    populationSpec: PopulationSpec,
+    eventMessageDescriptor: Descriptors.Descriptor,
+  ): List<PopulationSpecValidationException.PopulationFieldNotSetDetail> {
+    val typeRegistry = TypeRegistry.newBuilder().add(eventMessageDescriptor).build()
+    val populationFieldsByTemplateType:
+      Map<Descriptors.Descriptor, List<Descriptors.FieldDescriptor>> =
+      EventTemplates.getPopulationFieldsByTemplateType(eventMessageDescriptor)
+    return buildList {
+      populationSpec.subpopulationsList.forEachIndexed { subPopulationIndex, subPopulation ->
+        for ((templateType, populationFields) in populationFieldsByTemplateType) {
+          val attribute =
+            subPopulation.attributesList.find {
+              typeRegistry.getDescriptorForTypeUrl(it.typeUrl) == templateType
+            }
+          if (attribute == null) {
+            for (populationField in populationFields) {
+              add(
+                PopulationSpecValidationException.PopulationFieldNotSetDetail(
+                  populationField,
+                  subPopulationIndex,
+                )
+              )
+            }
+          } else {
+            val templateMessage = DynamicMessage.parseFrom(templateType, attribute.value)
+            for (populationField in populationFields) {
+              if (!templateMessage.hasValue(populationField)) {
+                add(
+                  PopulationSpecValidationException.PopulationFieldNotSetDetail(
+                    populationField,
+                    subPopulationIndex,
+                  )
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Validates the [VidRange]s of the PopulationSpec.
    *
@@ -163,4 +236,18 @@ object PopulationSpecValidator {
  */
 fun VidRange.size(): Long {
   return this.endVidInclusive - this.startVid + 1
+}
+
+/**
+ * Returns whether [field] is set in this message, i.e. whether it would satisfy
+ * [com.google.api.FieldBehavior.REQUIRED].
+ */
+private fun Message.hasValue(field: Descriptors.FieldDescriptor): Boolean {
+  return if (field.hasPresence()) {
+    hasField(field)
+  } else if (field.isRepeated) {
+    (getField(field) as List<*>).isNotEmpty()
+  } else {
+    getField(field) != field.defaultValue
+  }
 }

@@ -1,0 +1,326 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/requisition_metadata.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataServiceProto";
+
+// Service for managing RequisitionMetadata.
+service RequisitionMetadataService {
+  // Creates a new RequisitionMetadata entry.
+  rpc CreateRequisitionMetadata(CreateRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Creates multiple new RequisitionMetadata entries in a single request.
+  rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
+      returns (BatchCreateRequisitionMetadataResponse) {}
+
+  // Retrieves a specific RequisitionMetadata entry by its resource name.
+  rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Looks up a single RequisitionMetadata resource by an alternative key.
+  //
+  // Exactly one of the lookup keys must be provided.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: Returning the resource directly is more
+  //     ergonomic.
+  //     --)
+  rpc LookupRequisitionMetadata(LookupRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Lists RequisitionMetadata entries, with optional filtering and ordering.
+  rpc ListRequisitionMetadata(ListRequisitionMetadataRequest)
+      returns (ListRequisitionMetadataResponse) {}
+
+  // Fetches the latest cmms_create_time from all metadata entries for a
+  // data_provider.
+  //
+  // Used to determine the starting point for fetching new
+  // requisitions from the Kingdom.
+  //
+  // If there is no requisitions for the given parent, a timestamp of epoch
+  // will be returned.
+  rpc FetchLatestCmmsCreateTime(FetchLatestCmmsCreateTimeRequest)
+      returns (google.protobuf.Timestamp) {}
+
+  // Transitions a RequisitionMetadata resource to the QUEUED state.
+  // This indicates it is ready to be processed.
+  rpc QueueRequisitionMetadata(QueueRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Transitions a RequisitionMetadata resource to the PROCESSING state.
+  // This indicates it is actively being worked on.
+  rpc StartProcessingRequisitionMetadata(
+      StartProcessingRequisitionMetadataRequest) returns (RequisitionMetadata) {
+  }
+
+  // Transitions a RequisitionMetadata resource to the FULFILLED state.
+  // This indicates it has been successfully processed.
+  rpc FulfillRequisitionMetadata(FulfillRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Transitions a RequisitionMetadata resource to the REFUSED state.
+  // This indicates that it could not be processed.
+  rpc RefuseRequisitionMetadata(RefuseRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+
+  // Transitions a RequisitionMetadata resource to the WITHDRAWN state.
+  // This indicates that it could not be processed.
+  rpc MarkWithdrawnRequisitionMetadata(MarkWithdrawnRequisitionMetadataRequest)
+      returns (RequisitionMetadata) {}
+}
+
+// Request message for the `CreateRequisitionMetadata` method.
+message CreateRequisitionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The RequisitionMetadata to create.
+  //
+  // To create a resource in the REFUSED state, provide a non-empty
+  // `refusal_message`. Otherwise, it will be created in the STORED state.
+  //
+  // The `name` and all other output-only fields (like `state`, `etag`, etc.)
+  // are ignored.
+  RequisitionMetadata requisition_metadata = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency.
+  // This field must be a UUID4 (RFC 4122) string.
+  // If a request with the same ID is received again, the server will return
+  // the original resource without creating a new one.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
+message BatchCreateRequisitionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The list of RequisitionMetadata to create.
+  repeated CreateRequisitionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for the `BatchCreateRequisitionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
+message BatchCreateRequisitionMetadataResponse {
+  // The list of newly created RequisitionMetadata, in the same order as the
+  // request.
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+// Request message for the `GetRequisitionMetadata` method.
+message GetRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to retrieve.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+}
+
+// Request message for the `LookupRequisitionMetadata` method.
+message LookupRequisitionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // Lookup key for the request. Required.
+  oneof lookup_key {
+    // The resource name of the requisition in the CMMS.
+    // Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+    string cmms_requisition = 2 [
+      (google.api.resource_reference) = { type: "halo.wfanet.org/Requisition" }
+    ];
+  }
+}
+
+// Request message for the `ListRequisitionMetadata` method.
+message ListRequisitionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // A page token, received from a previous `ListRequisitionMetadata` call.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Filtering criteria for the list request.
+  message Filter {
+    // Filter by the state of the requisition.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: The state field is used for filtering input.
+    //     --)
+    RequisitionMetadata.State state = 1
+        [(google.api.field_behavior) = OPTIONAL];
+    // Filter by the group ID of the requisition.
+    string group_id = 2 [(google.api.field_behavior) = OPTIONAL];
+    // Filter by the report resource name of the requisition.
+    string report = 3 [(google.api.field_behavior) = OPTIONAL];
+  }
+  // The filter to apply to the list. All filter fields are optional.
+  // (-- api-linter: core::0132::request-field-types=disabled
+  //     aip.dev/not-precedent: Customized message is used for the filter  --)
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for the `ListRequisitionMetadata` method.
+message ListRequisitionMetadataResponse {
+  // A list of `RequisitionMetadata` entries matching the request.
+  repeated RequisitionMetadata requisition_metadata = 1;
+
+  // A token to retrieve the next page of results.
+  string next_page_token = 2;
+}
+
+// Request message for the `FetchLatestCmmsCreateTime` method.
+message FetchLatestCmmsCreateTimeRequest {
+  // The parent data provider resource name for which to get the latest
+  // cmms_create_time.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+}
+
+// Request message for the `QueueRequisitionMetadata` method.
+message QueueRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to queue.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the WorkItem to associate with this requisition.
+  // Format `workItems/{work_item}`
+  string work_item = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    }
+  ];
+}
+
+// Request message for the `StartProcessingRequisitionMetadata` method.
+message StartProcessingRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to start processing.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `FulfillRequisitionMetadata` method.
+message FulfillRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to fulfill.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `RefuseRequisitionMetadata` method.
+message RefuseRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to refuse.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A human-readable message explaining the reason for refusal.
+  // This will be stored in the `refusal_message` field of the resource.
+  string refusal_message = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for the `MarkWithdrawnRequisitionMetadata` method.
+message MarkWithdrawnRequisitionMetadataRequest {
+  // The resource name of the RequisitionMetadata to refuse.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The etag of the RequisitionMetadata for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}

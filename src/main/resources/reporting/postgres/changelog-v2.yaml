@@ -67,3 +67,6 @@ databaseChangeLog:
 - include:
     file: add-campaign-group-id-index-to-reporting-sets.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-campaign-group-id-to-metric-calculation-specs.sql
+    relativeToChangeLogFile: true

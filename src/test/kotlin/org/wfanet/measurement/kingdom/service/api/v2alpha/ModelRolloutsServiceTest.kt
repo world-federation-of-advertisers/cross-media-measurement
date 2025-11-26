@@ -66,6 +66,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRollout
@@ -82,8 +83,8 @@ import org.wfanet.measurement.internal.kingdom.scheduleModelRolloutFreezeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest as internalStreamModelRolloutsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutOlderThanPreviousException
 
 private const val DEFAULT_LIMIT = 50
 
@@ -670,6 +671,38 @@ class ModelRolloutsServiceTest {
   }
 
   @Test
+  fun `listModelRollouts succeeds when filtering by ModelRelease across ModelLines`() {
+    val request = listModelRolloutsRequest {
+      parent = "$MODEL_SUITE_NAME/modelLines/-"
+      filter = filter { modelReleaseIn += MODEL_RELEASE_NAME }
+    }
+
+    runBlocking {
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) { service.listModelRollouts(request) }
+    }
+
+    val internalRequest: StreamModelRolloutsRequest =
+      verifyAndCapture(
+        internalModelRolloutsMock,
+        ModelRolloutsCoroutineImplBase::streamModelRollouts,
+      )
+    assertThat(internalRequest)
+      .isEqualTo(
+        internalStreamModelRolloutsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              // ModelLine not specified in order to list across them.
+
+              externalModelReleaseIdIn += EXTERNAL_MODEL_RELEASE_ID
+            }
+        }
+      )
+  }
+
+  @Test
   fun `listModelRollouts throws UNAUTHENTICATED when no principal is found`() {
     val request = listModelRolloutsRequest { parent = MODEL_LINE_NAME }
 
@@ -1056,7 +1089,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { createModelRollout(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),
@@ -1150,7 +1183,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { scheduleModelRolloutFreeze(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),
@@ -1241,7 +1274,7 @@ class ModelRolloutsServiceTest {
     internalModelRolloutsMock.stub {
       onBlocking { deleteModelRollout(any()) }
         .thenThrow(
-          ModelRolloutInvalidArgsException(
+          ModelRolloutOlderThanPreviousException(
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),

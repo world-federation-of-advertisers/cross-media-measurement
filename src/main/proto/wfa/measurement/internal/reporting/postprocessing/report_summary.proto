@@ -1,0 +1,117 @@
+// Copyright 2024 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.postprocessing;
+
+option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
+option java_multiple_files = true;
+option java_outer_classname = "ReportSummaryProto";
+
+// Represents the details of a measurement.
+message MeasurementDetail {
+  // Specifies the filter type (e.g. AMI, MRC, CUSTOM).
+  string measurement_policy = 1;
+
+  // Specifies the set operation (e.g. union, difference).
+  string set_operation = 2;
+
+  // Indicates if this contains the details of a list of cumulative
+  // measurements.
+  bool is_cumulative = 3;
+
+  // The list of data providers involve in the measurement.
+  repeated string data_providers = 4;
+
+  // The unique reach target is only set for unique reach measurement.
+  string unique_reach_target = 5;
+
+  // The data providers on the left hand side of a set operation. These targets
+  // must be set when the set operation type is difference or incremental.
+  repeated string left_hand_side_targets = 6;
+
+  // The data providers on the right hand side of a set operation. These targets
+  // must be set when the set operation type is difference or incremental.
+  repeated string right_hand_side_targets = 7;
+
+  // Represents a single reach measurement result.
+  message ReachResult {
+    int64 value = 1;
+    double standard_deviation = 2;
+  }
+
+  // Represents a frequency distribution measurement.
+  message FrequencyResult {
+    message BinResult {
+      string label = 1;
+      double value = 2;
+      double standard_deviation = 3;
+    }
+    repeated BinResult bins = 1;
+  }
+
+  // Represents an impression count result
+  message ImpressionCountResult {
+    int64 value = 1;
+    double standard_deviation = 2;
+  }
+
+  // Represent the reach and frequency result.
+  message ReachAndFrequencyResult {
+    ReachResult reach = 1;
+    FrequencyResult frequency = 2;
+  }
+
+  message MeasurementResult {
+    oneof result {
+      ReachResult reach = 1;
+      ReachAndFrequencyResult reach_and_frequency = 2;
+      ImpressionCountResult impression_count = 3;
+    }
+
+    // The unique name that is associated with this measurement result.
+    string metric = 4;
+  }
+
+  // Contains a list of measurement results that associate with the same
+  // measurement specification (e.g. measurement policy, set operation, targets,
+  // etc.).
+  repeated MeasurementResult measurement_results = 8;
+}
+
+// Represents a summary of a report, containing information such as the filtered
+// demographic groups, the corresponding total population size, and a list of
+// measurement results.
+message ReportSummary {
+  // A list containing the details and results for each individual measurement
+  // included in the report summary.
+  repeated MeasurementDetail measurement_details = 1;
+
+  // Identifies the filtered demographic groups this report summary applies to.
+  //
+  // If the report supports demographic filtering, the field contains either a
+  // list of demographic group string identifiers that were included (e.g.,
+  // ["MALE_YEARS_16_TO_34", "FEMALE_YEARS_16_TO_34"]), or a single string "-"
+  // which indicates that all demographic groups were included (equivalent to no
+  // filter).
+  //
+  // If the report supports demographic, the field contains exactly one string
+  // identifying the single demographic slice (e.g., ["FEMALE_YEARS_35_TO_54"]).
+  repeated string demographic_groups = 2;
+
+  // The total population size of the selected demographic groups in this report
+  // summary.
+  int64 population = 3;
+}

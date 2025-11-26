@@ -1,0 +1,157 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Draft new release
+
+on:
+  workflow_dispatch:
+    inputs:
+      new-release-tag:
+        type: string
+        required: true
+      milestone-name:
+        type: string
+        description: "Milestone name. Default: stable version of the new-release-tag"
+      target-commitish:
+        type: string
+        description: "Target tag / full commit SHA. Default: latest nightly build."
+      notes-start-commitish:
+        type: string
+        description: "Start tag / full commit SHA for getting release notes. Default: latest final release (no RC, no draft, no pre-release)."
+
+permissions:
+  contents: read
+
+jobs:
+  compute-notes-start-commitish:
+    runs-on: ubuntu-22.04
+    outputs:
+      commitish: ${{ steps.compute-notes-start-commitish.outputs.commitish }}
+    steps:
+      - name: compute notes start commitish
+        id: compute-notes-start-commitish
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          NOTES_START_COMMITISH: ${{ inputs.notes-start-commitish }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            async function getLatestStableReleaseTag() {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                per_page: 100
+              });
+              // Tags with format: vX.Y.Z (no suffix)
+              const STABLE_TAG_RE = /^v\d+\.\d+\.\d+$/;
+              const latestStableRelease = releases.find(r =>
+                !r.draft &&
+                !r.prerelease &&
+                typeof r.tag_name === 'string' && 
+                STABLE_TAG_RE.test(r.tag_name));
+              if (latestStableRelease) {
+                return latestStableRelease.tag_name;
+              } else {
+                core.setFailed('No stable vX.Y.Z release found.');
+              }
+            }
+
+            let startCommitish = process.env.NOTES_START_COMMITISH?.trim();
+            startCommitish = startCommitish ? startCommitish : await getLatestStableReleaseTag();
+            core.info(`Computed start commitish: ${startCommitish}`);
+            core.setOutput('commitish', startCommitish);
+
+  compute-milestone-name:
+    runs-on: ubuntu-22.04
+    outputs:
+      name: ${{ steps.compute-milestone-name.outputs.name }}
+    steps:
+      - name: Compute milestone name
+        id: compute-milestone-name
+        shell: bash
+        env:
+          MILESTONE_NAME: ${{ inputs.milestone-name }}
+          NEW_RELEASE_TAG: ${{ inputs.new-release-tag }}
+        run: |
+          name="${MILESTONE_NAME}"
+          if [ -z "${name}" ]; then
+            # remove potential suffix (e.g. "-rc1")
+            name="${NEW_RELEASE_TAG%%-*}"
+          fi
+          echo "name=${name}" | tee -a $GITHUB_OUTPUT
+          
+  compute-release-target:
+    runs-on: ubuntu-22.04
+    outputs:
+      sha: ${{ steps.compute-release-target.outputs.sha }}
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute release target
+        id: compute-release-target
+        shell: bash
+        env:
+          RELEASE_TARGET_COMMITISH: ${{ inputs.target-commitish }}
+        run: |
+          set -euo pipefail
+          target="${RELEASE_TARGET_COMMITISH}"
+          if [ -z "${target}" ]; then
+            latest_nightly_build_tag=$(git tag --list "nightly/*" | sort -V | tail -n1)
+            echo "Using SHA of latest nightly build tag: ${latest_nightly_build_tag}"
+            target="${latest_nightly_build_tag}"
+          fi
+          sha=$(git rev-parse --verify "${target}")
+          echo "sha=${sha}" | tee -a $GITHUB_OUTPUT
+
+  compute-release-notes:
+    needs: [compute-notes-start-commitish, compute-milestone-name, compute-release-target]
+    uses: ./.github/workflows/generate-release-notes.yml
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    with:
+      notes-start-commitish: ${{ needs.compute-notes-start-commitish.outputs.commitish }}
+      notes-end-commitish: ${{ needs.compute-release-target.outputs.sha }}
+      milestone-name: ${{ needs.compute-milestone-name.outputs.name }}
+
+  draft-release:
+    name: Draft new release
+    runs-on: ubuntu-latest
+    needs: [compute-notes-start-commitish, compute-release-target, compute-release-notes]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES_START_TAG: ${{ needs.compute-notes-start-commitish.outputs.commitish }}
+          NEW_RELEASE_TAG: ${{ inputs.new-release-tag }}
+          RELEASE_TARGET: ${{ needs.compute-release-target.outputs.sha }}
+          EXTRA_NOTES: ${{ needs.compute-release-notes.outputs.summary }}
+        run: >
+          gh release create --draft
+          --target "${RELEASE_TARGET}"
+          --generate-notes
+          --notes-start-tag "${NOTES_START_TAG}"
+          --notes "${EXTRA_NOTES}"
+          "${NEW_RELEASE_TAG}"

@@ -66,6 +66,8 @@ import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationKt.populationBlob
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
@@ -73,12 +75,12 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.honestMajorityShareSh
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.trusTee
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
-import org.wfanet.measurement.api.v2alpha.eventTemplate
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
@@ -92,6 +94,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.setMessage
@@ -127,12 +130,13 @@ import org.wfanet.measurement.internal.kingdom.ModelRollout as InternalModelRoll
 import org.wfanet.measurement.internal.kingdom.ModelShard as InternalModelShard
 import org.wfanet.measurement.internal.kingdom.ModelSuite as InternalModelSuite
 import org.wfanet.measurement.internal.kingdom.Population as InternalPopulation
-import org.wfanet.measurement.internal.kingdom.PopulationKt.populationBlob as internalPopulationBlob
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
+import org.wfanet.measurement.internal.kingdom.PopulationKt as InternalPopulationKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
-import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails as internalMeasurementDetails
@@ -143,6 +147,7 @@ import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRoll
 import org.wfanet.measurement.internal.kingdom.modelShard as internalModelShard
 import org.wfanet.measurement.internal.kingdom.modelSuite as internalModelSuite
 import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 
@@ -475,6 +480,13 @@ private fun buildMpcProtocolConfig(
             }
           noiseMechanism =
             protocolConfig.honestMajorityShareShuffle.noiseMechanism.toNoiseMechanism()
+        }
+      }
+    }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE -> {
+      protocol {
+        trusTee = trusTee {
+          noiseMechanism = protocolConfig.trusTee.noiseMechanism.toNoiseMechanism()
         }
       }
     }
@@ -890,8 +902,32 @@ fun InternalPopulation.toPopulation(): Population {
         .toName()
     description = source.description
     createTime = source.createTime
-    populationBlob = populationBlob { blobUri = source.populationBlob.modelBlobUri }
-    eventTemplate = eventTemplate { type = source.eventTemplate.fullyQualifiedType }
+    if (source.details.hasPopulationSpec()) {
+      populationSpec = source.details.populationSpec.toPopulationSpec()
+    } else if (source.hasPopulationBlob()) {
+      populationBlob = populationBlob { blobUri = source.populationBlob.blobUri }
+    }
+  }
+}
+
+/** Converts an internal PopulationSpec to a public [PopulationSpec]. */
+fun PopulationDetails.PopulationSpec.toPopulationSpec(): PopulationSpec {
+  val source = this
+
+  return populationSpec {
+    for (internalSubPopulation in source.subpopulationsList) {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          for (internalVidRange in internalSubPopulation.vidRangesList) {
+            vidRanges +=
+              PopulationSpecKt.vidRange {
+                startVid = internalVidRange.startVid
+                endVidInclusive = internalVidRange.endVidInclusive
+              }
+          }
+          attributes += internalSubPopulation.attributesList
+        }
+    }
   }
 }
 
@@ -902,8 +938,33 @@ fun Population.toInternal(dataProviderKey: DataProviderKey): InternalPopulation 
   return internalPopulation {
     externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
     description = source.description
-    populationBlob = internalPopulationBlob { modelBlobUri = source.populationBlob.blobUri }
-    eventTemplate = internalEventTemplate { fullyQualifiedType = source.eventTemplate.type }
+    if (source.hasPopulationSpec()) {
+      details = populationDetails { populationSpec = source.populationSpec.toInternal() }
+    } else if (source.hasPopulationBlob()) {
+      populationBlob =
+        InternalPopulationKt.populationBlob { blobUri = source.populationBlob.blobUri }
+    }
+  }
+}
+
+/** Converts a [PopulationSpec] to an internal PopulationSpec. */
+fun PopulationSpec.toInternal(): PopulationDetails.PopulationSpec {
+  val source = this
+
+  return PopulationDetailsKt.populationSpec {
+    for (subPopulation in source.subpopulationsList) {
+      subpopulations +=
+        PopulationDetailsKt.PopulationSpecKt.subPopulation {
+          for (vidRange in subPopulation.vidRangesList) {
+            vidRanges +=
+              PopulationDetailsKt.PopulationSpecKt.vidRange {
+                startVid = vidRange.startVid
+                endVidInclusive = vidRange.endVidInclusive
+              }
+          }
+          attributes += subPopulation.attributesList
+        }
+    }
   }
 }
 
@@ -1064,6 +1125,7 @@ fun Measurement.toInternal(
           }
         }
         InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+        InternalProtocolConfig.ProtocolCase.TRUS_TEE,
         InternalProtocolConfig.ProtocolCase.DIRECT -> {}
         InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
       }

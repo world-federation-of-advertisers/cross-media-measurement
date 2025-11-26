@@ -1,4 +1,5 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@grpc_ecosystem_grpc_gateway//protoc-gen-openapiv2:defs.bzl", "protoc_gen_openapiv2")
 load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
@@ -292,7 +293,6 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_googleapis//google/longrunning:operations_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -419,6 +419,14 @@ proto_library(
     kt_jvm_grpc_proto_library(
         name = "{prefix}_kt_jvm_grpc_proto".format(prefix = proto_lib_prefix(label_str)),
         deps = [label_str],
+    )
+    for label_str in SERVICE_LIBS
+]
+
+[
+    protoc_gen_openapiv2(
+        name = "{prefix}_openapi".format(prefix = proto_lib_prefix(label_str)),
+        proto = label_str,
     )
     for label_str in SERVICE_LIBS
 ]

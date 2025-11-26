@@ -30,15 +30,20 @@ _accessPublicApiAddressName:   "access-public"
 // Name of K8s service account for the Access internal API server.
 #InternalAccessServerServiceAccount: "internal-access-server"
 
-#InternalServerResourceRequirements: #ResourceRequirements & {
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
-		cpu: "100m"
+		cpu:    "100m"
+		memory: "384Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
 	}
 }
+#PublicServerMaxHeapSize:          "64M"
 #PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
-		memory: "288Mi"
+		memory: "320Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -66,8 +71,9 @@ reporting: #Reporting & {
 	_kingdomApiTarget: #KingdomApiTarget
 
 	_postgresConfig: {
-		iamUserLocal: "reporting-v2-internal"
-		database:     "reporting-v2"
+		iamUserLocal:     "reporting-v2-internal"
+		database:         "reporting-v2"
+		statementTimeout: "60s"
 	}
 
 	_verboseGrpcServerLogging: true
@@ -91,7 +97,10 @@ reporting: #Reporting & {
 			}
 		}
 		"reporting-v2alpha-public-api-server": {
-			_container: resources: #PublicServerResourceRequirements
+			_container: {
+				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+				resources: #PublicServerResourceRequirements
+			}
 		}
 		"access-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {

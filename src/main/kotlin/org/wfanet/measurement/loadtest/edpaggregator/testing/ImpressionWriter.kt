@@ -17,8 +17,10 @@ package org.wfanet.measurement.loadtest.edpaggregator.testing
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
+import com.google.type.interval
 import java.io.File
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
@@ -53,6 +55,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @property schema The URI schema for storage paths, defaulting to "file:///".
  */
 class ImpressionsWriter(
+  private val eventGroupReferenceId: String,
   private val eventGroupPath: String,
   private val kekUri: String,
   private val kmsClient: KmsClient,
@@ -67,12 +70,20 @@ class ImpressionsWriter(
    * and outputs the data to storage along with the necessary metadata for the ResultsFulfiller
    * to be able to find and read the contents.
    */
-  suspend fun <T : Message> writeLabeledImpressionData(events: Sequence<LabeledEventDateShard<T>>) {
+  suspend fun <T : Message> writeLabeledImpressionData(
+    events: Sequence<LabeledEventDateShard<T>>,
+    blobModelLine: String,
+    impressionsBasePath: String? = null,
+  ) {
     val serializedEncryptionKey =
       EncryptedStorage.generateSerializedEncryptionKey(kmsClient, kekUri, "AES128_GCM_HKDF_1MB")
     val encryptedDek =
-      EncryptedDek.newBuilder().setKekUri(kekUri).setEncryptedDek(serializedEncryptionKey).build()
-
+      EncryptedDek.newBuilder()
+        .setKekUri(kekUri)
+        .setCiphertext(serializedEncryptionKey)
+        .setProtobufFormat(EncryptedDek.ProtobufFormat.BINARY)
+        .setTypeUrl("type.googleapis.com/google.crypto.tink.Keyset")
+        .build()
     events.forEach { (localDate: LocalDate, labeledEvents: Sequence<LabeledEvent<T>>) ->
       val labeledImpressions: Sequence<LabeledImpression> =
         labeledEvents.map { it: LabeledEvent<T> ->
@@ -85,7 +96,12 @@ class ImpressionsWriter(
       val ds = localDate.toString()
       logger.info("Writing Date: $ds")
 
-      val impressionsBlobKey = "ds/$ds/$eventGroupPath/impressions"
+      val impressionsBlobKey =
+        if (impressionsBasePath != null) {
+          "$impressionsBasePath/ds/$ds/$eventGroupPath/impressions"
+        } else {
+          "ds/$ds/$eventGroupPath/impressions"
+        }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
         val selectedStorageClient = SelectedStorageClient(impressionsFileUri, storagePath)
@@ -101,7 +117,12 @@ class ImpressionsWriter(
         impressionsBlobKey,
         labeledImpressions.map { it.toByteString() }.asFlow(),
       )
-      val impressionsMetaDataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionsMetaDataBlobKey =
+        if (impressionsBasePath != null) {
+          "$impressionsBasePath/ds/$ds/$eventGroupPath/metadata.binpb"
+        } else {
+          "ds/$ds/$eventGroupPath/metadata.binpb"
+        }
 
       val impressionsMetadataFileUri =
         "$schema$impressionsMetadataBucket/$impressionsMetaDataBlobKey"
@@ -112,9 +133,19 @@ class ImpressionsWriter(
       val impressionsMetadataStorageClient =
         SelectedStorageClient(impressionsMetadataFileUri, storagePath)
 
+      val zoneId = ZoneOffset.UTC
+      val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
+      val endOfDay = localDate.plusDays(1).atStartOfDay(zoneId).toInstant().toProtoTime()
+
       val blobDetails = blobDetails {
         this.blobUri = impressionsFileUri
         this.encryptedDek = encryptedDek
+        this.eventGroupReferenceId = this@ImpressionsWriter.eventGroupReferenceId
+        this.interval = interval {
+          startTime = startOfDay
+          endTime = endOfDay
+        }
+        this.modelLine = blobModelLine
       }
       impressionsMetadataStorageClient.writeBlob(
         impressionsMetaDataBlobKey,

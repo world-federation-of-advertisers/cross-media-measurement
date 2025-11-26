@@ -19,13 +19,16 @@ on:
     - cron: '0 5 * * *'  # Night in America/Los_Angeles, before deploy-nightly.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   update-trivy-cache:
     runs-on: ubuntu-latest
     env:
       TRIVY_CACHE_PATH: ${{ github.workspace }}/.cache/trivy
     steps:
-      - uses: oras-project/setup-oras@v1
+      - uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1.2.4
 
       - name: Get current date
         id: get-date
@@ -48,7 +51,7 @@ jobs:
           tar -xf javadb.tar.gz -C "$TRIVY_CACHE_PATH/java-db"
 
       - name: Save cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ env.TRIVY_CACHE_PATH }}
           # Cache key expected by aquasecurity/trivy-action.

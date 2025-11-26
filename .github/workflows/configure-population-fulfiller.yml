@@ -1,0 +1,171 @@
+# Copyright 2025 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "Configure Population Requisition Fulfiller"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - head
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  KUSTOMIZATION_PATH: "k8s/cmms"
+  KUSTOMIZE_PATH: "k8s/cmms/src/main/k8s/dev/population_requisition_fulfiller"
+  KUBECTL_APPLYSET: true
+
+jobs:
+  update-kingdom:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # Authenticate to Google Cloud. This will export some environment
+      # variables, including GCLOUD_PROJECT.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
+          PDP_CERT_NAME: ${{ vars.PDP_CERT_NAME }}
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --remote_download_outputs=toplevel  # Need build output.
+          common --config=ghcr
+          build --define "image_tag=$IMAGE_TAG"
+          build --define "pdp_name=$PDP_NAME"
+          build --define "pdp_cert_name=$PDP_CERT_NAME"
+          build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
+          EOF
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+
+      - name: Export BAZEL_BIN
+        run: echo "BAZEL_BIN=$(bazel info bazel-bin)" >> $GITHUB_ENV
+
+      - name: Get GKE cluster credentials
+        uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
+        with:
+          cluster_name: kingdom
+          location: ${{ vars.GCLOUD_ZONE }}
+
+      - name: Generate archives
+        run: >
+          bazelisk build 
+          //src/main/k8s/dev:population_requisition_fulfiller.tar
+          //src/main/k8s/testing/secretfiles:pdp1_tls_files.tar
+          //src/main/k8s/testing/secretfiles:pdp1_consent_signaling_files.tar
+          //src/main/k8s/testing/secretfiles:pdp_trusted_certs.pem
+          //src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_descriptor_set
+
+      - name: Make Kustomization dir
+        run: mkdir -p "$KUSTOMIZATION_PATH"
+
+      - name: Extract Kustomization archive
+        run: >
+          tar -xf "$BAZEL_BIN/src/main/k8s/dev/population_requisition_fulfiller.tar"
+          -C "$KUSTOMIZATION_PATH"
+
+      - name: Extract TLS archive
+        run: >
+          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/pdp1_tls_files.tar"
+          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_tls"
+
+      - name: Extract consent signaling archive
+        run: >
+          tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/pdp1_consent_signaling_files.tar"
+          -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_consent_signaling"
+
+      - name: Copy trusted certs
+        run: >
+          cp "$BAZEL_BIN/src/main/k8s/testing/secretfiles/pdp_trusted_certs.pem"
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/trusted_certs.pem"
+
+      - name: Copy event message descriptor set
+        run: >
+          cp "$BAZEL_BIN/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event_descriptor_set.pb"
+          "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/event_message_descriptor_set.pb"
+
+      - name: Upload Kustomization artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: pdp-kustomization
+          path: ${{ env.KUSTOMIZATION_PATH }}
+
+      # Run kubectl diff, treating the command as succeeded even if the exit
+      # code is 1 as kubectl uses this code to indicate there's a diff.
+      - name: kubectl diff
+        id: kubectl-diff
+        run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+
+      - name: kubectl apply
+        if: ${{ inputs.apply }}
+        run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-pdp
+
+      - name: Wait for rollout
+        if: ${{ inputs.apply }}
+        run: |
+          for deployment in $(kubectl get deployments -o name); do
+            kubectl rollout status "$deployment" --timeout=5m
+          done

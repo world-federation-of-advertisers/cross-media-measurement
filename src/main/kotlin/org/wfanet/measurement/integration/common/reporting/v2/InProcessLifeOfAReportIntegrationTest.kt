@@ -57,16 +57,15 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroupKt
-import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -116,7 +115,9 @@ import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -136,11 +137,15 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupKt
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
+import org.wfanet.measurement.reporting.v2alpha.copy
+import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
@@ -165,7 +170,10 @@ import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
+import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
+import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
+import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
 
@@ -241,6 +249,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           measurementConsumerConfig,
           TRUSTED_CERTIFICATES,
           inProcessCmmsComponents.kingdom.knownEventGroupMetadataTypes,
+          TestEvent.getDescriptor(),
+          defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
         )
       }
@@ -362,10 +372,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
   private val publicDataProvidersClient by lazy {
     DataProvidersCoroutineStub(reportingServer.publicApiChannel)
-  }
-
-  private val publicEventGroupMetadataDescriptorsClient by lazy {
-    EventGroupMetadataDescriptorsCoroutineStub(reportingServer.publicApiChannel)
   }
 
   private val publicEventGroupsClient by lazy {
@@ -1717,6 +1723,87 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `reach-and-frequency metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        reachAndFrequency =
+          MetricSpecKt.reachAndFrequencyParams {
+            reachPrivacyParams = DP_PARAMS
+            frequencyPrivacyParams = DP_PARAMS
+            maximumFrequency = 5
+          }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val reachAndFrequencyResult = retrievedMetric.result.reachAndFrequency
+    val actualResult =
+      MeasurementKt.result {
+        reach = MeasurementKt.ResultKt.reach { value = reachAndFrequencyResult.reach.value }
+        frequency =
+          MeasurementKt.ResultKt.frequency {
+            relativeFrequencyDistribution.putAll(
+              reachAndFrequencyResult.frequencyHistogram.binsList.associate {
+                Pair(
+                  it.label.toLong(),
+                  if (reachAndFrequencyResult.reach.value == 0L) {
+                    0.0
+                  } else {
+                    it.binResult.value / reachAndFrequencyResult.reach.value
+                  },
+                )
+              }
+            )
+          }
+      }
+    val reachTolerance =
+      computeErrorMargin(reachAndFrequencyResult.reach.univariateStatistics.standardDeviation)
+    val frequencyToleranceMap: Map<Long, Double> =
+      reachAndFrequencyResult.frequencyHistogram.binsList.associate { bin ->
+        bin.label.toLong() to computeErrorMargin(bin.relativeUnivariateStatistics.standardDeviation)
+      }
+
+    val mapWithAllZeroFrequency = buildMap {
+      reachAndFrequencyResult.frequencyHistogram.binsList.forEach { bin ->
+        put(bin.label.toLong(), 0.0)
+      }
+    }
+
+    assertThat(actualResult).reachValue().isWithin(reachTolerance).of(0)
+    assertThat(actualResult)
+      .frequencyDistribution()
+      .isWithin(frequencyToleranceMap)
+      .of(mapWithAllZeroFrequency)
+  }
+
+  @Test
   fun `impression count metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1770,6 +1857,52 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .impressionValue()
       .isWithin(tolerance)
       .of(expectedResult.impression.value)
+  }
+
+  @Test
+  fun `impression count metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val impressionResult = retrievedMetric.result.impressionCount
+    val actualResult =
+      MeasurementKt.result {
+        impression = MeasurementKt.ResultKt.impression { value = impressionResult.value }
+      }
+    val tolerance = computeErrorMargin(impressionResult.univariateStatistics.standardDeviation)
+
+    assertThat(actualResult).impressionValue().isWithin(tolerance).of(0)
   }
 
   @Test
@@ -1855,6 +1988,50 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
     val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
+  }
+
+  @Test
+  fun `reach metric with no data has a result of 0`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+    val createdPrimitiveReportingSet: ReportingSet =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
+
+    val metric = metric {
+      reportingSet = createdPrimitiveReportingSet.name
+      timeInterval = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+      metricSpec = metricSpec {
+        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
+        vidSamplingInterval = VID_SAMPLING_INTERVAL
+      }
+      filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+    }
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            this.metric = metric
+            metricId = "abc"
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val reachResult = retrievedMetric.result.reach
+    val actualResult =
+      MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
+    val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
+    assertThat(actualResult).reachValue().isWithin(tolerance).of(0)
   }
 
   @Test
@@ -1982,32 +2159,165 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `retrieving metadata descriptors for event groups succeeds`() = runBlocking {
+  fun `getBasicReport returns basic report created using createBasicReport`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
+    val eventGroup = eventGroups.first()
 
-    val descriptorNames = eventGroups.map { it.metadata.eventGroupMetadataDescriptor }
-
-    val descriptors =
-      publicEventGroupMetadataDescriptorsClient
+    val dataProvider =
+      publicDataProvidersClient
         .withCallCredentials(credentials)
-        .batchGetEventGroupMetadataDescriptors(
-          batchGetEventGroupMetadataDescriptorsRequest { names += descriptorNames }
+        .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
+
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "abc123")
+    val campaignGroup =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = reportingSet {
+              displayName = "campaign group"
+              campaignGroup = campaignGroupKey.toName()
+              primitive = ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+            }
+            reportingSetId = "abc123"
+          }
         )
-        .eventGroupMetadataDescriptorsList
 
-    assertThat(descriptors).hasSize(descriptorNames.size)
+    val basicReportKey =
+      BasicReportKey(
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+        basicReportId = "basicreport123",
+      )
 
-    val retrievedDescriptorNames = mutableSetOf<String>()
-    for (descriptor in descriptors) {
-      retrievedDescriptorNames.add(descriptor.name)
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroup.name
+      campaignGroupDisplayName = campaignGroup.displayName
+      modelLine = inProcessCmmsComponents.modelLineResourceName
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 9
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2025
+          month = 9
+          day = 17
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += dataProvider.name }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              stackedIncrementalReach = false
+            }
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
+                  averageFrequency = true
+                  impressions = true
+                  grps = true
+                }
+              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+            }
+        }
+      }
     }
 
-    for (eventGroup in eventGroups) {
-      assertThat(
-          retrievedDescriptorNames.contains(eventGroup.metadata.eventGroupMetadataDescriptor)
+    val createdBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(
+          createBasicReportRequest {
+            parent = measurementConsumerData.name
+            basicReportId = basicReportKey.basicReportId
+            this.basicReport = basicReport
+          }
         )
-        .isTrue()
-    }
+
+    val retrievedPublicBasicReport =
+      publicBasicReportsClient
+        .withCallCredentials(credentials)
+        .getBasicReport(getBasicReportRequest { name = basicReportKey.toName() })
+
+    assertThat(retrievedPublicBasicReport)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = basicReportKey.toName()
+          state = BasicReport.State.RUNNING
+        }
+      )
+    assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
   @Test
@@ -2236,6 +2546,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             reportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
+          state = BasicReport.State.SUCCEEDED
 
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             custom =

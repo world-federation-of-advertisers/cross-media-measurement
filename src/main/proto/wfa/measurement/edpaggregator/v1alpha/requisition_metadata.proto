@@ -1,0 +1,128 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionMetadataProto";
+
+// Represents the metadata for a requisition fetched from the Kingdom.
+// This resource tracks the state of a requisition as it moves through the
+// EDP Aggregator system.
+message RequisitionMetadata {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    pattern: "dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}"
+    singular: "requisitionMetadata"
+    plural: "requisitionMetadata"
+  };
+
+  // The lifecycle state of the requisition.
+  enum State {
+    // Default, unspecified state.
+    STATE_UNSPECIFIED = 0;
+    // The requisition has been fetched and stored.
+    STORED = 1;
+    // The requisition is queued for processing.
+    QUEUED = 2;
+    // The requisition is actively being processed.
+    PROCESSING = 3;
+    // The requisition has been successfully fulfilled.
+    FULFILLED = 4;
+    // The requisition was refused.
+    REFUSED = 5;
+    // The requisition was withdrawn.
+    WITHDRAWN = 6;
+  }
+
+  // The resource name of the RequisitionMetadata.
+  // Format:
+  // `dataProviders/{data_provider}/requisitionMetadata/{requisition_metadata}`
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The resource name of the Requisition in the CMMS.
+  // Format: `dataProviders/{data_provider}/requisitions/{requisition}`
+  // It must be unique across all RequisitionMetadata. The data provider must
+  // match the one from the resource name.
+  string cmms_requisition = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/Requisition" }
+  ];
+
+  // The blob storage URI of the GroupedRequisitions file this entry belongs to.
+  // It must be unique across all RequisitionMetadata.
+  string blob_uri = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Type URL of the blob.
+  //
+  // (-- api-linter: core::0140::uri=disabled
+  //     aip.dev/not-precedent: This is mirroring the type_url field in
+  //     protobuf.Any --)
+  string blob_type_url = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // The ID for the group of requisitions this entry belongs to.
+  string group_id = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // The creation timestamp of the requisition in the CMMS.
+  google.protobuf.Timestamp cmms_create_time = 6
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The resource name of the Report in the Reporting system.
+  // Format: `measurementConsumers/{measurement_consumer}/reports/{report}`
+  string report = 7 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
+
+  // The resource name of the WorkItem.
+  // This is set when the requisition is queued for processing.
+  // Format `workItems/{work_item}`
+  string work_item = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    }
+  ];
+
+  // The current state of the requisition.
+  State state = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was created.
+  google.protobuf.Timestamp create_time = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The timestamp when this metadata entry was last updated.
+  google.protobuf.Timestamp update_time = 11
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Human-readable message associated with refusal.
+  //
+  // This is an input field on creation if the initial `state` is `REFUSED`.
+  // It is an output-only field for all other methods.
+  // It must not contain any sensitive information.
+  string refusal_message = 12 [(google.api.field_behavior) = OPTIONAL];
+
+  // Etag for resource freshness validation.
+  string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

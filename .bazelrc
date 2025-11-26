@@ -6,6 +6,9 @@ common --registry=https://bcr.bazel.build
 # Use clang as C++ compiler.
 build --repo_env='CC=clang'
 
+# Configuration for python proto import.
+build --incompatible_default_to_explicit_init_py
+
 # Configuration for running CC coverage locally
 # See https://github.com/bazelbuild/bazel/blob/106903d38f6d41b5eb1f100698f257184bea47a3/src/test/shell/bazel/bazel_coverage_cc_test_llvm.sh#L59
 # and https://github.com/bazelbuild/bazel/commit/21b5eb627d78c09d47c4de957e9e6b56a9ae6fad
@@ -23,12 +26,15 @@ build --cxxopt='-std=c++17'
 
 # Use JDK 17.
 build --java_runtime_version=remotejdk_17
+build --tool_java_runtime_version=remotejdk_17
+build --tool_java_language_version=17
 
 # Target Java 11.
 build --java_language_version=11
 
-# Pass environment variables.
-test --test_env TESTCONTAINERS_RYUK_DISABLED=true
+# Pass environment variables for tests.
+common --test_env TESTCONTAINERS_RYUK_DISABLED=true
+common --test_env DOCKER_HOST
 
 # Configuration for remote cache.
 build --noremote_upload_local_results  # Do not upload by default
@@ -44,6 +50,9 @@ build:remote-cache --experimental_remote_cache_lease_extension=true
 build:remote-cache --experimental_remote_cache_ttl=3h
 
 # Configuration for continuous integration (CI).
+# TODO(bazelbuild/rules_kotlin#1352): Remove these two environment variable overrides once they’re no longer needed to ignore Android in GHA.
+common:ci --action_env=ANDROID_HOME=""
+common:ci --action_env=ANDROID_SDK_ROOT=""
 common:ci --lockfile_mode=error
 build:ci --compilation_mode=opt
 build:ci --build_metadata=ROLE=CI

@@ -22,6 +22,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage as Llv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage as RoLlv2Stage
+import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
@@ -36,6 +37,7 @@ val ComputationStage.name: String
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         reachOnlyLiquidLegionsSketchAggregationV2.name
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.name
+      ComputationStage.StageCase.TRUS_TEE -> trusTee.name
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -48,6 +50,7 @@ val ComputationStage.number: Int
       ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         reachOnlyLiquidLegionsSketchAggregationV2.number
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.number
+      ComputationStage.StageCase.TRUS_TEE -> trusTee.number
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -62,6 +65,10 @@ fun ReachOnlyLiquidLegionsSketchAggregationV2.Stage.toProtocolStage(): Computati
 
 fun HonestMajorityShareShuffle.Stage.toProtocolStage(): ComputationStage = computationStage {
   honestMajorityShareShuffle = this@toProtocolStage
+}
+
+fun TrusTee.Stage.toProtocolStage(): ComputationStage = computationStage {
+  trusTee = this@toProtocolStage
 }
 
 fun SystemComputationStage.toComputationStage(): ComputationStage {
@@ -139,6 +146,7 @@ fun SystemComputationStage.toComputationStage(): ComputationStage {
         HonestMajorityShareShuffleStage.Stage.UNRECOGNIZED -> error("Invalid HMSS stage")
       }
     }
+    // TrusTEE protocol does NOT have system stages.
     SystemComputationStage.StageCase.STAGE_NOT_SET -> error("Invalid SystemComputationStage")
   }
 }

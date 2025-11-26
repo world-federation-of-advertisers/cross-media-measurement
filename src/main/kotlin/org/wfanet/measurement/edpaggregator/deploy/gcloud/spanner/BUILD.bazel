@@ -1,0 +1,79 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+load("//src/main/docker:macros.bzl", "java_image")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_impression_metadata_service",
+    srcs = ["SpannerImpressionMetadataService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "spanner_requisition_metadata_service",
+    srcs = [
+        "SpannerRequisitionMetadataService.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "internal_api_services",
+    srcs = ["InternalApiServices.kt"],
+    deps = [
+        ":spanner_impression_metadata_service",
+        ":spanner_requisition_metadata_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:services",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "internal_api_server",
+    srcs = ["InternalApiServer.kt"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+java_binary(
+    name = "InternalApiServer",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServer",
+    visibility = ["//visibility:private"],
+    runtime_deps = [":internal_api_server"],
+)
+
+java_image(
+    name = "internal_api_server_image",
+    binary = ":InternalApiServer",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServer",
+    visibility = ["//src:docker_image_deployment"],
+)

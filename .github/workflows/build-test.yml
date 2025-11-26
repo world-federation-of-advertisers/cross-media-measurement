@@ -24,6 +24,13 @@ on:
       - main
       - 'releases/**'
   workflow_dispatch:
+    inputs:
+      disable-cache-for-coverage:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -37,10 +44,10 @@ jobs:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - uses: ./.github/actions/free-disk-space
 
@@ -62,9 +69,12 @@ jobs:
           build --define image_tag=latest
           build --define kingdom_public_api_target=kingdom.example.com:8443
           build --define worker1_id=worker1
+          build --define worker1_cert_name=duchies/worker1/certificates/foo
           build --define worker1_public_api_target=worker1.example.com:8443
           build --define worker2_id=worker2
+          build --define worker2_cert_name=duchies/worker2/certificates/foo
           build --define worker2_public_api_target=worker2.example.com:8443
+          build --define aggregator_cert_name=duchies/aggregator/certificates/foo
           build --define mc_name=measurementConsumers/foo
           build --define mc_api_key=foo
           build --define mc_cert_name=measurementConsumers/foo/certificates/bar
@@ -80,6 +90,8 @@ jobs:
           build --define edp5_cert_name=dataProviders/foo5/certificates/bar5
           build --define edp6_name=dataProviders/foo6
           build --define edp6_cert_name=dataProviders/foo6/certificates/bar6
+          build --define pdp_name=dataProviders/foodp1
+          build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
           build --define google_cloud_project=example-project
           build --define basic_reports_enabled=true
           EOF
@@ -95,27 +107,58 @@ jobs:
         run: >
           bazel build --worker_quit_after_build
           //...
-          //src/main/k8s/dev:synthetic_generator_edp_simulators
+          //src/main/k8s/local:cmms
+          //src/main/k8s/dev:edp_simulators
 
       - name: Run tests
         id: run-tests
         run: bazel test //...
 
+      # TODO(bazelbuild/rules_kotlin#509): remove this step after the issue with inline functions is fixed
+      - name: Compute coverage exclusions to work around the issue with inline functions
+        id: compute-coverage-exclusions
+        run: |
+          set -euo pipefail
+
+          readarray -t kt_files_with_inline_fun < <(grep -rl --include '*.kt' "inline fun" src/main/kotlin/*)
+
+          files_as_labels=()
+          for f in "${kt_files_with_inline_fun[@]}"; do
+            pkg="${f%/*}"
+            name="${f##*/}"
+            files_as_labels+=("//${pkg}:${name}")
+          done
+
+          query="kind(rule, rdeps(//..., set(${files_as_labels[*]}), 1))"
+          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label | sed 's/^/-/' | paste -sd,)
+          echo "exclusion_filter=${exclusion_filter}" >> "$GITHUB_OUTPUT"
+
       - name: Run tests with coverage
         id: run-coverage
-        run: bazel coverage --experimental_split_coverage_postprocessing --experimental_fetch_all_coverage_outputs --instrumentation_filter=//src/main/python/.*,//src/main/cc/.*,-@.* //src/test/python/... //src/test/cc/...
+        env:
+          COVERAGE_EXCLUSIONS: ${{ steps.compute-coverage-exclusions.outputs.exclusion_filter }}
+          USE_CACHE: ${{ inputs.disable-cache-for-coverage && 'no' || 'yes' }}
+        run: >
+          bazel coverage
+          --cache_test_results=${USE_CACHE}
+          --experimental_split_coverage_postprocessing 
+          --experimental_fetch_all_coverage_outputs 
+          --instrumentation_filter="//src/main/kotlin/.*,//src/main/python/.*,//src/main/cc/.*,-@.*,-src/main/.*/testing.*,-src/main/.*/loadtest.*,${COVERAGE_EXCLUSIONS}"
+          //src/test/kotlin/... 
+          //src/test/python/... 
+          //src/test/cc/...
 
       - name: Export bazel output path
         run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
 
       - name: Upload coverage report as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
 
       - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -161,7 +204,7 @@ jobs:
 
       - name: Upload cluster logs artifact
         if: failure() && steps.export-cluster-logs.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
           name: cluster-logs
@@ -169,5 +212,5 @@ jobs:
 
       - name: Upload Bazel testlogs
         continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
         if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-coverage.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
