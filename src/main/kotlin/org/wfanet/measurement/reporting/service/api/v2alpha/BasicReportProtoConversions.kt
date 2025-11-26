@@ -404,7 +404,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       when (source.state) {
         InternalBasicReport.State.CREATED,
         InternalBasicReport.State.REPORT_CREATED,
-        InternalBasicReport.State.NOISY_RESULTS_READY -> BasicReport.State.RUNNING
+        InternalBasicReport.State.UNPROCESSED_RESULTS_READY -> BasicReport.State.RUNNING
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
         InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
         InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
