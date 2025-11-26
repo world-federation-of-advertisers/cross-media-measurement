@@ -47,33 +47,32 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
  * * [EventGroupStateIllegalException] EventGroup state is DELETED
  * * [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
  */
-class UpdateEventGroup(private val eventGroup: EventGroup) :
-  SpannerWriter<EventGroup, EventGroup>() {
+class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
-    val externalDataProviderId = ExternalId(eventGroup.externalDataProviderId)
-    val externalEventGroupId = ExternalId(eventGroup.externalEventGroupId)
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
+    val externalEventGroupId = ExternalId(request.externalEventGroupId)
 
     val result: EventGroupReader.Result =
       EventGroupReader()
         .readByDataProvider(transactionContext, externalDataProviderId, externalEventGroupId)
         ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
 
-    modifyEventGroup(eventGroup, result)
+    updateEventGroup(request, result)
 
-    return eventGroup
+    return request
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
-    return eventGroup.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
+    return request.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
   }
 }
 
-internal suspend fun SpannerWriter.TransactionScope.modifyEventGroup(
-  eventGroup: EventGroup,
+internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
+  request: EventGroup,
   result: EventGroupReader.Result,
 ) {
-  val externalEventGroupId = ExternalId(eventGroup.externalEventGroupId)
-  val externalMeasurementConsumerId = ExternalId(eventGroup.externalMeasurementConsumerId)
+  val externalEventGroupId = ExternalId(request.externalEventGroupId)
+  val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
 
   if (result.eventGroup.state == EventGroup.State.DELETED) {
     throw EventGroupStateIllegalException(
@@ -89,7 +88,7 @@ internal suspend fun SpannerWriter.TransactionScope.modifyEventGroup(
       externalMeasurementConsumerId,
     )
   }
-  val providedEventGroupId: String? = eventGroup.providedEventGroupId.ifBlank { null }
+  val providedEventGroupId: String? = request.providedEventGroupId.ifBlank { null }
 
   transactionContext.bufferUpdateMutation(Table.EVENT_GROUPS) {
     set("DataProviderId").to(result.internalDataProviderId)
@@ -97,13 +96,13 @@ internal suspend fun SpannerWriter.TransactionScope.modifyEventGroup(
     set("ProvidedEventGroupId" to providedEventGroupId)
     set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     set("DataAvailabilityStartTime")
-      .to(eventGroup.dataAvailabilityInterval.startTimeOrNull?.toGcloudTimestamp())
+      .to(request.dataAvailabilityInterval.startTimeOrNull?.toGcloudTimestamp())
     set("DataAvailabilityEndTime")
-      .to(eventGroup.dataAvailabilityInterval.endTimeOrNull?.toGcloudTimestamp())
+      .to(request.dataAvailabilityInterval.endTimeOrNull?.toGcloudTimestamp())
 
     val detailsValue =
-      if (eventGroup.hasDetails()) {
-        Value.protoMessage(eventGroup.details)
+      if (request.hasDetails()) {
+        Value.protoMessage(request.details)
       } else {
         Value.protoMessage(null, EventGroupDetails.getDescriptor())
       }
@@ -113,11 +112,11 @@ internal suspend fun SpannerWriter.TransactionScope.modifyEventGroup(
   transactionContext.syncMediaTypes(
     result.internalDataProviderId,
     result.internalEventGroupId,
-    eventGroup.mediaTypesList.toSet(),
+    request.mediaTypesList.toSet(),
   )
 }
 
-internal suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
+private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
   dataProviderId: InternalId,
   eventGroupId: InternalId,
   replacementMediaTypes: Set<MediaType>,
