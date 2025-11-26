@@ -356,6 +356,7 @@ private object BasicReportsInternal {
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
+      LEFT JOIN ReportResults USING (MeasurementConsumerId, ReportResultId)
     """
       .trimIndent()
 }
