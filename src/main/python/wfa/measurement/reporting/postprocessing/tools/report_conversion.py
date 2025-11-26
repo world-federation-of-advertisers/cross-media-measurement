@@ -155,9 +155,13 @@ def _validate_report_result(
 
         # Validates that each reporting window result has the required fields.
         for window_entry in reporting_set_result.reporting_window_results:
-            if not window_entry.value.HasField("noisy_report_result_values"):
-                raise ValueError("Missing noisy_report_result_values field.")
-            if window_entry.value.noisy_report_result_values.HasField(
+            if not window_entry.value.HasField(
+                "unprocessed_report_result_values"
+            ):
+                raise ValueError(
+                    "Missing unprocessed_report_result_values field."
+                )
+            if window_entry.value.unprocessed_report_result_values.HasField(
                 "non_cumulative_results"
             ) and not window_entry.key.HasField("non_cumulative_start"):
                 raise ValueError(
@@ -168,7 +172,7 @@ def _validate_report_result(
                 raise ValueError("ReportingWindow must have an end date.")
             if dimension.metric_frequency_spec.WhichOneof(
                 "selector"
-            ) == "total" and window_entry.value.noisy_report_result_values.HasField(
+            ) == "total" and window_entry.value.unprocessed_report_result_values.HasField(
                 "non_cumulative_results"
             ):
                 raise ValueError(
@@ -383,7 +387,7 @@ def _process_reporting_windows(
     )
 
     for window_entry in sorted_windows:
-        noisy_values = window_entry.value.noisy_report_result_values
+        noisy_values = window_entry.value.unprocessed_report_result_values
 
         # Processes cumulative results. The whole campaign result has the
         # metric_frequency_spec_type of TOTAL.

@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
@@ -60,17 +60,17 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readNoisyReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIds
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnprocessedReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToNoisyResultsReady
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
@@ -274,7 +274,7 @@ class SpannerReportResultsService(
             }
 
           for (windowEntry in value.reportingWindowResultsList) {
-            addNoisyWindowResults(
+            addUnprocessedWindowResults(
               txn,
               measurementConsumerId,
               reportResultId,
@@ -337,24 +337,25 @@ class SpannerReportResultsService(
         windowEntry ->
         val windowEntryPath =
           "$requestPath.reporting_set_result.reporting_window_results[$windowIndex]"
-        val noisyReportResultValuesPath = "$windowEntryPath.value.noisy_report_result_values"
+        val unprocessedReportResultValuesPath =
+          "$windowEntryPath.value.unprocessed_report_result_values"
         val windowResult: ReportingSetResult.ReportingWindowResult = windowEntry.value
-        if (!windowResult.hasNoisyReportResultValues()) {
-          throw RequiredFieldNotSetException(noisyReportResultValuesPath)
+        if (!windowResult.hasUnprocessedReportResultValues()) {
+          throw RequiredFieldNotSetException(unprocessedReportResultValuesPath)
         }
-        val noisyReportResultValues = windowResult.noisyReportResultValues
+        val unprocessedReportResultValues = windowResult.unprocessedReportResultValues
         if (
           windowEntry.key.hasNonCumulativeStart() &&
-            !noisyReportResultValues.hasNonCumulativeResults()
+            !unprocessedReportResultValues.hasNonCumulativeResults()
         ) {
           throw RequiredFieldNotSetException(
-            "$noisyReportResultValuesPath.non_cumulative_results"
+            "$unprocessedReportResultValuesPath.non_cumulative_results"
           ) { fieldPath ->
             "$fieldPath is required when window has non-cumulative start"
           }
         }
         if (
-          noisyReportResultValues.hasNonCumulativeResults() &&
+          unprocessedReportResultValues.hasNonCumulativeResults() &&
             !windowEntry.key.hasNonCumulativeStart()
         ) {
           throw RequiredFieldNotSetException("$windowEntryPath.key.non_cumulative_start") {
@@ -363,10 +364,10 @@ class SpannerReportResultsService(
           }
         }
         if (
-          !noisyReportResultValues.hasCumulativeResults() &&
-            !noisyReportResultValues.hasNonCumulativeResults()
+          !unprocessedReportResultValues.hasCumulativeResults() &&
+            !unprocessedReportResultValues.hasNonCumulativeResults()
         ) {
-          throw InvalidFieldValueException(noisyReportResultValuesPath) { fieldPath ->
+          throw InvalidFieldValueException(unprocessedReportResultValuesPath) { fieldPath ->
             "$fieldPath must have a result"
           }
         }
@@ -394,14 +395,14 @@ class SpannerReportResultsService(
         basicReport.state,
       )
     }
-    txn.setBasicReportStateToNoisyResultsReady(
+    txn.setBasicReportStateToUnprocessedResultsReady(
       basicReportResult.measurementConsumerId,
       basicReportResult.basicReportId,
       reportResultId,
     )
   }
 
-  private suspend fun addNoisyWindowResults(
+  private suspend fun addUnprocessedWindowResults(
     txn: AsyncDatabaseClient.TransactionContext,
     measurementConsumerId: Long,
     reportResultId: Long,
@@ -430,7 +431,7 @@ class SpannerReportResultsService(
       reportResultId,
       reportingSetResultId,
       reportingWindowResultId,
-      windowEntry.value.noisyReportResultValues,
+      windowEntry.value.unprocessedReportResultValues,
     )
   }
 
@@ -460,8 +461,8 @@ class SpannerReportResultsService(
     val resultsFlow: Flow<ReportingSetResultResult> =
       when (request.view) {
         ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNSPECIFIED,
-        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY ->
-          txn.readNoisyReportingSetResults(
+        ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED ->
+          txn.readUnprocessedReportingSetResults(
             impressionQualificationFilterMapping,
             groupingDimensions,
             measurementConsumerId,
@@ -484,7 +485,7 @@ class SpannerReportResultsService(
     }
   }
 
-  override suspend fun addDenoisedResultValues(request: AddDenoisedResultValuesRequest): Empty {
+  override suspend fun addProcessedResultValues(request: AddProcessedResultValuesRequest): Empty {
     val cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
     val externalReportResultId = request.externalReportResultId
     try {
@@ -568,7 +569,7 @@ class SpannerReportResultsService(
     return Empty.getDefaultInstance()
   }
 
-  private fun validate(request: AddDenoisedResultValuesRequest) {
+  private fun validate(request: AddProcessedResultValuesRequest) {
     if (request.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
     }
@@ -612,7 +613,7 @@ class SpannerReportResultsService(
     basicReportResult: BasicReportResult,
   ) {
     val basicReport = basicReportResult.basicReport
-    if (basicReport.state != BasicReport.State.NOISY_RESULTS_READY) {
+    if (basicReport.state != BasicReport.State.UNPROCESSED_RESULTS_READY) {
       throw BasicReportStateInvalidException(
         basicReport.cmmsMeasurementConsumerId,
         basicReport.externalBasicReportId,
