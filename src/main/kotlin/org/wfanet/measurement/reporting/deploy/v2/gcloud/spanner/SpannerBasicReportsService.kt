@@ -361,7 +361,7 @@ class SpannerBasicReportsService(
           existingBasicReport,
           campaignGroup,
           campaignGroupReportingSets,
-          emptyList()
+          reportingSetResults,
         )
       }
     } else {
