@@ -93,8 +93,9 @@ package k8s
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
+	_eventMessageTypeUrl: string
 	_eventDescriptorArgs: [
-		"--event-message-type-url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-message-type-url=\(_eventMessageTypeUrl)",
 		"--event-message-descriptor-set=/etc/\(#AppName)/config-files/event_message_descriptor_set.pb",
 	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -150,7 +151,7 @@ package k8s
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
 						"--disable-metrics-reuse=false",
 						_impressionQualificationFilterConfigFileFlag,
-			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs + _eventDescriptorArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]

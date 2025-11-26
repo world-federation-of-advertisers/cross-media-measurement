@@ -43,7 +43,7 @@ free to use whichever you prefer.
         -   `reporting-v2alpha-public-api-server-network-policy`
         -   `reporting-grpc-gateway-network-policy`
         -   `report-scheduling-network-policy`
-        -   `basic-reports-reports` 
+        -   `basic-reports-reports`
         -   `access-internal-api-server-network-policy`
         -   `access-public-api-server-network-policy`
         -   `default-deny-ingress-and-egress`
@@ -75,18 +75,15 @@ See [Metrics Deployment](metrics-deployment.md).
 ## Build and push the container images (not recommended)
 
 If you aren't using pre-built release images, you can build the images yourself
-from source and push them to a container registry. For example, if you're using
-the [Google Container Registry](https://cloud.google.com/container-registry),
-you would specify `gcr.io` as your container registry and your Cloud project
-name as your image repository prefix.
-
-Assuming a project named `halo-cmm-dev` and an image tag `build-0001`, run the
-following to build and push the images:
+from source and push them to a container registry. Specify the registry and the
+repository prefix as appropriate. For example, if pushing to GitHub Packages
+container registry (ghcr.io) for org `my-gh-org` with image tag `build-0001`,
+you would run
 
 ```shell
 bazel run -c opt //src/main/docker:push_all_reporting_gke_images \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-dev --define image_tag=build-0001
+  --define container_registry=ghcr.io \
+  --define image_repo_prefix=my-gh-org --define image_tag=build-0001
 ```
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
@@ -100,18 +97,22 @@ use the `dev` configuration as a base to get started. The Kustomization is
 generated using Bazel rules from files written in [CUE](https://cuelang.org/).
 
 To generate the `dev` Kustomization, run the following (substituting your own
-values):
+values, including the image tag for the desired
+[release](https://github.com/world-federation-of-advertisers/cross-media-measurement/releases)):
 
 ```shell
 bazel build //src/main/k8s/dev:reporting_v2.tar \
+  --define container_registry=ghcr.io \
+  --define image_repo_prefix=world-federation-of-advertisers \
+  --define image_tag=0.5.28 \
   --define reporting_public_api_address_name=reporting-v2alpha \
   --define google_cloud_project=halo-cmm-dev \
   --define postgres_instance=dev-postgres \
   --define postgres_region=us-central1 \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-reporting-demo --define image_tag=build-0001 \
-  --define basic_reports_enabled=true --define spanner_instance=instance
+  --define 'event_message_type_url=type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.EventMessage' \
+  --define basic_reports_enabled=true \
+  --define spanner_instance=instance
 ```
 
 Note: The value of the `spanner_instance` variable is only used when
@@ -244,7 +245,7 @@ configuration uses one named `config-files`.
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
 *   `basic_report_metric_spec_config.textproto`
     *   [`MetricSpecConfig`](../../src/main/proto/wfa/measurement/config/reporting/metric_spec_config.proto)
-* `event_message_descriptor_set.pb`
+*   `event_message_descriptor_set.pb`
     *   Serialized Protobuf `FileDescriptorSet` containing Event Message and its
         dependencies.
 *   `known_event_group_metadata_type_set.pb`
