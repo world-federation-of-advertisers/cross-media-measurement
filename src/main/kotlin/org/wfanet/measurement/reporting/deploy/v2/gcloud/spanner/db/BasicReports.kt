@@ -56,25 +56,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
 ): BasicReportResult? {
   val sql =
     """
-    SELECT
-      MeasurementConsumerId,
-      BasicReportId,
-      CmmsMeasurementConsumerId,
-      ExternalBasicReportId,
-      BasicReports.CreateTime,
-      ExternalCampaignGroupId,
-      BasicReportDetails,
-      BasicReportResultDetails,
-      State,
-      CreateReportRequestId,
-      ExternalReportId,
-      CmmsModelProviderId,
-      CmmsModelSuiteId,
-      CmmsModelLineId,
-      ModelLineSystemSpecified
-    FROM
-      MeasurementConsumers
-      JOIN BasicReports USING (MeasurementConsumerId)
+    ${BasicReportsInternal.BASE_SQL}
     WHERE
       MeasurementConsumerId = @measurementConsumerId
       AND CreateRequestId = @createRequestId
@@ -136,10 +118,11 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
  * Does not set the campaign_group_display_name field in the result.
  */
 fun AsyncDatabaseClient.ReadContext.readBasicReports(
-  limit: Int,
   filter: ListBasicReportsRequest.Filter,
+  limit: Int? = null,
   pageToken: ListBasicReportsPageToken? = null,
 ): Flow<BasicReportResult> {
+  require(filter.cmmsMeasurementConsumerId.isNotEmpty())
   val sql = buildString {
     appendLine(BasicReportsInternal.BASE_SQL)
     appendLine(
@@ -172,9 +155,12 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
     if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
       appendLine("AND State = @state")
     }
+    if (filter.externalReportResultId != 0L) {
+      appendLine("AND ExternalReportResultId = @externalReportResultId")
+    }
 
     appendLine("ORDER BY CreateTime, ExternalBasicReportId")
-    if (limit > 0) {
+    if (limit != null) {
       appendLine("LIMIT @limit")
     }
   }
@@ -191,8 +177,11 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
         bind("state").toInt64(filter.state)
       }
+      if (filter.externalReportResultId != 0L) {
+        bind("externalReportResultId").to(filter.externalReportResultId)
+      }
 
-      if (limit > 0) {
+      if (limit != null) {
         bind("limit").to(limit.toLong())
       }
     }
@@ -285,6 +274,21 @@ fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToNoisyResultsRead
   }
 }
 
+/**
+ * Buffers an update mutation to set the State of a BasicReports row to
+ * [BasicReport.State.SUCCEEDED].
+ */
+fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToSucceeded(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("State").to(BasicReport.State.SUCCEEDED)
+  }
+}
+
 /** Returns whether a [BasicReport] with the specified [basicReportId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(
   measurementConsumerId: Long,
@@ -323,6 +327,9 @@ private fun buildBasicReport(row: Struct): BasicReport {
         }
     }
     modelLineSystemSpecified = row.getBoolean("ModelLineSystemSpecified")
+    if (!row.isNull("ExternalReportResultId")) {
+      externalReportResultId = row.getLong("ExternalReportResultId")
+    }
   }
 }
 
@@ -344,7 +351,8 @@ private object BasicReportsInternal {
       CmmsModelProviderId,
       CmmsModelSuiteId,
       CmmsModelLineId,
-      ModelLineSystemSpecified
+      ModelLineSystemSpecified,
+      ExternalReportResultId,
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
