@@ -52,6 +52,8 @@ edpAggregator: #EdpAggregator & {
 		}
 	}
 
+	configMaps: "java": #JavaConfigMap
+
 	deployments: {
 		"edp-aggregator-internal-api-server": {
 			spec: template: spec: #ServiceAccountPodSpec & {

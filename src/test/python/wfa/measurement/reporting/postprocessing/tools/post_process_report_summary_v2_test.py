@@ -14,17 +14,17 @@
 
 import unittest
 
-from google.protobuf.json_format import Parse
+from google.protobuf import text_format
 
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-    report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 from noiseninja.noised_measurements import Measurement, MeasurementSet
 
-from report.report import MetricReport
-from report.report import Report
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-    report_summary_v2_pb2
+from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
+    MetricReport,
+    Report,
+)
+from wfa.measurement.internal.reporting.postprocessing import report_summary_v2_pb2
 
 StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCode
 
@@ -37,7 +37,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
     def test_report_summary_v2_is_parsed_correctly(self):
         report_summary = get_report_summary_v2(
-            'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.json'
+            'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
         reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
 
@@ -576,7 +576,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
     def test_report_is_built_from_report_summary_v2_correctly(self):
         report_summary = get_report_summary_v2(
-            'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.json'
+            'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
         reportSummaryProcessor = ReportSummaryV2Processor(report_summary)
 
@@ -1493,7 +1493,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
 
     def test_report_summary_v2_is_corrected_successfully(self):
         report_summary_v2 = get_report_summary_v2(
-            "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.json"
+            "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto"
         )
         report_post_processor_result = ReportSummaryV2Processor(
             report_summary_v2).process()
@@ -1522,9 +1522,9 @@ def read_file_to_string(filename: str) -> str:
 
 
 def get_report_summary_v2(filename: str):
-    input = read_file_to_string(filename)
-    report_summary = report_summary_v2_pb2.ReportSummaryV2()
-    Parse(input, report_summary)
+    report_summary_textproto = read_file_to_string(filename)
+    report_summary = text_format.Parse(report_summary_textproto,
+                                       report_summary_v2_pb2.ReportSummaryV2())
     return report_summary
 
 

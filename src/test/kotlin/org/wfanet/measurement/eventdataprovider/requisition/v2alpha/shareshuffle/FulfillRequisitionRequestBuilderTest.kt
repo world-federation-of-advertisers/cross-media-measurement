@@ -45,6 +45,7 @@ class FulfillRequisitionRequestBuilderTest {
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
       }
     assertThat(exception.message).contains("Found: 0")
@@ -65,6 +66,7 @@ class FulfillRequisitionRequestBuilderTest {
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
       }
     assertThat(exception.message).contains("Found: 2")
@@ -80,6 +82,7 @@ class FulfillRequisitionRequestBuilderTest {
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
       }
     assertThat(exception.message).contains("Found: 0")
@@ -102,6 +105,7 @@ class FulfillRequisitionRequestBuilderTest {
           frequencyVector { data += 1 },
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
       }
     assertThat(exception.message).contains("Found: 3")
@@ -117,6 +121,7 @@ class FulfillRequisitionRequestBuilderTest {
           frequencyVector {},
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
       }
     assertThat(exception.message).contains("must have size")
@@ -135,6 +140,7 @@ class FulfillRequisitionRequestBuilderTest {
           inputFrequencyVector,
           Requisitions.DATA_PROVIDER_CERTIFICATE_KEY,
           Requisitions.EDP_SIGNING_KEY,
+          "some-etag",
         )
         .toList()
 

@@ -179,7 +179,14 @@ class InProcessEdpAggregatorComponents(
 
   private val resultFulfillerApp by lazy {
     val requisitionStubFactory = TestRequisitionStubFactory(publicApiChannel, duchyChannelMap)
-    val subscriber = Subscriber(PROJECT_ID, pubSubClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = pubSubClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        blockingContext = Dispatchers.IO,
+      )
     val getStorageConfig = { _: ResultsFulfillerParams.StorageParams ->
       StorageConfig(rootDirectory = storagePath.toFile())
     }
@@ -396,7 +403,7 @@ class InProcessEdpAggregatorComponents(
     while (day.isBefore(endExclusive)) {
       val ds = day.toString()
 
-      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata"
+      val impressionMetadataBlobKey = "ds/$ds/$eventGroupPath/metadata.binpb"
 
       val impressionsFileUri = "file:///$impressionsMetadataBucket/$impressionMetadataBlobKey"
       val perDayInterval = dailyInterval(day)
@@ -497,10 +504,11 @@ class InProcessEdpAggregatorComponents(
           syntheticPopulationSpec,
           syntheticEventGroupMap.getValue(mappedEventGroup.eventGroupReferenceId),
         )
+      val modelLineName = modelLineInfoMap.keys.first()
       val impressionWriter =
         ImpressionsWriter(
           mappedEventGroup.eventGroupReferenceId,
-          "model-line/${modelLineInfoMap.keys.first()}/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
+          "model-line/$modelLineName/event-group-reference-id/${mappedEventGroup.eventGroupReferenceId}",
           kekUri,
           kmsClient,
           "$IMPRESSIONS_BUCKET-$edpAggregatorShortName",
@@ -508,7 +516,7 @@ class InProcessEdpAggregatorComponents(
           storagePath.toFile(),
           "file:///",
         )
-      impressionWriter.writeLabeledImpressionData(events)
+      impressionWriter.writeLabeledImpressionData(events, "some-model-line", null)
     }
   }
 

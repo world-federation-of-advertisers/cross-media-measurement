@@ -32,21 +32,24 @@ on:
           - head
 
 permissions:
-  id-token: write
+  contents: read
 
 jobs:
   run-tests:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
@@ -97,6 +100,6 @@ jobs:
 
       - name: Upload Bazel testlogs
         continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
         if: failure() && steps.run-tests.outcome == 'failure'
           

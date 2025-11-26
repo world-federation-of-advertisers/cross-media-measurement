@@ -29,6 +29,8 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,10 +44,10 @@ jobs:
       CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - uses: ./.github/actions/free-disk-space
 
@@ -150,13 +152,13 @@ jobs:
         run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
 
       - name: Upload coverage report as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
 
       - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -202,7 +204,7 @@ jobs:
 
       - name: Upload cluster logs artifact
         if: failure() && steps.export-cluster-logs.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
           name: cluster-logs
@@ -210,5 +212,5 @@ jobs:
 
       - name: Upload Bazel testlogs
         continue-on-error: true
-        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
         if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-coverage.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')

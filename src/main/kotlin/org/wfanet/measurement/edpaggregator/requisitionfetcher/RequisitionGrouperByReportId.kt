@@ -131,12 +131,19 @@ class RequisitionGrouperByReportId(
     val groupedRequisitions = mutableListOf<GroupedRequisitions>()
     for ((reportId, requisitionsByReportId) in requisitions.groupBy { getReportId(it) }) {
       val requisitionsMetadata: List<RequisitionMetadata> =
-        listStoredRequisitionMetadataByReportId(reportId)
+        listRequisitionMetadataByReportId(reportId)
+      val storedRequisitionMetadata =
+        requisitionsMetadata.filter { it.state == RequisitionMetadata.State.STORED }
+      val storedGroupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
+        storedRequisitionMetadata.groupBy { it.groupId }
+      groupedRequisitions.addAll(
+        recoverUnpersistedGroupedRequisitions(
+          storedGroupIdToRequisitionMetadata,
+          requisitionsByReportId,
+        )
+      )
       val groupIdToRequisitionMetadata: Map<String, List<RequisitionMetadata>> =
         requisitionsMetadata.groupBy { it.groupId }
-      groupedRequisitions.addAll(
-        recoverUnpersistedGroupedRequisitions(groupIdToRequisitionMetadata, requisitionsByReportId)
-      )
       getNewGroupedRequisitions(groupIdToRequisitionMetadata, reportId, requisitionsByReportId)
         ?.let { groupedRequisitions.add(it) }
     }
@@ -434,11 +441,13 @@ class RequisitionGrouperByReportId(
   }
 
   /**
-   * Lists [RequisitionMetadata] records for a specific report using the Requisition Metadata
-   * Storage.
+   * Lists [RequisitionMetadata] records for the given report.
+   *
+   * This fetches all requisition metadata entries for the report and filters them client-side to
+   * include only those in the `STORED`, `QUEUED`, or `PROCESSING` states.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listStoredRequisitionMetadataByReportId(
+  private suspend fun listRequisitionMetadataByReportId(
     reportName: String
   ): List<RequisitionMetadata> {
     val requisitionMetadataList: Flow<RequisitionMetadata> =
@@ -446,11 +455,7 @@ class RequisitionGrouperByReportId(
         .listResources { pageToken: String ->
           val request = listRequisitionMetadataRequest {
             parent = dataProviderName
-            filter =
-              ListRequisitionMetadataRequestKt.filter {
-                report = reportName
-                state = RequisitionMetadata.State.STORED
-              }
+            filter = ListRequisitionMetadataRequestKt.filter { report = reportName }
             pageSize = responsePageSize
             this.pageToken = pageToken
           }

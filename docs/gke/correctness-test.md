@@ -94,7 +94,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
     --define=edp5_name=dataProviders/HlFzHaAQ5pA \
     --define=edp6_name=dataProviders/QNqyjKAQ5i4 \
     --define=pdp_name=dataProviders/KnvDaDC7QKA \
-    --define=mp_name=modelProviders/Wt5MH8egH4w
+    --define=mp_name=modelProviders/Wt5MH8egH4w \
+    --define=model_line_name=modelProviders/Wt5MH8egH4w/modelSuites/Wt5MH8egH4w/modelLines/Wt5MH8egH4w
 ```
 
 The time the test takes depends on the size of the data set. With the default

@@ -17,15 +17,24 @@ data "google_project" "project" {}
 locals {
 
   metadata_map = merge(
-      {
-        "tee-signed-image-repos"     = var.edpa_tee_signed_image_repo
-        "tee-image-reference"        = var.docker_image
-        "tee-cmd"                    = jsonencode(var.tee_cmd)
-      },
-      var.config_storage_bucket == null ? {} : {
-        "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
-      }
-    )
+    {
+      "tee-signed-image-repos"                        = var.edpa_tee_signed_image_repo
+      "tee-image-reference"                           = var.docker_image
+      "tee-cmd"                                       = jsonencode(var.tee_cmd),
+      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
+      "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
+      "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
+      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
+      "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+      "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+    },
+    var.config_storage_bucket == null ? {} : {
+      "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
+    },
+    var.java_tool_options == "" ? {} : {
+      "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
+    }
+  )
 }
 
 resource "google_service_account" "mig_service_account" {
@@ -72,6 +81,18 @@ resource "google_project_iam_member" "mig_log_writer" {
   member  = "serviceAccount:${google_service_account.mig_service_account.email}"
 }
 
+resource "google_project_iam_member" "mig_metric_writer" {
+  project = data.google_project.project.name
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
+resource "google_project_iam_member" "mig_trace_agent" {
+  project = data.google_project.project.name
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.mig_service_account.email}"
+}
+
 data "google_compute_image" "confidential_space" {
   family  = var.disk_image_family
   project = "confidential-space-images"
@@ -95,8 +116,11 @@ resource "google_compute_instance_template" "confidential_vm_template" {
   }
 
   disk {
-    boot            = true
-    source_image    = data.google_compute_image.confidential_space.self_link
+    boot                   = true
+    source_image           = data.google_compute_image.confidential_space.self_link
+    disk_type              = "hyperdisk-balanced"
+    provisioned_iops       = 5000
+    provisioned_throughput = 1250
   }
 
   shielded_instance_config {

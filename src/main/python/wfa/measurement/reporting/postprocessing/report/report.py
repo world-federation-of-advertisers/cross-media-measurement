@@ -32,8 +32,7 @@ from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
@@ -241,7 +240,6 @@ def get_edps_from_edp_combination(
   )
 
 
-
 def build_measurement_set(
     reach: dict[EdpCombination, Measurement],
     k_reach: dict[EdpCombination, KReachMeasurements],
@@ -261,7 +259,6 @@ def build_measurement_set(
         impression=impression.get(edp),
     )
   return whole_campaign_measurements
-
 
 
 class MetricReport:
@@ -2076,32 +2073,32 @@ class Report:
       metric_report = self._metric_reports[metric]
 
       # Check if the whole campaign measurements follow the CI model.
-      union_measurement = metric_report.get_whole_campaign_reach_measurement(
-          edp_combination)
-      component_measurements = [
-          metric_report.get_whole_campaign_reach_measurement(single_edp)
-          for single_edp in edps
-      ]
-
-      if not is_union_reach_consistent(union_measurement,
-                                       component_measurements,
-                                       self._population_size):
-        return False
-
-      # Check if the cumulative measurements follow the CI model.
-      for period in range(self._num_periods):
-        union_measurement = metric_report.get_weekly_cumulative_reach_measurement(
-            edp_combination, period)
+      if edp_combination in metric_report.get_whole_campaign_reach_edp_combinations():
+        union_measurement = metric_report.get_whole_campaign_reach_measurement(
+            edp_combination)
         component_measurements = [
-            metric_report.get_weekly_cumulative_reach_measurement(
-                single_edp, period)
+            metric_report.get_whole_campaign_reach_measurement(single_edp)
             for single_edp in edps
         ]
 
-        if not is_union_reach_consistent(union_measurement,
-                                         component_measurements,
-                                         self._population_size):
+        if not is_union_reach_consistent(
+            union_measurement, component_measurements, self._population_size):
           return False
+
+      # Check if the cumulative measurements follow the CI model.
+      if edp_combination in metric_report.get_weekly_cumulative_reach_edp_combinations():
+        for period in range(self._num_periods):
+          union_measurement = metric_report.get_weekly_cumulative_reach_measurement(
+              edp_combination, period)
+          component_measurements = [
+              metric_report.get_weekly_cumulative_reach_measurement(
+                  single_edp, period)
+              for single_edp in edps
+          ]
+
+          if not is_union_reach_consistent(
+              union_measurement, component_measurements, self._population_size):
+            return False
 
     return True
 

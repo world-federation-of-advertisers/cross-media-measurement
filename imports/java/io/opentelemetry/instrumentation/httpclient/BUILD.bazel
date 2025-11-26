@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "java_http_client",
+    actual = "@maven//:io_opentelemetry_instrumentation_opentelemetry_java_http_client",
+)

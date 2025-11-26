@@ -20,6 +20,9 @@ on:
       - main
       - 'releases/**'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,9 +35,9 @@ jobs:
       run:
         shell: bash
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-    - uses: world-federation-of-advertisers/actions/setup-api-linter@v2
+    - uses: world-federation-of-advertisers/actions/setup-api-linter@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
       with:
         version: 1.67.2
         sha256: 260064fad8c38feae402595b6cefef51d70e72b0b5968359c79ee8f3ad33ab27
@@ -54,7 +57,7 @@ jobs:
         build --remote_download_outputs=toplevel  # Need descriptor set output.
         EOF
 
-    - uses: world-federation-of-advertisers/actions/setup-bazel@v2
+    - uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
     - run: tools/api-lint wfa/measurement/system
     - run: tools/api-lint wfa/measurement/securecomputation

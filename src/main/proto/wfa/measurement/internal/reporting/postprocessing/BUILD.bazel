@@ -12,16 +12,23 @@ IMPORT_PREFIX = "/src/main/proto"
 proto_library(
     name = "report_summary_proto",
     srcs = ["report_summary.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(
     name = "report_summary_v2_proto",
     srcs = ["report_summary_v2.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_proto",
+    ],
 )
 
 proto_library(
     name = "report_post_processor_result_proto",
     srcs = ["report_post_processor_result.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":report_summary_proto",
         ":report_summary_v2_proto",

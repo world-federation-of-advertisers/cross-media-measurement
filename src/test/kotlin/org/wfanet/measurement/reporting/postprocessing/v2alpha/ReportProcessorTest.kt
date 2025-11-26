@@ -39,7 +39,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 data class MetricReport(
   val cumulativeMeasurements: Map<Set<String>, List<Long>>,
   val totalMeasurements: Map<Set<String>, Long>,
-  val kreach: Map<Set<String>, Map<Int, Long>>,
+  val kreach: Map<Set<String>, Map<Int, Double>>,
   val impression: Map<Set<String>, Long>,
 )
 
@@ -121,6 +121,82 @@ class ReportProcessorTest {
         )
         .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
     }
+
+  @Test
+  fun `run correct 2-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_2_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092623_b25b5bc8c9405da3d16c5e8cfdb070.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
+
+  @Test
+  fun `run correct 3-edp report with a non-video edp successfully`() = runBlocking {
+    val reportFile =
+      TEST_DATA_RUNTIME_DIR.resolve("sample_3_edp_report_with_a_non_video_edp.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val report = ReportConversion.getReportFromJsonString(reportAsJson)
+    assertThat(report.hasConsistentMeasurements()).isFalse()
+
+    val reportProcessingOutput: ReportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+    val updatedReport =
+      ReportConversion.getReportFromJsonString(reportProcessingOutput.updatedReportJson)
+    assertThat(updatedReport.hasConsistentMeasurements()).isTrue()
+
+    // Verifies that the log result has union status.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertThat(result.preCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertThat(result.postCorrectionQuality.unionStatus)
+      .isEqualTo(ReportQuality.IndependenceCheckStatus.WITHIN_CONFIDENCE_RANGE)
+    assertEquals(reportProcessingOutput.reportPostProcessorLog.issuesList, emptyList())
+
+    // Verifies that the field postProcessingSuccessful is set properly.
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+
+    val expectedBlobKey = "20251028/20251028092827_b8854d64906a0dc72dc945b3142.textproto"
+    assertThat(inMemoryStorageClient.contents).containsKey(expectedBlobKey)
+
+    assertThat(
+        ReportPostProcessorLog.parseFrom(
+          inMemoryStorageClient.getBlob(expectedBlobKey)!!.read().flatten()
+        )
+      )
+      .isEqualTo(reportProcessingOutput.reportPostProcessorLog)
+  }
 
   @Test
   fun `run correct report with logging with custom policy successfully`() = runBlocking {
@@ -451,7 +527,7 @@ class ReportProcessorTest {
     private fun ReportSummary.toMetricReport(measurementPolicy: String): MetricReport {
       val cumulativeMeasurements: MutableMap<Set<String>, List<Long>> = mutableMapOf()
       val totalMeasurements: MutableMap<Set<String>, Long> = mutableMapOf()
-      val kreach: MutableMap<Set<String>, Map<Int, Long>> = mutableMapOf()
+      val kreach: MutableMap<Set<String>, Map<Int, Double>> = mutableMapOf()
       val impression: MutableMap<Set<String>, Long> = mutableMapOf()
 
       // Processes cumulative measurements.
@@ -499,7 +575,11 @@ class ReportProcessorTest {
           if (measurements.any { it < 0 }) {
             return false
           }
-          if (measurements.zipWithNext().any { (a, b) -> a > b }) {
+          if (
+            measurements.zipWithNext().any { (a, b) ->
+              !fuzzyLessEqual(a.toDouble(), b.toDouble(), TOLERANCE)
+            }
+          ) {
             return false
           }
         }
@@ -549,8 +629,8 @@ class ReportProcessorTest {
 
       // Verifies that the relationship between kreach and impression holds.
       for (edpCombination in impression.keys.intersect(kreach.keys)) {
-        val kReachByEdpCombination: Map<Int, Long> = kreach.getValue(edpCombination)
-        val kreachWeightedSum: Long =
+        val kReachByEdpCombination: Map<Int, Double> = kreach.getValue(edpCombination)
+        val kreachWeightedSum: Double =
           kReachByEdpCombination.entries.sumOf { (key, value) -> key * value }
         val totalWeight: Int = kReachByEdpCombination.entries.sumOf { (key, _) -> key }
         if (
@@ -652,7 +732,7 @@ class ReportProcessorTest {
     }
 
     private fun fuzzyLessEqual(val1: Double, val2: Double, tolerance: Double): Boolean {
-      return val1 < val2 + tolerance
+      return val1 <= val2 + tolerance
     }
   }
 }

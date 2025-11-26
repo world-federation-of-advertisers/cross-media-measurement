@@ -42,3 +42,10 @@ databaseChangeLog:
 - include:
     file: create-report-results-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-bins.sql
+    relativeToChangeLogFile: true
+- include:
+    file: add-report-results-missing-columns.sql
+    relativeToChangeLogFile: true
+

@@ -26,10 +26,12 @@ from noiseninja.noised_measurements import MeasurementSet
 from report.report import EdpCombination
 from report.report import MetricReport
 from report.report import Report
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
-    report_post_processor_result_pb2,)
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import (
-    report_summary_v2_pb2,)
+from wfa.measurement.internal.reporting.postprocessing import (
+    report_post_processor_result_pb2,
+)
+from wfa.measurement.internal.reporting.postprocessing import (
+    report_summary_v2_pb2,
+)
 
 ReportPostProcessorResult = (
     report_post_processor_result_pb2.ReportPostProcessorResult)
@@ -143,20 +145,12 @@ class ReportSummaryV2Processor:
                     edp_combination] = measurements
 
             if report_summary_set_result.non_cumulative_results:
+                logging.debug(
+                    f"Processing {impression_filter} non-cumulative results for"
+                    f" EDPs {report_summary_set_result.data_providers}.")
                 weekly_results = []
                 for result in report_summary_set_result.non_cumulative_results:
-                    if (result.metric_frequency_type ==
-                            ReportSummaryWindowResult.TOTAL):
-                        self._whole_campaign_measurements[impression_filter][
-                            edp_combination] = self._extract_measurement_set(
-                                result)
-                    elif (result.metric_frequency_type ==
-                          ReportSummaryWindowResult.WEEKLY):
-                        weekly_results.append(result)
-                    else:
-                        logging.warning(
-                            f"Unknown metric frequency type: {result.metric_frequency_type}"
-                        )
+                    weekly_results.append(result)
 
                 if weekly_results:
                     self._weekly_non_cumulative_measurements[impression_filter][
@@ -164,6 +158,15 @@ class ReportSummaryV2Processor:
                             self._extract_measurement_set(result)
                             for result in weekly_results
                         ]
+
+            if report_summary_set_result.HasField('whole_campaign_result'):
+                logging.debug(
+                    f"Processing {impression_filter} whole campaign result for"
+                    f" EDPs {report_summary_set_result.data_providers}.")
+                self._whole_campaign_measurements[impression_filter][
+                    edp_combination] = self._extract_measurement_set(
+                        report_summary_set_result.whole_campaign_result)
+
 
         logging.info("Finished processing results.")
 
@@ -180,11 +183,11 @@ class ReportSummaryV2Processor:
                 result.reach.metric,
             )
         if result.HasField("frequency"):
-            for bin_result in result.frequency.bins:
-                k_reach_id = (f"{result.frequency.metric}"
-                              f"-bin-{bin_result.label}")
-                k_reach[int(bin_result.label)] = Measurement(
-                    bin_result.value, bin_result.standard_deviation, k_reach_id)
+            for key, bin_result in result.frequency.bins.items():
+                k_reach_id = f"{result.frequency.metric}-bin-{key}"
+                k_reach[int(key)] = Measurement(
+                    bin_result.value, bin_result.standard_deviation, k_reach_id
+                )
         if result.HasField("impression_count"):
             impression = Measurement(
                 result.impression_count.value,

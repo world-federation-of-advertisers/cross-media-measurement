@@ -178,7 +178,11 @@ object ReachAndFrequencyComputations {
       val numNoisedActiveRegisters = noisedHistogram.sum()
       return noisedHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
-        frequency to count.toDouble() / numNoisedActiveRegisters
+        if (numNoisedActiveRegisters === 0L) {
+          frequency to 0.0
+        } else {
+          frequency to count.toDouble() / numNoisedActiveRegisters
+        }
       }
     }
 
@@ -200,7 +204,11 @@ object ReachAndFrequencyComputations {
     val numKActiveRegisters = kAnonymityHistogram.sum()
     return kAnonymityHistogram.withIndex().associate { (index, count) ->
       val frequency = index + 1L
-      frequency to count.toDouble() / numKActiveRegisters
+      if (numKActiveRegisters === 0L) {
+        frequency to 0.0
+      } else {
+        frequency to count.toDouble() / numKActiveRegisters
+      }
     }
   }
 }

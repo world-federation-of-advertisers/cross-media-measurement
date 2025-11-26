@@ -26,15 +26,18 @@ on:
         type: boolean
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   send-notification:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - id: get-latest-release-tag
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

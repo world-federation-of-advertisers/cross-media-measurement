@@ -31,8 +31,11 @@ kt_jvm_library(
     name = "errors",
     srcs = ["Errors.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
@@ -43,7 +46,22 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
+    ],
+)
+
+kt_jvm_library(
+    name = "grouping_dimensions",
+    srcs = ["GroupingDimensions.kt"],
+    deps = [
+        ":normalization",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 

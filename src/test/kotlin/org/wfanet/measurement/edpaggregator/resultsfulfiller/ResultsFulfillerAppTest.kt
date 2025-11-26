@@ -43,6 +43,7 @@ import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -156,12 +157,18 @@ class ResultsFulfillerAppTest {
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
-  private val requisitionMetadataServiceMock =
-    mockService<RequisitionMetadataServiceCoroutineImplBase>()
+  private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
+    mockService {
+      onBlocking { startProcessingRequisitionMetadata(any()) }
+        .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
+      onBlocking { fulfillRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+    }
   private val impressionMetadataServiceMock =
     mockService<ImpressionMetadataServiceCoroutineImplBase>()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
+    onBlocking { getRequisition(any()) }
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
   }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase by lazy {
     mockService {
@@ -224,7 +231,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork processes requisition successfully`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -332,7 +348,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -372,7 +388,16 @@ class ResultsFulfillerAppTest {
   @Test
   fun `runWork throws where requisition metadata is not found`() {
     runBlocking {
-      val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+      val subscriber =
+        Subscriber(
+          projectId = PROJECT_ID,
+          googlePubSubClient = emulatorClient,
+          maxMessages = 1,
+          pullIntervalMillis = 100,
+          ackDeadlineExtensionIntervalSeconds = 60,
+          ackDeadlineExtensionSeconds = 600,
+          blockingContext = Dispatchers.IO,
+        )
       val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
       val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -442,7 +467,7 @@ class ResultsFulfillerAppTest {
       val app =
         ResultsFulfillerApp(
           subscriptionId = SUBSCRIPTION_ID,
-          queueSubscriber = pubSubClient,
+          queueSubscriber = subscriber,
           parser = WorkItem.parser(),
           workItemsStub,
           workItemAttemptsStub,
@@ -464,7 +489,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork correctly selects continuous gaussian noise`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -566,7 +600,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -598,7 +632,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws exception if noise is not selected`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -684,7 +727,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -707,7 +750,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork zeros out results if k-anonymity threshold is not met`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -793,7 +845,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -825,7 +877,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork returns non-zero results for sufficient k-anonymity`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -934,7 +995,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,
@@ -973,7 +1034,16 @@ class ResultsFulfillerAppTest {
 
   @Test
   fun `runWork throws errors if k-anonymity params not set up correctly`() = runBlocking {
-    val pubSubClient = Subscriber(projectId = PROJECT_ID, googlePubSubClient = emulatorClient)
+    val subscriber =
+      Subscriber(
+        projectId = PROJECT_ID,
+        googlePubSubClient = emulatorClient,
+        maxMessages = 1,
+        pullIntervalMillis = 100,
+        ackDeadlineExtensionIntervalSeconds = 60,
+        ackDeadlineExtensionSeconds = 600,
+        blockingContext = Dispatchers.IO,
+      )
     val workItemsStub = WorkItemsCoroutineStub(grpcTestServerRule.channel)
     val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServerRule.channel)
 
@@ -1068,7 +1138,7 @@ class ResultsFulfillerAppTest {
     val app =
       ResultsFulfillerApp(
         subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = pubSubClient,
+        queueSubscriber = subscriber,
         parser = WorkItem.parser(),
         workItemsStub,
         workItemAttemptsStub,

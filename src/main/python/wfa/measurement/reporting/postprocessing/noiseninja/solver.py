@@ -23,8 +23,7 @@ from qpsolvers import solve_problem
 
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
-from src.main.proto.wfa.measurement.internal.reporting.postprocessing import \
-  report_post_processor_result_pb2
+from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
 
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 StatusCode = ReportPostProcessorStatus.StatusCode
@@ -234,6 +233,28 @@ class Solver:
       problem = Problem(self.P, self.q, np.array(self.G), np.array(self.h))
     return problem
 
+  def _validate_solution(self, solution: Solution) -> bool:
+    """Validates a solution from the QP solver.
+
+    A solution is considered valid if it was found and does not contain any
+    negative values beyond a small tolerance. This is acceptable because the
+    final results represent reach counts and will be rounded to the nearest
+    integer, so negligibly small negative values (e.g., -1e-1) do not impact
+    the final result.
+
+    Args:
+      solution: The solution object returned by the QP solver.
+
+    Returns:
+      True if the solution is valid, False otherwise.
+    """
+    if not solution.found:
+      return False
+    if np.any(solution.x < -TOLERANCE):
+      logging.warning("Solution contains negative values, invalidating.")
+      return False
+    return True
+
   def _solve(self, solver_name: str) -> tuple[
     Solution, ReportPostProcessorStatus]:
     logging.info("Solving the quadratic program.")
@@ -252,7 +273,7 @@ class Solver:
       solution = self._solve_with_initial_value(solver_name, self.base_value)
       SEMAPHORE.release()
 
-      if solution.found:
+      if self._validate_solution(solution):
         primal_residual = solution.primal_residual()
         if primal_residual < smallest_residual:
           smallest_primal_residual = primal_residual

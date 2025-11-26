@@ -28,15 +28,21 @@ on:
         type: string
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   publish-artifacts:
     name: Publish Uber‑JAR to GitHub Packages
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bazel
-        uses: world-federation-of-advertisers/actions/setup-bazel@v2
+        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - name: Write auth.bazelrc
         env:
@@ -58,7 +64,7 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Set up Java & Maven
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
         with:
           distribution: zulu
           java-version: '17'
