@@ -35,6 +35,7 @@ bazel_dep(
     version = "0.4.1",
     repo_name = "wfa_rules_cue",
 )
+# DO_NOT_SUBMIT: update version
 bazel_dep(
     name = "common-jvm",
     version = "0.127.0",
