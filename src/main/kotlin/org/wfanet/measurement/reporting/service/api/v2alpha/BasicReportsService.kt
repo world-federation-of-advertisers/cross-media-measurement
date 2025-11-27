@@ -78,12 +78,11 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
-import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -161,22 +160,12 @@ class BasicReportsService(
 
     try {
       validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
-    } catch (e: ServiceException) {
-      throw when (e.reason) {
-        Errors.Reason.REQUIRED_FIELD_NOT_SET,
-        Errors.Reason.INVALID_FIELD_VALUE ->
-          e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        Errors.Reason.FIELD_UNIMPLEMENTED -> e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
-        Errors.Reason.BASIC_REPORT_NOT_FOUND,
-        Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-        Errors.Reason.REPORTING_SET_NOT_FOUND,
-        Errors.Reason.METRIC_NOT_FOUND,
-        Errors.Reason.CAMPAIGN_GROUP_INVALID,
-        Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
-        Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
-        Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-          e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
-      }
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: FieldUnimplementedException) {
+      throw e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
     }
 
     val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
