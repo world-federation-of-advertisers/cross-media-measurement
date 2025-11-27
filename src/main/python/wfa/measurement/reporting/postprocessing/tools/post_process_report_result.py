@@ -101,10 +101,11 @@ class PostProcessReportResult:
         for report_summary in report_summaries:
             result = ReportSummaryV2Processor(report_summary).process()
             if result.status.status_code in [
-                ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
-                ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
-                ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
-                ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
+                    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_HIGHS,
+                    ReportPostProcessorStatus.SOLUTION_FOUND_WITH_OSQP,
+                    ReportPostProcessorStatus.
+                    PARTIAL_SOLUTION_FOUND_WITH_HIGHS,
+                    ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
             ]:
                 all_updated_measurements.update(result.updated_measurements)
             else:
@@ -127,21 +128,14 @@ class PostProcessReportResult:
         request = ListReportingSetResultsRequest(
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
             external_report_result_id=external_report_result_id,
-            view=report_result_pb2.ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY,
+            view=report_result_pb2.ReportingSetResultView.
+            REPORTING_SET_RESULT_VIEW_NOISY,
         )
         results = []
         response = self._report_results_stub.ListReportingSetResults(request)
         results.extend(response.reporting_set_results)
 
-#         while response.next_page_token:
-#             next_request = ListReportingSetResultsRequest(
-#                 cmms_measurement_consumer_id=cmms_measurement_consumer_id,
-#                 external_report_result_id=external_report_result_id,
-#                 view=report_result_pb2.ReportingSetResultView.REPORTING_SET_RESULT_VIEW_NOISY,
-#                 page_token=response.next_page_token,
-#             )
-#             response = self._report_results_stub.ListReportingSetResults(next_request)
-#             results.extend(response.reporting_set_results)
+        # TODO(@ple13): Support pagination.
 
         return results
 
@@ -179,12 +173,13 @@ class PostProcessReportResult:
                 primitive_ids = set()
                 for weighted_subset_union in reporting_set.weighted_subset_unions:
                     for primitive_reporting_set_base in weighted_subset_union.primitive_reporting_set_bases:
-                        primitive_ids.add(
-                            primitive_reporting_set_base.external_reporting_set_id)
+                        primitive_ids.add(primitive_reporting_set_base.
+                                          external_reporting_set_id)
                 return primitive_ids
 
         return {
-            reporting_set_id: _get_primitive_ids(reporting_set_map[reporting_set_id])
+            reporting_set_id:
+            _get_primitive_ids(reporting_set_map[reporting_set_id])
             for reporting_set_id in external_reporting_set_ids
             if reporting_set_id in reporting_set_map
         }
@@ -193,7 +188,7 @@ class PostProcessReportResult:
         self,
         report_summaries: list[ReportSummaryV2],
         updated_measurements: dict[str, int],
-    ) -> list[AddDenoisedResultValuesRequest]:
+    ) -> AddDenoisedResultValuesRequest:
         """Creates AddDenoisedResultValuesRequest messages from corrected measurements.
 
         Args:
@@ -201,45 +196,125 @@ class PostProcessReportResult:
             updated_measurements: A dictionary of corrected measurement values.
 
         Returns:
-            A list of AddDenoisedResultValuesRequest messages.
+            An AddDenoisedResultValuesRequest message.
         """
+        if not report_summaries:
+            logging.warning("No report summaries were provided; skipping update.")
+            return None
+
         if not updated_measurements:
             logging.warning(
                 "No updated measurements were provided; skipping update.")
-            return []
+            return None
 
-        requests = []
-        for summary in report_summaries:
-            request = AddDenoisedResultValuesRequest(
-                cmms_measurement_consumer_id=summary.
-                cmms_measurement_consumer_id,
-                external_report_result_id=int(
-                    summary.external_report_result_id),
-            )
+        print(updated_measurements)
 
-            for set_result in summary.report_summary_set_results:
-                denoised_set_result = request.reporting_set_results.get_or_create(
-                    set_result.external_reporting_set_result_id)
+        # Gets the cmms_measurement_consumer_id and external_report_result_id
+        # from the first report summary.
+        report_summary = report_summaries[0]
+        request = AddDenoisedResultValuesRequest(
+            cmms_measurement_consumer_id=report_summary.cmms_measurement_consumer_id,
+            external_report_result_id=report_summary.external_report_result_id,
+        )
 
-                # This assumes that the windows in cumulative_results and
-                # non_cumulative_results can be uniquely identified by their
-                # metric names, which are constructed to be unique.
-                # We will group them by a generated window key.
-                # TODO(lephi): Find a better way to get the window key.
+        for report_summary in report_summaries:
+            for reporting_summary_set_result in report_summary.report_summary_set_results:
+                denoised_set_result = request.reporting_set_results[
+                    reporting_summary_set_result.external_reporting_set_result_id]
 
-                for window_result in set_result.cumulative_results:
-                    if window_result.reach.metric in updated_measurements:
-                        # For now, we only handle cumulative reach.
-                        pass
+                # Groups results by window key.
+                results_by_window = {}
+                for result in reporting_summary_set_result.cumulative_results:
+                    if result.reach.metric in updated_measurements:
+                        window_key_str = result.key.SerializeToString()
+                        if window_key_str not in results_by_window:
+                            results_by_window[window_key_str] = {
+                                'key': result.key
+                            }
+                        results_by_window[window_key_str]['cumulative'] = (
+                            updated_measurements[result.reach.metric])
+                        for bin_label, bin_result in result.frequency.bins.items(
+                        ):
+                            if 'cumulative_frequency' not in results_by_window[
+                                    window_key_str]:
+                                results_by_window[window_key_str][
+                                    'cumulative_frequency'] = {}
+                            results_by_window[window_key_str][
+                                'cumulative_frequency'][
+                                    bin_label] = updated_measurements.get(
+                                        f'{result.frequency.metric}_{bin_label}',
+                                        bin_result.value)
 
-                for window_result in set_result.non_cumulative_results:
-                    metric_set = result_group_pb2.ResultGroup.MetricSet.BasicMetricSet(
+                for result in reporting_summary_set_result.non_cumulative_results:
+                    if result.reach.metric in updated_measurements:
+                        window_key_str = result.key.SerializeToString()
+                        if window_key_str not in results_by_window:
+                            results_by_window[window_key_str] = {
+                                'key': result.key
+                            }
+                        results_by_window[window_key_str][
+                            'non_cumulative'] = updated_measurements[
+                                result.reach.metric]
+                        for bin_label, bin_result in result.frequency.bins.items(
+                        ):
+                            if 'non_cumulative_frequency' not in results_by_window[
+                                    window_key_str]:
+                                results_by_window[window_key_str][
+                                    'non_cumulative_frequency'] = {}
+                            results_by_window[window_key_str][
+                                'non_cumulative_frequency'][
+                                    bin_label] = updated_measurements.get(
+                                        f'{result.frequency.metric}_{bin_label}',
+                                        bin_result.value)
+
+                if reporting_summary_set_result.whole_campaign_result.reach.metric in updated_measurements:
+                    result = reporting_summary_set_result.whole_campaign_result
+                    window_key_str = result.key.SerializeToString()
+                    if window_key_str not in results_by_window:
+                        results_by_window[window_key_str] = {'key': result.key}
+                    results_by_window[window_key_str][
+                        'cumulative'] = updated_measurements[
+                            result.reach.metric]
+                    for bin_label, bin_result in result.frequency.bins.items():
+                        if 'cumulative_frequency' not in results_by_window[
+                                window_key_str]:
+                            results_by_window[window_key_str][
+                                'cumulative_frequency'] = {}
+                        results_by_window[window_key_str][
+                            'cumulative_frequency'][
+                                bin_label] = updated_measurements.get(
+                                    f'{result.frequency.metric}_{bin_label}',
+                                    bin_result.value)
+
+                for window_data in results_by_window.values():
+                    denoised_window_entry = denoised_set_result.reporting_window_results.add(
                     )
-                    if window_result.reach.metric in updated_measurements:
-                        metric_set.reach_value = updated_measurements[
-                            window_result.reach.metric]
+                    denoised_window_entry.key.CopyFrom(window_data['key'])
+                    if 'cumulative' in window_data:
+                        denoised_window_entry.value.cumulative_results.reach = round(
+                            window_data['cumulative'])
+                    if 'cumulative_frequency' in window_data:
+                        sorted_freqs = sorted(
+                            window_data['cumulative_frequency'].items())
+                        freq_values = [value for _, value in sorted_freqs]
+                        k_plus_reach_values = [
+                            sum(freq_values[i:])
+                            for i in range(len(freq_values))
+                        ]
+                        denoised_window_entry.value.cumulative_results.k_plus_reach.extend(
+                            [round(val) for val in k_plus_reach_values])
+                    if 'non_cumulative' in window_data:
+                        denoised_window_entry.value.non_cumulative_results.reach = round(
+                            window_data['non_cumulative'])
+                    if 'non_cumulative_frequency' in window_data:
+                        sorted_freqs = sorted(
+                            window_data['non_cumulative_frequency'].items())
+                        freq_values = [value for _, value in sorted_freqs]
+                        k_plus_reach_values = [
+                            sum(freq_values[i:])
+                            for i in range(len(freq_values))
+                        ]
+                        denoised_window_entry.value.non_cumulative_results.k_plus_reach.extend(
+                            [round(val) for val in k_plus_reach_values])
 
-            if request.reporting_set_results:
-                requests.append(request)
-
-        return requests
+        return request
