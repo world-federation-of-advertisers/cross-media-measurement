@@ -54,7 +54,6 @@ locals {
     signed_image_repo                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones      = ["us-central1-a"]
     disk_image_family                  = "confidential-space-debug"
-    trustee_mill_subnetwork_cidr_range = var.trustee_mill_subnetwork_cidr_range
 
     aggregator_tls_cert                = local.aggregator_tls_cert
     aggregator_tls_key                 = local.aggregator_tls_key
@@ -78,19 +77,19 @@ locals {
       "--consent-signaling-private-key-der-file", "/tmp/secrets/aggregator_cs_private.der",
       "--attestation-token-file", "/run/container_launcher/attestation_verifier_claims_token",
 
-      "--computations-service-target", ${var.duchy_aggregator_computations_service_target},
+      "--computations-service-target", "${var.duchy_aggregator_computations_service_target}",
       "--computations-service-cert-host", "localhost",
-      "--kingdom-system-api-target", ${var.kingdom_system_api_target},
+      "--kingdom-system-api-target", "${var.kingdom_system_api_target}",
       "--kingdom-system-api-cert-host", "localhost",
 
       "--duchy-name", "aggregator",
       "--work-lock-duration", "10m",
       "--polling-interval", "5s",
 
-      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/${AGGREGATOR_DUCHY_CERT_ID}",
+      "--consent-signaling-certificate-resource-name", "duchies/aggregator/certificates/${var.duchy_aggregator_cert_id}",
 
       "--google-cloud-storage-project", data.google_client_config.default.project,
-      "--google-cloud-storage-bucket", ${storage_bucket_name},
+      "--google-cloud-storage-bucket", "${var.storage_bucket_name}",
     ]
   }
 }

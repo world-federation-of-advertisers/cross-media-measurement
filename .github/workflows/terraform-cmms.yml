@@ -229,7 +229,6 @@ jobs:
         DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET: ${{ vars.DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
-        TRUSTEE_MILL_SUBNETWORK_CIDR_RANGE: ${{ vars.$TRUSTEE_MILL_SUBNETWORK_CIDR_RANGE }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -276,8 +275,6 @@ jobs:
         -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
-        -var="duchy_aggregator_gcs_bucket=$STORAGE_BUCKET"
-        -var="trustee_mill_subnetwork_cidr_range=$TRUSTEE_MILL_SUBNETWORK_CIDR_RANGE"
         -out=tfplan
 
     - name: terraform apply

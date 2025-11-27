@@ -276,8 +276,3 @@ variable "duchy_aggregator_cert_id" {
   description = "Aggregator's certificate id"
   type = string
 }
-
-variable "trustee_mill_subnetwork_cidr_range" {
-  description = "The range of IP addresses for TrusTEE mill subnetwork."
-  type = string
-}
