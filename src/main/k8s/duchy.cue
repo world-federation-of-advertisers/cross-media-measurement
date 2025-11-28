@@ -19,6 +19,8 @@ import ("strings")
 #TerminalComputationState: "SUCCEEDED" | "FAILED" | "CANCELLED"
 
 #Duchy: {
+	#TrusteeMillSubnetworkCidrRange: "10.0.0.0/24"
+
 	_duchy: {
 		name:                       string
 		protocols_setup_config:     string
@@ -353,6 +355,18 @@ import ("strings")
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
 			]
+			_ingresses: {
+				gRpc: {
+					from: [{
+						ipBlock: {
+							cidr: #TrusteeMillSubnetworkCidrRange
+						}
+					}]
+					ports: [{
+						port: #GrpcPort
+					}]
+				}
+			}
 			_egresses: {
 				// Need to send external traffic to Spanner.
 				any: {}
