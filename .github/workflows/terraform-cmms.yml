@@ -272,7 +272,7 @@ jobs:
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
-        -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET"
+        -var="duchy_aggregator_computations_service_target=10.128.0.105:8443"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -out=tfplan
