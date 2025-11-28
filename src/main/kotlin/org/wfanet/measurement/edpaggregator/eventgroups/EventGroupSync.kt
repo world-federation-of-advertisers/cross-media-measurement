@@ -238,6 +238,7 @@ class EventGroupSync(
                 listEventGroupsRequest {
                   parent = edpName
                   this.pageToken = pageToken
+                  pageSize = LIST_EVENT_GROUPS_PAGE_SIZE
                 }
               )
             }
@@ -261,6 +262,7 @@ class EventGroupSync(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 500
 
     /*
      * Validates that event groups fields are populated
