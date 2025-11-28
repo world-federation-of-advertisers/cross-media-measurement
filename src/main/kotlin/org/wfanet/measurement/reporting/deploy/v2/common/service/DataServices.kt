@@ -77,11 +77,16 @@ object DataServices {
   ): Services {
     val idGenerator = LegacyIdGeneratorAdapter(idGenerator)
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
-      if (spannerClient != null && impressionQualificationFilterMapping != null) {
+      if (
+        spannerClient != null &&
+          impressionQualificationFilterMapping != null &&
+          eventMessageDescriptor != null
+      ) {
         SpannerBasicReportsService(
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
+          eventMessageDescriptor,
           coroutineContext,
         )
       } else {

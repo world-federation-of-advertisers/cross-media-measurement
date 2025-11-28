@@ -55,6 +55,7 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
         spannerClient,
         postgresClient,
         impressionQualificationFilterMapping,
+        eventMessageDescriptor,
         idGenerator = idGenerator,
       ),
       PostgresReportingSetsService(integerIdGenerator, postgresClient),

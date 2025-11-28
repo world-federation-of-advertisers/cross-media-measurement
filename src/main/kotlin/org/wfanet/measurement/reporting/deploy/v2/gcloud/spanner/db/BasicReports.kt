@@ -34,7 +34,6 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 
@@ -42,7 +41,7 @@ data class BasicReportResult(
   val measurementConsumerId: Long,
   val basicReportId: Long,
   val basicReport: BasicReport,
-  val reportResult: ReportResult? = null,
+  val reportResultId: Long?,
 )
 
 /**
@@ -71,11 +70,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByRequestId(
       )
       .singleOrNullIfEmpty() ?: return null
 
-  return BasicReportResult(
-    row.getLong("MeasurementConsumerId"),
-    row.getLong("BasicReportId"),
-    buildBasicReport(row),
-  )
+  return buildBasicReportResult(row)
 }
 
 /**
@@ -105,11 +100,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getBasicReportByExternalId(
       .singleOrNullIfEmpty()
       ?: throw BasicReportNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId)
 
-  return BasicReportResult(
-    row.getLong("MeasurementConsumerId"),
-    row.getLong("BasicReportId"),
-    buildBasicReport(row),
-  )
+  return buildBasicReportResult(row)
 }
 
 /**
@@ -186,13 +177,7 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
       }
     }
 
-  return executeQuery(query).map { row ->
-    BasicReportResult(
-      row.getLong("MeasurementConsumerId"),
-      row.getLong("BasicReportId"),
-      buildBasicReport(row),
-    )
-  }
+  return executeQuery(query).map { row -> buildBasicReportResult(row) }
 }
 
 /** Buffers an insert mutation for the BasicReports table. */
@@ -301,6 +286,22 @@ suspend fun AsyncDatabaseClient.ReadContext.basicReportExists(
   ) != null
 }
 
+private fun buildBasicReportResult(row: Struct): BasicReportResult {
+  val reportResultId: Long? =
+    if (row.isNull("ReportResultId")) {
+      null
+    } else {
+      row.getLong("ReportResultId")
+    }
+
+  return BasicReportResult(
+    measurementConsumerId = row.getLong("MeasurementConsumerId"),
+    basicReportId = row.getLong("BasicReportId"),
+    basicReport = buildBasicReport(row),
+    reportResultId = reportResultId,
+  )
+}
+
 /** Builds a [BasicReport] from a query row response. */
 private fun buildBasicReport(row: Struct): BasicReport {
   return basicReport {
@@ -353,6 +354,7 @@ private object BasicReportsInternal {
       CmmsModelLineId,
       ModelLineSystemSpecified,
       ExternalReportResultId,
+      ReportResultId,
     FROM
       MeasurementConsumers
       JOIN BasicReports USING (MeasurementConsumerId)
