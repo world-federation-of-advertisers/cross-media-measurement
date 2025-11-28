@@ -30,6 +30,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -37,7 +38,6 @@ import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
@@ -128,8 +128,20 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         impressionMetadataBatchSize = impressionMetadataBatchSize,
       )
 
-    Tracing.withW3CTraceContext(request) {
-      runBlocking(Context.current().asContextElement()) { dataAvailabilitySync.sync(doneBlobPath) }
+    try {
+      Tracing.withW3CTraceContext(request) {
+        runBlocking(Context.current().asContextElement()) {
+          dataAvailabilitySync.sync(doneBlobPath)
+        }
+      }
+    } finally {
+      cmmsPublicChannel.shutdown()
+      impressionMetadataStoragePublicChannel.shutdown()
+      cmmsPublicChannel.awaitTermination(channelShutdownDuration.seconds, TimeUnit.SECONDS)
+      impressionMetadataStoragePublicChannel.awaitTermination(
+        channelShutdownDuration.seconds,
+        TimeUnit.SECONDS,
+      )
     }
   }
 
@@ -165,9 +177,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
         trustedCertCollectionFile = checkNotNull(File(connecionParams.certCollectionFilePath)),
       )
-    val publicChannel =
-      buildMutualTlsChannel(target, signingCerts, hostName)
-        .withShutdownTimeout(channelShutdownDuration)
+    val publicChannel = buildMutualTlsChannel(target, signingCerts, hostName)
 
     return publicChannel
   }
