@@ -133,8 +133,10 @@ class ModelLineTypeIllegalException(
   val externalModelSuiteId: ExternalId,
   val externalModelLineId: ExternalId,
   val type: ModelLine.Type,
-  provideDescription: () -> String = { "ModelLine type illegal" },
-) : KingdomInternalException(ErrorCode.MODEL_LINE_TYPE_ILLEGAL, provideDescription) {
+  message: String =
+    "ModelLine with external key (${externalModelLineId.value}, ${externalModelSuiteId.value}, " +
+      "${externalModelLineId.value}) has type $type which is illegal for the operation",
+) : KingdomInternalException(ErrorCode.MODEL_LINE_TYPE_ILLEGAL, message) {
   override val context
     get() =
       mapOf(
@@ -148,15 +150,15 @@ class ModelLineTypeIllegalException(
 class ModelLineInvalidArgsException(
   val externalModelProviderId: ExternalId,
   val externalModelSuiteId: ExternalId,
-  val externalModelLineId: ExternalId? = null,
-  provideDescription: () -> String = { "ModelLine invalid active time arguments" },
-) : KingdomInternalException(ErrorCode.MODEL_LINE_INVALID_ARGS, provideDescription) {
+  val externalModelLineId: ExternalId,
+  message: String,
+) : KingdomInternalException(ErrorCode.MODEL_LINE_INVALID_ARGS, message) {
   override val context
     get() =
       mapOf(
         "external_model_provider_id" to externalModelProviderId.value.toString(),
         "external_model_suite_id" to externalModelSuiteId.value.toString(),
-        "external_model_line_id" to externalModelLineId?.value.toString(),
+        "external_model_line_id" to externalModelLineId.value.toString(),
       )
 }
 

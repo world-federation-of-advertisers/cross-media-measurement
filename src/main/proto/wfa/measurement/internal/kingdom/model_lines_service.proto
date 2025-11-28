@@ -36,6 +36,8 @@ service ModelLines {
   // Sets the active_end_time for a `ModelLine`.
   rpc SetActiveEndTime(SetActiveEndTimeRequest) returns (ModelLine);
 
+  rpc SetModelLineType(SetModelLineTypeRequest) returns (ModelLine);
+
   // Lists `ModelLine`s that are valid given an `Interval` representing the time
   // range and a set of `ExternalDataProviderId`s. Ordered by `type` from `PROD`
   // to `HOLDBACK` to `DEV`, `active_start_time` descending.
@@ -87,6 +89,13 @@ message SetActiveEndTimeRequest {
   fixed64 external_model_suite_id = 2;
   fixed64 external_model_provider_id = 3;
   google.protobuf.Timestamp active_end_time = 4;
+}
+
+message SetModelLineTypeRequest {
+  fixed64 external_model_line_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_provider_id = 3;
+  ModelLine.Type type = 4;
 }
 
 // Request message for `EnumerateValidModelLines` method.

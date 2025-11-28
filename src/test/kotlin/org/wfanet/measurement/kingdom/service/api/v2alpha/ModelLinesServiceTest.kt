@@ -34,6 +34,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -58,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -86,6 +89,7 @@ import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGe
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineTypeRequest as internalSetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelLineInvalidArgsException
@@ -137,6 +141,7 @@ private val INTERNAL_MODEL_LINE: InternalModelLine = internalModelLine {
   activeStartTime = ACTIVE_START_TIME
   createTime = CREATE_TIME
   updateTime = UPDATE_TIME
+  type = InternalModelLine.Type.PROD
 }
 
 private val MODEL_LINE: ModelLine = modelLine {
@@ -146,6 +151,7 @@ private val MODEL_LINE: ModelLine = modelLine {
   activeStartTime = ACTIVE_START_TIME
   createTime = CREATE_TIME
   updateTime = UPDATE_TIME
+  type = Type.PROD
 }
 
 @RunWith(JUnit4::class)
@@ -178,6 +184,7 @@ class ModelLinesServiceTest {
       .thenReturn(
         INTERNAL_MODEL_LINE.copy { externalHoldbackModelLineId = EXTERNAL_HOLDBACK_MODEL_LINE_ID }
       )
+    onBlocking { setModelLineType(any()) } doReturn INTERNAL_MODEL_LINE
     onBlocking { streamModelLines(any()) }
       .thenReturn(
         flowOf(
@@ -523,7 +530,7 @@ class ModelLinesServiceTest {
   }
 
   @Test
-  fun `setHoldbackModelLine returns model line with holdback model line`() {
+  fun `setHoldbackModelLine calls internal service method`() {
     val request = setModelLineHoldbackModelLineRequest {
       name = MODEL_LINE_NAME
       holdbackModelLine = MODEL_LINE_NAME_2
@@ -555,6 +562,33 @@ class ModelLinesServiceTest {
   }
 
   @Test
+  fun `setHoldbackModelLine calls internal service method to clear value`() {
+    // Return a value with no holdback set.
+    wheneverBlocking { internalModelLinesMock.setModelLineHoldbackModelLine(any()) } doReturn
+      INTERNAL_MODEL_LINE
+    // Request with no holdback.
+    val request = setModelLineHoldbackModelLineRequest { name = MODEL_LINE_NAME }
+
+    val response =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.setModelLineHoldbackModelLine(request) }
+      }
+
+    verifyProtoArgument(
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::setModelLineHoldbackModelLine,
+      )
+      .isEqualTo(
+        internalSetModelLineHoldbackModelLineRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+        }
+      )
+    assertThat(response).isEqualTo(MODEL_LINE)
+  }
+
+  @Test
   fun `setHoldbackModelLine throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -562,21 +596,6 @@ class ModelLinesServiceTest {
           runBlocking {
             service.setModelLineHoldbackModelLine(
               setModelLineHoldbackModelLineRequest { holdbackModelLine = MODEL_LINE_NAME_2 }
-            )
-          }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `setHoldbackModelLine throws INVALID_ARGUMENT when holdback model line is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          runBlocking {
-            service.setModelLineHoldbackModelLine(
-              setModelLineHoldbackModelLineRequest { name = MODEL_LINE_NAME }
             )
           }
         }
@@ -1222,8 +1241,9 @@ class ModelLinesServiceTest {
               ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
               ExternalId(EXTERNAL_MODEL_SUITE_ID),
               ExternalId(EXTERNAL_MODEL_LINE_ID),
+              "ModelLine args invalid",
             )
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT, "ModelLine args invalid")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         )
     }
     val exception =
@@ -1304,6 +1324,80 @@ class ModelLinesServiceTest {
     assertThat(exception.errorInfo?.metadataMap).containsEntry("modelLine", MODEL_LINE_NAME)
     assertThat(exception.errorInfo?.metadataMap)
       .containsEntry("modelLineType", Type.HOLDBACK.toString())
+  }
+
+  @Test
+  fun `setModelLineType calls internal service method`() {
+    val request = setModelLineTypeRequest {
+      name = MODEL_LINE_NAME
+      type = Type.PROD
+    }
+
+    val response =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        runBlocking { service.setModelLineType(request) }
+      }
+
+    verifyProtoArgument(internalModelLinesMock, ModelLinesCoroutineImplBase::setModelLineType)
+      .isEqualTo(
+        internalSetModelLineTypeRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          type = InternalModelLine.Type.PROD
+        }
+      )
+    assertThat(response).isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `setModelLineType throws INVALID_ARGUMENT when request type is HOLDBACK`() {
+    val request = setModelLineTypeRequest {
+      name = MODEL_LINE_NAME
+      type = Type.HOLDBACK
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.setModelLineType(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("type")
+  }
+
+  @Test
+  fun `setModelLineType throws MODEL_LINE_NOT_FOUND when ModelLine is not found`() {
+    wheneverBlocking { internalModelLinesMock.setModelLineType(any()) } doThrow
+      ModelLineNotFoundException(
+          ExternalId(EXTERNAL_MODEL_PROVIDER_ID),
+          ExternalId(EXTERNAL_MODEL_SUITE_ID),
+          ExternalId(EXTERNAL_MODEL_LINE_ID),
+        )
+        .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    val request = setModelLineTypeRequest {
+      name = MODEL_LINE_NAME
+      type = Type.PROD
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.setModelLineType(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = ErrorCode.MODEL_LINE_NOT_FOUND.name
+          metadata[Errors.Metadata.MODEL_LINE.key] = MODEL_LINE_NAME
+        }
+      )
   }
 
   @Test
