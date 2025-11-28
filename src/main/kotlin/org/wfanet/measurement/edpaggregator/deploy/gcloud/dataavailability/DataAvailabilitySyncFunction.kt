@@ -124,7 +124,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         dataProvidersClient,
         impressionMetadataServicesClient,
         dataAvailabilitySyncConfig.dataProvider,
-        MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+        globalThrottler,
+        impressionMetadataBatchSize = impressionMetadataBatchSize,
       )
 
     Tracing.withW3CTraceContext(request) {
@@ -221,5 +222,11 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
+
+    private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
+    private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
+    private val impressionMetadataBatchSize =
+      System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }
+        ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE
   }
 }
