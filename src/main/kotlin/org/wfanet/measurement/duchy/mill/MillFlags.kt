@@ -43,7 +43,7 @@ abstract class MillFlags {
   @CommandLine.Option(
     names = ["--claimed-computation-id"],
     description = ["Global Computation ID of the claimed work item"],
-    required = true,
+    required = false,
   )
   lateinit var claimedGlobalComputationId: String
     private set
@@ -51,7 +51,7 @@ abstract class MillFlags {
   @set:CommandLine.Option(
     names = ["--claimed-computation-version"],
     description = ["Token version of the the claimed work item"],
-    required = true,
+    required = false,
   )
   var claimedComputationVersion by Delegates.notNull<Long>()
     private set
@@ -59,7 +59,7 @@ abstract class MillFlags {
   @CommandLine.Option(
     names = ["--claimed-computation-type"],
     description = ["Computation type (protocol) of the claimed work item"],
-    required = true,
+    required = false,
   )
   lateinit var claimedComputationType: ComputationType
     private set
@@ -67,9 +67,9 @@ abstract class MillFlags {
   @CommandLine.Option(
     names = ["--duchy-computation-control-target"],
     description = ["Key-value pair of Duchy ID to ComputationControl service target."],
-    required = true,
+    required = false,
   )
-  lateinit var computationControlServiceTargets: Map<String, String>
+  var computationControlServiceTargets: Map<String, String> = emptyMap()
     private set
 
   @CommandLine.Option(
