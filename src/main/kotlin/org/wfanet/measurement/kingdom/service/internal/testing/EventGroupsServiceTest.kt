@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -58,6 +59,8 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
@@ -490,6 +493,412 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .build()
       )
   }
+
+  @Test
+  fun `batchUpdateEventGroup succeeds`(): Unit = runBlocking {
+    val now: Instant = testClock.instant()
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    val eventGroup2: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = "ProvidedEventGroupId2"
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    val request = batchUpdateEventGroupsRequest {
+      this.externalDataProviderId = externalDataProviderId
+      requests += updateEventGroupRequest {
+        eventGroup =
+          eventGroup1.copy {
+            details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata") }
+            dataAvailabilityInterval = interval {
+              startTime = now.minus(90L, ChronoUnit.DAYS).toProtoTime()
+              endTime = now.minus(3L, ChronoUnit.DAYS).toProtoTime()
+            }
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            mediaTypes += MediaType.OTHER
+          }
+      }
+      requests += updateEventGroupRequest {
+        eventGroup =
+          eventGroup2.copy {
+            details = eventGroupDetails { encryptedMetadata = ByteString.copyFromUtf8("metadata2") }
+            dataAvailabilityInterval = interval {
+              startTime = now.minus(100L, ChronoUnit.DAYS).toProtoTime()
+              endTime = now.minus(4L, ChronoUnit.DAYS).toProtoTime()
+            }
+            mediaTypes.clear()
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+      }
+    }
+
+    val response: BatchUpdateEventGroupsResponse = eventGroupsService.batchUpdateEventGroup(request)
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            request.requestsList.first().eventGroup.copy {
+              clearUpdateTime()
+              mediaTypes.clear()
+              mediaTypes += MediaType.DISPLAY
+              mediaTypes += MediaType.OTHER
+            }
+          eventGroups +=
+            request.requestsList.last().eventGroup.copy {
+              clearUpdateTime()
+              mediaTypes.clear()
+              mediaTypes += MediaType.VIDEO
+              mediaTypes += MediaType.OTHER
+            }
+        }
+      )
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchUpdateEventGroupsResponse {
+          eventGroups +=
+            eventGroupsService
+              .getEventGroup(
+                getEventGroupRequest {
+                  this.externalDataProviderId = eventGroup1.externalDataProviderId
+                  externalEventGroupId = eventGroup1.externalEventGroupId
+                }
+              )
+              .copy {
+                mediaTypes.clear()
+                mediaTypes += MediaType.DISPLAY
+                mediaTypes += MediaType.OTHER
+              }
+
+          eventGroups +=
+            eventGroupsService
+              .getEventGroup(
+                getEventGroupRequest {
+                  this.externalDataProviderId = eventGroup2.externalDataProviderId
+                  externalEventGroupId = eventGroup2.externalEventGroupId
+                }
+              )
+              .copy {
+                mediaTypes.clear()
+                mediaTypes += MediaType.VIDEO
+                mediaTypes += MediaType.OTHER
+              }
+        }
+      )
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing parent external data provider id`():
+    Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            requests += updateEventGroupRequest {
+              eventGroup = eventGroup1.copy { mediaTypes += MediaType.DISPLAY }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing child external data provider id`():
+    Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            this.externalDataProviderId = externalDataProviderId
+            requests += updateEventGroupRequest {
+              eventGroup = eventGroup1.copy { clearExternalDataProviderId() }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("requests.0.event_group.external_data_provider_id")
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for different parent and child external data provider id`():
+    Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            this.externalDataProviderId = 1
+            requests += updateEventGroupRequest { eventGroup = eventGroup1 }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("different")
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing external event group id`(): Unit =
+    runBlocking {
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val eventGroup1: EventGroup =
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              this.externalDataProviderId = externalDataProviderId
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+              mediaTypes += MediaType.VIDEO
+              mediaTypes += MediaType.OTHER
+            }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchUpdateEventGroup(
+            batchUpdateEventGroupsRequest {
+              this.externalDataProviderId = externalDataProviderId
+              requests += updateEventGroupRequest {
+                eventGroup = eventGroup1.copy { clearExternalEventGroupId() }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group.external_event_group_id")
+    }
+
+  @Test
+  fun `batchUpdateEventGroup throws NOT_FOUND for non-existent event group`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalEventGroupId = 123L
+      mediaTypes += MediaType.VIDEO
+      mediaTypes += MediaType.OTHER
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            this.externalDataProviderId = externalDataProviderId
+            requests += updateEventGroupRequest {
+              this.eventGroup = eventGroup.copy { mediaTypes += MediaType.DISPLAY }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws NOT_FOUND for deleted event group`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup: EventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            mediaTypes += MediaType.OTHER
+          }
+        }
+      )
+
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        this.externalDataProviderId = eventGroup.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            this.externalDataProviderId = externalDataProviderId
+            requests += updateEventGroupRequest {
+              this.eventGroup = eventGroup.copy { mediaTypes += MediaType.DISPLAY }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("EventGroup state is DELETED")
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for invalid modification params`(): Unit =
+    runBlocking {
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val externalMeasurementConsumerId2 =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val eventGroup: EventGroup =
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              this.externalDataProviderId = externalDataProviderId
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+              mediaTypes += MediaType.VIDEO
+              mediaTypes += MediaType.OTHER
+            }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchUpdateEventGroup(
+            batchUpdateEventGroupsRequest {
+              this.externalDataProviderId = externalDataProviderId
+              requests += updateEventGroupRequest {
+                this.eventGroup =
+                  eventGroup.copy {
+                    mediaTypes += MediaType.DISPLAY
+                    this.externalMeasurementConsumerId = externalMeasurementConsumerId2
+                  }
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("invalid arguments")
+    }
 
   @Test
   fun `getEventGroup returns EventGroup by MeasurementConsumer`() = runBlocking {
