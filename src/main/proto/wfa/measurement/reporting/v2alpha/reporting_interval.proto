@@ -30,6 +30,8 @@ message ReportingInterval {
   // The date and time of the start of the report. The year,
   // month, day, and time_offset are all required.
   //
+  // Minutes, seconds, and nanoseconds will be ignored.
+  //
   // If `utc_offset` is set, daylight savings is ignored and days will
   // be 24 hours based on the time of day specified here. If `time_zone` is
   // set, days will be based on the calendar and daylight savings will be
