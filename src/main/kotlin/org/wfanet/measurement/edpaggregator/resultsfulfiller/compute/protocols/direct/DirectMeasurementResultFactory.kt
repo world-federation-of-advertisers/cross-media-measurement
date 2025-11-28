@@ -26,6 +26,8 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 /** Factory for creating direct measurement results. */
 object DirectMeasurementResultFactory {
+  private const val IMPRESSION_MAX_FREQUENCY_ENV_VAR = "IMPRESSION_MAXIMUM_FREQUENCY_PER_USER"
+  private const val DEFAULT_IMPRESSION_MAX_FREQUENCY_PER_USER = 128
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   /**
@@ -64,6 +66,7 @@ object DirectMeasurementResultFactory {
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+        val maxFrequencyPerUser = getImpressionMaxFrequencyPerUser()
         val impressionResultBuilder =
           DirectImpressionResultBuilder(
             directProtocolConfig,
@@ -72,7 +75,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            measurementSpec.impression.maximumFrequencyPerUser,
+            maxFrequencyPerUser,
             kAnonymityParams,
           )
         impressionResultBuilder.buildMeasurementResult()
@@ -100,5 +103,19 @@ object DirectMeasurementResultFactory {
         error("Measurement type not set.")
       }
     }
+  }
+
+  private fun getImpressionMaxFrequencyPerUser(): Int {
+    val envValue =
+      System.getenv(IMPRESSION_MAX_FREQUENCY_ENV_VAR)?.toIntOrNull()
+        ?: return DEFAULT_IMPRESSION_MAX_FREQUENCY_PER_USER
+    if (envValue <= 0) {
+      logger.warning(
+        "Environment variable $IMPRESSION_MAX_FREQUENCY_ENV_VAR must be positive. " +
+          "Using default $DEFAULT_IMPRESSION_MAX_FREQUENCY_PER_USER.",
+      )
+      return DEFAULT_IMPRESSION_MAX_FREQUENCY_PER_USER
+    }
+    return envValue
   }
 }
