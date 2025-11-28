@@ -117,6 +117,12 @@ resource "google_compute_address" "system_v1alpha" {
   address = var.system_v1alpha_ip_address
 }
 
+resource "google_compute_address" "internal" {
+  name    = "${var.name}-duchy-internal"
+  address = var.internal_ip_address
+  address_type = "INTERNAL"
+}
+
 resource "google_monitoring_dashboard" "dashboards" {
   for_each = toset(var.dashboard_json_files)
 
@@ -128,7 +134,7 @@ resource "google_monitoring_dashboard" "dashboards" {
 resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
   count = var.trustee_config != null ? 1 : 0
 
-  name          = "${var.name}-trustee-mill-subnet"
+  name          = "${var.name}-trustee-mill-compute-subnetwork"
   region        = data.google_client_config.default.region
   network       = var.trustee_mill_subnetwork_network
   ip_cidr_range = var.trustee_mill_subnetwork_cidr_range
@@ -139,16 +145,16 @@ resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
 resource "google_compute_router" "trustee_mill_router" {
   count   = var.trustee_config != null ? 1 : 0
 
-  name    = "${var.name}-trustee-mill-router"
+  name    = "${var.name}-trustee-mill-compute-router"
   region  = data.google_client_config.default.region
-  network = "default"
+  network = var.trustee_mill_subnetwork_network
 }
 
 # Cloud NAT configuration
 resource "google_compute_router_nat" "trustee_mill_nat" {
   count = var.trustee_config != null ? 1 : 0
 
-  name                               = "${var.name}-trustee-mill-nat"
+  name                               = "${var.name}-trustee-mill-compute-router-nat"
   router                             = google_compute_router.trustee_mill_router[0].name
   region                             = google_compute_router.trustee_mill_router[0].region
   nat_ip_allocate_option             = "AUTO_ONLY"
@@ -182,13 +188,14 @@ module "trustee_mill" {
   max_replicas                  = var.trustee_config.replicas
   machine_type                  = var.trustee_config.machine_type
   docker_image                  = var.trustee_config.docker_image
-  edpa_tee_signed_image_repo    = var.trustee_config.signed_image_repo
+  tee_signed_image_repo         = var.trustee_config.signed_image_repo
   mig_distribution_policy_zones = var.trustee_config.mig_distribution_policy_zones
   terraform_service_account     = var.trustee_config.terraform_service_account
   disk_image_family             = var.trustee_config.disk_image_family
   tee_cmd                       = var.trustee_config.app_flags
   secrets_to_access             = local.trustee_secrets_to_access
   subnetwork_name               = google_compute_subnetwork.trustee_mill_subnetwork[0].name
+  otel_service_name             = "duchy.trustee-mill"
 }
 
 module "secrets" {

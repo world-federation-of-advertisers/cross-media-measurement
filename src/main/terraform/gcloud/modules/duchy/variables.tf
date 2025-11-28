@@ -52,6 +52,13 @@ variable "system_v1alpha_ip_address" {
   default     = null
 }
 
+variable "internal_ip_address" {
+  description = "IP address for internal API"
+  type        = string
+  nullable    = true
+  default     = null
+}
+
 variable "dashboard_json_files" {
   description = "List of filenames of dashboard json templates"
   type        = list(string)
@@ -71,7 +78,7 @@ variable "trustee_mill_subnetwork_network" {
 variable "trustee_mill_subnetwork_cidr_range" {
   description = "The range of IP addresses belonging to this subnetwork."
   type        = string
-  default     = "192.169.0.0/16"
+  default     = "10.0.0.0/24"
 }
 
 variable "trustee_config" {

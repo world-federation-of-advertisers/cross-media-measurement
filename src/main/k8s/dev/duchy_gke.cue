@@ -114,7 +114,7 @@ duchy: #SpannerDuchy & {
 	_kingdom_system_api_target:       #KingdomSystemApiTarget
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
 	_blob_storage_flags:              _cloudStorageConfig.flags
-	_verbose_grpc_logging:            "false"
+	_verbose_grpc_logging:            "true"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
 
@@ -174,9 +174,15 @@ duchy: #SpannerDuchy & {
 	services: {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
-		// DO_NOT_SUBMIT: For TrusTEE integration only.
-		"internal-api-server": #ExternalService & {
-			_ipAddressName: _duchy_name + "-internal"
+		"internal-api-server": {
+			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
+			spec: {
+				type: "LoadBalancer"
+				loadBalancerSourceRanges: [
+					// TrusTEE mill from confidential space.
+					"10.0.0.0/24",
+				]
+			}
 		}
 	}
 

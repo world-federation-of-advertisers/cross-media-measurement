@@ -353,7 +353,6 @@ import ("strings")
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
 			]
-			// DO_NOT_SUBMIT: Only for TrusTEE test.
 			_ingresses: {
 				gRpc: {
 					ports: [{

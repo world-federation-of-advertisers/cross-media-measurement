@@ -18,16 +18,13 @@ locals {
 
   metadata_map = merge(
     {
-      "tee-signed-image-repos"                        = var.edpa_tee_signed_image_repo
+      "tee-signed-image-repos"                        = var.tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
       "tee-cmd"                                       = jsonencode(var.tee_cmd),
-      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
-      "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
-      "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
-      "tee-env-OTEL_LOGS_EXPORTER"                    = "logging",
-      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
-      "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
-      "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+
+      "google-logging-enabled"                        = "true"
+      "google-monitoring-enabled"                     = "true"
+      "tee-container-log-redirect"                    = "true"
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
@@ -134,14 +131,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     subnetwork = var.subnetwork_name
   }
 
-  metadata = merge(
-    {
-        "google-logging-enabled"    = "true"
-        "google-monitoring-enabled" = "true"
-        "tee-container-log-redirect" = "true"
-    },
-    local.metadata_map
-  )
+  metadata = local.metadata_map
+
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
@@ -152,8 +143,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 }
 
 resource "google_compute_region_instance_group_manager" "mig" {
-  name               = var.managed_instance_group_name
-  base_instance_name = var.base_instance_name
+  name                    = var.managed_instance_group_name
+  base_instance_name      = var.base_instance_name
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
