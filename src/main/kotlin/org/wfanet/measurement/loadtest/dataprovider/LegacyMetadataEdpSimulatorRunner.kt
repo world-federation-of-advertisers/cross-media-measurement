@@ -149,7 +149,6 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
-    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator {
     return LegacyMetadataEdpSimulator(
       edpData,

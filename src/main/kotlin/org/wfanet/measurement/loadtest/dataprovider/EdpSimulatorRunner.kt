@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import java.io.File
@@ -42,6 +43,34 @@ import org.wfanet.measurement.loadtest.config.PrivacyBudgets
 import picocli.CommandLine
 
 class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
+  private class TrusTeeParams {
+    @CommandLine.Option(
+      names = ["--trustee-kms-kek-uri"],
+      description = ["The KMS key-encryption-key URI"],
+      required = true,
+    )
+    lateinit var kmsKekUri: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--trustee-workload-identity-provider"],
+      description = ["The workload identity provider"],
+      required = true,
+    )
+    lateinit var workloadIdentityProvider: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--trustee-impersonated-service-account"],
+      description = ["The impersonated service account"],
+      required = true,
+    )
+    lateinit var impersonatedServiceAccount: String
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = false) private var trusTeeParams: TrusTeeParams? = null
+
   private class EventGroupOptions : EdpSimulator.EventGroupOptions {
     @CommandLine.Option(
       names = ["--event-group-reference-id-suffix"],
@@ -126,8 +155,17 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
-    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator {
+    val trusTeeEncryptionParams =
+      trusTeeParams?.let {
+        TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
+          GcpKmsClient(),
+          it.kmsKekUri,
+          it.workloadIdentityProvider,
+          it.impersonatedServiceAccount,
+        )
+      }
+
     return EdpSimulator(
       edpData,
       edpDisplayName,
