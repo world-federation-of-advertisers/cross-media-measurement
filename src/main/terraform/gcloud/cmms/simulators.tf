@@ -21,6 +21,27 @@ module "simulators_cluster" {
   secret_key      = module.common.cluster_secret_key
 }
 
+module "simulators_default_node_pool" {
+  source = "../modules/node-pool"
+
+  name            = "default"
+  cluster         = module.simulators_cluster.cluster
+  service_account = module.common.cluster_service_account
+  machine_type    = "e2-standard-2"
+  max_node_count  = 2
+}
+
+module "simulators_spot_node_pool" {
+  source = "../modules/node-pool"
+
+  name            = "spot"
+  cluster         = module.simulators_cluster.cluster
+  service_account = module.common.cluster_service_account
+  machine_type    = "n2d-highmem-8"
+  max_node_count  = 6
+  spot            = true
+}
+
 module "simulators" {
   source = "../modules/simulators"
   for_each = toset(var.edp_simulator_names)
