@@ -98,6 +98,11 @@ jobs:
         EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
+        GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+        GCLOUD_PROJECT_NUMBER: "462363635192"
+        GCLOUD_LOCATION: "us-central1"
+#        GCLOUD_PROJECT_NUMBER: ${{ vars.GCLOUD_PROJECT_NUMBER }}
+#        GCLOUD_LOCATION: ${{ vars.GCLOUD_LOCATION }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -105,6 +110,8 @@ jobs:
         common --config=ghcr
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "google_cloud_project_number=$GCLOUD_PROJECT_NUMBER"
+        build --define "gcp_location=$GCLOUD_LOCATION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define "worker1_id=worker1"
         build --define "worker1_public_api_target=$WORKER1_PUBLIC_API_TARGET"

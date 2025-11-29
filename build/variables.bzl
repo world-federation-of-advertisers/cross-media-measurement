@@ -66,9 +66,11 @@ TEST_K8S_SETTINGS = struct(
 
 GCLOUD_SETTINGS = struct(
     project = "$(google_cloud_project)",
+    project_number = "$(google_cloud_project_number)",
     spanner_instance = "$(spanner_instance)",
     postgres_instance = "$(postgres_instance)",
     postgres_region = "$(postgres_region)",
+    gcp_location = "$(gcp_location)",
 )
 
 AWS_SETTINGS = struct(
