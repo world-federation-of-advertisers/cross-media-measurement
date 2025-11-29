@@ -242,6 +242,8 @@ private fun run(
           reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
           hmssEnabled = v2alphaFlags.hmssEnabled,
           hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
+          trusTeeEnabled = v2alphaFlags.trusTeeEnabled,
+          trusTeeEnabledMeasurementConsumers = v2alphaFlags.trusTeeEnabledMeasurementConsumers,
           coroutineContext = serviceDispatcher,
         )
         .withInterceptors(
@@ -453,6 +455,29 @@ private class V2alphaFlags {
     defaultValue = "",
   )
   lateinit var hmssEnabledMeasurementConsumers: List<String>
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--enable-trus-tee"],
+    description = ["whether to enable the TrusTEE protocol"],
+    negatable = true,
+    required = false,
+    defaultValue = "false",
+  )
+  var trusTeeEnabled by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--trus-tee-enabled-measurement-consumers"],
+    description =
+      [
+        "MeasurementConsumer names who force to enable TrusTEE protocol" +
+          " regardless the --enable-trus-tee flag."
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var trusTeeEnabledMeasurementConsumers: List<String>
     private set
 
   @CommandLine.Option(
