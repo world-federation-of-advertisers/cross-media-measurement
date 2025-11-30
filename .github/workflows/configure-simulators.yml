@@ -85,6 +85,8 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         WORKER1_PUBLIC_API_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         WORKER2_PUBLIC_API_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        AGGREGATOR_PUBLIC_API_TARGET: "34.123.92.50:8443"
+#        AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
@@ -117,6 +119,8 @@ jobs:
         build --define "worker1_public_api_target=$WORKER1_PUBLIC_API_TARGET"
         build --define "worker2_id=worker2"
         build --define "worker2_public_api_target=$WORKER2_PUBLIC_API_TARGET"
+        build --define "aggregator_id=aggregator"
+        build --define "aggregator_public_api_target=$AGGREGATOR_PUBLIC_API_TARGET"
         build --define "mc_name=$MC_NAME"
         build --define "edp1_name=$EDP1_NAME"
         build --define "edp1_cert_name=$EDP1_CERT_NAME"
