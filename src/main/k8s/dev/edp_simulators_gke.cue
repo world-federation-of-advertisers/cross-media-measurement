@@ -39,7 +39,7 @@ _worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
 _gcp_project_id:     string @tag("gcp_project_id")
 _gcp_project_number: string @tag("gcp_project_number")
-_gcp_location:       string @tag("gcp_location")
+_key_ring_location:  string @tag("key_ring_location")
 
 #SimulatorServiceAccount: "simulator"
 
@@ -114,7 +114,7 @@ edp_simulators: {
 			_mc_resource_name:          _mc_name
 			_gcp_project_id:            _gcp_project_id
 			_gcp_project_number:        _gcp_project_number
-			_gcp_location:              _gcp_location
+			_key_ring_location:         _key_ring_location
 
 			deployment: {
 				_container: {
