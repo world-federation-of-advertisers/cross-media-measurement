@@ -41,8 +41,6 @@ _google_cloud_project_id:     string @tag("gcp_project_id")
 _google_cloud_project_number: string @tag("gcp_project_number")
 _google_cloud_location:       string @tag("gcp_location")
 
-#SimulatorServiceAccount: "simulator"
-
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
@@ -122,7 +120,7 @@ edp_simulators: {
 				}
 				spec: template: spec: #SpotVmPodSpec & #ServiceAccountPodSpec & {
 					_mounts: "config-files": #ConfigMapMount
-					serviceAccountName: #SimulatorServiceAccount
+					serviceAccountName: "\(edp.displayName)-simulator"
 				}
 			}
 		}
@@ -133,8 +131,11 @@ serviceAccounts: [Name=string]: #ServiceAccount & {
 	metadata: name: Name
 }
 serviceAccounts: {
-	"\(#SimulatorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "simulator"
+	for edp in _edpConfigs {
+		let saName = "\(edp.displayName)-simulator"
+		"\(saName)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: edp.displayName
+		}
 	}
 }
 
