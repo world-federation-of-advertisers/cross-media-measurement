@@ -341,6 +341,7 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
   val source = this
   return DataProviderKt.capabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
+    trusTeeSupported = source.trusTeeSupported
   }
 }
 
@@ -348,5 +349,6 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
   val source = this
   return internalDataProviderCapabilities {
     honestMajorityShareShuffleSupported = source.honestMajorityShareShuffleSupported
+    trusTeeSupported = source.trusTeeSupported
   }
 }
