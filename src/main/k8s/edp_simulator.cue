@@ -80,7 +80,7 @@ import "list"
 		let workloadIdentityProviderName = "provider-test3"
 		let impersonatedServiceAccountName = "\(DisplayName)-kms-decrypt"
 		[
-			"--trustee-kms-kek-uri=projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
+			"--trustee-kms-kek-uri=gcp-kms://projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
 			"--trustee-workload-identity-provider=projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)",
 			"--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com",
 		]
