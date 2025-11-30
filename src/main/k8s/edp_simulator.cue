@@ -74,10 +74,10 @@ import "list"
 	}
 
 	let TeeOptions = {
-		let keyRingName = "\(DisplayName)-keyring-test2"
+		let keyRingName = "\(DisplayName)-keyring-test3"
 		let kekName = "\(DisplayName)-kek"
-		let workloadIdentityPoolName = "\(DisplayName)-wip-test2"
-		let workloadIdentityProviderName = "provider-test2"
+		let workloadIdentityPoolName = "\(DisplayName)-wip-test3"
+		let workloadIdentityProviderName = "provider-test3"
 		let impersonatedServiceAccountName = "\(DisplayName)-kms-decrypt"
 		[
 			"--trustee-kms-kek-uri=projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
