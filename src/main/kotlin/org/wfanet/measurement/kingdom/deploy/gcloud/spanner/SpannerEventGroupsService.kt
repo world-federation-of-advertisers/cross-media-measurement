@@ -98,6 +98,8 @@ class SpannerEventGroupsService(
       throw RequiredFieldNotSetException("external_data_provider_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+
+    val requestIdSet = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, subRequest ->
       val childExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
       if (
@@ -107,6 +109,21 @@ class SpannerEventGroupsService(
             "Subrequest's externalDataProviderId $childExternalDataProviderId different from parent's externalDataProviderId $externalDataProviderId"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val requestId = subRequest.requestId
+      if (requestId.isNotEmpty()) {
+        if (!requestIdSet.add(requestId)) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "request Id $requestId is duplicate in the batch of requests"
+            )
+            .asRuntimeException()
+        }
+      }
+
+      if (!subRequest.hasEventGroup()) {
+        throw Status.INVALID_ARGUMENT.withDescription("child request event group is unspecified")
+          .asRuntimeException()
       }
     }
 
