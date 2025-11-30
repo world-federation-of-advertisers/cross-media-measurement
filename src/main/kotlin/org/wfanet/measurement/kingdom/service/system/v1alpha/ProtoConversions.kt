@@ -163,7 +163,7 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                 }
             }
             InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE ->
-              error("TRUS_TEE is not supported")
+              trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
             InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }
