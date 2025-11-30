@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
+import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -257,6 +258,77 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `createEventGroup returns created EventGroup with data availability interval`() =
+    runBlocking {
+      val measurementConsumer: MeasurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+      val request = createEventGroupRequest {
+        this.eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          mediaTypes += MediaType.VIDEO
+          dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
+          details = DETAILS
+        }
+      }
+
+      val response: EventGroup = eventGroupsService.createEventGroup(request)
+
+      assertThat(response.dataAvailabilityInterval)
+        .isEqualTo(request.eventGroup.dataAvailabilityInterval)
+      assertThat(response)
+        .isEqualTo(
+          eventGroupsService.getEventGroup(
+            getEventGroupRequest {
+              this.externalDataProviderId = response.externalDataProviderId
+              externalEventGroupId = response.externalEventGroupId
+            }
+          )
+        )
+    }
+
+  @Test
+  fun `createEventGroup returns existing EventGroup for same request ID`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val request = createEventGroupRequest {
+      eventGroup = eventGroup {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      requestId = "foo"
+    }
+    val existingEventGroup: EventGroup = eventGroupsService.createEventGroup(request)
+
+    val response: EventGroup = eventGroupsService.createEventGroup(request)
+
+    assertThat(response).isEqualTo(existingEventGroup)
+  }
+
+  @Test
+  fun `createEventGroup creates new EventGroup for different request ID`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val request = createEventGroupRequest {
+      eventGroup = eventGroup {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+      requestId = "foo"
+    }
+    val existingEventGroup: EventGroup = eventGroupsService.createEventGroup(request)
+
+    val response: EventGroup =
+      eventGroupsService.createEventGroup(request.copy { requestId = "bar" })
+
+    assertThat(response.externalEventGroupId).isNotEqualTo(existingEventGroup.externalEventGroupId)
+  }
+
+  @Test
   fun `batchCreateEventGroups returns created EventGroups`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -401,6 +473,65 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
+  fun `batchCreateEventGroups throws INVALID_ARGUMENT when child event group is not set`() =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val request = batchCreateEventGroupsRequest {
+        this.externalDataProviderId = externalDataProviderId
+        requests += CreateEventGroupRequest.getDefaultInstance()
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("child request event group is unspecified")
+    }
+
+  @Test
+  fun `batchCreateEventGroups throws INVALID_ARGUMENT when child request request id is duplicate in the batch`() =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val request = batchCreateEventGroupsRequest {
+        this.externalDataProviderId = externalDataProviderId
+        requests += createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            details = DETAILS
+          }
+          requestId = "duplicate-id"
+        }
+        requests += createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID_2
+            mediaTypes += MediaType.DISPLAY
+            details = DETAILS
+          }
+          requestId = "duplicate-id"
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("duplicate")
+    }
+
+  @Test
   fun `batchCreateEventGroups throws FAILED_PRECONDITION when measurement consumer is not found`() =
     runBlocking {
       val externalDataProviderId =
@@ -452,77 +583,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("DataProvider not found")
-  }
-
-  @Test
-  fun `createEventGroup returns created EventGroup with data availability interval`() =
-    runBlocking {
-      val measurementConsumer: MeasurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-      val request = createEventGroupRequest {
-        this.eventGroup = eventGroup {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-          mediaTypes += MediaType.VIDEO
-          dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-          details = DETAILS
-        }
-      }
-
-      val response: EventGroup = eventGroupsService.createEventGroup(request)
-
-      assertThat(response.dataAvailabilityInterval)
-        .isEqualTo(request.eventGroup.dataAvailabilityInterval)
-      assertThat(response)
-        .isEqualTo(
-          eventGroupsService.getEventGroup(
-            getEventGroupRequest {
-              this.externalDataProviderId = response.externalDataProviderId
-              externalEventGroupId = response.externalEventGroupId
-            }
-          )
-        )
-    }
-
-  @Test
-  fun `createEventGroup returns existing EventGroup for same request ID`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val dataProvider = population.createDataProvider(dataProvidersService)
-    val request = createEventGroupRequest {
-      eventGroup = eventGroup {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      }
-      requestId = "foo"
-    }
-    val existingEventGroup: EventGroup = eventGroupsService.createEventGroup(request)
-
-    val response: EventGroup = eventGroupsService.createEventGroup(request)
-
-    assertThat(response).isEqualTo(existingEventGroup)
-  }
-
-  @Test
-  fun `createEventGroup creates new EventGroup for different request ID`(): Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val dataProvider = population.createDataProvider(dataProvidersService)
-    val request = createEventGroupRequest {
-      eventGroup = eventGroup {
-        externalDataProviderId = dataProvider.externalDataProviderId
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      }
-      requestId = "foo"
-    }
-    val existingEventGroup: EventGroup = eventGroupsService.createEventGroup(request)
-
-    val response: EventGroup =
-      eventGroupsService.createEventGroup(request.copy { requestId = "bar" })
-
-    assertThat(response.externalEventGroupId).isNotEqualTo(existingEventGroup.externalEventGroupId)
   }
 
   @Test
