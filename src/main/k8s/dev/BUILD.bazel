@@ -433,6 +433,7 @@ EDP_SIMULATOR_TAGS = {
     "gcp_project_id": GCLOUD_SETTINGS.project,
     "gcp_project_number": GCLOUD_SETTINGS.project_number,
     "gcp_location": GCLOUD_SETTINGS.gcp_location,
+    "google_cloud_project": GCLOUD_SETTINGS.project,
 }
 
 cue_dump(

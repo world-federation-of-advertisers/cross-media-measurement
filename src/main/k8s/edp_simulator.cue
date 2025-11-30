@@ -29,7 +29,6 @@ import "list"
 	resourceName:     string
 	certResourceName: string
 	supportHmss:      bool | *false
-	enableTrusTee:    bool | *false
 	eventGroupConfigs: [...#EventGroupConfig]
 }
 
@@ -47,16 +46,11 @@ import "list"
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
 	_imageConfig:               #ImageConfig
-	_gcp_project_id?:           string
-	_gcp_project_number?:       string
-	_gcp_location?:             string
+	_gcp_project_id:            string
+	_gcp_project_number:        string
+	_gcp_location:              string
 
 	let DisplayName = _edpConfig.displayName
-	let keyRingName = "\(DisplayName)-keyring-test2"
-	let kekName = "\(DisplayName)-kek"
-	let workloadIdentityPoolName = "\(DisplayName)-wip-test2"
-	let workloadIdentityProviderName = "provider-test2"
-	let impersonatedServiceAccountName = "\(DisplayName)-kms-decrypt"
 
 	let RequisitionFulfillmentServiceOptions = {
 		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
@@ -78,14 +72,18 @@ import "list"
 		}]
 		list.FlattenN(Lists, 2)
 	}
+
 	let TeeOptions = {
-		if _edpConfig.enableTrusTee == true {
-			[
-				"--trustee-kms-kek-uri=projects/\(_gcp_project_id)/locations/\(_key_ring_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
-				"--trustee-workload-identity-provider=projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)",
-				"--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com",
-			]
-		}
+		let keyRingName = "\(DisplayName)-keyring-test2"
+		let kekName = "\(DisplayName)-kek"
+		let workloadIdentityPoolName = "\(DisplayName)-wip-test2"
+		let workloadIdentityProviderName = "provider-test2"
+		let impersonatedServiceAccountName = "\(DisplayName)-kms-decrypt"
+		[
+			"--trustee-kms-kek-uri=projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
+			"--trustee-workload-identity-provider=projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)",
+			"--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com",
+		]
 	}
 
 	deployment: #Deployment & {
@@ -93,6 +91,7 @@ import "list"
 		_name:       DisplayName + "-simulator"
 		_secretName: _edp_secret_name
 		_system:     "simulator"
+
 		_container: {
 			image: _imageConfig.image
 			args:  [
