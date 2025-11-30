@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -58,6 +59,8 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
@@ -73,6 +76,7 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
+private const val PROVIDED_EVENT_GROUP_ID_2 = "ProvidedEventGroupId2"
 private val DETAILS = eventGroupDetails {
   apiVersion = Version.V2_ALPHA.string
   encryptedMetadata = ByteString.copyFromUtf8("somedata")
@@ -250,6 +254,204 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           }
         )
       )
+  }
+
+  @Test
+  fun `batchCreateEventGroups returns created EventGroups`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val measurementConsumer2 =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId2 = measurementConsumer2.externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val request = batchCreateEventGroupsRequest {
+      this.externalDataProviderId = externalDataProviderId
+      requests += createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          mediaTypes += MediaType.VIDEO
+          details = DETAILS
+        }
+      }
+      requests += createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId2
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID_2
+          mediaTypes += MediaType.DISPLAY
+          details = DETAILS
+        }
+      }
+    }
+
+    val response: BatchCreateEventGroupsResponse =
+      eventGroupsService.batchCreateEventGroups(request)
+
+    assertThat(response)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        batchCreateEventGroupsResponse {
+          eventGroups +=
+            request.requestsList.map {
+              it.eventGroup.copy {
+                this.state = EventGroup.State.ACTIVE
+                clearExternalEventGroupId()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+            }
+        }
+      )
+
+    val created1 = response.eventGroupsList[0]
+    assertThat(created1.externalEventGroupId).isNotEqualTo(0)
+    assertThat(created1.createTime.seconds).isGreaterThan(0)
+    assertThat(created1.updateTime).isEqualTo(created1.createTime)
+    assertThat(created1)
+      .isEqualTo(
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalEventGroupId = created1.externalEventGroupId
+          }
+        )
+      )
+
+    val created2 = response.eventGroupsList[1]
+    assertThat(created2.externalEventGroupId).isNotEqualTo(0)
+    assertThat(created2.createTime.seconds).isGreaterThan(0)
+    assertThat(created2.updateTime).isEqualTo(created1.createTime)
+    assertThat(created2)
+      .isEqualTo(
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalEventGroupId = created2.externalEventGroupId
+          }
+        )
+      )
+  }
+
+  @Test
+  fun `batchCreateEventGroups throws INVALID_ARGUMENT when parent external data provider id is not set`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val request = batchCreateEventGroupsRequest {
+        requests += createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            details = DETAILS
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+    }
+
+  @Test
+  fun `batchCreateEventGroups throws INVALID_ARGUMENT when parent and child has different external data provider id`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+      val externalDataProviderId2 =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val request = batchCreateEventGroupsRequest {
+        this.externalDataProviderId = externalDataProviderId2
+        requests += createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            details = DETAILS
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("different from")
+    }
+
+  @Test
+  fun `batchCreateEventGroups throws FAILED_PRECONDITION when measurement consumer is not found`() =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      val request = batchCreateEventGroupsRequest {
+        this.externalDataProviderId = externalDataProviderId
+        requests += createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = 123L
+            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+            mediaTypes += MediaType.VIDEO
+            details = DETAILS
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    }
+
+  @Test
+  fun `batchCreateEventGroups throws NOT_FOUND when data provider is not found`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+
+    val request = batchCreateEventGroupsRequest {
+      this.externalDataProviderId = 123L
+      requests += createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = 123L
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          mediaTypes += MediaType.VIDEO
+          details = DETAILS
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { eventGroupsService.batchCreateEventGroups(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
   @Test

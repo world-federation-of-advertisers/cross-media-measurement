@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -39,11 +41,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInv
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
@@ -77,6 +82,41 @@ class SpannerEventGroupsService(
         Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate not found.",
       )
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
+  override suspend fun batchCreateEventGroups(
+    request: BatchCreateEventGroupsRequest
+  ): BatchCreateEventGroupsResponse {
+    val externalDataProviderId = request.externalDataProviderId
+    if (externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    request.requestsList.forEachIndexed { index, subRequest ->
+      val childExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
+      if (
+        childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
+      ) {
+        throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
+            "Subrequest's externalDataProviderId $childExternalDataProviderId different from parent's externalDataProviderId $externalDataProviderId"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    try {
+      return BatchCreateEventGroups(request).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: CertificateIsInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

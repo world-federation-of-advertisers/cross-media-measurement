@@ -26,7 +26,11 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerDetails
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
-  data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
+  data class Result(
+    val measurementConsumer: MeasurementConsumer,
+    val measurementConsumerId: Long,
+    val externalMeasurementConsumerId: Long,
+  )
 
   override val baseSql: String =
     """
@@ -50,7 +54,11 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"))
+    Result(
+      buildMeasurementConsumer(struct),
+      struct.getLong("MeasurementConsumerId"),
+      struct.getLong("ExternalMeasurementConsumerId"),
+    )
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
@@ -64,6 +72,25 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         certificate = CertificateReader.buildMeasurementConsumerCertificate(struct)
       }
       .build()
+
+  suspend fun readByExternalMeasurementConsumerIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalMeasurementConsumerIds: Collection<ExternalId>,
+  ): Map<ExternalId, InternalId> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            "WHERE ExternalMeasurementConsumerId IN UNNEST(@externalMeasurementConsumerIds)"
+          )
+          bind("externalMeasurementConsumerIds")
+            .toInt64Array(externalMeasurementConsumerIds.map { it.value })
+        }
+        .execute(readContext)
+        .collect {
+          put(ExternalId(it.externalMeasurementConsumerId), InternalId(it.measurementConsumerId))
+        }
+    }
+  }
 
   suspend fun readByExternalMeasurementConsumerId(
     readContext: AsyncDatabaseClient.ReadContext,
