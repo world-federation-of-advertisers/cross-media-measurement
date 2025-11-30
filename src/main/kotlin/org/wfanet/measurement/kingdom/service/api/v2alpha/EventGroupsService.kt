@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -52,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
@@ -72,6 +75,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest as InternalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
@@ -83,6 +87,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as InternalUpdateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest as internalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
@@ -205,6 +210,73 @@ class EventGroupsService(
     }
     return try {
       internalEventGroupsStub.createEventGroup(internalRequest).toEventGroup()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+  }
+
+  override suspend fun batchCreateEventGroups(
+    request: BatchCreateEventGroupsRequest
+  ): BatchCreateEventGroupsResponse {
+    val parentKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != parentKey) {
+      throw Permission.CREATE.deniedStatus("${request.parent}/eventGroups").asRuntimeException()
+    }
+
+    val requestIdSet = mutableSetOf<String>()
+    request.requestsList.forEach { subRequest ->
+      if (subRequest.parent.isNotEmpty() && subRequest.parent != request.parent) {
+        throw Status.INVALID_ARGUMENT.withDescription("Parent and child DataProvider is different")
+          .asRuntimeException()
+      }
+
+      val requestId = subRequest.requestId
+      if (requestId.isNotEmpty()) {
+        if (!requestIdSet.add(requestId)) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "request Id $requestId is duplicate in the batch of requests"
+            )
+            .asRuntimeException()
+        }
+      }
+
+      if (!subRequest.hasEventGroup()) {
+        throw Status.INVALID_ARGUMENT.withDescription("Child request event group is unspecified")
+          .asRuntimeException()
+      }
+
+      validateRequestEventGroup(subRequest.eventGroup)
+    }
+
+    val internalRequest: InternalBatchCreateEventGroupsRequest =
+      internalBatchCreateEventGroupsRequest {
+        externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+        requests +=
+          request.requestsList.map {
+            internalCreateEventGroupRequest {
+              eventGroup = it.eventGroup.toInternal(parentKey.dataProviderId)
+              requestId = it.requestId
+            }
+          }
+      }
+
+    return try {
+      batchCreateEventGroupsResponse {
+        eventGroups +=
+          internalEventGroupsStub.batchCreateEventGroups(internalRequest).eventGroupsList.map {
+            it.toEventGroup()
+          }
+      }
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
