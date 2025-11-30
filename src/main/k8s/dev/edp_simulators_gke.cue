@@ -39,7 +39,7 @@ _worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
 _gcp_project_id:     string @tag("gcp_project_id")
 _gcp_project_number: string @tag("gcp_project_number")
-_key_ring_location:  string @tag("key_ring_location")
+_gcp_location:       string @tag("gcp_location")
 
 #SimulatorServiceAccount: "simulator"
 
@@ -80,8 +80,7 @@ _edpConfigs: [
 
 		// Support HMSS on the first half of the EDPs so that we have one EDP with each event source supporting the protocol.
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
-			supportHmss:   true
-			enableTrusTee: true
+			supportHmss: true
 		}
 
 		eventGroupConfigs: [{
@@ -114,7 +113,7 @@ edp_simulators: {
 			_mc_resource_name:          _mc_name
 			_gcp_project_id:            _gcp_project_id
 			_gcp_project_number:        _gcp_project_number
-			_key_ring_location:         _key_ring_location
+			_gcp_location:              _gcp_location
 
 			deployment: {
 				_container: {
