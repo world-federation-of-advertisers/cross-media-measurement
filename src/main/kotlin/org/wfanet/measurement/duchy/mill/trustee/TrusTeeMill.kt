@@ -18,6 +18,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -244,6 +245,10 @@ class TrusTeeMill(
   }
 
   companion object {
+    init {
+      AeadConfig.register()
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
