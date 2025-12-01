@@ -218,7 +218,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `same event group, different mc triggers create and not update`() {
+  fun `create new event group when measurement consumer differs`() {
     val newCampaign = eventGroup {
       eventGroupReferenceId = "reference-id-3"
       this.eventGroupMetadata = eventGroupMetadata {
