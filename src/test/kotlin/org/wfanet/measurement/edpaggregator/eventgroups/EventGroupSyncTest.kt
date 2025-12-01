@@ -244,6 +244,7 @@ class EventGroupSyncTest {
         eventGroupsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
