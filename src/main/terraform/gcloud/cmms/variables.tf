@@ -276,3 +276,15 @@ variable "duchy_aggregator_cert_id" {
   description = "Aggregator's certificate id"
   type = string
 }
+
+variable "edp_simulator_names" {
+  description = "A list of names for the EDP simulators to create."
+  type        = list(string)
+  default     = []
+}
+
+variable "trusted_image_signing_fingerprint" {
+  description = "The trusted signing fingerprint for images by the simulators."
+  type        = string
+  nullable    = false
+}

@@ -34,6 +34,7 @@ import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError as InternalMeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest as internalConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest as internalFailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getComputationParticipantRequest as internalGetComputationParticipantRequest
@@ -165,8 +166,7 @@ class ComputationParticipantsService(
           honestMajorityShareShuffle = requisitionParams.honestMajorityShareShuffle.toHmssDetails()
         }
         ProtocolCase.TRUS_TEE -> {
-          throw Status.UNIMPLEMENTED.withDescription("Protocol TrusTEE not implemented")
-            .asRuntimeException()
+          trusTee = TrusTeeParams.getDefaultInstance()
         }
         ProtocolCase.PROTOCOL_NOT_SET -> failGrpc { "protocol not set in the requisition_params." }
       }

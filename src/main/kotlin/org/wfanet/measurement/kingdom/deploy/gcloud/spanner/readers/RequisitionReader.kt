@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
+import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
@@ -354,7 +355,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         ComputationParticipantDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
           honestMajorityShareShuffle = participantDetails.honestMajorityShareShuffle
         }
-        ComputationParticipantDetails.ProtocolCase.TRUS_TEE -> error("TRUS_TEE is not supported")
+        ComputationParticipantDetails.ProtocolCase.TRUS_TEE -> {
+          trusTee = TrusTeeParams.getDefaultInstance()
+        }
         // Protocol may only be set after computation participant sets requisition params.
         ComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
       }

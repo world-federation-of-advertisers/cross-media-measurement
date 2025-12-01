@@ -32,6 +32,8 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import picocli.CommandLine
@@ -50,6 +52,8 @@ abstract class KingdomDataServer : Runnable {
   @CommandLine.Mixin private lateinit var roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags
 
   @CommandLine.Mixin private lateinit var hmssProtocolConfigFlags: HmssProtocolConfigFlags
+
+  @CommandLine.Mixin private lateinit var trusteeProtocolConfigFlags: TrusTeeProtocolConfigFlags
 
   @CommandLine.Option(
     names = ["--known-event-group-metadata-type"],
@@ -79,6 +83,7 @@ abstract class KingdomDataServer : Runnable {
     Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
     RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
     HmssProtocolConfig.initializeFromFlags(hmssProtocolConfigFlags)
+    TrusTeeProtocolConfig.initializeFromFlags(trusteeProtocolConfigFlags)
 
     val services =
       dataServices.buildDataServices(serviceFlags.executor.asCoroutineDispatcher()).toList()

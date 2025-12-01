@@ -14,3 +14,6 @@ honest_majority_share_shuffle {
   second_non_aggregator_duchy_id: "worker2"
   aggregator_duchy_id: "aggregator"
 }
+trus_tee {
+  role: AGGREGATOR
+}

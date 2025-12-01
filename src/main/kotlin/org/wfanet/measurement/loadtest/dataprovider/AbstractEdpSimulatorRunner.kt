@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
@@ -104,7 +103,6 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
     throttler: MinimumIntervalThrottler,
     health: SettableHealth,
     random: Random,
-    trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams?,
   ): AbstractEdpSimulator
 
   private fun TypeRegistry.Builder.addEventMessageDescriptors() {
@@ -164,20 +162,6 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         eventGroupsOptions,
       )
 
-    val params = flags.trusTeeParams
-    val trusTeeEncryptionParams: TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams? =
-      if (params != null) {
-        // TODO(@roaminggypsy): Swap the KMS client for local cluster runs.
-        TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
-          GcpKmsClient(),
-          params.kmsKekUri,
-          params.workloadIdentityProvider,
-          params.impersonatedServiceAccount,
-        )
-      } else {
-        null
-      }
-
     val edpSimulator: AbstractEdpSimulator =
       buildEdpSimulator(
         flags.dataProviderDisplayName,
@@ -191,7 +175,6 @@ abstract class AbstractEdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         health,
         random,
-        trusTeeEncryptionParams,
       )
     runBlocking {
       edpSimulator.ensureEventGroups()

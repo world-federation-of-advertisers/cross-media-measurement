@@ -46,8 +46,12 @@ import "list"
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
 	_imageConfig:               #ImageConfig
+	_gcp_project_id:            string
+	_gcp_project_number:        string
+	_gcp_location:              string
 
 	let DisplayName = _edpConfig.displayName
+
 	let RequisitionFulfillmentServiceOptions = {
 		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
 			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
@@ -69,11 +73,25 @@ import "list"
 		list.FlattenN(Lists, 2)
 	}
 
+	let TeeOptions = {
+		let keyRingName = "\(DisplayName)-simulator-keyring-test3"
+		let kekName = "\(DisplayName)-simulator-kek"
+		let workloadIdentityPoolName = "\(DisplayName)-simulator-wip-test3"
+		let workloadIdentityProviderName = "provider-test3"
+		let impersonatedServiceAccountName = "\(DisplayName)-simulator-kms-decrypt"
+		[
+			"--trustee-kms-kek-uri=gcp-kms://projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
+			"--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)",
+			"--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com",
+		]
+	}
+
 	deployment: #Deployment & {
 		let HealthFile = "/run/probe/healthy"
 		_name:       DisplayName + "-simulator"
 		_secretName: _edp_secret_name
 		_system:     "simulator"
+
 		_container: {
 			image: _imageConfig.image
 			args:  [
@@ -93,7 +111,7 @@ import "list"
 				"--health-file=\(HealthFile)",
 				"--population-spec=\(_populationSpecPath)",
 				"--support-hmss=\(_edpConfig.supportHmss)",
-			] + RequisitionFulfillmentServiceOptions + EventGroupOptions
+			] + RequisitionFulfillmentServiceOptions + EventGroupOptions + TeeOptions
 		}
 		spec: template: spec: {
 			_mounts: {

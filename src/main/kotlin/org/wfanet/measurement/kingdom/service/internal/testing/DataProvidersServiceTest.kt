@@ -634,7 +634,10 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
   fun `replaceDataProviderCapabilites updates DataProvider`() = runBlocking {
     val dataProvider: DataProvider =
       dataProvidersService.createDataProvider(CREATE_DATA_PROVIDER_REQUEST)
-    val capabilities = dataProviderCapabilities { honestMajorityShareShuffleSupported = true }
+    val capabilities = dataProviderCapabilities {
+      honestMajorityShareShuffleSupported = true
+      trusTeeSupported = true
+    }
 
     val response: DataProvider =
       dataProvidersService.replaceDataProviderCapabilities(

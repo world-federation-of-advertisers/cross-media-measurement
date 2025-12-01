@@ -237,6 +237,7 @@ abstract class AbstractEdpSimulator(
         capabilities =
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = (vidIndexMap != null)
+            trusTeeSupported = true
           }
       }
     )
