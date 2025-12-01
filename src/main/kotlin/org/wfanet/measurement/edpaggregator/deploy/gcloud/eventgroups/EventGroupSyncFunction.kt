@@ -214,7 +214,7 @@ class EventGroupSyncFunction() : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
-    private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 500
+    private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 100
 
     private val listEventGroupPageSize: Int =
       System.getenv("LIST_EVENT_GROUPS_PAGE_SIZE")?.toInt() ?: LIST_EVENT_GROUPS_PAGE_SIZE
