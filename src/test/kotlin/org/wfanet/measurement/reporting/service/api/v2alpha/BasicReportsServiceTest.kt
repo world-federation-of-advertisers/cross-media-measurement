@@ -205,6 +205,7 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        TestEvent.getDescriptor(),
       )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
