@@ -109,12 +109,17 @@ message BasicReport {
   State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Resource name of a valid `ModelLine` to be used for the metrics.
-  //
-  // TODO(tristanvuong2021): Determine validity through
-  // EnumerateValidModelLines. Also, choose a valid `ModelLine` through
-  // EnumerateValidModelLines if this field isn't specified.
   string model_line = 11 [
     (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
     (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Resource name of a valid `ModelLine` to be used for the metrics.
+  //
+  // Same as `model_line` if `model_line` is set, otherwise it is a value
+  // chosen by the system.
+  string effective_model_line = 12 [
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" },
+    (google.api.field_behavior) = OUTPUT_ONLY
   ];
 }

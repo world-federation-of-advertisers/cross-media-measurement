@@ -110,6 +110,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   eventGroupsStub = eventGroupsClient,
                   eventGroups = eventGroups,
                   throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+                  listEventGroupPageSize,
                 )
                 .sync(),
             eventGroupSyncConfig = eventGroupSyncConfig,
@@ -213,6 +214,10 @@ class EventGroupSyncFunction() : HttpFunction {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private const val THROTTLER_DURATION_MILLIS = 1000L
+    private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 100
+
+    private val listEventGroupPageSize: Int =
+      System.getenv("LIST_EVENT_GROUPS_PAGE_SIZE")?.toInt() ?: LIST_EVENT_GROUPS_PAGE_SIZE
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")

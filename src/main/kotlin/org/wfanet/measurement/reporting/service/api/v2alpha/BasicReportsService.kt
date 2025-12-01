@@ -17,6 +17,8 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.type.copy
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.UUID
@@ -30,8 +32,15 @@ import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
+import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
+import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.toTimestamp
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
@@ -101,10 +110,12 @@ class BasicReportsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
+  private val kingdomModelLinesStub: KingdomModelLinesCoroutineStub,
   private val eventDescriptor: EventDescriptor?,
   private val metricSpecConfig: MetricSpecConfig,
   private val secureRandom: Random,
   private val authorization: Authorization,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -168,6 +179,53 @@ class BasicReportsService(
       }
     }
 
+    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
+
+    val measurementConsumerConfig =
+      measurementConsumerConfigs.configsMap[request.parent]
+        ?: throw Status.INTERNAL.withDescription("Config not found for $request.parent")
+          .asRuntimeException()
+
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
+
+    val validModelLines =
+      kingdomModelLinesStub
+        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
+        .enumerateValidModelLines(
+          enumerateValidModelLinesRequest {
+            parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
+            timeInterval = interval {
+              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
+              endTime =
+                request.basicReport.reportingInterval.reportStart
+                  .copy {
+                    day = request.basicReport.reportingInterval.reportEnd.day
+                    month = request.basicReport.reportingInterval.reportEnd.month
+                    year = request.basicReport.reportingInterval.reportEnd.year
+                  }
+                  .toTimestamp()
+            }
+            dataProviders += reportingSetMaps.primitiveReportingSetsByDataProvider.keys
+          }
+        )
+        .modelLinesList
+
+    val modelLine =
+      if (request.basicReport.modelLine.isNotEmpty()) {
+        if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
+          throw InvalidFieldValueException("basic_report.model_line") { fieldName ->
+              "$fieldName is not active for the specified reporting interval and data providers"
+            }
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+        request.basicReport.modelLine
+      } else if (validModelLines.isNotEmpty()) {
+        validModelLines.first().name
+      } else {
+        ""
+      }
+
     // Validates that IQFs exist, but also constructs a List required for creating Report
     val impressionQualificationFilterSpecsLists:
       MutableList<List<ImpressionQualificationFilterSpec>> =
@@ -217,6 +275,10 @@ class BasicReportsService(
                 InternalErrors.Reason.INVALID_FIELD_VALUE,
                 InternalErrors.Reason.METRIC_NOT_FOUND,
                 InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+                InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+                InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
                 null -> Status.INTERNAL.withCause(e).asRuntimeException()
               }
             }
@@ -242,6 +304,7 @@ class BasicReportsService(
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
                   internalReportingImpressionQualificationFilters,
+                effectiveModelLine = modelLine,
               )
             requestId = request.requestId
           }
@@ -264,11 +327,13 @@ class BasicReportsService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+          InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
-
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
 
     val reportingSetsMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
@@ -287,6 +352,7 @@ class BasicReportsService(
         campaignGroupKey,
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
+        modelLine,
       )
 
     val createReportRequest = createReportRequest {
@@ -342,6 +408,10 @@ class BasicReportsService(
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+          InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -383,6 +453,10 @@ class BasicReportsService(
           InternalErrors.Reason.METRIC_NOT_FOUND,
           InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
           InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+          InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -595,17 +669,7 @@ class BasicReportsService(
                 )
                 .toReportingSet()
             } catch (e: StatusException) {
-              throw when (InternalErrors.getReason(e)) {
-                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-                InternalErrors.Reason.INVALID_FIELD_VALUE,
-                InternalErrors.Reason.METRIC_NOT_FOUND,
-                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-                null -> Status.INTERNAL.withCause(e).asRuntimeException()
-              }
+              throw Status.INTERNAL.withCause(e).asRuntimeException()
             }
 
           put(dataProviderName, createdReportingSet)
@@ -698,6 +762,7 @@ class BasicReportsService(
    *   name
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
+   * @param modelLine The model line to use for the report.
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -705,6 +770,7 @@ class BasicReportsService(
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
+    modelLine: String,
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
@@ -746,7 +812,7 @@ class BasicReportsService(
                   val metricCalculationSpec = metricCalculationSpec {
                     cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
                     externalCampaignGroupId = campaignGroupKey.reportingSetId
-                    cmmsModelLine = basicReport.modelLine
+                    cmmsModelLine = modelLine
                     details = metricCalculationSpecDetails
                   }
                   metricCalculationSpecs +=

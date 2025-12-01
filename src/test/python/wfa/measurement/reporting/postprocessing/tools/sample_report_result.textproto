@@ -44,7 +44,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 9992500
@@ -115,7 +115,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 11998422
@@ -217,7 +217,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 11978894
@@ -314,7 +314,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 5000000 }
         }
@@ -361,7 +361,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 6000000 }
         }
@@ -439,7 +439,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 6000000 }
           impression_count { value: 11216125 }
@@ -514,7 +514,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 800000 }
         }
@@ -561,7 +561,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 1000000 }
         }
@@ -639,7 +639,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 1000000 }
           impression_count { value: 1844136 }
@@ -714,7 +714,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 15830545
@@ -785,7 +785,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 19010669
@@ -887,7 +887,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 19021738
@@ -983,7 +983,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 16686873
@@ -1042,7 +1042,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 9501618
@@ -1113,7 +1113,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 11389309
@@ -1215,7 +1215,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 11382243
@@ -1311,7 +1311,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 4750000 }
         }
@@ -1358,7 +1358,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 5700000 }
         }
@@ -1436,7 +1436,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 5700000 }
           impression_count { value: 10645760 }
@@ -1511,7 +1511,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 760000 }
         }
@@ -1558,7 +1558,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 950000 }
         }
@@ -1636,7 +1636,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 950000 }
           impression_count { value: 1751669 }
@@ -1711,7 +1711,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 13427250
@@ -1782,7 +1782,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 15920317
@@ -1884,7 +1884,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 15908881
@@ -1981,7 +1981,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 9984642
@@ -2052,7 +2052,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 12020226
@@ -2155,7 +2155,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 12017026
@@ -2252,7 +2252,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 5000000 }
         }
@@ -2299,7 +2299,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 6000000 }
         }
@@ -2378,7 +2378,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 6000000 }
           impression_count { value: 11216125 }
@@ -2454,7 +2454,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 800000 }
         }
@@ -2501,7 +2501,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 1000000 }
         }
@@ -2580,7 +2580,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach { value: 1000000 }
           impression_count { value: 1844136 }
@@ -2656,7 +2656,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 15799013
@@ -2727,7 +2727,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 19015392
@@ -2830,7 +2830,7 @@ reporting_set_results {
       }
     }
     value {
-      noisy_report_result_values {
+      unprocessed_report_result_values {
         cumulative_results {
           reach {
             value: 19030737

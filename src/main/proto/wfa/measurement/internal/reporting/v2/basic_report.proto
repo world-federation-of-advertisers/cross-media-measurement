@@ -59,9 +59,9 @@ message BasicReport {
     // `Report` created.
     REPORT_CREATED = 2;
     // `Report` is in SUCCEEDED state, and its results are persisted with the
-    // `BasicReport`, but not yet processed by the noise corrector.
-    NOISY_RESULTS_READY = 3;
-    // Results have been noise-corrected. Available in the `BasicReport` as
+    // `BasicReport`, but not yet processed by the Report Processor.
+    UNPROCESSED_RESULTS_READY = 3;
+    // Results have been processed. Available in the `BasicReport` as
     // `result_details`.
     SUCCEEDED = 4;
     // Completed with failure. Terminal state.
@@ -89,4 +89,12 @@ message BasicReport {
     string cmms_model_line_id = 3;
   }
   ModelLineKey model_line_key = 12;
+
+  // External ID of the `ReportResult` associated with this `BasicReport.
+  // Output-only.
+  //
+  // Set when `state` has been `UNPROCESSED_RESULTS_READY`.
+  fixed64 external_report_result_id = 13;
+
+  bool model_line_system_specified = 14;
 }

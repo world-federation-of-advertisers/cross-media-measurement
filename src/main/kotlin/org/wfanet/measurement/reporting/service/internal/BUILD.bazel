@@ -31,8 +31,11 @@ kt_jvm_library(
     name = "errors",
     srcs = ["Errors.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )

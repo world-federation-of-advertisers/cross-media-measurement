@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-22.04
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Write auth.bazelrc
       env:
@@ -68,6 +68,7 @@ jobs:
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         PDP_NAME: ${{ vars.PDP_NAME }}
         MP_NAME: ${{ vars.MP_NAME }}
+        MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -88,6 +89,7 @@ jobs:
         build --define "edp6_name=$EDP6_NAME"
         build --define "pdp_name=$PDP_NAME"
         build --define "mp_name=$MP_NAME"
+        build --define "model_line_name=$MODEL_LINE_NAME"
         test --test_output=streamed
         test --test_timeout=3600
         EOF
@@ -104,5 +106,5 @@ jobs:
         
     - name: Upload Bazel testlogs
       continue-on-error: true
-      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@v2
+      uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
       if: failure() && steps.run-tests.outcome == 'failure'

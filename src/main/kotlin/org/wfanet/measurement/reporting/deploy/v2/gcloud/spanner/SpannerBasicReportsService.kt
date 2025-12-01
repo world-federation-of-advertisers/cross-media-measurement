@@ -51,7 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformation.buildResultGroups
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportProcessedResultsTransformation.buildResultGroups
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
@@ -154,7 +154,7 @@ class SpannerBasicReportsService(
     val basicReports =
       spannerClient.singleUse().use { txn ->
         txn
-          .readBasicReports(pageSize + 1, request.filter, pageToken)
+          .readBasicReports(request.filter, limit = pageSize + 1, pageToken = pageToken)
           .map { it.basicReport }
           .toList()
       }
@@ -636,7 +636,7 @@ class SpannerBasicReportsService(
       campaignGroup.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
 
     val primitiveInfoByDataProviderId:
-      Map<String, BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo> =
+      Map<String, BasicReportProcessedResultsTransformation.PrimitiveInfo> =
       buildMap {
         for (dataProviderId in eventGroupKeysByDataProviderId.keys) {
           val primitiveEventGroupKeys =
@@ -646,7 +646,7 @@ class SpannerBasicReportsService(
           if (campaignGroupReportingSetIdByReportingSetKey.containsKey(reportingSetKey)) {
             put(
               dataProviderId,
-              BasicReportNoiseCorrectedResultsTransformation.PrimitiveInfo(
+              BasicReportProcessedResultsTransformation.PrimitiveInfo(
                 eventGroupKeys = primitiveEventGroupKeys,
                 externalReportingSetId =
                   campaignGroupReportingSetIdByReportingSetKey.getValue(reportingSetKey),
