@@ -80,6 +80,7 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -298,7 +299,7 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork processes direct requisition successfully`() = runBlocking {
+  fun `runWork processes direct R&F requisition successfully`() = runBlocking {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -346,7 +347,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -363,6 +364,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -391,9 +393,9 @@ class ResultsFulfillerTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
+    val expectedReach: Long = computeExpectedReach(impressions, RNF_MEASUREMENT_SPEC)
     val expectedFrequencyDistribution: Map<Long, Double> =
-      computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
+      computeExpectedFrequencyDistribution(impressions, RNF_MEASUREMENT_SPEC)
 
     assertThat(result.reach.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN)
@@ -423,6 +425,250 @@ class ResultsFulfillerTest {
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
+
+  @Test
+  fun `runWork processes direct impression requisition successfully`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      } +
+        List(130) {
+          LABELED_IMPRESSION.copy {
+            vid = it.toLong() + 1
+            eventTime = TIME_RANGE.start.toProtoTime()
+          }
+        } +
+        List(130) {
+          LABELED_IMPRESSION.copy {
+            vid = it.toLong() + 1
+            eventTime = TIME_RANGE.start.toProtoTime()
+          }
+        }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    // Set up KMS
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_IMPRESSION_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
+
+    // Load grouped requisitions from storage
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    val request: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+      )
+    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+    val expectedImpressions: Long =
+      computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 10)
+
+    assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertTrue(result.impression.hasDeterministicCount())
+
+    assertThat(result).impressionValue().isEqualTo(expectedImpressions)
+
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork processes direct impression requisition successfully with overrideMaxFrequency`() =
+    runBlocking {
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = Files.createTempDirectory(null).toFile()
+      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+      val impressions =
+        List(130) {
+          LABELED_IMPRESSION.copy {
+            vid = it.toLong() + 1
+            eventTime = TIME_RANGE.start.toProtoTime()
+          }
+        } +
+          List(130) {
+            LABELED_IMPRESSION.copy {
+              vid = it.toLong() + 1
+              eventTime = TIME_RANGE.start.toProtoTime()
+            }
+          } +
+          List(130) {
+            LABELED_IMPRESSION.copy {
+              vid = it.toLong() + 1
+              eventTime = TIME_RANGE.start.toProtoTime()
+            }
+          }
+
+      val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+      val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+      // Set up KMS
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      createData(
+        kmsClient,
+        kekUri,
+        impressionsTmpPath,
+        metadataTmpPath,
+        requisitionsTmpPath,
+        impressions,
+        listOf(DIRECT_IMPRESSION_REQUISITION),
+      )
+      val impressionsMetadataService =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        )
+
+      val fulfillerSelector =
+        DefaultFulfillerSelector(
+          requisitionsStub = requisitionsStub,
+          requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+          noiserSelector = NoNoiserSelector(),
+          kAnonymityParams = null,
+          overrideImpressionMaxFrequencyPerUser = 2,
+        )
+
+      // Load grouped requisitions from storage
+      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          groupedRequisitions = groupedRequisitions,
+          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider = impressionsMetadataService,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          kmsClient = kmsClient,
+          fulfillerSelector = fulfillerSelector,
+        )
+
+      resultsFulfiller.fulfillRequisitions()
+
+      val request: FulfillDirectRequisitionRequest =
+        verifyAndCapture(
+          requisitionsServiceMock,
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+        )
+      val result: Measurement.Result =
+        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+      val expectedImpressions: Long =
+        computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 2)
+
+      assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+      assertTrue(result.impression.hasDeterministicCount())
+
+      assertThat(result).impressionValue().isEqualTo(expectedImpressions)
+
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+        startProcessingRequisitionMetadata(any())
+      }
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    }
 
   @Test
   fun `runWork skips already fulfilled requisitions`() = runBlocking {
@@ -473,7 +719,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -490,6 +736,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -569,7 +816,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -586,6 +833,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -667,7 +915,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -684,6 +932,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -763,7 +1012,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -780,6 +1029,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -856,7 +1106,7 @@ class ResultsFulfillerTest {
         metadataTmpPath,
         requisitionsTmpPath,
         impressions,
-        listOf(DIRECT_REQUISITION),
+        listOf(DIRECT_RNF_REQUISITION),
       )
       val impressionsMetadataService =
         ImpressionDataSourceProvider(
@@ -873,6 +1123,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 100),
+          overrideImpressionMaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -902,9 +1153,9 @@ class ResultsFulfillerTest {
         )
       val result: Measurement.Result =
         decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-      val expectedReach: Long = computeExpectedReach(impressions, MEASUREMENT_SPEC)
+      val expectedReach: Long = computeExpectedReach(impressions, RNF_MEASUREMENT_SPEC)
       val expectedFrequencyDistribution: Map<Long, Double> =
-        computeExpectedFrequencyDistribution(impressions, MEASUREMENT_SPEC)
+        computeExpectedFrequencyDistribution(impressions, RNF_MEASUREMENT_SPEC)
 
       assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
       assertTrue(result.reach.hasDeterministicCountDistinct())
@@ -970,7 +1221,7 @@ class ResultsFulfillerTest {
         metadataTmpPath,
         requisitionsTmpPath,
         impressions,
-        listOf(DIRECT_REQUISITION),
+        listOf(DIRECT_RNF_REQUISITION),
       )
       val impressionsMetadataService =
         ImpressionDataSourceProvider(
@@ -987,6 +1238,7 @@ class ResultsFulfillerTest {
           dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
           noiserSelector = NoNoiserSelector(),
           kAnonymityParams = KAnonymityParams(100, 1000),
+          overrideImpressionMaxFrequencyPerUser = null,
         )
 
       // Load grouped requisitions from storage
@@ -1082,7 +1334,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(DIRECT_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
 
     val impressionsMetadataService =
@@ -1100,6 +1352,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -1259,6 +1512,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         kAnonymityParams = null,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Load grouped requisitions from storage
@@ -1404,6 +1658,17 @@ class ResultsFulfillerTest {
         impressionMetadataBlobKey,
         blobDetails.toByteString(),
       )
+    }
+  }
+
+  private fun computeExpectedImpressions(
+    impressionsList: List<LabeledImpression>,
+    measurementSpec: MeasurementSpec,
+    maximumFrequency: Int,
+  ): Long {
+    val sampledVids = sampleVids(impressionsList.map { it.vid }, measurementSpec)
+    return runBlocking {
+      MeasurementResults.computeImpression(sampledVids.asFlow(), maximumFrequency)
     }
   }
 
@@ -1586,7 +1851,7 @@ class ResultsFulfillerTest {
       epsilon = 1.0
       delta = 1E-12
     }
-    private val MEASUREMENT_SPEC = measurementSpec {
+    private val RNF_MEASUREMENT_SPEC = measurementSpec {
       reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
@@ -1601,14 +1866,28 @@ class ResultsFulfillerTest {
       nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
       modelLine = "some-model-line"
     }
+    private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      impression = impression {
+        privacyParams = OUTPUT_DP_PARAMS
+        maximumFrequencyPerUser = 10
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
+    }
     private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAAg"
 
-    private val DIRECT_REQUISITION: Requisition = requisition {
+    private val DIRECT_RNF_REQUISITION: Requisition = requisition {
       name = REQUISITION_NAME
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      measurementSpec = signMeasurementSpec(RNF_MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols +=
@@ -1630,7 +1909,30 @@ class ResultsFulfillerTest {
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
-
+    private val DIRECT_IMPRESSION_REQUISITION: Requisition = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols +=
+          ProtocolConfigKt.protocol {
+            direct =
+              ProtocolConfigKt.direct {
+                noiseMechanisms +=
+                  listOf(
+                    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+                    ProtocolConfig.NoiseMechanism.NONE,
+                  )
+                deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+              }
+          }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    }
     const val DUCHY_ONE_ID = "worker1"
     const val DUCHY_TWO_ID = "worker2"
 
@@ -1675,7 +1977,7 @@ class ResultsFulfillerTest {
       measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
       state = Requisition.State.UNFULFILLED
       measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      measurementSpec = signMeasurementSpec(RNF_MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
       protocolConfig = protocolConfig {
         protocols +=
