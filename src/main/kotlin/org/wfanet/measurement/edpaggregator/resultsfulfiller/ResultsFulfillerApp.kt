@@ -170,8 +170,6 @@ class ResultsFulfillerApp(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
-          impressionMaxFrequencyPerUser =
-            fulfillerParams.kAnonymityParams.impressionMaxFrequencyPerUser,
         )
       } else {
         null
@@ -185,6 +183,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser =
+          fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 },
       )
 
     ResultsFulfiller(

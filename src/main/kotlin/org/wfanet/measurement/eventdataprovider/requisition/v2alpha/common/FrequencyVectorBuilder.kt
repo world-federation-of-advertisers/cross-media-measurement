@@ -62,6 +62,7 @@ class FrequencyVectorBuilder(
   val measurementSpec: MeasurementSpec,
   val strict: Boolean = true,
   val kAnonymityParams: KAnonymityParams? = null,
+  val overrideImpressionMaxFrequencyPerUser: Int? = null,
 ) {
 
   /** The maximum frequency allowed in the output frequency vector. */
@@ -88,7 +89,9 @@ class FrequencyVectorBuilder(
     }
 
     maxFrequency =
-      if (measurementSpec.hasReachAndFrequency()) {
+      if (measurementSpec.hasImpression() && overrideImpressionMaxFrequencyPerUser != null) {
+        overrideImpressionMaxFrequencyPerUser
+      } else if (measurementSpec.hasReachAndFrequency()) {
         measurementSpec.reachAndFrequency.maximumFrequency
       } else if (measurementSpec.hasImpression()) {
         measurementSpec.impression.maximumFrequencyPerUser
@@ -171,7 +174,15 @@ class FrequencyVectorBuilder(
     measurementSpec: MeasurementSpec,
     frequencyVector: FrequencyVector,
     strict: Boolean = true,
-  ) : this(populationSpec, measurementSpec, strict) {
+    kAnonymityParams: KAnonymityParams? = null,
+    overrideImpressionMaxFrequencyPerUser: Int? = null,
+  ) : this(
+    populationSpec,
+    measurementSpec,
+    strict,
+    kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
+  ) {
     require(frequencyVector.dataCount == frequencyData.size) {
       "frequencyVector is of incompatible size: ${frequencyVector.dataCount} " +
         "expected: ${frequencyData.size}"
@@ -203,14 +214,20 @@ class FrequencyVectorBuilder(
     frequencyDataBytes: ByteArray,
     strict: Boolean = true,
     kAnonymityParams: KAnonymityParams? = null,
-  ) : this(populationSpec, measurementSpec, strict, kAnonymityParams) {
+    overrideImpressionMaxFrequencyPerUser: Int? = null,
+  ) : this(
+    populationSpec,
+    measurementSpec,
+    strict,
+    kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
+  ) {
     // Batch copy primary range
     var destIndex = 0
     for (sourceIndex in primaryRange) {
       if (sourceIndex < frequencyDataBytes.size) {
         val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
-        val maxFrequencyCap = kAnonymityParams?.impressionMaxFrequencyPerUser ?: maxFrequency
-        frequencyData[destIndex] = minOf(frequency, maxFrequencyCap)
+        frequencyData[destIndex] = minOf(frequency, maxFrequency)
       }
       destIndex++
     }

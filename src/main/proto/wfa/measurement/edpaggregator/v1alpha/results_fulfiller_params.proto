@@ -120,11 +120,12 @@ message ResultsFulfillerParams {
     // Note that this param is also used to set sensitivity if differential
     // privacy is also applied.
     int32 reach_max_frequency_per_user = 3;
-    // The maximum frequency used for impression count in impression measurements.
-    // Only apply for direct measurements.
-    int32 impression_max_frequency_per_user = 4;
   }
 
   // The k-anonymity params to be applied.
   KAnonymityParams k_anonymity_params = 6;
+
+  // The maximum frequency used for impression count in impression measurements.
+  // Only apply for direct measurements.
+  int32 impression_max_frequency_per_user = 7;
 }
