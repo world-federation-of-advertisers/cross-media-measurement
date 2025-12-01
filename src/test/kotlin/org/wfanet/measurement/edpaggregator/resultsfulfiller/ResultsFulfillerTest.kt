@@ -657,12 +657,15 @@ class ResultsFulfillerTest {
       val result: Measurement.Result =
         decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
       val expectedImpressions: Long =
+        computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 10)
+      val overrideExpectedImpressions: Long =
         computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 2)
 
       assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
       assertTrue(result.impression.hasDeterministicCount())
 
-      assertThat(result).impressionValue().isEqualTo(expectedImpressions)
+      assertThat(result).impressionValue().isEqualTo(overrideExpectedImpressions)
+      assertThat(overrideExpectedImpressions).isNotEqualTo(expectedImpressions)
 
       verifyBlocking(requisitionMetadataServiceMock, times(1)) {
         startProcessingRequisitionMetadata(any())
