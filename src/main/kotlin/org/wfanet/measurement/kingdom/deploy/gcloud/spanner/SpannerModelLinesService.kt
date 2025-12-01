@@ -1,3 +1,4 @@
+[0.007s][warning][perf,memops] Cannot use file /tmp/hsperfdata_sanjayvas/21543 because it is locked by another process (errno = 11)
 /*
  * Copyright 2023 The Cross-Media Measurement Authors
  *
@@ -36,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
+import org.wfanet.measurement.internal.kingdom.SetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
@@ -49,6 +51,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineRea
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineHoldbackModelLine
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineType
 
 class SpannerModelLinesService(
   private val clock: Clock,
@@ -179,36 +182,116 @@ class SpannerModelLinesService(
   override suspend fun setModelLineHoldbackModelLine(
     request: SetModelLineHoldbackModelLineRequest
   ): ModelLine {
-    grpcRequire(request.externalModelProviderId != 0L) {
-      "external_model_provider_id not specified"
+    try {
+      validate(request)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
-    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
-    grpcRequire(request.externalHoldbackModelProviderId != 0L) {
-      "external_holdback_model_provider_id not specified"
-    }
-    grpcRequire(request.externalHoldbackModelSuiteId != 0L) {
-      "external_holdback_model_suite_id not specified"
-    }
-    grpcRequire(request.externalHoldbackModelLineId != 0L) {
-      "external_holdback_model_line_id not specified"
-    }
-    grpcRequire(
-      request.externalModelProviderId == request.externalHoldbackModelProviderId &&
-        request.externalModelSuiteId == request.externalHoldbackModelSuiteId
-    ) {
-      "HoldbackModelLine and ModelLine must be part of the same ModelSuite."
-    }
+
     try {
       return SetModelLineHoldbackModelLine(request).execute(client, idGenerator)
     } catch (e: ModelLineNotFoundException) {
-      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, e.message ?: "ModelLine not found.")
+      val statusCode =
+        if (e.externalModelLineId.value == request.externalModelLineId) {
+          Status.Code.NOT_FOUND
+        } else {
+          Status.Code.FAILED_PRECONDITION
+        }
+      throw e.asStatusRuntimeException(statusCode)
     } catch (e: ModelLineTypeIllegalException) {
-      throw e.asStatusRuntimeException(
-        Status.Code.INVALID_ARGUMENT,
-        e.message
-          ?: "Only ModelLines with type equal to 'PROD' can have a HoldbackModelLine having type equal to 'HOLDBACK'.",
-      )
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
+  /**
+   * Validates a request.
+   *
+   * @throws RequiredFieldNotSetException
+   * @throws InvalidFieldValueException
+   */
+  private fun validate(request: SetModelLineHoldbackModelLineRequest) {
+    if (request.externalModelProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_model_provider_id")
+    }
+    if (request.externalModelSuiteId == 0L) {
+      throw RequiredFieldNotSetException("external_model_suite_id")
+    }
+    if (request.externalModelLineId == 0L) {
+      throw RequiredFieldNotSetException("external_model_line_id")
+    }
+    if (request.externalHoldbackModelSuiteId != 0L) {
+      if (request.externalHoldbackModelProviderId == 0L) {
+        throw RequiredFieldNotSetException("external_holdback_model_provider_id") { fieldPath ->
+          "$fieldPath must be set if holdback ModelLine is specified"
+        }
+      }
+      if (request.externalHoldbackModelSuiteId == 0L) {
+        throw RequiredFieldNotSetException("external_holdback_model_suite_id") { fieldPath ->
+          "$fieldPath must be set if holdback ModelLine is specified"
+        }
+      }
+      if (request.externalHoldbackModelProviderId != request.externalModelProviderId) {
+        throw InvalidFieldValueException("external_holdback_model_provider_id") { fieldPath ->
+          "$fieldPath must match parent ModelProvider ID"
+        }
+      }
+      if (request.externalHoldbackModelSuiteId != request.externalModelSuiteId) {
+        throw InvalidFieldValueException("external_holdback_model_suite_id") { fieldPath ->
+          "$fieldPath must match parent ModelSuite ID"
+        }
+      }
+    } else {
+      if (request.externalHoldbackModelProviderId != 0L) {
+        throw InvalidFieldValueException("external_holdback_model_provider_id") { fieldPath ->
+          "$fieldPath may only be set if holdback ModelLine is specified"
+        }
+      }
+      if (request.externalHoldbackModelSuiteId != 0L) {
+        throw InvalidFieldValueException("external_holdback_model_suite_id") { fieldPath ->
+          "$fieldPath may only be set if holdback ModelLine is specified"
+        }
+      }
+    }
+  }
+
+  override suspend fun setModelLineType(request: SetModelLineTypeRequest): ModelLine {
+    try {
+      validate(request)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    return try {
+      SetModelLineType(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelLineTypeIllegalException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelLineInvalidArgsException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
+  private fun validate(request: SetModelLineTypeRequest) {
+    if (request.externalModelProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_model_provider_id")
+    }
+    if (request.externalModelSuiteId == 0L) {
+      throw RequiredFieldNotSetException("external_model_suite_id")
+    }
+    if (request.externalModelLineId == 0L) {
+      throw RequiredFieldNotSetException("external_model_line_id")
+    }
+    when (request.type) {
+      ModelLine.Type.DEV,
+      ModelLine.Type.PROD -> Unit
+      ModelLine.Type.TYPE_UNSPECIFIED -> throw RequiredFieldNotSetException("type")
+      ModelLine.Type.HOLDBACK,
+      ModelLine.Type.UNRECOGNIZED -> throw InvalidFieldValueException("type")
     }
   }
 
