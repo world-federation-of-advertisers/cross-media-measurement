@@ -70,7 +70,7 @@ class PostProcessReportResultTest(unittest.TestCase):
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
-        add_denoised_request = report_result_processor.process(
+        add_processed_result_value_request = report_result_processor.process(
             self.cmms_measurement_consumer_id, self.external_report_result_id)
 
         # Verifies the gRPC stubs were called correctly.
@@ -79,7 +79,7 @@ class PostProcessReportResultTest(unittest.TestCase):
                 cmms_measurement_consumer_id=self.cmms_measurement_consumer_id,
                 external_report_result_id=self.external_report_result_id,
                 view=report_result_pb2.ReportingSetResultView.
-                REPORTING_SET_RESULT_VIEW_NOISY,
+                REPORTING_SET_RESULT_VIEW_UNPROCESSED,
             ))
 
         self.mock_reporting_sets_stub.BatchGetReportingSets.assert_called_once(
@@ -99,27 +99,29 @@ class PostProcessReportResultTest(unittest.TestCase):
             ],
         )
 
-        # Verifies the AddDenoisedResultValuesRequest.
-        self.assertIsNotNone(add_denoised_request)
+        # Verifies the AddProcessedResultValuesRequest.
+        self.assertIsNotNone(add_processed_result_value_request)
         self.assertEqual(
-            add_denoised_request.cmms_measurement_consumer_id,
+            add_processed_result_value_request.cmms_measurement_consumer_id,
             self.cmms_measurement_consumer_id,
         )
         self.assertEqual(
-            add_denoised_request.external_report_result_id,
+            add_processed_result_value_request.external_report_result_id,
             self.external_report_result_id,
         )
 
         # Verifies that there are 25 reporting set results in the sample data.
-        self.assertEqual(len(add_denoised_request.reporting_set_results), 25)
+        self.assertEqual(
+            len(add_processed_result_value_request.reporting_set_results), 25)
 
         # Verifies the set result with exteral_reporting_set_result_id = 25.
         # This set result has noise added.
-        denoised_set_result_25 = add_denoised_request.reporting_set_results[25]
-        self.assertEqual(len(denoised_set_result_25.reporting_window_results),
+        processed_set_result_25 = add_processed_result_value_request.reporting_set_results[
+            25]
+        self.assertEqual(len(processed_set_result_25.reporting_window_results),
                          1)
 
-        window_result = denoised_set_result_25.reporting_window_results[0]
+        window_result = processed_set_result_25.reporting_window_results[0]
 
         # Verifies the window key.
         self.assertEqual(window_result.key.non_cumulative_start.year, 2025)
@@ -162,13 +164,14 @@ class PostProcessReportResultTest(unittest.TestCase):
         # Verifies the set result with exteral_reporting_set_result_id = 22.
         # This set result does not have noise added and has multiple reporting
         # windows.
-        denoised_set_result_22 = add_denoised_request.reporting_set_results[22]
-        self.assertEqual(len(denoised_set_result_22.reporting_window_results),
+        processed_set_result_22 = add_processed_result_value_request.reporting_set_results[
+            22]
+        self.assertEqual(len(processed_set_result_22.reporting_window_results),
                          2)
 
         # Sorts windows by end date to ensure consistent order for assertions.
         sorted_windows = sorted(
-            denoised_set_result_22.reporting_window_results,
+            processed_set_result_22.reporting_window_results,
             key=lambda x: x.key.end.day)
 
         # Verifies the first window (ending 2025-10-08).

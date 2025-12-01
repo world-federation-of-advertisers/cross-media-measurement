@@ -43,15 +43,15 @@ ReportSummaryV2Processor = post_process_report_summary_v2.ReportSummaryV2Process
 ListReportingSetResultsRequest = report_results_service_pb2.ListReportingSetResultsRequest
 
 MeasurementPolicy: TypeAlias = str
-AddDenoisedResultValuesRequest = report_results_service_pb2.AddDenoisedResultValuesRequest
+AddProcessedResultValuesRequest = report_results_service_pb2.AddProcessedResultValuesRequest
 BasicMetricSet = result_group_pb2.ResultGroup.MetricSet.BasicMetricSet
 BatchGetReportingSetsRequest = reporting_sets_service_pb2.BatchGetReportingSetsRequest
-ReportingWindowEntry = AddDenoisedResultValuesRequest.DenoisedReportingSetResult.ReportingWindowEntry
+ReportingWindowEntry = AddProcessedResultValuesRequest.ProcessedReportingSetResult.ReportingWindowEntry
 ReportingSetResult = report_result_pb2.ReportingSetResult
 
 
 class PostProcessReportResult:
-    """Correct a report result and write the denoised results to the spanner.
+    """Correct a report result and write the processed results to the spanner.
 
     This class is responsible for:
     1. Fetching a report result from the `ReportResults` service.
@@ -59,7 +59,7 @@ class PostProcessReportResult:
     3. Processing each `ReportSummaryV2`.
     4. Updating the `ReportSummaryV2` messages with the corrected measurement
        values.
-    5. Write the denoised results to the spanner.
+    5. Write the processed results to the spanner.
     """
 
     def __init__(
@@ -74,7 +74,7 @@ class PostProcessReportResult:
         self,
         cmms_measurement_consumer_id: str,
         external_report_result_id: int,
-    ) -> report_results_service_pb2.AddDenoisedResultValuesRequest:
+    ) -> AddProcessedResultValuesRequest:
         """Executes the full post-processing workflow.
 
         Args:
@@ -118,11 +118,11 @@ class PostProcessReportResult:
                     "Noise correction failed for a report summary with status:"
                     f" {result.status.status_code}")
 
-        # Creates AddDenoisedResultValuesRequest for each report summary.
-        request = self._create_add_denoised_result_values_requests(
+        # Creates AddProcessedResultValuesRequest for each report summary.
+        request = self._create_add_processed_result_values_requests(
             report_summaries, all_updated_measurements)
 
-        logging.info("Successfully added all denoised results.")
+        logging.info("Successfully added all processed results.")
 
         return request
 
@@ -142,7 +142,7 @@ class PostProcessReportResult:
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
             external_report_result_id=external_report_result_id,
             view=report_result_pb2.ReportingSetResultView.
-            REPORTING_SET_RESULT_VIEW_NOISY,
+            REPORTING_SET_RESULT_VIEW_UNPROCESSED,
         )
         results = []
         response = self._report_results_stub.ListReportingSetResults(request)
@@ -255,39 +255,33 @@ class PostProcessReportResult:
         results_by_window = {}
 
         self._process_window_results(
-            reporting_summary_set_result.cumulative_results,
-            'cumulative',
-            updated_measurements,
-            results_by_window)
+            reporting_summary_set_result.cumulative_results, 'cumulative',
+            updated_measurements, results_by_window)
 
         self._process_window_results(
             reporting_summary_set_result.non_cumulative_results,
-            'non_cumulative',
-            updated_measurements,
-            results_by_window)
+            'non_cumulative', updated_measurements, results_by_window)
 
         if reporting_summary_set_result.HasField('whole_campaign_result'):
             self._process_window_results(
                 [reporting_summary_set_result.whole_campaign_result],
-                'cumulative',
-                updated_measurements,
-                results_by_window)
+                'cumulative', updated_measurements, results_by_window)
 
         return results_by_window
 
-    def _create_add_denoised_result_values_requests(
+    def _create_add_processed_result_values_requests(
         self,
         report_summaries: list[ReportSummaryV2],
         updated_measurements: dict[str, int],
-    ) -> AddDenoisedResultValuesRequest:
-        """Creates AddDenoisedResultValuesRequest messages from corrected measurements.
+    ) -> AddProcessedResultValuesRequest:
+        """Creates AddProcessedResultValuesRequest messages from corrected measurements.
 
         Args:
             report_summaries: The list of report summaries that were processed.
             updated_measurements: A dictionary of corrected measurement values.
 
         Returns:
-            An AddDenoisedResultValuesRequest message.
+            An AddProcessedResultValuesRequest message.
         """
         if not report_summaries:
             logging.warning(
@@ -302,13 +296,13 @@ class PostProcessReportResult:
         # Gets the cmms_measurement_consumer_id and external_report_result_id
         # from the first report summary.
         report_summary = report_summaries[0]
-        request = AddDenoisedResultValuesRequest(
+        request = AddProcessedResultValuesRequest(
             cmms_measurement_consumer_id=report_summary.
             cmms_measurement_consumer_id,
             external_report_result_id=report_summary.external_report_result_id,
         )
 
-        # Generates the AddDenoisedResultValuesRequest from all the report
+        # Generates the AddProcessedResultValuesRequest from all the report
         # summaries.
         for report_summary in report_summaries:
             # Each ReportSummarySetResult corresponds to a ReportingSetResult.
@@ -321,7 +315,7 @@ class PostProcessReportResult:
                 results_by_window = self._group_results_by_window(
                     reporting_summary_set_result, updated_measurements)
 
-                # Generates the corresponding denoised window entries.
+                # Generates the corresponding processed window entries.
                 for window_data in results_by_window.values():
                     processed_window_entry = processed_set_result.reporting_window_results.add(
                     )
