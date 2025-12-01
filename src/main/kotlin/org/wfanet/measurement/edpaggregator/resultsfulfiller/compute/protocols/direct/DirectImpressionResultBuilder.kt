@@ -65,7 +65,7 @@ class DirectImpressionResultBuilder(
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
-        maxFrequency = maxFrequency,
+        maxFrequency = kAnonymityParams?.impressionMaxFrequencyPerUser ?: maxFrequency,
       )
 
     val impressionValue = getImpressionValue(histogram)
@@ -102,7 +102,8 @@ class DirectImpressionResultBuilder(
       dpParams = dpParams,
       vidSamplingIntervalWidth = samplingRate,
       kAnonymityParams = kAnonymityParams,
-      maxFrequency = maxFrequency.toLong(),
+      maxFrequency =
+        kAnonymityParams?.impressionMaxFrequencyPerUser?.toLong() ?: maxFrequency.toLong(),
     )
   }
 

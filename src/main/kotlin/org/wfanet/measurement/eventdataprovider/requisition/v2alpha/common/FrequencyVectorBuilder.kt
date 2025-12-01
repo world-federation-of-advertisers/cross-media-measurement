@@ -209,7 +209,8 @@ class FrequencyVectorBuilder(
     for (sourceIndex in primaryRange) {
       if (sourceIndex < frequencyDataBytes.size) {
         val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
-        frequencyData[destIndex] = minOf(frequency, maxFrequency)
+        val maxFrequencyCap = kAnonymityParams?.impressionMaxFrequencyPerUser ?: maxFrequency
+        frequencyData[destIndex] = minOf(frequency, maxFrequencyCap)
       }
       destIndex++
     }

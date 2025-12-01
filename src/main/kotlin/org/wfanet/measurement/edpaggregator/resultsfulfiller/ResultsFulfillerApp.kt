@@ -170,6 +170,8 @@ class ResultsFulfillerApp(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
           reachMaxFrequencyPerUser = fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser,
+          impressionMaxFrequencyPerUser =
+            fulfillerParams.kAnonymityParams.impressionMaxFrequencyPerUser,
         )
       } else {
         null

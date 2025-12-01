@@ -24,9 +24,12 @@ package org.wfanet.measurement.computation
  * @property minImpressions The minimum number of impressions required to satisfy k-anonymity.
  * @property reachMaxFrequencyPerUser The max frequency per user for reach use cases. Required if
  *   differential privacy is applied in addition to k-anonymity. The default is Byte.MAX_VALUE.
+ * @property impressionMaxFrequencyPerUser The max frequency per user for impression use cases. The
+ *   default is Byte.MAX_VALUE.
  */
 data class KAnonymityParams(
   val minUsers: Int,
   val minImpressions: Int,
   val reachMaxFrequencyPerUser: Int = Byte.MAX_VALUE.toInt(),
+  val impressionMaxFrequencyPerUser: Int = Byte.MAX_VALUE.toInt(),
 )
