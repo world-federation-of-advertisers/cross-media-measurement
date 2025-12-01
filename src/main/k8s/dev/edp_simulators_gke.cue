@@ -140,7 +140,7 @@ serviceAccounts: {
 	for edp in _edpConfigs {
 		let saName = "\(edp.displayName)-simulator"
 		"\(saName)": #WorkloadIdentityServiceAccount & {
-			_iamServiceAccountName: edp.displayName
+			_iamServiceAccountName: saName
 		}
 	}
 }
