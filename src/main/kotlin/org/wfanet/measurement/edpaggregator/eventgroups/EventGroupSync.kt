@@ -27,9 +27,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt as CmmsEventGroupMetadataKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt as CmmsAdMetadataKt
@@ -105,14 +103,14 @@ class EventGroupSync(
           EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
         }
 
-      val updatedEventGroupsList = eventGroups.toList()
+      val edpEventGroupsList = eventGroups.toList()
 
-      for (eventGroup in updatedEventGroupsList) {
+      for (eventGroup in edpEventGroupsList) {
         syncEventGroupItem(eventGroup, cmmsEventGroups)?.let { emit(it) }
       }
 
       val updatedEventGroupKeys =
-        updatedEventGroupsList
+        edpEventGroupsList
           .map { EventGroupKey(it.eventGroupReferenceId, it.measurementConsumer) }
           .toSet()
 
