@@ -218,6 +218,39 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `same event group, different mc triggers create and not update`() {
+    val newCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-3"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-1"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes +=
+        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+    }
+    val testCampaigns = listOf(newCampaign)
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        testCampaigns.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+  }
+
+  @Test
   fun `sync updatesExistingEventGroups`() {
     val eventGroupSync =
       EventGroupSync(
