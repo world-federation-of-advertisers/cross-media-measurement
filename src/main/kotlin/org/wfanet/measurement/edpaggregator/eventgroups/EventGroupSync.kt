@@ -181,6 +181,7 @@ class EventGroupSync(
   ): CmmsEventGroup {
     val request = createEventGroupRequest {
       parent = edpName
+      requestId = eventGroup.eventGroupReferenceId
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
