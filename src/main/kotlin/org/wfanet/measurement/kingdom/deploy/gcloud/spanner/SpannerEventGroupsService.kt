@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -39,11 +41,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInv
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
@@ -106,6 +111,62 @@ class SpannerEventGroupsService(
       )
     } catch (e: EventGroupNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup not found.")
+    } catch (e: EventGroupStateIllegalException) {
+      when (e.state) {
+        EventGroup.State.DELETED -> {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND, "EventGroup state is DELETED.")
+        }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED -> {
+          throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+        }
+      }
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
+  override suspend fun batchUpdateEventGroup(
+    request: BatchUpdateEventGroupsRequest
+  ): BatchUpdateEventGroupsResponse {
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val externalDataProviderId = request.externalDataProviderId
+
+    request.requestsList.forEachIndexed { index, subRequest ->
+      val subRequestExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
+
+      if (subRequestExternalDataProviderId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.event_group.external_data_provider_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (subRequestExternalDataProviderId != externalDataProviderId) {
+        throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
+            "Subrequest's externalDataProviderId $subRequestExternalDataProviderId different from parent's externalDataProviderId $externalDataProviderId"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      if (subRequest.eventGroup.externalEventGroupId == 0L) {
+        throw RequiredFieldNotSetException("requests.$index.event_group.external_event_group_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    try {
+      return BatchUpdateEventGroups(request).execute(client, idGenerator)
+    } catch (e: EventGroupInvalidArgsException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: CertificateIsInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: EventGroupNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupStateIllegalException) {
       when (e.state) {
         EventGroup.State.DELETED -> {
