@@ -62,6 +62,7 @@ class EventGroupSync(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
+  private val listEventGroupPageSize: Int,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
@@ -238,6 +239,7 @@ class EventGroupSync(
                 listEventGroupsRequest {
                   parent = edpName
                   this.pageToken = pageToken
+                  pageSize = listEventGroupPageSize
                 }
               )
             }
