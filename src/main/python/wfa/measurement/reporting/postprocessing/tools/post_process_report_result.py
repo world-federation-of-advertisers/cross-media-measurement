@@ -37,12 +37,17 @@ ReportingSet = reporting_set_pb2.ReportingSet
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
 ReportSummaryV2 = report_summary_v2_pb2.ReportSummaryV2
+ReportSummarySetResult = ReportSummaryV2.ReportSummarySetResult
+ReportSummaryWindowResult = ReportSummarySetResult.ReportSummaryWindowResult
 ReportSummaryV2Processor = post_process_report_summary_v2.ReportSummaryV2Processor
 ListReportingSetResultsRequest = report_results_service_pb2.ListReportingSetResultsRequest
 
 MeasurementPolicy: TypeAlias = str
 AddDenoisedResultValuesRequest = report_results_service_pb2.AddDenoisedResultValuesRequest
+BasicMetricSet = result_group_pb2.ResultGroup.MetricSet.BasicMetricSet
 BatchGetReportingSetsRequest = reporting_sets_service_pb2.BatchGetReportingSetsRequest
+ReportingWindowEntry = AddDenoisedResultValuesRequest.DenoisedReportingSetResult.ReportingWindowEntry
+ReportingSetResult = report_result_pb2.ReportingSetResult
 
 
 class PostProcessReportResult:
@@ -123,7 +128,15 @@ class PostProcessReportResult:
 
     def _get_report_result(self, cmms_measurement_consumer_id: str,
                            external_report_result_id: int):
-        """Fetches all reporting set results for a report result."""
+        """Fetches all reporting set results for a given report result.
+
+        Args:
+            cmms_measurement_consumer_id: The Measurement Consumer ID.
+            external_report_result_id: The external ID of the report result.
+
+        Returns:
+            A list of ReportingSetResult messages.
+        """
         logging.info(f"Fetching report result {external_report_result_id}...")
         request = ListReportingSetResultsRequest(
             cmms_measurement_consumer_id=cmms_measurement_consumer_id,
@@ -184,6 +197,84 @@ class PostProcessReportResult:
             if reporting_set_id in reporting_set_map
         }
 
+    def _process_window_results(
+        self,
+        window_results: list[ReportSummaryWindowResult],
+        prefix: str,
+        updated_measurements: dict[str, int],
+        results_by_window: dict,
+    ):
+        """Processes a list of window results and groups them by window key.
+
+        This helper function iterates through a list of
+        `ReportSummaryWindowResult`, extracts the corrected measurements, and
+        organizes them into the `results_by_window` dictionary.
+
+        Args:
+            window_results: A list of `ReportSummaryWindowResult` to process.
+            prefix: The prefix to use for keys (e.g., 'cumulative').
+            updated_measurements: A map of corrected measurement names to values.
+            results_by_window: The dictionary to populate with grouped results.
+        """
+        for result in window_results:
+            window_key_str = result.key.SerializeToString()
+            if window_key_str not in results_by_window:
+                results_by_window[window_key_str] = {'key': result.key}
+
+            if result.HasField('reach'):
+                results_by_window[window_key_str][f'{prefix}_reach'] = (
+                    updated_measurements[result.reach.metric])
+            if result.HasField('impression_count'):
+                results_by_window[window_key_str][f'{prefix}_impressions'] = (
+                    updated_measurements[result.impression_count.metric])
+            if result.HasField('frequency'):
+                frequency_key = f'{prefix}_frequency'
+                if frequency_key not in results_by_window[window_key_str]:
+                    results_by_window[window_key_str][frequency_key] = {}
+                for bin_label, bin_result in result.frequency.bins.items():
+                    name = f'{result.frequency.metric}-bin-{bin_label}'
+                    results_by_window[window_key_str][frequency_key][
+                        bin_label] = updated_measurements.get(
+                            name, bin_result.value)
+
+    def _group_results_by_window(
+        self,
+        reporting_summary_set_result: ReportSummarySetResult,
+        updated_measurements: dict[str, int],
+    ) -> dict:
+        """Groups corrected results by their reporting window.
+
+        Args:
+            reporting_summary_set_result: The `ReportSummarySetResult` to
+              process.
+            updated_measurements: A map of corrected measurement names to values.
+
+        Returns:
+            A dictionary with results grouped by serialized window key.
+        """
+        results_by_window = {}
+
+        self._process_window_results(
+            reporting_summary_set_result.cumulative_results,
+            'cumulative',
+            updated_measurements,
+            results_by_window)
+
+        self._process_window_results(
+            reporting_summary_set_result.non_cumulative_results,
+            'non_cumulative',
+            updated_measurements,
+            results_by_window)
+
+        if reporting_summary_set_result.HasField('whole_campaign_result'):
+            self._process_window_results(
+                [reporting_summary_set_result.whole_campaign_result],
+                'cumulative',
+                updated_measurements,
+                results_by_window)
+
+        return results_by_window
+
     def _create_add_denoised_result_values_requests(
         self,
         report_summaries: list[ReportSummaryV2],
@@ -199,7 +290,8 @@ class PostProcessReportResult:
             An AddDenoisedResultValuesRequest message.
         """
         if not report_summaries:
-            logging.warning("No report summaries were provided; skipping update.")
+            logging.warning(
+                "No report summaries were provided; skipping update.")
             return None
 
         if not updated_measurements:
@@ -207,114 +299,112 @@ class PostProcessReportResult:
                 "No updated measurements were provided; skipping update.")
             return None
 
-        print(updated_measurements)
-
         # Gets the cmms_measurement_consumer_id and external_report_result_id
         # from the first report summary.
         report_summary = report_summaries[0]
         request = AddDenoisedResultValuesRequest(
-            cmms_measurement_consumer_id=report_summary.cmms_measurement_consumer_id,
+            cmms_measurement_consumer_id=report_summary.
+            cmms_measurement_consumer_id,
             external_report_result_id=report_summary.external_report_result_id,
         )
 
+        # Generates the AddDenoisedResultValuesRequest from all the report
+        # summaries.
         for report_summary in report_summaries:
+            # Each ReportSummarySetResult corresponds to a ReportingSetResult.
             for reporting_summary_set_result in report_summary.report_summary_set_results:
-                denoised_set_result = request.reporting_set_results[
-                    reporting_summary_set_result.external_reporting_set_result_id]
+                processed_set_result = request.reporting_set_results[
+                    reporting_summary_set_result.
+                    external_reporting_set_result_id]
 
-                # Groups results by window key.
-                results_by_window = {}
-                for result in reporting_summary_set_result.cumulative_results:
-                    if result.reach.metric in updated_measurements:
-                        window_key_str = result.key.SerializeToString()
-                        if window_key_str not in results_by_window:
-                            results_by_window[window_key_str] = {
-                                'key': result.key
-                            }
-                        results_by_window[window_key_str]['cumulative'] = (
-                            updated_measurements[result.reach.metric])
-                        for bin_label, bin_result in result.frequency.bins.items(
-                        ):
-                            if 'cumulative_frequency' not in results_by_window[
-                                    window_key_str]:
-                                results_by_window[window_key_str][
-                                    'cumulative_frequency'] = {}
-                            results_by_window[window_key_str][
-                                'cumulative_frequency'][
-                                    bin_label] = updated_measurements.get(
-                                        f'{result.frequency.metric}_{bin_label}',
-                                        bin_result.value)
+                # Groups results by their reporting window.
+                results_by_window = self._group_results_by_window(
+                    reporting_summary_set_result, updated_measurements)
 
-                for result in reporting_summary_set_result.non_cumulative_results:
-                    if result.reach.metric in updated_measurements:
-                        window_key_str = result.key.SerializeToString()
-                        if window_key_str not in results_by_window:
-                            results_by_window[window_key_str] = {
-                                'key': result.key
-                            }
-                        results_by_window[window_key_str][
-                            'non_cumulative'] = updated_measurements[
-                                result.reach.metric]
-                        for bin_label, bin_result in result.frequency.bins.items(
-                        ):
-                            if 'non_cumulative_frequency' not in results_by_window[
-                                    window_key_str]:
-                                results_by_window[window_key_str][
-                                    'non_cumulative_frequency'] = {}
-                            results_by_window[window_key_str][
-                                'non_cumulative_frequency'][
-                                    bin_label] = updated_measurements.get(
-                                        f'{result.frequency.metric}_{bin_label}',
-                                        bin_result.value)
-
-                if reporting_summary_set_result.whole_campaign_result.reach.metric in updated_measurements:
-                    result = reporting_summary_set_result.whole_campaign_result
-                    window_key_str = result.key.SerializeToString()
-                    if window_key_str not in results_by_window:
-                        results_by_window[window_key_str] = {'key': result.key}
-                    results_by_window[window_key_str][
-                        'cumulative'] = updated_measurements[
-                            result.reach.metric]
-                    for bin_label, bin_result in result.frequency.bins.items():
-                        if 'cumulative_frequency' not in results_by_window[
-                                window_key_str]:
-                            results_by_window[window_key_str][
-                                'cumulative_frequency'] = {}
-                        results_by_window[window_key_str][
-                            'cumulative_frequency'][
-                                bin_label] = updated_measurements.get(
-                                    f'{result.frequency.metric}_{bin_label}',
-                                    bin_result.value)
-
+                # Generates the corresponding denoised window entries.
                 for window_data in results_by_window.values():
-                    denoised_window_entry = denoised_set_result.reporting_window_results.add(
+                    processed_window_entry = processed_set_result.reporting_window_results.add(
                     )
-                    denoised_window_entry.key.CopyFrom(window_data['key'])
-                    if 'cumulative' in window_data:
-                        denoised_window_entry.value.cumulative_results.reach = round(
-                            window_data['cumulative'])
-                    if 'cumulative_frequency' in window_data:
-                        sorted_freqs = sorted(
-                            window_data['cumulative_frequency'].items())
-                        freq_values = [value for _, value in sorted_freqs]
-                        k_plus_reach_values = [
-                            sum(freq_values[i:])
-                            for i in range(len(freq_values))
-                        ]
-                        denoised_window_entry.value.cumulative_results.k_plus_reach.extend(
-                            [round(val) for val in k_plus_reach_values])
-                    if 'non_cumulative' in window_data:
-                        denoised_window_entry.value.non_cumulative_results.reach = round(
-                            window_data['non_cumulative'])
-                    if 'non_cumulative_frequency' in window_data:
-                        sorted_freqs = sorted(
-                            window_data['non_cumulative_frequency'].items())
-                        freq_values = [value for _, value in sorted_freqs]
-                        k_plus_reach_values = [
-                            sum(freq_values[i:])
-                            for i in range(len(freq_values))
-                        ]
-                        denoised_window_entry.value.non_cumulative_results.k_plus_reach.extend(
-                            [round(val) for val in k_plus_reach_values])
+                    self._populate_processed_window_results(
+                        window_data, report_summary.population,
+                        processed_window_entry)
 
         return request
+
+    def _populate_processed_window_results(
+        self,
+        window_data: dict,
+        population: int,
+        processed_window_entry: ReportingWindowEntry,
+    ):
+        """Populates a single processed window entry with updated metrics.
+
+        Args:
+            window_data: A dictionary containing the data for a single window.
+            population: The total population for the demographic group.
+            processed_window_entry: The `ReportingWindowEntry` to populate with
+              updated metrics.
+        """
+        processed_window_entry.key.CopyFrom(window_data['key'])
+
+        if population == 0:
+            raise ValueError('Population must be a positive number.')
+
+        self._populate_basic_metric_set(
+            window_data,
+            'cumulative',
+            population,
+            processed_window_entry.value.cumulative_results,
+        )
+
+        self._populate_basic_metric_set(
+            window_data,
+            'non_cumulative',
+            population,
+            processed_window_entry.value.non_cumulative_results,
+        )
+
+    def _populate_basic_metric_set(
+        self,
+        window_data: dict,
+        prefix: str,
+        population: int,
+        basic_metric_set: BasicMetricSet,
+    ):
+        """Populates a BasicMetricSet with calculated and corrected metrics.
+
+        This function calculates reach, impressions, GRPs, k+ reach, and other
+        metrics based on the corrected values and populates the provided
+        `BasicMetricSet` message.
+
+        Args:
+            window_data: A dictionary containing the data for a single window.
+            prefix: The prefix to use for keys (e.g., 'cumulative').
+            population: The total population for the demographic group.
+            basic_metric_set: The `BasicMetricSet` to populate.
+        """
+        reach_key = f'{prefix}_reach'
+        impressions_key = f'{prefix}_impressions'
+        frequency_key = f'{prefix}_frequency'
+
+        if reach_key in window_data:
+            reach = round(window_data[reach_key])
+            basic_metric_set.reach = reach
+            basic_metric_set.percent_reach = reach / population * 100
+
+        if impressions_key in window_data:
+            impressions = round(window_data[impressions_key])
+            basic_metric_set.impressions = impressions
+            basic_metric_set.grps = impressions / population * 100
+            if basic_metric_set.reach > 0:
+                basic_metric_set.average_frequency = impressions / basic_metric_set.reach
+
+        if frequency_key in window_data:
+            sorted_freqs = sorted(window_data[frequency_key].items())
+            freq_values = [value for _, value in sorted_freqs]
+            k_plus_reach_values = [
+                round(sum(freq_values[i:])) for i in range(len(freq_values))
+            ]
+            basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
+            basic_metric_set.percent_k_plus_reach.extend(
+                [val / population * 100 for val in k_plus_reach_values])

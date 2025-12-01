@@ -103,10 +103,10 @@ message ReportSummaryV2 {
 
     // The results for a single result within a reporting window.
     message ReportSummaryWindowResult {
-      wfa.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindow key = 2;
-      ReachResult reach = 3;
-      FrequencyResult frequency = 4;
-      ImpressionCountResult impression_count = 5;
+      wfa.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindow key = 1;
+      ReachResult reach = 2;
+      FrequencyResult frequency = 3;
+      ImpressionCountResult impression_count = 4;
     }
 
     // A list of cumulative results, ordered by the end date of the window.
