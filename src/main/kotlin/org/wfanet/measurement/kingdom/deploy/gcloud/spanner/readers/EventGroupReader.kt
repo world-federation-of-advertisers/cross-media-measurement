@@ -88,6 +88,28 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       .singleOrNull()
   }
 
+  suspend fun batchReadByExternalIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderId: ExternalId,
+    externalEventGroupIds: Collection<ExternalId>,
+  ): Map<ExternalId, Result> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            """
+          WHERE ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
+            AND ExternalEventGroupId IN UNNEST(@${Params.EXTERNAL_EVENT_GROUP_IDS})
+          """
+              .trimIndent()
+          )
+          bind(Params.EXTERNAL_EVENT_GROUP_IDS).toInt64Array(externalEventGroupIds.map { it.value })
+          bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        }
+        .execute(readContext)
+        .collect { put(ExternalId(it.eventGroup.externalEventGroupId), it) }
+    }
+  }
+
   suspend fun readByMeasurementConsumer(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
@@ -184,6 +206,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
       const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
       const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
+      const val EXTERNAL_EVENT_GROUP_IDS = "externalEventGroupIds"
       const val DATA_PROVIDER_ID = "dataProviderId"
       const val CREATE_REQUEST_ID = "createRequestId"
     }
