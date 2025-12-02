@@ -431,6 +431,16 @@ proto_library(
     for label_str in SERVICE_LIBS
 ]
 
+filegroup(
+    name = "api_specs", #the subset of specs that we attach to releases
+    srcs = [
+        ":basic_reports_service_openapi",
+        ":event_groups_service_openapi",
+        ":impression_qualification_filters_service_openapi",
+        ":reporting_sets_service_openapi",
+    ],
+)
+
 GO_IMPORT_PATH = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb"
 
 GO_DEPS = [

@@ -15,6 +15,8 @@
 name: Attach artifacts to release
 
 on:
+  #DO_NOT_SUBMIT: remove pull_request
+  pull_request:
   release:
     types: [published]
 
@@ -67,23 +69,29 @@ jobs:
 
       - name: Build reporting API specs
         run: |
-          bazel build $(bazel query "filter('_openapi$', //src/main/proto/wfa/measurement/reporting/v2alpha:*)")
-          bazel cquery "filter('_openapi$', //src/main/proto/wfa/measurement/reporting/v2alpha:*)" --output files \
+          bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:api_specs
+          bazel cquery //src/main/proto/wfa/measurement/reporting/v2alpha:api_specs --output files \
             | grep "^bazel-out" \
-            | tar -czf reporting_api_specs.tar.gz --transform='s|^.*/||' -T -
+            | tar -czf reporting_api_specs.tar.gz --transform='s|^.*/wfa/measurement/||' -T -
+          echo "Tar content is:"
+          tar -tf reporting_api_specs.tar.gz
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
           cosign-release: 'v3.0.2'
 
+        #DO_NOT_SUBMIT: re-enable
       - name: Authenticate to Google Cloud for image signing
+        if: false
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}
 
       - name: Sign and upload artifacts
+        #DO_NOT_SUBMIT: re-enable
+        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KMS_KEY_RESOURCE_NAME: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"
