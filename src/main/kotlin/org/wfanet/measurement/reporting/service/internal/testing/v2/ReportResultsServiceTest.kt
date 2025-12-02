@@ -43,11 +43,11 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.errorInfo
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
+import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
 import org.wfanet.measurement.config.reporting.impressionQualificationFilterConfig
-import org.wfanet.measurement.internal.reporting.v2.AddDenoisedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
@@ -67,8 +67,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reporti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
-import org.wfanet.measurement.internal.reporting.v2.addDenoisedResultValuesRequest
+import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -84,6 +85,7 @@ import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsReque
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
+import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
@@ -264,7 +266,9 @@ abstract class ReportResultsServiceTest {
           externalBasicReportId = request.externalBasicReportId
         }
       )
-    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.NOISY_RESULTS_READY)
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+    assertThat(updatedBasicReport.externalReportResultId)
+      .isEqualTo(reportResult.externalReportResultId)
   }
 
   @Test
@@ -335,8 +339,8 @@ abstract class ReportResultsServiceTest {
                     reportingWindowResults[0].copy {
                       value =
                         value.copy {
-                          noisyReportResultValues =
-                            noisyReportResultValues.copy { clearNonCumulativeResults() }
+                          unprocessedReportResultValues =
+                            unprocessedReportResultValues.copy { clearNonCumulativeResults() }
                         }
                     }
                 }
@@ -354,13 +358,13 @@ abstract class ReportResultsServiceTest {
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
             "requests[0].reporting_set_result.reporting_window_results[0].value." +
-              "noisy_report_result_values.non_cumulative_results"
+              "unprocessed_report_result_values.non_cumulative_results"
         }
       )
   }
 
   @Test
-  fun `addDenoisedResultValues adds values to existing ReportingSetResults`() {
+  fun `addProcessedResultValues adds values to existing ReportingSetResults`() {
     ensureMeasurementConsumer()
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
@@ -372,49 +376,9 @@ abstract class ReportResultsServiceTest {
           )
         )
         .reportingSetResultsList
-    val request = addDenoisedResultValuesRequest {
-      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-      externalReportResultId = reportResult.externalReportResultId
-      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  cumulativeResults = basicMetricSet {
-                    reach = 2
-                    impressions = 10
-                  }
-                  nonCumulativeResults = basicMetricSet {
-                    reach = 1
-                    impressions = 5
-                  }
-                }
-            }
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[0].reportingWindowResultsList[1].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
-          reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
-              key = reportingSetResults[1].reportingWindowResultsList[0].key
-              value =
-                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
-                  nonCumulativeResults = basicMetricSet { impressions = 2 }
-                }
-            }
-        }
-    }
+    val request = buildAddProcessedResultValuesRequest(reportingSetResults)
 
-    reportResultsStub.addDenoisedResultValues(request)
+    reportResultsStub.addProcessedResultValues(request)
 
     val updatedReportingSetResults: List<ReportingSetResult> =
       reportResultsStub
@@ -434,7 +398,7 @@ abstract class ReportResultsServiceTest {
             reportingWindowResults[0].copy {
               value =
                 value.copy {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     request.reportingSetResultsMap
                       .getValue(reportingSetResults[0].externalReportingSetResultId)
                       .reportingWindowResultsList[0]
@@ -445,7 +409,7 @@ abstract class ReportResultsServiceTest {
             reportingWindowResults[1].copy {
               value =
                 value.copy {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     request.reportingSetResultsMap
                       .getValue(reportingSetResults[0].externalReportingSetResultId)
                       .reportingWindowResultsList[1]
@@ -458,7 +422,7 @@ abstract class ReportResultsServiceTest {
             reportingWindowResults[0].copy {
               value =
                 value.copy {
-                  denoisedReportResultValues =
+                  processedReportResultValues =
                     request.reportingSetResultsMap
                       .getValue(reportingSetResults[1].externalReportingSetResultId)
                       .reportingWindowResultsList[0]
@@ -471,7 +435,7 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
-  fun `addDenoisedResultValues throws if reporting window not found`() {
+  fun `addProcessedResultValues throws if reporting window not found`() {
     ensureMeasurementConsumer()
     val reportResult: ReportResult =
       reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
@@ -483,13 +447,13 @@ abstract class ReportResultsServiceTest {
           )
         )
         .reportingSetResultsList
-    val request = addDenoisedResultValuesRequest {
+    val request = addProcessedResultValuesRequest {
       cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
       externalReportResultId = reportResult.externalReportResultId
       this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
-        AddDenoisedResultValuesRequestKt.denoisedReportingSetResult {
+        AddProcessedResultValuesRequestKt.processedReportingSetResult {
           reportingWindowResults +=
-            AddDenoisedResultValuesRequestKt.DenoisedReportingSetResultKt.reportingWindowEntry {
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
               key = reportingWindow {
                 end = date {
                   year = 2025
@@ -506,7 +470,7 @@ abstract class ReportResultsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusException> { reportResultsStub.addDenoisedResultValues(request) }
+      assertFailsWith<StatusException> { reportResultsStub.addProcessedResultValues(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo)
@@ -525,6 +489,96 @@ abstract class ReportResultsServiceTest {
       )
   }
 
+  @Test
+  fun `addProcessedResultValues updates BasicReport state`() {
+    val basicReport: BasicReport = ensureMeasurementConsumer()
+    val externalReportId = "report-1"
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        this.externalReportId = externalReportId
+      }
+    )
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    // Ensure that BasicReport is associated with ReportResult.
+    val reportingSetResults =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+              reportResult.externalReportResultId
+            )
+            .copy { externalBasicReportId = basicReport.externalBasicReportId }
+        )
+        .reportingSetResultsList
+    val request = buildAddProcessedResultValuesRequest(reportingSetResults)
+
+    reportResultsStub.addProcessedResultValues(request)
+
+    val updatedBasicReport: BasicReport =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+  }
+
+  /**
+   * Builds a test [AddProcessedResultValuesRequest].
+   *
+   * @param reportingSetResults Results created from [BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST].
+   */
+  private fun buildAddProcessedResultValuesRequest(
+    reportingSetResults: List<ReportingSetResult>
+  ): AddProcessedResultValuesRequest {
+    val cmmsMeasurementConsumerId = reportingSetResults.first().cmmsMeasurementConsumerId
+    val externalReportResultId = reportingSetResults.first().externalReportResultId
+    return addProcessedResultValuesRequest {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.externalReportResultId = externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddProcessedResultValuesRequestKt.processedReportingSetResult {
+          reportingWindowResults +=
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                  nonCumulativeResults = basicMetricSet {
+                    reach = 1
+                    impressions = 5
+                  }
+                }
+            }
+          reportingWindowResults +=
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[1].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+      this.reportingSetResults[reportingSetResults[1].externalReportingSetResultId] =
+        AddProcessedResultValuesRequestKt.processedReportingSetResult {
+          reportingWindowResults +=
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[1].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  nonCumulativeResults = basicMetricSet { impressions = 2 }
+                }
+            }
+        }
+    }
+  }
+
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
@@ -535,10 +589,11 @@ abstract class ReportResultsServiceTest {
     measurementConsumersStub.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
+    val cmmsDataProviderId = "edp-1"
     val campaignGroup: ReportingSet =
       reportingSetsStub.createReportingSet(
         createReportingSetRequest {
-          externalReportingSetId = "reporting-set-1"
+          externalReportingSetId = "primitive-1"
           reportingSet = reportingSet {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
@@ -546,7 +601,7 @@ abstract class ReportResultsServiceTest {
               ReportingSetKt.primitive {
                 this.eventGroupKeys +=
                   ReportingSetKt.PrimitiveKt.eventGroupKey {
-                    cmmsDataProviderId = "edp-1"
+                    this.cmmsDataProviderId = cmmsDataProviderId
                     cmmsEventGroupId = "eg-1"
                   }
               }
@@ -562,6 +617,16 @@ abstract class ReportResultsServiceTest {
           cmmsMeasurementConsumerId = campaignGroup.cmmsMeasurementConsumerId
           externalBasicReportId = "basic-report-1"
           externalCampaignGroupId = campaignGroup.externalCampaignGroupId
+          details = basicReportDetails {
+            reportingInterval = reportingInterval {
+              reportStart = dateTime {
+                year = 2025
+                month = 1
+                day = 6
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+            }
+          }
         }
       }
     )
@@ -575,13 +640,27 @@ abstract class ReportResultsServiceTest {
       )
 
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc-1"
-    val AMI_IQF = impressionQualificationFilter {
-      externalImpressionQualificationFilterId = "ami"
-      impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
-    }
+    val AMI_IQF =
+      ImpressionQualificationFilterConfigKt.impressionQualificationFilter {
+        externalImpressionQualificationFilterId = "ami"
+        impressionQualificationFilterId = 1
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+                .DISPLAY
+          }
+        filterSpecs +=
+          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
+            mediaType =
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER
+          }
+      }
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
       impressionQualificationFilters += AMI_IQF
     }
@@ -646,7 +725,7 @@ abstract class ReportResultsServiceTest {
             }
 
             value = reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   cumulativeResults = noisyMetricSet {
                     reach = NoisyMetricSetKt.reachResult { value = 1 }
@@ -673,7 +752,7 @@ abstract class ReportResultsServiceTest {
               }
             }
             value = reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   nonCumulativeResults = noisyMetricSet {
                     impressionCount = NoisyMetricSetKt.impressionCountResult { value = 1 }
@@ -725,7 +804,7 @@ abstract class ReportResultsServiceTest {
               }
             }
             value = reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   nonCumulativeResults = noisyMetricSet {
                     impressionCount = NoisyMetricSetKt.impressionCountResult { value = 1 }
@@ -772,7 +851,7 @@ abstract class ReportResultsServiceTest {
               }
             }
             value = reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   cumulativeResults = noisyMetricSet {
                     reach = NoisyMetricSetKt.reachResult { value = 1 }

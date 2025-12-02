@@ -480,6 +480,7 @@ class BasicReportsReportsJobTest {
           batchCreateReportingSetResultsRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+            externalBasicReportId = basicReport.externalBasicReportId
             requests += createReportingSetResultRequest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               externalReportResultId = EXTERNAL_REPORT_RESULT_ID
@@ -524,7 +525,7 @@ class BasicReportsReportsJobTest {
 
                     value =
                       ReportingSetResultKt.reportingWindowResult {
-                        noisyReportResultValues =
+                        unprocessedReportResultValues =
                           ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                             cumulativeResults =
                               ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -574,7 +575,7 @@ class BasicReportsReportsJobTest {
                       }
                     value =
                       ReportingSetResultKt.reportingWindowResult {
-                        noisyReportResultValues =
+                        unprocessedReportResultValues =
                           ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                             nonCumulativeResults =
                               ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -632,7 +633,7 @@ class BasicReportsReportsJobTest {
                       }
                     value =
                       ReportingSetResultKt.reportingWindowResult {
-                        noisyReportResultValues =
+                        unprocessedReportResultValues =
                           ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                             nonCumulativeResults =
                               ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -684,7 +685,7 @@ class BasicReportsReportsJobTest {
                       }
                     value =
                       ReportingSetResultKt.reportingWindowResult {
-                        noisyReportResultValues =
+                        unprocessedReportResultValues =
                           ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                             cumulativeResults =
                               ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -1711,7 +1712,7 @@ class BasicReportsReportsJobTest {
             }
           value =
             ReportingSetResultKt.reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   cumulativeResults =
                     ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -1897,7 +1898,7 @@ class BasicReportsReportsJobTest {
               }
             value =
               ReportingSetResultKt.reportingWindowResult {
-                noisyReportResultValues =
+                unprocessedReportResultValues =
                   ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                     cumulativeResults =
                       ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -1980,7 +1981,7 @@ class BasicReportsReportsJobTest {
             }
           value =
             ReportingSetResultKt.reportingWindowResult {
-              noisyReportResultValues =
+              unprocessedReportResultValues =
                 ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                   cumulativeResults =
                     ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -2070,7 +2071,7 @@ class BasicReportsReportsJobTest {
               }
             value =
               ReportingSetResultKt.reportingWindowResult {
-                noisyReportResultValues =
+                unprocessedReportResultValues =
                   ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                     cumulativeResults =
                       ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
@@ -2094,7 +2095,7 @@ class BasicReportsReportsJobTest {
               }
             value =
               ReportingSetResultKt.reportingWindowResult {
-                noisyReportResultValues =
+                unprocessedReportResultValues =
                   ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                     cumulativeResults =
                       ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt

@@ -115,13 +115,14 @@ DUCHY_K8S_SETTINGS = struct(
 REPORTING_K8S_SETTINGS = struct(
     public_api_address_name = "$(reporting_public_api_address_name)",
     basic_reports_enabled = "$(basic_reports_enabled)",
+    event_message_type_url = "$(event_message_type_url)",
 )
 
 # Settings for Population DataProvider Kubernetes objects.
 PDP_K8S_SETTINGS = struct(
     pdp_name = "$(pdp_name)",
     pdp_cert_name = "$(pdp_cert_name)",
-    event_message_type_url = "$(event_message_type_url)",
+    event_message_type_url = REPORTING_K8S_SETTINGS.event_message_type_url,
 )
 
 # Settings for simulator Kubernetes deployments.
@@ -140,11 +141,6 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp5_cert_name = "$(edp5_cert_name)",
     edp6_name = "$(edp6_name)",
     edp6_cert_name = "$(edp6_cert_name)",
-)
-
-# Settings for Grafana Kubernetes deployments.
-GRAFANA_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_grafana_secret_name)",
 )
 
 PANEL_EXCHANGE_SETTINGS = struct(

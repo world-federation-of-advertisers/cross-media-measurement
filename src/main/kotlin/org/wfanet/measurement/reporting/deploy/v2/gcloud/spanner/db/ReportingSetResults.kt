@@ -47,12 +47,6 @@ data class ReportingSetResultResult(
   val reportingSetResult: ReportingSetResult,
 )
 
-data class ReportingSetResultIds(
-  val measurementConsumerId: Long,
-  val reportResultId: Long,
-  val reportingSetResultIdByExternalId: Map<Long, Long>,
-)
-
 suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExists(
   measurementConsumerId: Long,
   reportResultId: Long,
@@ -171,7 +165,7 @@ private data class MutableReportingSetResultResult(
     )
 }
 
-fun AsyncDatabaseClient.ReadContext.readNoisyReportingSetResults(
+fun AsyncDatabaseClient.ReadContext.readUnprocessedReportingSetResults(
   impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   groupingDimensions: GroupingDimensions,
   measurementConsumerId: Long,
@@ -212,7 +206,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
     if (fullView) {
       ReportingSetResultsInternal.FULL_SQL
     } else {
-      ReportingSetResultsInternal.NOISY_SQL
+      ReportingSetResultsInternal.UNPROCESSED_SQL
     }
   val query =
     statement(sql) {
@@ -223,7 +217,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
   return flow {
     var current: MutableReportingSetResultResult? = null
     // One row per ReportingWindowResult.
-    executeQuery(query, Options.tag("action=readNoisyReportingSetResults")).collect { row ->
+    executeQuery(query, Options.tag("action=readReportingSetResults")).collect { row ->
       val pKey =
         ReportingSetResultPKey(
           measurementConsumerId,
@@ -302,20 +296,20 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
               }
             value =
               ReportingSetResultKt.reportingWindowResult {
-                noisyReportResultValues = noisyReportResultValues {
-                  if (!row.isNull("NoisyCumulativeResults")) {
+                unprocessedReportResultValues = noisyReportResultValues {
+                  if (!row.isNull("UnprocessedCumulativeResults")) {
                     cumulativeResults =
                       row.getProtoMessage(
-                        "NoisyCumulativeResults",
+                        "UnprocessedCumulativeResults",
                         ReportingSetResult.ReportingWindowResult.NoisyReportResultValues
                           .NoisyMetricSet
                           .getDefaultInstance(),
                       )
                   }
-                  if (!row.isNull("NoisyNonCumulativeResults")) {
+                  if (!row.isNull("UnprocessedNonCumulativeResults")) {
                     nonCumulativeResults =
                       row.getProtoMessage(
-                        "NoisyNonCumulativeResults",
+                        "UnprocessedNonCumulativeResults",
                         ReportingSetResult.ReportingWindowResult.NoisyReportResultValues
                           .NoisyMetricSet
                           .getDefaultInstance(),
@@ -326,7 +320,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
                   val hasCumulativeResults = !row.isNull("CumulativeResults")
                   val hasNonCumulativeResults = !row.isNull("NonCumulativeResults")
                   if (hasCumulativeResults || hasNonCumulativeResults) {
-                    denoisedReportResultValues = reportResultValues {
+                    processedReportResultValues = reportResultValues {
                       if (hasCumulativeResults) {
                         cumulativeResults =
                           row.getProtoMessage(
@@ -378,8 +372,8 @@ private object ReportingSetResultsInternal {
     ReportingWindowResultId,
     ReportingWindowStartDate,
     ReportingWindowEndDate,
-    NoisyReportResultValues.CumulativeResults AS NoisyCumulativeResults,
-    NoisyReportResultValues.NonCumulativeResults AS NoisyNonCumulativeResults,
+    NoisyReportResultValues.CumulativeResults AS UnprocessedCumulativeResults,
+    NoisyReportResultValues.NonCumulativeResults AS UnprocessedNonCumulativeResults,
     """
       .trimIndent()
 
@@ -403,7 +397,7 @@ private object ReportingSetResultsInternal {
     """
       .trimIndent()
 
-  val NOISY_SQL =
+  val UNPROCESSED_SQL =
     """
     SELECT
       $COMMON_COLUMNS

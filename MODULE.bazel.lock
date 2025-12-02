@@ -346,12 +346,16 @@
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-cpp/0.13.0/source.json": "910ffe09948e90417f98e00fd88819dbaa54efda4175e05e528481acc81c5d71",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.127.0/MODULE.bazel": "4f3886cdf1c90656ed70cdf921a22ea4bd4cbf08b80e73a5b4c7a86765f7c6f3",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.127.0/source.json": "660bb8bdb8ff3924a62f3d729d29dadb8f1c2d1c61a452547a18179c26fca4ef",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.128.0/MODULE.bazel": "72e0d33eb7ddbf50f5eb4392c35b1c02b235dbeaee14c91c1cce9562031e2384",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.128.0/source.json": "fb80aee15b5bd850b3365d61c1d1eecdfcc33f99b237650a017980fafaa97f85",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/common-jvm/0.82.1/MODULE.bazel": "e5d9aee83831d55952c193f6f05b3952d3f3cd61d8d4e3bfedf3549e25edf308",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/MODULE.bazel": "6437a69ac68ec8e3589d595a5ed79d3f6404510124e455838ce9cf51b8b27d52",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/consent-signaling-client/0.22.0/source.json": "844344f41ae9b780cfb0452438388465d3cf7c7b5accedb1fcc4900ace5111ca",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.62.0/MODULE.bazel": "ff213234cf605ff0cf7dc5d55b0e1d0aab7df065f32759e6e64d2d1315110b18",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.86.0/MODULE.bazel": "77cf9d104bedbeaae515292138bf108b0ae94f99778599490dc53f6ee756386c",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.86.0/source.json": "05fcc8c7062a898db3daa2e75d4c4767025b1996a7166c25c0dc12f1acd2f80c",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/MODULE.bazel": "c678b3f46885c8dea8e0de6215dc3b935ff93d632eec5d603e0690ce61571398",
+    "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/cross-media-measurement-api/0.87.0/source.json": "2bc4a06e472991aad6a89c70938cd042379697d7029a54eec3aaf761a54bedb0",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.27.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.30.0/MODULE.bazel": "not found",
     "https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main/modules/gazelle/0.32.0/MODULE.bazel": "not found",
@@ -1208,7 +1212,7 @@
     "@@cross-media-measurement-api~//build:non_module_deps.bzl%non_module_deps": {
       "general": {
         "bzlTransitiveDigest": "R+oKPToJy5pjlpXuN6LkhlOZ0PtXjtvDLGNadJgQnf8=",
-        "usagesDigest": "EzGsp3drafgRnHMcrAINIT0f/s3es6TXH/pab7dyK8g=",
+        "usagesDigest": "eAtK7Pcx2zz2VH4k33sq+L6l8lWp/rL4kyIosJ4+1Qw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2257,7 +2261,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "rY7xghkG6P9TjNM++lUTe5FGP/nMgqy+MqPLCm41tcU=",
-        "usagesDigest": "WYFvsrMRUUBayLYea4gZtnY1wPsNyB16BO14oQA2w9E=",
+        "usagesDigest": "7tvBi8N4QPVLlxS6FCa1sjZ/7oJnOvxmnPijl89ktVA=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2356,7 +2360,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:045d4d33b19383ea3955495093083de7ef96096a58b5fbb782952f9d456e6df8",
+              "identifier": "sha256:daa1318b01203dba7f9fa56b3e0707d38ee3fdef8f71842a9261ff19f3b66540",
               "platform": "linux/amd64",
               "target_name": "java_image_base_linux_amd64",
               "bazel_tags": []
@@ -2370,7 +2374,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:045d4d33b19383ea3955495093083de7ef96096a58b5fbb782952f9d456e6df8",
+              "identifier": "sha256:daa1318b01203dba7f9fa56b3e0707d38ee3fdef8f71842a9261ff19f3b66540",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_linux_amd64"
               },
@@ -2385,7 +2389,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:be8ef44736f1b68e878655c1536ed646467d0517c00057a1aff5022a5aecd1cd",
+              "identifier": "sha256:6343c6a034b5276869f59129d8a9da54bbaedb624a6424dbdd8ff2b8880912fc",
               "platform": "linux/amd64",
               "target_name": "java_debug_image_base_linux_amd64",
               "bazel_tags": []
@@ -2399,7 +2403,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:be8ef44736f1b68e878655c1536ed646467d0517c00057a1aff5022a5aecd1cd",
+              "identifier": "sha256:6343c6a034b5276869f59129d8a9da54bbaedb624a6424dbdd8ff2b8880912fc",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_debug_image_base_linux_amd64"
               },

@@ -51,6 +51,18 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.telemetry.withSpan
 
+/**
+ * Key used to uniquely identify an event group.
+ *
+ * This combines:
+ * - [eventGroupReferenceId]: identifier of the EventGroup resource
+ * - [measurementConsumer]: the owner/consumer of the measurement
+ *
+ * This is intended to be used as a map key when grouping or associating event groups by both
+ * attributes, ensuring uniqueness across consumers.
+ */
+data class EventGroupKey(val eventGroupReferenceId: String, val measurementConsumer: String)
+
 /*
  * Syncs event groups with the CMMS Public API.
  * 1. Registers any unregistered event groups
@@ -62,6 +74,7 @@ class EventGroupSync(
   private val eventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroups: Flow<EventGroup>,
   private val throttler: Throttler,
+  private val listEventGroupPageSize: Int,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
@@ -82,8 +95,10 @@ class EventGroupSync(
       ),
       errorMessage = "EventGroupSync failed",
     ) { _ ->
-      val syncedEventGroups: Map<String, CmmsEventGroup> =
-        fetchEventGroups().toList().associateBy { it.eventGroupReferenceId }
+      val syncedEventGroups: Map<EventGroupKey, CmmsEventGroup> =
+        fetchEventGroups().toList().associateBy { eventGroup ->
+          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
+        }
 
       eventGroups.collect { eventGroup: EventGroup ->
         syncEventGroupItem(eventGroup, syncedEventGroups)?.let { emit(it) }
@@ -92,15 +107,17 @@ class EventGroupSync(
   }
 
   /**
-   * Syncs a single event group item.
+   * Synchronizes a single event group entry.
    *
-   * @param eventGroup The event group to sync
-   * @param syncedEventGroups A map of event group reference IDs to CmmsEventGroups
-   * @return MappedEventGroup if sync succeeds, null if sync fails
+   * @param eventGroup The event group to be synchronized.
+   * @param syncedEventGroups A map keyed by [EventGroupKey], containing already-synced event groups
+   *   as values. Used to detect duplicates or previously processed items.
+   * @return A [MappedEventGroup] if the sync succeeds; `null` if the sync fails or the item is
+   *   skipped.
    */
   private suspend fun syncEventGroupItem(
     eventGroup: EventGroup,
-    syncedEventGroups: Map<String, CmmsEventGroup>,
+    syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
   ): MappedEventGroup? {
     val eventGroupRefId = eventGroup.eventGroupReferenceId
 
@@ -123,10 +140,11 @@ class EventGroupSync(
         metrics.syncAttempts.add(1, metricAttributes())
 
         validateEventGroup(eventGroup)
+        val eventGroupKey =
+          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
         val syncedEventGroup: CmmsEventGroup =
-          if (eventGroup.eventGroupReferenceId in syncedEventGroups) {
-            val existingEventGroup: CmmsEventGroup =
-              syncedEventGroups.getValue(eventGroup.eventGroupReferenceId)
+          if (eventGroupKey in syncedEventGroups) {
+            val existingEventGroup: CmmsEventGroup = syncedEventGroups.getValue(eventGroupKey)
             val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
             if (updatedEventGroup != existingEventGroup) {
               updateCmmsEventGroup(updatedEventGroup)
@@ -180,6 +198,7 @@ class EventGroupSync(
   ): CmmsEventGroup {
     val request = createEventGroupRequest {
       parent = edpName
+      requestId = eventGroup.eventGroupReferenceId
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
@@ -238,6 +257,7 @@ class EventGroupSync(
                 listEventGroupsRequest {
                   parent = edpName
                   this.pageToken = pageToken
+                  pageSize = listEventGroupPageSize
                 }
               )
             }

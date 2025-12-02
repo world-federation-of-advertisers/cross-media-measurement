@@ -16,9 +16,13 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
+import com.google.protobuf.Descriptors
 import kotlin.coroutines.CoroutineContext
+import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator as LegacyIdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt
@@ -26,11 +30,13 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerBasicReportsService
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.SpannerReportResultsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
@@ -42,9 +48,6 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsServic
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 data class Services(
-  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase?,
-  val impressionQualificationFiltersService:
-    ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase?,
   val measurementConsumersService: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
   val metricsService: MetricsGrpcKt.MetricsCoroutineImplBase,
@@ -55,6 +58,10 @@ data class Services(
     ReportScheduleIterationsGrpcKt.ReportScheduleIterationsCoroutineImplBase,
   val metricCalculationSpecsService:
     MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase,
+  val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase?,
+  val impressionQualificationFiltersService:
+    ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase?,
+  val reportResultsService: ReportResultsGrpcKt.ReportResultsCoroutineImplBase?,
 )
 
 object DataServices {
@@ -64,18 +71,27 @@ object DataServices {
     postgresClient: DatabaseClient,
     spannerClient: AsyncDatabaseClient?,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
+    eventMessageDescriptor: Descriptors.Descriptor?,
     disableMetricsReuse: Boolean,
     coroutineContext: CoroutineContext,
   ): Services {
+    val idGenerator = LegacyIdGeneratorAdapter(idGenerator)
     val basicReportsService: BasicReportsGrpcKt.BasicReportsCoroutineImplBase? =
-      if (spannerClient != null && impressionQualificationFilterMapping != null) {
+      if (
+        spannerClient != null &&
+          impressionQualificationFilterMapping != null &&
+          eventMessageDescriptor != null
+      ) {
         SpannerBasicReportsService(
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
+          eventMessageDescriptor,
           coroutineContext,
         )
-      } else null
+      } else {
+        null
+      }
 
     val impressionQualificationFiltersService:
       ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineImplBase? =
@@ -88,9 +104,24 @@ object DataServices {
         null
       }
 
+    val reportResultsService =
+      if (
+        spannerClient != null &&
+          impressionQualificationFilterMapping != null &&
+          eventMessageDescriptor != null
+      ) {
+        SpannerReportResultsService(
+          spannerClient,
+          impressionQualificationFilterMapping,
+          eventMessageDescriptor,
+          idGenerator,
+          coroutineContext,
+        )
+      } else {
+        null
+      }
+
     return Services(
-      basicReportsService = basicReportsService,
-      impressionQualificationFiltersService = impressionQualificationFiltersService,
       measurementConsumersService =
         PostgresMeasurementConsumersService(idGenerator, postgresClient, coroutineContext),
       measurementsService =
@@ -106,6 +137,16 @@ object DataServices {
         PostgresReportScheduleIterationsService(idGenerator, postgresClient, coroutineContext),
       metricCalculationSpecsService =
         PostgresMetricCalculationSpecsService(idGenerator, postgresClient, coroutineContext),
+      basicReportsService = basicReportsService,
+      impressionQualificationFiltersService = impressionQualificationFiltersService,
+      reportResultsService = reportResultsService,
     )
+  }
+
+  private class LegacyIdGeneratorAdapter(delegate: IdGenerator) :
+    IdGenerator by delegate, LegacyIdGenerator {
+    override fun generateInternalId() = InternalId(generateId())
+
+    override fun generateExternalId() = ExternalId(generateId())
   }
 }

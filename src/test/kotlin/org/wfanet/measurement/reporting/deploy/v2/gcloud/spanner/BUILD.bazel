@@ -30,12 +30,13 @@ spanner_emulator_test(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:report_results_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:basic_reports_service_test",
-        "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
@@ -63,11 +64,11 @@ spanner_emulator_test(
 )
 
 kt_jvm_test(
-    name = "BasicReportNoiseCorrectedResultsTransformationTest",
-    srcs = ["BasicReportNoiseCorrectedResultsTransformationTest.kt"],
-    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportNoiseCorrectedResultsTransformationTest",
+    name = "BasicReportProcessedResultsTransformationTest",
+    srcs = ["BasicReportProcessedResultsTransformationTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportProcessedResultsTransformationTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_report_noise_corrected_results_transformation",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_report_processed_results_transformation",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",

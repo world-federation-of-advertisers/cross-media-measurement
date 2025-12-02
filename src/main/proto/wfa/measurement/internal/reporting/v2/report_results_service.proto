@@ -35,8 +35,11 @@ service ReportResults {
   rpc ListReportingSetResults(ListReportingSetResultsRequest)
       returns (ListReportingSetResultsResponse);
 
-  // Adds denoised result values to a `ReportResult`.
-  rpc AddDenoisedResultValues(AddDenoisedResultValuesRequest)
+  // Adds processed result values to a `ReportResult`.
+  //
+  // Any `BasicReport` associated with this `ReportResult` will be transitioned
+  // to the `SUCCEEDED` state.
+  rpc AddProcessedResultValues(AddProcessedResultValuesRequest)
       returns (google.protobuf.Empty);
 
   // Gets a `ReportResult`.
@@ -101,15 +104,15 @@ message ListReportingSetResultsResponse {
 // For future backwards-compatible support of pagination.
 message ListReportingSetResultsPageToken {}
 
-// Request message for the `AddDenoisedResultValues` method.
-message AddDenoisedResultValuesRequest {
+// Request message for the `AddProcessedResultValues` method.
+message AddProcessedResultValuesRequest {
   // The CMMS MeasurementConsumer ID. Required.
   string cmms_measurement_consumer_id = 1;
 
   // The external ID of the ReportResult. Required.
   fixed64 external_report_result_id = 2;
 
-  message DenoisedReportingSetResult {
+  message ProcessedReportingSetResult {
     message ReportingWindowEntry {
       ReportingSetResult.ReportingWindow key = 1;
       ReportingSetResult.ReportingWindowResult.ReportResultValues value = 2;
@@ -118,10 +121,9 @@ message AddDenoisedResultValuesRequest {
     repeated ReportingWindowEntry reporting_window_results = 1;
   }
 
-  // Map of external ReportingSetResult ID to `DenoisedReportingSetResult`.
-  map<fixed64, DenoisedReportingSetResult> reporting_set_results = 4;
+  // Map of external ReportingSetResult ID to `ProcessedReportingSetResult`.
+  map<fixed64, ProcessedReportingSetResult> reporting_set_results = 4;
 
-  // TODO(@SanjayVas): Support specifying BasicReports to mark as completed.
   // TODO(@SanjayVas): Support including log entry for processor once the format
   // is defined.
 }

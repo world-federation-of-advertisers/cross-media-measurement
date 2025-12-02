@@ -173,13 +173,15 @@ class ReportConversionTest(unittest.TestCase):
                 self.reporting_set_results, self.edp_combinations
             )
 
-    def test_report_result_missing_noisy_report_result_values_raises_error(
-            self):
+    def test_report_result_missing_unprocessed_report_result_values_raises_error(
+        self,
+    ):
         self.reporting_set_results[0].reporting_window_results[
             0
-        ].value.ClearField('noisy_report_result_values')
-        with self.assertRaisesRegex(ValueError,
-                                    'Missing noisy_report_result_values'):
+        ].value.ClearField('unprocessed_report_result_values')
+        with self.assertRaisesRegex(
+            ValueError, 'Missing unprocessed_report_result_values'
+        ):
             report_summaries_from_reporting_set_results(
                 self.reporting_set_results, self.edp_combinations
             )
@@ -208,7 +210,7 @@ class ReportConversionTest(unittest.TestCase):
               grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
-                value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
+                value { unprocessed_report_result_values { cumulative_results { reach { value: 1 } } } }
               }
             }
             reporting_set_results {
@@ -232,7 +234,7 @@ class ReportConversionTest(unittest.TestCase):
               grouping_dimension_fingerprint: 2
               reporting_window_results {
                 key { end { year: 2025 month: 10 day: 15 } }
-                value { noisy_report_result_values { cumulative_results { reach { value: 1 } } } }
+                value { unprocessed_report_result_values { cumulative_results { reach { value: 1 } } } }
               }
             }
         """
@@ -292,7 +294,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     non_cumulative_results {
                       reach {
                         value: 5000
@@ -357,7 +359,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach {
                         value: 5000
@@ -451,7 +453,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach {
                         value: 5000
@@ -532,7 +534,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 8 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     non_cumulative_results {
                       reach { value: 2000 }
                       impression_count { value: 20000 }
@@ -549,7 +551,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     non_cumulative_results {
                       reach {
                         value: 3000
@@ -665,7 +667,7 @@ class ReportConversionTest(unittest.TestCase):
                     end { year: 2025 month: 10 day: 8 }
                   }
                   value {
-                    noisy_report_result_values {
+                    unprocessed_report_result_values {
                       non_cumulative_results {
                         reach { value: 2000 }
                         impression_count { value: 20000 }
@@ -682,7 +684,7 @@ class ReportConversionTest(unittest.TestCase):
                     end { year: 2025 month: 10 day: 15 }
                   }
                   value {
-                    noisy_report_result_values {
+                    unprocessed_report_result_values {
                       non_cumulative_results {
                         reach {
                           value: 3000
@@ -794,7 +796,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 8 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach { value: 2000 }
                     }
@@ -807,7 +809,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach {
                         value: 3000
@@ -878,7 +880,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 8 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach { value: 2000 }
                     }
@@ -891,7 +893,7 @@ class ReportConversionTest(unittest.TestCase):
                   end { year: 2025 month: 10 day: 15 }
                 }
                 value {
-                  noisy_report_result_values {
+                  unprocessed_report_result_values {
                     cumulative_results {
                       reach {
                         value: 3000

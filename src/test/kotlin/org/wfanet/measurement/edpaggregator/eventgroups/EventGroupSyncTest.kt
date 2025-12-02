@@ -211,9 +211,44 @@ class EventGroupSyncTest {
         eventGroupsStub,
         testCampaigns.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        500,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+  }
+
+  @Test
+  fun `create new event group when measurement consumer differs`() {
+    val newCampaign = eventGroup {
+      eventGroupReferenceId = "reference-id-3"
+      this.eventGroupMetadata = eventGroupMetadata {
+        this.adMetadata = adMetadata {
+          this.campaignMetadata = campaignMetadata {
+            brand = "brand-2"
+            campaign = "campaign-2"
+          }
+        }
+      }
+      measurementConsumer = "measurement-consumer-1"
+      dataAvailabilityInterval = interval {
+        startTime = timestamp { seconds = 200 }
+        endTime = timestamp { seconds = 300 }
+      }
+      mediaTypes +=
+        listOf(MediaType.valueOf("OTHER"), MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
+    }
+    val testCampaigns = listOf(newCampaign)
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        testCampaigns.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+      )
+    runBlocking { eventGroupSync.sync().collect() }
+    verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
   }
 
   @Test
@@ -224,6 +259,7 @@ class EventGroupSyncTest {
         eventGroupsStub,
         CAMPAIGNS.asFlow(),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        500,
       )
     runBlocking { eventGroupSync.sync().collect() }
     verifyBlocking(eventGroupsServiceMock, times(1)) { updateEventGroup(any()) }
@@ -238,6 +274,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       val result = runBlocking { eventGroupSync.sync() }
       assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResource })
@@ -357,6 +394,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -387,6 +425,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -413,6 +452,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -455,6 +495,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -488,6 +529,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -514,6 +556,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -560,6 +603,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -599,6 +643,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           listOf(invalidEventGroup).asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 
@@ -622,6 +667,7 @@ class EventGroupSyncTest {
           eventGroupsStub,
           CAMPAIGNS.asFlow(),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          500,
         )
       eventGroupSync.sync().collect()
 

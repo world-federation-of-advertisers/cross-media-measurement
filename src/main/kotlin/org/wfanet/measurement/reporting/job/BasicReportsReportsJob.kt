@@ -185,6 +185,7 @@ class BasicReportsReportsJob(
                     this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
                     externalReportResultId = reportResult.externalReportResultId
                     requests += reportingSetResultRequests
+                    externalBasicReportId = basicReport.externalBasicReportId
                   }
                 )
               }
@@ -283,7 +284,7 @@ class BasicReportsReportsJob(
                 this.key = window
                 value =
                   ReportingSetResultKt.reportingWindowResult {
-                    noisyReportResultValues =
+                    unprocessedReportResultValues =
                       ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
                         val cumulativeResults: MetricResults? =
                           reportingWindowResultInfoEntry.value.cumulativeResults

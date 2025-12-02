@@ -97,6 +97,7 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
+  effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -122,14 +123,16 @@ fun BasicReport.toInternal(
     }
 
     this.createReportRequestId = createReportRequestId
-    if (modelLine.isNotEmpty()) {
-      val modelLineKey = ModelLineKey.fromName(modelLine)
+    if (effectiveModelLine.isNotEmpty()) {
+      val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
       this.modelLineKey =
         InternalBasicReportKt.modelLineKey {
           cmmsModelProviderId = modelLineKey!!.modelProviderId
           cmmsModelSuiteId = modelLineKey.modelSuiteId
           cmmsModelLineId = modelLineKey.modelLineId
         }
+
+      modelLineSystemSpecified = source.modelLine.isEmpty()
     }
   }
 }
@@ -401,7 +404,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       when (source.state) {
         InternalBasicReport.State.CREATED,
         InternalBasicReport.State.REPORT_CREATED,
-        InternalBasicReport.State.NOISY_RESULTS_READY -> BasicReport.State.RUNNING
+        InternalBasicReport.State.UNPROCESSED_RESULTS_READY -> BasicReport.State.RUNNING
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
         InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
         InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
@@ -410,13 +413,18 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       }
 
     if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
-      modelLine =
+      val modelLineName =
         ModelLineKey(
             modelLineKey.cmmsModelProviderId,
             modelLineKey.cmmsModelSuiteId,
             modelLineKey.cmmsModelLineId,
           )
           .toName()
+
+      effectiveModelLine = modelLineName
+      if (!modelLineSystemSpecified) {
+        modelLine = modelLineName
+      }
     }
   }
 }
