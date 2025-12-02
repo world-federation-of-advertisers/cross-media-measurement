@@ -77,6 +77,8 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfigFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeyAuthenticationServerInterceptor
@@ -123,11 +125,13 @@ private fun run(
   @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
   @CommandLine.Mixin hmssProtocolConfigFlags: HmssProtocolConfigFlags,
   @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
+  @CommandLine.Mixin trusteeProtocolConfigFlags: TrusTeeProtocolConfigFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
   RoLlv2ProtocolConfig.initializeFromFlags(roLlv2ProtocolConfigFlags)
   HmssProtocolConfig.initializeFromFlags(hmssProtocolConfigFlags)
+  TrusTeeProtocolConfig.initializeFromFlags(trusteeProtocolConfigFlags)
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val clientCerts =
@@ -242,6 +246,8 @@ private fun run(
           reachOnlyLlV2Enabled = v2alphaFlags.reachOnlyLlV2Enabled,
           hmssEnabled = v2alphaFlags.hmssEnabled,
           hmssEnabledMeasurementConsumers = v2alphaFlags.hmssEnabledMeasurementConsumers,
+          trusTeeEnabled = v2alphaFlags.trusTeeEnabled,
+          trusTeeEnabledMeasurementConsumers = v2alphaFlags.trusTeeEnabledMeasurementConsumers,
           coroutineContext = serviceDispatcher,
         )
         .withInterceptors(
@@ -453,6 +459,29 @@ private class V2alphaFlags {
     defaultValue = "",
   )
   lateinit var hmssEnabledMeasurementConsumers: List<String>
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--enable-trustee"],
+    description = ["whether to enable the TrusTEE protocol"],
+    negatable = true,
+    required = false,
+    defaultValue = "false",
+  )
+  var trusTeeEnabled by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--trus-tee-enabled-measurement-consumers"],
+    description =
+      [
+        "MeasurementConsumer names who force to enable TrusTEE protocol" +
+          " regardless the --enable-trus-tee flag."
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var trusTeeEnabledMeasurementConsumers: List<String>
     private set
 
   @CommandLine.Option(
