@@ -98,5 +98,5 @@ py_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
-    ]
+    ],
 )

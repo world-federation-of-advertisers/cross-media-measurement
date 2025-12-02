@@ -44,7 +44,7 @@ message ReportSummaryV2 {
   // `path`. Each event template field path may exist at most once in this
   // list.
   repeated wfa.measurement.internal.reporting.v2.EventTemplateField groupings =
-    3;
+      3;
 
   // The event filters from the `DimensionSpec`, ordered by `terms`
   // lexicographically. The terms themselves are ordered by `path` and
@@ -68,7 +68,8 @@ message ReportSummaryV2 {
     repeated string data_providers = 4;
 
     // The value of metric frequency spec is either weekly or total.
-    wfa.measurement.internal.reporting.v2.MetricFrequencySpec metric_frequency_spec = 5;
+    wfa.measurement.internal.reporting.v2.MetricFrequencySpec
+        metric_frequency_spec = 5;
 
     // Represents a single reach result.
     message ReachResult {
@@ -103,7 +104,8 @@ message ReportSummaryV2 {
 
     // The results for a single result within a reporting window.
     message ReportSummaryWindowResult {
-      wfa.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindow key = 1;
+      wfa.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindow
+          key = 1;
       ReachResult reach = 2;
       FrequencyResult frequency = 3;
       ImpressionCountResult impression_count = 4;

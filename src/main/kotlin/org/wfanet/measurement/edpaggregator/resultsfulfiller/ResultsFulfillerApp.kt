@@ -183,6 +183,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser =
+          fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 },
       )
 
     ResultsFulfiller(

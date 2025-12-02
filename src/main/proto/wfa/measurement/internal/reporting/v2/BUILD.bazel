@@ -7,9 +7,7 @@ load(
     "kt_jvm_proto_library",
 )
 load("@rules_proto_grpc_python//:defs.bzl", "python_grpc_library")
-
 load("//src/main/proto/wfa/measurement/internal/common:macros.bzl", "IMPORT_PREFIX", "proto_and_kt_jvm_proto_library")
-
 
 package(default_visibility = ["//:__subpackages__"])
 
@@ -435,7 +433,7 @@ proto_library(
 
 py_proto_library(
     name = "reporting_set_py_pb2",
-    deps = [":reporting_set_proto"]
+    deps = [":reporting_set_proto"],
 )
 
 proto_descriptor_set(

@@ -57,9 +57,8 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-      ) {
-        "ActiveEndTime must be in the future."
-      }
+        "ActiveEndTime must be in the future.",
+      )
     }
 
     if (Timestamps.compare(activeStartTime, request.activeEndTime) >= 0) {
@@ -67,9 +66,8 @@ class SetActiveEndTime(private val request: SetActiveEndTimeRequest, private val
         ExternalId(request.externalModelProviderId),
         ExternalId(request.externalModelSuiteId),
         ExternalId(request.externalModelLineId),
-      ) {
-        "ActiveEndTime must be later than ActiveStartTime."
-      }
+        "ActiveEndTime must be later than ActiveStartTime.",
+      )
     }
 
     transactionContext.bufferUpdateMutation("ModelLines") {

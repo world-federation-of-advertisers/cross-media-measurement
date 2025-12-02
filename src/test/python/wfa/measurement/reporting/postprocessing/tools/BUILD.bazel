@@ -47,12 +47,12 @@ py_test(
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
-        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
-        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_origin_report",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
     ],
 )
 
