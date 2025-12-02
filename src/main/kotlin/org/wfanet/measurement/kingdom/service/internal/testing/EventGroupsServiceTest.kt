@@ -44,8 +44,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
-import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
+import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -61,10 +61,9 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
-import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
-import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
@@ -367,49 +366,31 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val response: BatchCreateEventGroupsResponse =
       eventGroupsService.batchCreateEventGroups(request)
 
-    assertThat(response)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        batchCreateEventGroupsResponse {
-          eventGroups +=
-            request.requestsList.map {
-              it.eventGroup.copy {
-                this.state = EventGroup.State.ACTIVE
-                clearExternalEventGroupId()
-                clearCreateTime()
-                clearUpdateTime()
-              }
+    assertThat(response.eventGroupsList)
+      .ignoringFields(
+        EventGroup.EXTERNAL_EVENT_GROUP_ID_FIELD_NUMBER,
+        EventGroup.CREATE_TIME_FIELD_NUMBER,
+        EventGroup.UPDATE_TIME_FIELD_NUMBER,
+      )
+      .containsExactly(
+        request.requestsList[0].eventGroup.copy { this.state = EventGroup.State.ACTIVE },
+        request.requestsList[1].eventGroup.copy { this.state = EventGroup.State.ACTIVE },
+      )
+
+    for (eventGroup in response.eventGroupsList) {
+      assertThat(eventGroup.externalEventGroupId).isNotEqualTo(0)
+      assertThat(eventGroup.createTime.seconds).isGreaterThan(0)
+      assertThat(eventGroup.updateTime).isEqualTo(eventGroup.createTime)
+      assertThat(eventGroup)
+        .isEqualTo(
+          eventGroupsService.getEventGroup(
+            getEventGroupRequest {
+              this.externalDataProviderId = externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
             }
-        }
-      )
-
-    val created1 = response.eventGroupsList[0]
-    assertThat(created1.externalEventGroupId).isNotEqualTo(0)
-    assertThat(created1.createTime.seconds).isGreaterThan(0)
-    assertThat(created1.updateTime).isEqualTo(created1.createTime)
-    assertThat(created1)
-      .isEqualTo(
-        eventGroupsService.getEventGroup(
-          getEventGroupRequest {
-            this.externalDataProviderId = externalDataProviderId
-            externalEventGroupId = created1.externalEventGroupId
-          }
+          )
         )
-      )
-
-    val created2 = response.eventGroupsList[1]
-    assertThat(created2.externalEventGroupId).isNotEqualTo(0)
-    assertThat(created2.createTime.seconds).isGreaterThan(0)
-    assertThat(created2.updateTime).isEqualTo(created1.createTime)
-    assertThat(created2)
-      .isEqualTo(
-        eventGroupsService.getEventGroup(
-          getEventGroupRequest {
-            this.externalDataProviderId = externalDataProviderId
-            externalEventGroupId = created2.externalEventGroupId
-          }
-        )
-      )
+    }
   }
 
   @Test
@@ -472,7 +453,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("different from")
+      assertThat(exception).hasMessageThat().contains("differs from that of the parent request")
     }
 
   @Test
@@ -492,7 +473,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("child request event group is unspecified")
+      assertThat(exception).hasMessageThat().contains("not set")
     }
 
   @Test
