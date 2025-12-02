@@ -51,6 +51,7 @@ class DefaultFulfillerSelector(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
+  private val overrideImpressionMaxFrequencyPerUser: Int?,
 ) : FulfillerSelector {
 
   /**
@@ -78,6 +79,7 @@ class DefaultFulfillerSelector(
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
