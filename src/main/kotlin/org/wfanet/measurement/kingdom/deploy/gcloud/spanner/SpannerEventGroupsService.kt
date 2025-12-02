@@ -50,8 +50,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateEventGroups
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
@@ -106,7 +106,8 @@ class SpannerEventGroupsService(
         childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
       ) {
         throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
-            "Subrequest's externalDataProviderId $childExternalDataProviderId different from parent's externalDataProviderId $externalDataProviderId"
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
@@ -114,16 +115,16 @@ class SpannerEventGroupsService(
       val requestId = subRequest.requestId
       if (requestId.isNotEmpty()) {
         if (!requestIdSet.add(requestId)) {
-          throw Status.INVALID_ARGUMENT.withDescription(
-              "request Id $requestId is duplicate in the batch of requests"
-            )
-            .asRuntimeException()
+          throw InvalidFieldValueException("requests.$index.request_id") { fieldPath ->
+              "Value of $fieldPath is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
 
       if (!subRequest.hasEventGroup()) {
-        throw Status.INVALID_ARGUMENT.withDescription("child request event group is unspecified")
-          .asRuntimeException()
+        throw RequiredFieldNotSetException("requests.$index.event_group")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
 

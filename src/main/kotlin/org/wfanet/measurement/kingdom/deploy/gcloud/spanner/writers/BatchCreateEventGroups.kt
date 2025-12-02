@@ -43,11 +43,10 @@ class BatchCreateEventGroups(private val request: BatchCreateEventGroupsRequest)
 
   override suspend fun TransactionScope.runTransaction(): BatchCreateEventGroupsResponse {
     val externalToInternalMeasurementConsumerId: Map<ExternalId, InternalId> =
-      MeasurementConsumerReader()
-        .readByExternalMeasurementConsumerIds(
-          transactionContext,
-          request.requestsList.map { ExternalId(it.eventGroup.externalMeasurementConsumerId) },
-        )
+      MeasurementConsumerReader.readInternalIdsByExternalIds(
+        transactionContext,
+        request.requestsList.map { ExternalId(it.eventGroup.externalMeasurementConsumerId) },
+      )
 
     val externalDataProviderId = ExternalId(request.externalDataProviderId)
     val dataProviderId: InternalId =
