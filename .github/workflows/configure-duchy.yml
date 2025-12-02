@@ -128,6 +128,7 @@ jobs:
         build --define duchy_system_api_address_name=${DUCHY_NAME}-duchy-system-v1alpha
         build --define duchy_internal_api_address_name=${DUCHY_NAME}-duchy-internal
         build --define duchy_storage_bucket=$STORAGE_BUCKET
+        build --define trustee_mill_subnetwork_cidr_range=10.0.0.0/24
         EOF
 
     - name: Export BAZEL_BIN
