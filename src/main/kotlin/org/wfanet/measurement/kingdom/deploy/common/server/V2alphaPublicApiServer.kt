@@ -472,11 +472,11 @@ private class V2alphaFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--trus-tee-enabled-measurement-consumers"],
+    names = ["--trustee-enabled-measurement-consumers"],
     description =
       [
         "MeasurementConsumer names who force to enable TrusTEE protocol" +
-          " regardless the --enable-trus-tee flag."
+          " regardless the --enable-trustee flag."
       ],
     required = false,
     defaultValue = "",
