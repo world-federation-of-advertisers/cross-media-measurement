@@ -431,8 +431,9 @@ proto_library(
     for label_str in SERVICE_LIBS
 ]
 
+# OpenAPI specifications for services exposed by the Reporting grpc-gateway.
 filegroup(
-    name = "api_specs", #the subset of specs that we attach to releases
+    name = "exposed_openapi_specs",
     srcs = [
         ":basic_reports_service_openapi",
         ":event_groups_service_openapi",

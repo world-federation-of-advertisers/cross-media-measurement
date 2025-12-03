@@ -69,8 +69,8 @@ jobs:
 
       - name: Build reporting API specs
         run: |
-          bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:api_specs
-          bazel cquery //src/main/proto/wfa/measurement/reporting/v2alpha:api_specs --output files \
+          bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs
+          bazel cquery //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs --output files \
             | grep "^bazel-out" \
             | tar -czf reporting_api_specs.tar.gz --transform='s|^.*/wfa/measurement/||' -T -
           echo "Tar content is:"
