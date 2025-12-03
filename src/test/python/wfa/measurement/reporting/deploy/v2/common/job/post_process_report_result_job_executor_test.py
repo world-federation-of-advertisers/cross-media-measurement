@@ -32,16 +32,14 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
         tls_ca_cert_file="tls_ca_cert_file",
     )
     @mock.patch(
-        "job.post_process_report_result_job.PostProcessReportResultJob"
-    )
+        "job.post_process_report_result_job.PostProcessReportResultJob")
     @mock.patch(
-        "job.post_process_report_result_job_executor._get_secure_credentials"
-    )
+        "job.post_process_report_result_job_executor._get_secure_credentials")
     @mock.patch(
-        "job.post_process_report_result_job_executor._create_secure_channel"
-    )
-    def test_main(self, mock_create_channel, mock_get_credentials, mock_job_class):
-        # Arrange
+        "job.post_process_report_result_job_executor._create_secure_channel")
+    def test_post_process_report_result_job_executor_success(
+            self, mock_create_channel, mock_get_credentials, mock_job_class):
+        # Sets up mock objects.
         mock_credentials = mock.MagicMock()
         mock_get_credentials.return_value = mock_credentials
         mock_job_instance = mock.MagicMock()
@@ -62,15 +60,18 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
 
         mock_create_channel.side_effect = create_channel_side_effect
 
-        # Act
+        # Calls the main function.
         post_process_report_result_job_executor.main(["test_main"])
 
-        # Assert
+        # Verifies the expected behavior.
         mock_get_credentials.assert_called_once()
         self.assertEqual(mock_create_channel.call_count, 3)
-        mock_create_channel.assert_any_call("report_results_target", mock_credentials)
-        mock_create_channel.assert_any_call("reporting_sets_target", mock_credentials)
-        mock_create_channel.assert_any_call("basic_reports_target", mock_credentials)
+        mock_create_channel.assert_any_call("report_results_target",
+                                            mock_credentials)
+        mock_create_channel.assert_any_call("reporting_sets_target",
+                                            mock_credentials)
+        mock_create_channel.assert_any_call("basic_reports_target",
+                                            mock_credentials)
 
         mock_job_class.assert_called_once_with(
             mock_report_results_channel,
@@ -87,11 +88,10 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
         tls_key_file="tls_key_file",
         tls_ca_cert_file="tls_ca_cert_file",
     )
-    def test_main_raises_error_with_missing_flag(self):
-      with self.assertRaises(flags.Error):
-          # In a real execution, absl.app.run would catch this and exit.
-          # Here, we call main directly to test the flag parsing behavior.
-          post_process_report_result_job_executor.main(["test_program"])
+    def test_post_process_report_result_job_executor_raises_error_with_missing_flag(
+            self):
+        with self.assertRaises(flags.Error):
+            post_process_report_result_job_executor.main(["test_program"])
 
 
 if __name__ == "__main__":

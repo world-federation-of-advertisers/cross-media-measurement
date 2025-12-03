@@ -21,8 +21,7 @@ from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
-from tools import (
-    post_process_report_result, )
+from tools import post_process_report_result
 
 
 class PostProcessReportResultJob:
