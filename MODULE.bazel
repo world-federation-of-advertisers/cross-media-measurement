@@ -37,7 +37,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.128.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
@@ -52,7 +51,6 @@ bazel_dep(
 )
 bazel_dep(
     name = "consent-signaling-client",
-    version = "0.22.0",
     repo_name = "wfa_consent_signaling_client",
 )
 bazel_dep(
@@ -67,7 +65,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "googleapis",
-    version = "0.0.0-20250120-318818b.bzlmod.2",
+    version = "0.0.0-20251127-8cd3749f",
     repo_name = "com_google_googleapis",
 )
 bazel_dep(
@@ -124,12 +122,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_go",
-    version = "0.52.0",
+    version = "0.53.0",
     repo_name = "io_bazel_rules_go",
 )
 bazel_dep(
     name = "gazelle",
-    version = "0.41.0",
+    version = "0.47.0",
     repo_name = "bazel_gazelle",
 )
 bazel_dep(
@@ -250,11 +248,11 @@ maven.install(
         # Google Cloud
         "com.google.cloud:google-cloud-bigquerystorage",
         "com.google.cloud:google-cloud-security-private-ca",
-        # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
-        "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
         "com.google.cloud.functions.invoker:java-function-invoker:1.4.0",
         "com.google.cloud:google-cloud-secretmanager",
         "com.google.cloud:google-cloud-logging",
+        # TODO(googleapis/java-cloud-bom#5279): Remove when managed by BOM.
+        "com.google.apis:google-api-services-storage:v1-rev20240706-2.0.0",
 
         # AWS
         "software.amazon.awssdk:acmpca",
@@ -270,12 +268,6 @@ maven.install(
 
         # Bouncy Castle
         "org.bouncycastle:bcpkix-jdk18on:1.79",
-
-        # These dependencies should come from rules_kotlin_jvm: https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/blob/main/MODULE.bazel#L60
-        # However, rules_jvm_external 6.8 seems to prioritize BOMs over explicitly declared versions only for the root module: https://github.com/bazel-contrib/rules_jvm_external/pull/1373
-        # Without these declarations, the versions are resolved to the ones explicitly declared in bazel_worker_java: https://github.com/bazelbuild/bazel-worker-api/blob/v0.0.5/java/MODULE.bazel#L17
-        "com.google.protobuf:protobuf-java",
-        "com.google.protobuf:protobuf-java-util",
     ],
     boms = [
         "com.squareup.okhttp3:okhttp-bom:4.12.0",
@@ -288,17 +280,24 @@ maven.install(
         "any-sketch-java",
         "bazel_worker_java",
         "common-jvm",
+        "consent-signaling-client",
         "cross-media-measurement-system",
         "rules_kotlin_jvm",
         "virtual-people-common",
     ],
     lock_file = "//:maven_install.json",
-    resolver = "maven",
     strict_visibility = True,
 )
 use_repo(maven, "maven")
 
-GO_GENPROTO_VERSION = "v0.0.0-20250115164207-1a7da9e5054f"
+go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(
+    goarch = "amd64",
+    goos = "linux",
+    version = "1.24.0",
+)
+
+GO_GENPROTO_VERSION = "v0.0.0-20251124214823-79d6a2a48846"
 
 go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
 go_deps.module(
@@ -308,17 +307,17 @@ go_deps.module(
 )
 go_deps.module(
     path = "google.golang.org/genproto",
-    sum = "h1:387Y+JbxF52bmesc8kq1NyYIp33dnxCw6eiA7JMsTmw=",
+    sum = "h1:dDbsTLIK7EzwUq36kCSAsk0slouq/S0tWHeeGi97cD8=",
     version = GO_GENPROTO_VERSION,
 )
 go_deps.module(
     path = "google.golang.org/genproto/googleapis/api",
-    sum = "h1:gap6+3Gk41EItBuyi4XX/bp4oqJ3UwuIMl25yGinuAA=",
+    sum = "h1:ZdyUkS9po3H7G0tuh955QVyyotWvOD4W0aEapeGeUYk=",
     version = GO_GENPROTO_VERSION,
 )
 go_deps.module(
     path = "google.golang.org/genproto/googleapis/rpc",
-    sum = "h1:OxYkA3wjPsZyBylwymxSHa7ViiW1Sml4ToBrncvFehI=",
+    sum = "h1:Wgl1rcDNThT+Zn47YyCXOXyX/COgMTIdhJ717F0l4xk=",
     version = GO_GENPROTO_VERSION,
 )
 go_deps.module(
@@ -418,4 +417,31 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/rules_kotlin_jvm#17): Use version.
+archive_override(
+    module_name = "rules_kotlin_jvm",
+    strip_prefix = "rules_kotlin_jvm-0174d9856e40c69ac4e6d540396c5d80cd3ead0d",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/rules_kotlin_jvm/archive/0174d9856e40c69ac4e6d540396c5d80cd3ead0d.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#360): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-864f40aa74ec05cf3a234c41a30616a694fe517f",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/864f40aa74ec05cf3a234c41a30616a694fe517f.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/consent-signaling-client#51): Use version.
+archive_override(
+    module_name = "consent-signaling-client",
+    strip_prefix = "consent-signaling-client-9e8dfdfc4b3c2b329a2d3b7f924dca4460b15b5d",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/consent-signaling-client/archive/9e8dfdfc4b3c2b329a2d3b7f924dca4460b15b5d.tar.gz",
+    ],
 )
