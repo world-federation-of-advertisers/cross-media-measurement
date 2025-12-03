@@ -112,11 +112,14 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         return emptyMap()
       }
 
-      val keySet = KeySet.newBuilder().apply{
-        for (externalId in externalMeasurementConsumerIds) {
-          addKey(Key.of(externalId.value))
-        }
-      }.build()
+      val keySet =
+        KeySet.newBuilder()
+          .apply {
+            for (externalId in externalMeasurementConsumerIds) {
+              addKey(Key.of(externalId.value))
+            }
+          }
+          .build()
 
       return buildMap {
         readContext
