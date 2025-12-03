@@ -30,6 +30,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -48,6 +49,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+
+private data class ChannelKey(
+  val tls: TransportLayerSecurityParams,
+  val target: String,
+  val hostName: String?,
+)
 
 /**
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
@@ -185,9 +192,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }
         ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE
 
-    @Volatile private var cmmsChannel: ManagedChannel? = null
-
-    @Volatile private var impressionMetadataChannel: ManagedChannel? = null
+    private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
 
     /**
      * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
@@ -229,36 +234,49 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
 
     /**
-     * Lazily initializes the shared channels once, using the (constant) config. Safe under
-     * concurrent requests.
+     * Retrieves gRPC channels for CMMS and ImpressionMetadata based on the TLS configuration in
+     * [dataAvailabilitySyncConfig].
+     *
+     * Channels are cached and keyed by their TLS parameters, target, and optional hostname
+     * override. A new channel is created only when no matching entry exists in the cache.
+     *
+     * @return A pair of [ManagedChannel] instances for (CMMS, ImpressionMetadata).
      */
     fun getOrCreateSharedChannels(
       dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
     ): Pair<ManagedChannel, ManagedChannel> {
-      val existingCmms = cmmsChannel
-      val existingImp = impressionMetadataChannel
-      if (existingCmms != null && existingImp != null) {
-        return existingCmms to existingImp
-      }
+      val cmmsChannelKey =
+        ChannelKey(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      val impressionsChannelKey =
+        ChannelKey(
+          dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
+          impressionMetadataTarget,
+          impressionMetadataCertHost,
+        )
 
-      synchronized(DataAvailabilitySyncFunction::class.java) {
-        logger.info("Creating shared gRPC channels for CMMS and ImpressionMetadata")
-
-        cmmsChannel =
+      val cmmsChannel =
+        channelCache.computeIfAbsent(cmmsChannelKey) {
+          logger.info("Creating new CMMS channel for TLS params: $cmmsChannelKey")
           createPublicChannel(
             dataAvailabilitySyncConfig.cmmsConnection,
             kingdomTarget,
             kingdomCertHost,
           )
-        impressionMetadataChannel =
+        }
+
+      val impressionChannel =
+        channelCache.computeIfAbsent(impressionsChannelKey) {
+          logger.info(
+            "Creating new ImpressionMetadata channel for TLS params: $impressionsChannelKey"
+          )
           createPublicChannel(
             dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
             impressionMetadataTarget,
             impressionMetadataCertHost,
           )
+        }
 
-        return cmmsChannel!! to impressionMetadataChannel!!
-      }
+      return cmmsChannel to impressionChannel
     }
   }
 }
