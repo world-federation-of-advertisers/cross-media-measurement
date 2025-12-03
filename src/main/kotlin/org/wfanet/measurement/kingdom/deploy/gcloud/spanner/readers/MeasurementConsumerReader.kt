@@ -112,17 +112,18 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         return emptyMap()
       }
 
-      val keys = KeySet.newBuilder()
-      for (externalId in externalMeasurementConsumerIds) {
-        keys.addKey(Key.of(externalId.value))
-      }
+      val keySet = KeySet.newBuilder().apply{
+        for (externalId in externalMeasurementConsumerIds) {
+          addKey(Key.of(externalId.value))
+        }
+      }.build()
 
       return buildMap {
         readContext
           .readUsingIndex(
             "MeasurementConsumers",
             "MeasurementConsumersByExternalId",
-            keys.build(),
+            keySet,
             listOf("ExternalMeasurementConsumerId", "MeasurementConsumerId"),
           )
           .collect { struct ->
