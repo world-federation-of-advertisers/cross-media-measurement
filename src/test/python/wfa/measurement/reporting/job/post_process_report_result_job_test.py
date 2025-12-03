@@ -36,7 +36,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_post_processor = mock.MagicMock(
             spec=post_process_report_result.PostProcessReportResult)
 
-        # Mock the gRPC channels and stubs
+        # Mocks the gRPC channels and stubs.
         self.patches = [
             mock.patch(
                 "wfa.measurement.internal.reporting.v2.report_results_service_pb2_grpc.ReportResultsStub",
@@ -58,7 +58,6 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         for patch in self.patches:
             patch.start()
 
-        # Channels are not used directly, so they can be simple mocks
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
             mock_channel, mock_channel, mock_channel)
@@ -68,8 +67,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             patch.stop()
         super().tearDown()
 
-    def test_execute_processes_unprocessed_reports(self):
-        # Arrange
+    def test_execute_unprocessed_reports_successfully(self):
+        # Sets up mock objects.
         mock_report1 = BasicReport(
             cmms_measurement_consumer_id="mc_id_1",
             external_report_result_id=101,
@@ -86,10 +85,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             report_results_service_pb2.AddProcessedResultValuesRequest())
         self.mock_post_processor.process.return_value = mock_request
 
-        # Act
+        # Executes the job.
         self.job.execute()
 
-        # Assert
+        # Verifies the expected behavior.
         self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
         self.assertEqual(self.mock_post_processor.process.call_count, 2)
         self.mock_post_processor.process.assert_any_call("mc_id_1", 101)
@@ -102,15 +101,15 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             mock_request)
 
     def test_execute_no_unprocessed_reports(self):
-        # Arrange
+        # Sets up mock objects.
         self.mock_basic_reports_stub.ListBasicReports.return_value = (
             basic_reports_service_pb2.ListBasicReportsResponse(
                 basic_reports=[]))
 
-        # Act
+        # Executes the job.
         self.job.execute()
 
-        # Assert
+        # Verifies the expected behavior.
         self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
         self.mock_post_processor.process.assert_not_called()
         self.mock_report_results_stub.AddProcessedResultValues.assert_not_called(

@@ -85,19 +85,32 @@ def main(argv):
 
     credentials = _get_secure_credentials()
 
-    report_results_channel = _create_secure_channel(
-        _REPORT_RESULTS_TARGET.value, credentials)
+    report_results_channel = None
+    reporting_sets_channel = None
+    basic_reports_channel = None
 
-    reporting_sets_channel = _create_secure_channel(
-        _REPORTING_SETS_TARGET.value, credentials)
+    try:
+        report_results_channel = _create_secure_channel(
+            _REPORT_RESULTS_TARGET.value, credentials)
 
-    basic_reports_channel = _create_secure_channel(
-        _BASIC_REPORTS_TARGET.value, credentials)
+        reporting_sets_channel = _create_secure_channel(
+            _REPORTING_SETS_TARGET.value, credentials)
 
-    job = post_process_report_result_job.PostProcessReportResultJob(
-        report_results_channel, reporting_sets_channel, basic_reports_channel)
+        basic_reports_channel = _create_secure_channel(
+            _BASIC_REPORTS_TARGET.value, credentials)
 
-    job.execute()
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            report_results_channel, reporting_sets_channel,
+            basic_reports_channel)
+
+        job.execute()
+    finally:
+        if report_results_channel:
+            report_results_channel.close()
+        if reporting_sets_channel:
+            reporting_sets_channel.close()
+        if basic_reports_channel:
+            basic_reports_channel.close()
 
 
 if __name__ == "__main__":
