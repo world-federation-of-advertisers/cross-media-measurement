@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
@@ -48,6 +50,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
@@ -82,6 +85,59 @@ class SpannerEventGroupsService(
         Status.Code.FAILED_PRECONDITION,
         "MeasurementConsumer's Certificate not found.",
       )
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
+  override suspend fun batchCreateEventGroups(
+    request: BatchCreateEventGroupsRequest
+  ): BatchCreateEventGroupsResponse {
+    val externalDataProviderId = request.externalDataProviderId
+    if (externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val requestIdSet = mutableSetOf<String>()
+    request.requestsList.forEachIndexed { index, subRequest ->
+      val childExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
+      if (
+        childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
+      ) {
+        throw InvalidFieldValueException("requests.$index.event_group.external_data_provider_id") {
+            fieldPath ->
+            "Value of $fieldPath differs from that of the parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
+      val requestId = subRequest.requestId
+      if (requestId.isNotEmpty()) {
+        if (!requestIdSet.add(requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") { fieldPath ->
+              "Value of $fieldPath is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+      if (!subRequest.hasEventGroup()) {
+        throw RequiredFieldNotSetException("requests.$index.event_group")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    try {
+      return BatchCreateEventGroups(request).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: CertificateIsInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
