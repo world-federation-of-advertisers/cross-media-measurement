@@ -146,7 +146,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto_grpc_python",
-    version = "5.8.0"
+    version = "5.1.0"
 )
 
 # Must be compatible with the protobuf version declared in requirements.txt
@@ -424,4 +424,8 @@ http_archive(
 single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
+)
+single_version_override(
+    module_name = "protobuf",
+    version = "29.5",
 )
