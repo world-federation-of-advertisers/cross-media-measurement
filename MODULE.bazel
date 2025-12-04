@@ -358,9 +358,7 @@ python.toolchain(
     # See https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496
     ignore_root_user_error = True,
     python_version = "3.11",
-    is_default = True,
 )
-use_repo(python, "python_3_11")
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
