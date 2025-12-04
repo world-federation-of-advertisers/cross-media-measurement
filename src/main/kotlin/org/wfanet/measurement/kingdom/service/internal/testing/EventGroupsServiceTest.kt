@@ -23,11 +23,6 @@ import com.google.type.endTimeOrNull
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.time.Clock
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import kotlin.random.Random
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -44,7 +39,6 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
-import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -75,6 +69,11 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import java.time.Clock
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import kotlin.random.Random
+import kotlin.test.assertFailsWith
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -475,65 +474,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("not set")
-    }
-
-  @Test
-  fun `batchCreateEventGroups throws INVALID_ARGUMENT when child request request id is duplicate in the batch`() =
-    runBlocking {
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
-
-      val request = batchCreateEventGroupsRequest {
-        this.externalDataProviderId = externalDataProviderId
-        requests += createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
-            providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-            mediaTypes += MediaType.VIDEO
-            details = DETAILS
-          }
-          requestId = "duplicate-id"
-        }
-        requests += createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
-            providedEventGroupId = PROVIDED_EVENT_GROUP_ID_2
-            mediaTypes += MediaType.DISPLAY
-            details = DETAILS
-          }
-          requestId = "duplicate-id"
-        }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupsService.batchCreateEventGroups(request)
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("duplicate")
-    }
-
-  @Test
-  fun `batchCreateEventGroups throws INVALID_ARGUMENT when child event group is not set`() =
-    runBlocking {
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
-
-      val request = batchCreateEventGroupsRequest {
-        this.externalDataProviderId = externalDataProviderId
-        requests += CreateEventGroupRequest.getDefaultInstance()
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupsService.batchCreateEventGroups(request)
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("child request event group is unspecified")
     }
 
   @Test
