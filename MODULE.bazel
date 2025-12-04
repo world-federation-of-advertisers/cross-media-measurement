@@ -146,7 +146,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "grpc",
-    version = "1.72.0",
+    version = "1.74.0",
 )
 bazel_dep(
     name = "rules_proto_grpc_python",
