@@ -190,11 +190,12 @@ class BasicReportsService(
     val measurementConsumerCredentials =
       MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
 
-    val effectiveReportStart = request.basicReport.reportingInterval.reportStart.copy {
-      clearMinutes()
-      clearSeconds()
-      clearNanos()
-    }
+    val effectiveReportStart =
+      request.basicReport.reportingInterval.reportStart.copy {
+        clearMinutes()
+        clearSeconds()
+        clearNanos()
+      }
 
     val validModelLines =
       kingdomModelLinesStub

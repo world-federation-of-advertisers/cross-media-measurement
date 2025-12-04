@@ -44,9 +44,8 @@ message ReportingInterval {
   // The date and time of the start of the report.
   //
   // `report_start` with minutes, seconds, and nanos cleared.
-  google.type.DateTime effective_report_start = 3 [
-    (google.api.field_behavior) = OUTPUT_ONLY
-  ];
+  google.type.DateTime effective_report_start = 3
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The end date of the report.
   //

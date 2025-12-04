@@ -404,14 +404,17 @@ class BasicReportsServiceTest {
 
     assertThat(response)
       .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(basicReport.copy {
-        name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
-        campaignGroupDisplayName = campaignGroup.displayName
-        state = BasicReport.State.RUNNING
-        reportingInterval = basicReport.reportingInterval.copy {
-          effectiveReportStart = basicReport.reportingInterval.reportStart
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
         }
-      })
+      )
     assertThat(response.createTime.seconds).isAtLeast(1)
   }
 
@@ -763,13 +766,14 @@ class BasicReportsServiceTest {
         }
       )
 
-    assertThat(createdBasicReport.reportingInterval.effectiveReportStart).isEqualTo(
-      basicReport.reportingInterval.reportStart.copy {
-        clearMinutes()
-        clearSeconds()
-        clearNanos()
-      }
-    )
+    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+      .isEqualTo(
+        basicReport.reportingInterval.reportStart.copy {
+          clearMinutes()
+          clearSeconds()
+          clearNanos()
+        }
+      )
   }
 
   @Test

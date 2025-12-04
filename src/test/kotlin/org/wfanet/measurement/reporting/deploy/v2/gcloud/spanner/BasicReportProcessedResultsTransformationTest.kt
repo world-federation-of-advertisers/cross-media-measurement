@@ -2322,7 +2322,8 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  nonCumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
+                  nonCumulativeMetricStartTime =
+                    REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
                     REPORTING_INTERVAL.effectiveReportStart

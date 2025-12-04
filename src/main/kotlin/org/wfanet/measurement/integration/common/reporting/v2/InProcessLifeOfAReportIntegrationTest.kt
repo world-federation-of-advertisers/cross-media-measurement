@@ -2320,15 +2320,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
           effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
-          reportingInterval = basicReport.reportingInterval.copy {
-            effectiveReportStart = dateTime {
-              year = 2021
-              month = 3
-              day = 14
-              hours = 17
-              timeZone = timeZone { id = "America/Los_Angeles" }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = dateTime {
+                year = 2021
+                month = 3
+                day = 14
+                hours = 17
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
             }
-          }
         }
       )
     assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
