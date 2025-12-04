@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
-import java.util.logging.Logger
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -101,13 +100,6 @@ class FrequencyVectorBuilder(
       } else {
         1
       }
-
-    logger.info(
-      "FrequencyVectorBuilder, overrideImpressionMaxFrequencyPerUser set to: $overrideImpressionMaxFrequencyPerUser"
-    )
-    logger.info(
-      "FrequencyVectorBuilder, maxFrequency set to: $maxFrequency, measurementSpec has impression: ${measurementSpec.hasImpression()}"
-    )
   }
 
   /**
@@ -331,7 +323,6 @@ class FrequencyVectorBuilder(
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     /** Allow for DSL syntax when building a FrequencyVector. */
     fun build(

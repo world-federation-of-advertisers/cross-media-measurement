@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.kotlin.unpack
-import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -73,10 +72,6 @@ class DefaultFulfillerSelector(
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-
-    logger.info(
-      "overrideImpressionMaxFrequencyPerUser value is: $overrideImpressionMaxFrequencyPerUser"
-    )
 
     val vec =
       FrequencyVectorBuilder(
@@ -168,9 +163,5 @@ class DefaultFulfillerSelector(
       dataProviderCertificateKey,
       requisitionsStub,
     )
-  }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
