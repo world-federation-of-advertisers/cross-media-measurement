@@ -52,7 +52,6 @@ START BATCH DDL;
 --   EventGroups -[many:1]-> MeasurementConsumers
 --   EventGroups -[many:1]-> DataProviders
 --   EventGroupActivities -[many:1]-> DataProviders
---   EventGroupActivities -[many:1]-> EventGroups
 --   Requisitions -[many:1]-> Measurements
 --
 --   MeasurementConsumerCertificates -[many:1]-> MeasurementConsumers
