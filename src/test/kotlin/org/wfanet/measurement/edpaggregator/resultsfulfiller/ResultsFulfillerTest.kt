@@ -698,6 +698,12 @@ class ResultsFulfillerTest {
               vid = it.toLong() + 1
               eventTime = TIME_RANGE.start.toProtoTime()
             }
+          } +
+          List(130) {
+            LABELED_IMPRESSION.copy {
+              vid = it.toLong() + 1
+              eventTime = TIME_RANGE.start.toProtoTime()
+            }
           }
 
       val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
@@ -736,7 +742,7 @@ class ResultsFulfillerTest {
         metadataTmpPath,
         requisitionsTmpPath,
         impressions,
-        listOf(DIRECT_IMPRESSION_REQUISITION),
+        listOf(CAPPED_DIRECT_IMPRESSION_REQUISITION),
       )
       val impressionsMetadataService =
         ImpressionDataSourceProvider(
@@ -2078,6 +2084,32 @@ class ResultsFulfillerTest {
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
     }
+
+    private val CAPPED_DIRECT_IMPRESSION_REQUISITION: Requisition = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(CAPPED_IMPRESSION_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols +=
+          ProtocolConfigKt.protocol {
+            direct =
+              ProtocolConfigKt.direct {
+                noiseMechanisms +=
+                  listOf(
+                    ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+                    ProtocolConfig.NoiseMechanism.NONE,
+                  )
+                deterministicCount = ProtocolConfig.Direct.DeterministicCount.getDefaultInstance()
+              }
+          }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+    }
+
     const val DUCHY_ONE_ID = "worker1"
     const val DUCHY_TWO_ID = "worker2"
 
