@@ -23,8 +23,8 @@ import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.MediaTypeProto
+import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.ProtoReflection
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import picocli.CommandLine
 
 class EventMessageFlags {

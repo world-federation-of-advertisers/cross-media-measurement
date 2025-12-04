@@ -40,6 +40,8 @@ import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -376,41 +378,25 @@ class ImpressionQualificationFiltersServiceTest {
     private val INTERNAL_AMI_IQF = internalImpressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       filterSpecs += internalImpressionQualificationFilterSpec {
-        mediaType = InternalMediaType.VIDEO
-      }
-      filterSpecs += internalImpressionQualificationFilterSpec {
         mediaType = InternalMediaType.DISPLAY
-      }
-      filterSpecs += internalImpressionQualificationFilterSpec {
-        mediaType = InternalMediaType.OTHER
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "banner_ad.viewable"
+            value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
+          }
+        }
       }
     }
 
     private val PUBLIC_AMI_IQF = impressionQualificationFilter {
       name = "impressionQualificationFilters/ami"
       displayName = "ami"
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
-    }
-
-    private val INTERNAL_MRC_IQF = internalImpressionQualificationFilter {
-      externalImpressionQualificationFilterId = "mrc"
-      filterSpecs += internalImpressionQualificationFilterSpec {
-        mediaType = InternalMediaType.DISPLAY
-        filters += internalEventFilter {
-          terms += internalEventTemplateField {
-            path = "banner_ad.viewable_fraction_1_second"
-            value = InternalEventTemplateFieldKt.fieldValue { floatValue = 0.5F }
-          }
-        }
-      }
-      filterSpecs += internalImpressionQualificationFilterSpec {
-        mediaType = InternalMediaType.VIDEO
-        filters += internalEventFilter {
-          terms += internalEventTemplateField {
-            path = "video.viewable_fraction_1_second"
-            value = InternalEventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = false }
           }
         }
       }
@@ -423,17 +409,8 @@ class ImpressionQualificationFiltersServiceTest {
         mediaType = MediaType.DISPLAY
         filters += eventFilter {
           terms += eventTemplateField {
-            path = "banner_ad.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
-          }
-        }
-      }
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.VIDEO
-        filters += eventFilter {
-          terms += eventTemplateField {
-            path = "video.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = true }
           }
         }
       }
@@ -452,6 +429,9 @@ class ImpressionQualificationFiltersServiceTest {
       parseTextProto(configFile, ImpressionQualificationFilterConfig.getDefaultInstance())
     }
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+      ImpressionQualificationFilterMapping(
+        IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+        EventDescriptor(TestEvent.getDescriptor()),
+      )
   }
 }

@@ -40,6 +40,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -647,25 +648,29 @@ abstract class ReportResultsServiceTest {
         filterSpecs +=
           ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
             mediaType =
-              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO
-          }
-        filterSpecs +=
-          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
-            mediaType =
               ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
                 .DISPLAY
-          }
-        filterSpecs +=
-          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
-            mediaType =
-              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER
+            filters +=
+              ImpressionQualificationFilterConfigKt.eventFilter {
+                terms +=
+                  ImpressionQualificationFilterConfigKt.eventTemplateField {
+                    path = "banner_ad.viewable"
+                    value =
+                      ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                        boolValue = false
+                      }
+                  }
+              }
           }
       }
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
       impressionQualificationFilters += AMI_IQF
     }
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+      ImpressionQualificationFilterMapping(
+        IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+        EventDescriptor(TestEvent.getDescriptor()),
+      )
 
     val CREATE_REPORT_RESULT_REQUEST = createReportResultRequest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

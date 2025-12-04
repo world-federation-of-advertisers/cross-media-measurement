@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.service.api.v2alpha
+package org.wfanet.measurement.common
 
-import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth
 import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
 import kotlin.test.assertFailsWith
@@ -39,8 +39,8 @@ class EventDescriptorTest {
     val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
     val eventDescriptor = EventDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventDescriptor.eventTemplateFieldsByPath).hasSize(6)
-    assertThat(eventDescriptor.eventTemplateFieldsByPath)
+    Truth.assertThat(eventDescriptor.eventTemplateFieldsByPath).hasSize(6)
+    Truth.assertThat(eventDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
         EventDescriptor.EventTemplateFieldInfo(

@@ -193,9 +193,15 @@ abstract class ImpressionQualificationFiltersServiceTest<
   companion object {
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = false }
+          }
+        }
+      }
     }
 
     private val MRC_IQF = impressionQualificationFilter {
@@ -204,21 +210,11 @@ abstract class ImpressionQualificationFiltersServiceTest<
         mediaType = MediaType.DISPLAY
         filters += eventFilter {
           terms += eventTemplateField {
-            path = "banner_ad.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = true }
           }
         }
       }
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.VIDEO
-        filters += eventFilter {
-          terms += eventTemplateField {
-            path = "video.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
-          }
-        }
-      }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
   }
 }

@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.internal
 
+import com.google.protobuf.Descriptors
+import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
+import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
@@ -25,21 +28,39 @@ import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec
 
-class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilterConfig) {
+class ImpressionQualificationFilterMapping(
+  config: ImpressionQualificationFilterConfig,
+  eventDescriptor: EventDescriptor?,
+) {
+  private val eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo> =
+    eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+
   val impressionQualificationFilters:
     List<ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =
     buildList {
         for (impressionQualificationFilter in config.impressionQualificationFiltersList) {
-          check(
-            EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID_REGEX.matches(
+          if (
+            !EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID_REGEX.matches(
               impressionQualificationFilter.externalImpressionQualificationFilterId
             )
           ) {
-            "Invalid external impression qualification filter resource ID ${impressionQualificationFilter.externalImpressionQualificationFilterId}"
+            throw IllegalArgumentException(
+              "Invalid external impression qualification filter resource ID ${impressionQualificationFilter.externalImpressionQualificationFilterId}"
+            )
           }
-          check(impressionQualificationFilter.impressionQualificationFilterId > 0) {
-            "Impression qualification filter ID must be positive. Got: ${impressionQualificationFilter.impressionQualificationFilterId}"
+          if (impressionQualificationFilter.impressionQualificationFilterId <= 0) {
+            throw IllegalArgumentException(
+              "Impression qualification filter ID must be positive. Got: ${impressionQualificationFilter.impressionQualificationFilterId}"
+            )
           }
+          for (impressionQualificationFilterSpec in impressionQualificationFilter.filterSpecsList) {
+            if (!isImpressionQualificationFilterSpecValid(impressionQualificationFilterSpec)) {
+              throw IllegalArgumentException(
+                "Invalid impression qualification filter spec: $impressionQualificationFilterSpec"
+              )
+            }
+          }
+
           add(impressionQualificationFilter)
         }
       }
@@ -69,61 +90,143 @@ class ImpressionQualificationFilterMapping(config: ImpressionQualificationFilter
   fun getImpressionQualificationByExternalId(externalImpressionQualificationFilterId: String) =
     impressionQualificationFilterByExternalId[externalImpressionQualificationFilterId]
 
+  private fun ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+    .toEventAnnotationMediaType(): EventAnnotationMediaType {
+    return when (this) {
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO ->
+        EventAnnotationMediaType.VIDEO
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.DISPLAY ->
+        EventAnnotationMediaType.DISPLAY
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER ->
+        EventAnnotationMediaType.OTHER
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+        .MEDIA_TYPE_UNSPECIFIED,
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+        .UNRECOGNIZED -> throw UnsupportedOperationException()
+    }
+  }
+
+  private fun isImpressionQualificationFilterSpecValid(
+    impressionQualificationFilterSpec:
+      ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
+  ): Boolean {
+    for (eventFilter in impressionQualificationFilterSpec.filtersList) {
+      for (eventTemplateField in eventFilter.termsList) {
+        if (eventTemplateField.path.isEmpty()) {
+          return false
+        } else {
+          val eventTemplateFieldInfo =
+            eventTemplateFieldsByPath[eventTemplateField.path] ?: return false
+
+          if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
+            return false
+          }
+
+          if (
+            eventTemplateFieldInfo.mediaType !=
+              impressionQualificationFilterSpec.mediaType.toEventAnnotationMediaType()
+          ) {
+            return false
+          }
+
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+          when (eventTemplateField.value.selectorCase) {
+            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+              .STRING_VALUE -> {
+              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
+                return false
+              }
+            }
+            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+              .ENUM_VALUE -> {
+              if (
+                eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+                  eventTemplateFieldInfo.enumType?.findValueByName(
+                    eventTemplateField.value.enumValue
+                  ) == null
+              ) {
+                return false
+              }
+            }
+            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+              .BOOL_VALUE ->
+              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
+                return false
+              }
+            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+              .FLOAT_VALUE -> {
+              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+                return false
+              }
+            }
+            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+              .SELECTOR_NOT_SET -> {
+              return false
+            }
+          }
+        }
+      }
+    }
+
+    return true
+  }
+
   companion object {
     private val EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID_REGEX = ResourceIds.AIP_122_REGEX
-  }
-}
 
-fun ImpressionQualificationFilterConfig.ImpressionQualificationFilter
-  .toImpressionQualificationFilter(): ImpressionQualificationFilter {
-  val source = this
-  return impressionQualificationFilter {
-    externalImpressionQualificationFilterId = source.externalImpressionQualificationFilterId
-    filterSpecs +=
-      source.filterSpecsList.map { it ->
-        impressionQualificationFilterSpec {
-          mediaType = it.mediaType.toMediaType()
-          filters +=
-            it.filtersList.map {
-              eventFilter { terms += it.termsList.map { it.toEventTemplateField() } }
+    private fun ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+      .toMediaType(): MediaType {
+      return when (this) {
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO ->
+          MediaType.VIDEO
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.DISPLAY ->
+          MediaType.DISPLAY
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER ->
+          MediaType.OTHER
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+          .MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+          .UNRECOGNIZED -> MediaType.UNRECOGNIZED
+      }
+    }
+
+    private fun ImpressionQualificationFilterConfig.EventTemplateField.toEventTemplateField():
+      EventTemplateField {
+      val source = this
+      return eventTemplateField {
+        path = source.path
+        value =
+          EventTemplateFieldKt.fieldValue {
+            if (source.value.hasBoolValue()) {
+              boolValue = source.value.boolValue
+            } else if (source.value.hasFloatValue()) {
+              floatValue = source.value.floatValue
+            } else if (source.value.hasStringValue()) {
+              stringValue = source.value.stringValue
+            } else if (source.value.hasEnumValue()) {
+              enumValue = source.value.enumValue
             }
-        }
+          }
       }
-  }
-}
+    }
 
-fun ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.toMediaType():
-  MediaType {
-  return when (this) {
-    ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO ->
-      MediaType.VIDEO
-    ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.DISPLAY ->
-      MediaType.DISPLAY
-    ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER ->
-      MediaType.OTHER
-    ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
-      .MEDIA_TYPE_UNSPECIFIED -> MediaType.MEDIA_TYPE_UNSPECIFIED
-    ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.UNRECOGNIZED ->
-      MediaType.UNRECOGNIZED
-  }
-}
-
-fun ImpressionQualificationFilterConfig.EventTemplateField.toEventTemplateField():
-  EventTemplateField {
-  val source = this
-  return eventTemplateField {
-    path = source.path
-    value =
-      EventTemplateFieldKt.fieldValue {
-        if (source.value.hasBoolValue()) {
-          boolValue = source.value.boolValue
-        } else if (source.value.hasFloatValue()) {
-          floatValue = source.value.floatValue
-        } else if (source.value.hasStringValue()) {
-          stringValue = source.value.stringValue
-        } else if (source.value.hasEnumValue()) {
-          enumValue = source.value.enumValue
-        }
+    fun ImpressionQualificationFilterConfig.ImpressionQualificationFilter
+      .toImpressionQualificationFilter(): ImpressionQualificationFilter {
+      val source = this
+      val impressionQualificationFilter = impressionQualificationFilter {
+        externalImpressionQualificationFilterId = source.externalImpressionQualificationFilterId
+        filterSpecs +=
+          source.filterSpecsList.map { it ->
+            impressionQualificationFilterSpec {
+              mediaType = it.mediaType.toMediaType()
+              filters +=
+                it.filtersList.map {
+                  eventFilter { terms += it.termsList.map { it.toEventTemplateField() } }
+                }
+            }
+          }
       }
+      return impressionQualificationFilter
+    }
   }
 }

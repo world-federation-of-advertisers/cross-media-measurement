@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.service.api.v2alpha
+package org.wfanet.measurement.common
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Duration
