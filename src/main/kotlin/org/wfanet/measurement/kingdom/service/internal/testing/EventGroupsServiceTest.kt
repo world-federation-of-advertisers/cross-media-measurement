@@ -23,6 +23,11 @@ import com.google.type.endTimeOrNull
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -69,11 +74,6 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import java.time.Clock
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import kotlin.random.Random
-import kotlin.test.assertFailsWith
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
