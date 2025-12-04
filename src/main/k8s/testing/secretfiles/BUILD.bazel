@@ -265,6 +265,7 @@ SECRET_FILES = [
     "llv2_protocol_config_config.textproto",
     "ro_llv2_protocol_config_config.textproto",
     "hmss_protocol_config_config.textproto",
+    "trustee_protocol_config_config.textproto",
     "exchange_workflow.textproto",
     "reporting_root.pem",
     "reporting_tls.key",
