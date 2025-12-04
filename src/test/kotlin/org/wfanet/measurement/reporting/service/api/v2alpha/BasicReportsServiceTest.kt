@@ -403,18 +403,16 @@ class BasicReportsServiceTest {
     val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
     assertThat(response)
-      .ignoringFields(
-        BasicReport.NAME_FIELD_NUMBER,
-        BasicReport.CREATE_TIME_FIELD_NUMBER,
-        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
-        BasicReport.STATE_FIELD_NUMBER,
-      )
-      .isEqualTo(basicReport)
-    assertThat(response.name)
-      .isEqualTo(BasicReportKey(measurementConsumerKey, request.basicReportId).toName())
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(basicReport.copy {
+        name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+        campaignGroupDisplayName = campaignGroup.displayName
+        state = BasicReport.State.RUNNING
+        reportingInterval = basicReport.reportingInterval.copy {
+          effectiveReportStart = basicReport.reportingInterval.reportStart
+        }
+      })
     assertThat(response.createTime.seconds).isAtLeast(1)
-    assertThat(response.campaignGroupDisplayName).isEqualTo(campaignGroup.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
   }
 
   @Test
@@ -750,7 +748,8 @@ class BasicReportsServiceTest {
       basicReportId = "a1234"
     }
 
-    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+    val createdBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
     val createReportRequest =
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
@@ -763,6 +762,14 @@ class BasicReportsServiceTest {
           clearNanos()
         }
       )
+
+    assertThat(createdBasicReport.reportingInterval.effectiveReportStart).isEqualTo(
+      basicReport.reportingInterval.reportStart.copy {
+        clearMinutes()
+        clearSeconds()
+        clearNanos()
+      }
+    )
   }
 
   @Test
@@ -7723,6 +7730,7 @@ class BasicReportsServiceTest {
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           state = BasicReport.State.SUCCEEDED
@@ -8477,6 +8485,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport.createTime
@@ -8739,6 +8748,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport1.createTime
@@ -8855,6 +8865,7 @@ class BasicReportsServiceTest {
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
+              effectiveReportStart = dateTime { day = 3 }
               reportEnd = date { day = 5 }
             }
             createTime = internalBasicReport1.createTime
@@ -8969,6 +8980,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport2.createTime
