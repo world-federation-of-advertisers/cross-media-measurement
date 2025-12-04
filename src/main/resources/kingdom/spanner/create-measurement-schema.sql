@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset sanjayvas:1 dbms:cloudspanner
+-- changeset lindreamdeyi:2 dbms:cloudspanner
 -- preconditions onFail:MARK_RAN onError:HALT
 -- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Measurements'
 
@@ -28,6 +28,7 @@ START BATCH DDL;
 --   ├── DataProviders
 --   │   ├── DataProviderCertificates
 --   │   └── EventGroups
+--   │       └── EventGroupActivities
 --   ├── DuchyCertificates
 --   ├── MeasurementConsumerCreationTokens
 --   ├── MeasurementConsumers
@@ -50,6 +51,8 @@ START BATCH DDL;
 --
 --   EventGroups -[many:1]-> MeasurementConsumers
 --   EventGroups -[many:1]-> DataProviders
+--   EventGroupActivities -[many:1]-> DataProviders
+--   EventGroupActivities -[many:1]-> EventGroups
 --   Requisitions -[many:1]-> Measurements
 --
 --   MeasurementConsumerCertificates -[many:1]-> MeasurementConsumers
@@ -258,6 +261,23 @@ CREATE UNIQUE INDEX EventGroupsByExternalId
   ON EventGroups(DataProviderId, ExternalEventGroupId);
 CREATE UNIQUE NULL_FILTERED INDEX EventGroupsByProvidedId
   ON EventGroups(DataProviderId, ProvidedEventGroupId);
+
+CREATE TABLE EventGroupActivities (
+  DataProviderId                          INT64 NOT NULL,
+  EventGroupId                            INT64 NOT NULL,
+  EventGroupActivityId                    INT64 NOT NULL,
+
+  ActivityDate                            DATE  NOT NULL,
+
+  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  FOREIGN KEY (DataProviderId)
+     REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (DataProviderId, EventGroupId, EventGroupActivityId),
+    INTERLEAVE IN PARENT EventGroups ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX EventGroupActivityByActivityDate
+  ON EventGroupActivities(DataProviderId, EventGroupId, ActivityDate);
 
 CREATE TABLE EventGroupMetadataDescriptors (
   DataProviderId                          INT64 NOT NULL,
