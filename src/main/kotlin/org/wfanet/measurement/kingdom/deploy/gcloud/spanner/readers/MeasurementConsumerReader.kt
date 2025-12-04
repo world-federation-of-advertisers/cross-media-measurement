@@ -74,25 +74,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       }
       .build()
 
-  suspend fun readByExternalMeasurementConsumerIds(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalMeasurementConsumerIds: Collection<ExternalId>,
-  ): Map<ExternalId, InternalId> {
-    return buildMap {
-      fillStatementBuilder {
-          appendClause(
-            "WHERE ExternalMeasurementConsumerId IN UNNEST(@externalMeasurementConsumerIds)"
-          )
-          bind("externalMeasurementConsumerIds")
-            .toInt64Array(externalMeasurementConsumerIds.map { it.value })
-        }
-        .execute(readContext)
-        .collect {
-          put(ExternalId(it.externalMeasurementConsumerId), InternalId(it.measurementConsumerId))
-        }
-    }
-  }
-
   suspend fun readByExternalMeasurementConsumerId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
