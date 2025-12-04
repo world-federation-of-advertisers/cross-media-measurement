@@ -56,6 +56,11 @@ private data class ChannelKey(
   val hostName: String?,
 )
 
+data class GrpcChannels(
+  val cmmsChannel: ManagedChannel,
+  val impressionMetadataChannel: ManagedChannel,
+)
+
 /**
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
  * the Kingdom.
@@ -102,8 +107,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
 
-    val (cmmsPublicChannel, impressionMetadataStoragePublicChannel) =
-      getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+    val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+
+    val cmmsPublicChannel = grpcChannels.cmmsChannel
+    val impressionMetadataStoragePublicChannel = grpcChannels.impressionMetadataChannel
 
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
@@ -244,7 +251,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
      */
     fun getOrCreateSharedChannels(
       dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-    ): Pair<ManagedChannel, ManagedChannel> {
+    ): GrpcChannels {
       val cmmsChannelKey =
         ChannelKey(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
       val impressionsChannelKey =
@@ -276,7 +283,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           )
         }
 
-      return cmmsChannel to impressionChannel
+      return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
   }
 }
