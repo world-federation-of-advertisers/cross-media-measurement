@@ -62,8 +62,12 @@ kt_jvm_library(
     srcs = ["BasicReportsServiceTest.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
