@@ -58,6 +58,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest
@@ -74,8 +75,10 @@ import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRe
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.WORKER1_DUCHY
 
 private const val RANDOM_SEED = 1
 private const val PROVIDED_MEASUREMENT_ID = "measurement"
@@ -830,6 +833,60 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
+  fun `setParticipantRequisitionParams for TrusTEE updates Requisition and Measurement state`() {
+    runBlocking {
+      createDuchyCertificates()
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider =
+        population.createDataProvider(
+          dataProvidersService,
+          listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        )
+      val externalComputationId =
+        population
+          .createTrusTeeMeasurement(
+            measurementsService,
+            measurementConsumer,
+            PROVIDED_MEASUREMENT_ID,
+            dataProvider,
+          )
+          .externalComputationId
+
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          this.externalComputationId = externalComputationId
+          externalDuchyId = DUCHIES[0].externalDuchyId
+          externalDuchyCertificateId =
+            duchyCertificates[DUCHIES[0].externalDuchyId]!!.externalCertificateId
+          trusTee = TrusTeeParams.getDefaultInstance()
+        }
+      )
+
+      val measurement =
+        measurementsService.getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
+            this.externalComputationId = externalComputationId
+          }
+        )
+      assertThat(measurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_FULFILLMENT)
+
+      val requisitions: List<Requisition> =
+        requisitionsService
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+      assertThat(requisitions.map { it.state }).containsExactly(Requisition.State.UNFULFILLED)
+    }
+  }
+
+  @Test
   fun `confirmComputationParticipant succeeds for non-last duchy`(): Unit = runBlocking {
     createDuchyCertificates()
     val measurement =
@@ -1297,6 +1354,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         ProtocolConfig.HonestMajorityShareShuffle.getDefaultInstance(),
         Population.WORKER1_DUCHY.externalDuchyId,
         Population.WORKER2_DUCHY.externalDuchyId,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
+      )
+      TrusTeeProtocolConfig.setForTest(
+        ProtocolConfig.TrusTee.getDefaultInstance(),
         Population.AGGREGATOR_DUCHY.externalDuchyId,
       )
     }
