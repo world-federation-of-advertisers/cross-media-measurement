@@ -85,6 +85,12 @@ resource "google_compute_address" "system_v1alpha" {
   address = var.system_v1alpha_ip_address
 }
 
+resource "google_compute_address" "internal" {
+  name    = "${var.name}-duchy-internal"
+  address = var.internal_ip_address
+  address_type = "INTERNAL"
+}
+
 resource "google_monitoring_dashboard" "dashboards" {
   for_each = toset(var.dashboard_json_files)
 
@@ -92,4 +98,3 @@ resource "google_monitoring_dashboard" "dashboards" {
     duchy_name = var.name
   })
 }
-
