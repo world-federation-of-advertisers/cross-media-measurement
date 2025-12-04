@@ -716,6 +716,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 8
           minutes = 6
           seconds = 5
           nanos = 4
