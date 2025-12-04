@@ -152,6 +152,18 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       details = basicReportDetails {
         title = "title"
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          externalImpressionQualificationFilterId =
+            IMPRESSION_QUALIFICATION_FILTER_MAPPING.impressionQualificationFilters
+              .first()
+              .externalImpressionQualificationFilterId
+        }
+        effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+          externalImpressionQualificationFilterId =
+            IMPRESSION_QUALIFICATION_FILTER_MAPPING.impressionQualificationFilters
+              .first()
+              .externalImpressionQualificationFilterId
+        }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {

@@ -97,6 +97,8 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
+  internalEffectiveReportingImpressionQualificationFilters:
+    List<InternalReportingImpressionQualificationFilter>,
   effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
@@ -108,11 +110,8 @@ fun BasicReport.toInternal(
     details = internalBasicReportDetails {
       title = source.title
       impressionQualificationFilters += internalReportingImpressionQualificationFilters
-      for (reportingImpressionQualificationFilter in source.impressionQualificationFiltersList) {
-        if (reportingImpressionQualificationFilter.hasCustom()) {
-          impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
-        }
-      }
+      effectiveImpressionQualificationFilters +=
+        internalEffectiveReportingImpressionQualificationFilters
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
         reportEnd = source.reportingInterval.reportEnd
@@ -390,6 +389,15 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       source.details.impressionQualificationFiltersList) {
       impressionQualificationFilters +=
         internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
+    }
+    if (source.details.effectiveImpressionQualificationFiltersList.isNotEmpty()) {
+      for (internalImpressionQualificationFilter in
+        source.details.effectiveImpressionQualificationFiltersList) {
+        effectiveImpressionQualificationFilters +=
+          internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
+      }
+    } else {
+      effectiveImpressionQualificationFilters += impressionQualificationFilters
     }
     for (internalResultGroupSpec in source.details.resultGroupSpecsList) {
       resultGroupSpecs += internalResultGroupSpec.toResultGroupSpec()

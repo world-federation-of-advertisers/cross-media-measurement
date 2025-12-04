@@ -117,6 +117,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  private val baseImpressionQualificationFilters: List<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -161,7 +162,12 @@ class BasicReportsService(
     val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     try {
-      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
+      validateCreateBasicReportRequest(
+        request,
+        campaignGroup,
+        eventTemplateFieldsByPath,
+        baseImpressionQualificationFilters.isEmpty(),
+      )
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -231,12 +237,52 @@ class BasicReportsService(
     val impressionQualificationFilterSpecsLists:
       MutableList<List<ImpressionQualificationFilterSpec>> =
       mutableListOf()
+
+    val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
+      Map<String, InternalReportingImpressionQualificationFilter> =
+      buildMap {
+        for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
+          val key = ImpressionQualificationFilterKey.fromName(baseImpressionQualificationFilter)
+          val internalImpressionQualificationFilter =
+            internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+              getImpressionQualificationFilterRequest {
+                externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
+              }
+            )
+
+          put(
+            baseImpressionQualificationFilter,
+            reportingImpressionQualificationFilter {
+              externalImpressionQualificationFilterId =
+                internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+              filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+            },
+          )
+
+          impressionQualificationFilterSpecsLists.add(
+            internalImpressionQualificationFilter.toImpressionQualificationFilter().filterSpecsList
+          )
+        }
+      }
+
     val internalReportingImpressionQualificationFilters:
       List<InternalReportingImpressionQualificationFilter> =
       buildList {
         for (impressionQualificationFilter in
           request.basicReport.impressionQualificationFiltersList) {
           if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
+            if (
+              baseImpressionQualificationFilters.contains(
+                impressionQualificationFilter.impressionQualificationFilter
+              )
+            ) {
+              add(
+                baseInternalReportingQualificationFilterByImpressionQualificationFilterName
+                  .getValue(impressionQualificationFilter.impressionQualificationFilter)
+              )
+              continue
+            }
+
             val key =
               ImpressionQualificationFilterKey.fromName(
                 impressionQualificationFilter.impressionQualificationFilter
@@ -284,6 +330,7 @@ class BasicReportsService(
               }
             }
           } else if (impressionQualificationFilter.hasCustom()) {
+            add(impressionQualificationFilter.toInternal())
             impressionQualificationFilterSpecsLists.add(
               impressionQualificationFilter.custom.filterSpecList
             )
@@ -292,6 +339,11 @@ class BasicReportsService(
       }
 
     val createReportRequestId = UUID.randomUUID().toString()
+
+    val basicReportImpressionQualificationFilterNames: List<String> =
+      request.basicReport.impressionQualificationFiltersList
+        .filter { it.hasImpressionQualificationFilter() }
+        .map { it.impressionQualificationFilter }
 
     val createdInternalBasicReport =
       try {
@@ -305,6 +357,11 @@ class BasicReportsService(
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
                   internalReportingImpressionQualificationFilters,
+                internalEffectiveReportingImpressionQualificationFilters =
+                  baseInternalReportingQualificationFilterByImpressionQualificationFilterName
+                    .entries
+                    .filterNot { it.key in basicReportImpressionQualificationFilterNames }
+                    .map { it.value } + internalReportingImpressionQualificationFilters,
                 effectiveModelLine = modelLine,
               )
             requestId = request.requestId
