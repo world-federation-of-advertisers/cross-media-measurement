@@ -368,6 +368,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		ports: [...#ServicePort]
 		type?:           "ClusterIP" | "LoadBalancer"
 		loadBalancerIP?: string | null
+		loadBalancerSourceRanges?: [...string]
 	}
 }
 

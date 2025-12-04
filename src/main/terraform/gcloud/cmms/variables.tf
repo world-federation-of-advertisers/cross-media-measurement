@@ -261,3 +261,18 @@ variable "results_fulfiller_trusted_root_ca_collection_file_path" {
   description = "Trusted root CA used by the Results Fulfiller."
   type = string
 }
+
+variable "duchy_aggregator_computations_service_target" {
+  description = "Target of aggregator computations service."
+  type = string
+}
+
+variable "kingdom_system_api_target" {
+  description = "Target of the kingdom system api"
+  type = string
+}
+
+variable "duchy_aggregator_cert_id" {
+  description = "Aggregator's certificate id"
+  type = string
+}
