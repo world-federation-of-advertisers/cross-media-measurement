@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Attach CLIs to release
+name: Attach artifacts to release
 
 on:
   release:
@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 jobs:
-  attach-clis-to-release:
-    name: Attach CLIs to release
+  attach-artifacts-to-release:
+    name: Attach artifacts to release
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -65,6 +65,15 @@ jobs:
           bazel build
           //src/main/python/wfa/measurement/reporting/postprocessing/tools:log_processor_pyzip
 
+      - name: Build reporting API specs
+        run: |
+          bazel build //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs
+          bazel cquery //src/main/proto/wfa/measurement/reporting/v2alpha:exposed_openapi_specs --output files \
+            | grep "^bazel-out" \
+            | tar -czf reporting_api_specs.tar.gz --transform='s|^.*/wfa/measurement/||' -T -
+          echo "Tar content is:"
+          tar -tf reporting_api_specs.tar.gz
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
@@ -90,6 +99,7 @@ jobs:
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/access/deploy/tools/Access_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/ModelRepository_deploy.jar
             ./bazel-bin/src/main/python/wfa/measurement/reporting/postprocessing/tools/log_processor.zip
+            reporting_api_specs.tar.gz
           )
 
           echo "Signing artifacts:"

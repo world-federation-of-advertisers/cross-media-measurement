@@ -46,6 +46,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -84,6 +85,8 @@ class EventGroupSyncFunctionTest() {
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
       .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+    onBlocking { deleteEventGroup(any<DeleteEventGroupRequest>()) }
+      .thenAnswer { invocation -> invocation.getArgument<DeleteEventGroupRequest>(0) }
     onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
       .thenAnswer { invocation ->
         val eventGroup = invocation.getArgument<CreateEventGroupRequest>(0).eventGroup
