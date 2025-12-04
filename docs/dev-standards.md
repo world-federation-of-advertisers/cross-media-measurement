@@ -157,3 +157,19 @@ Before adding other reviewers, please:
 ### Code Style
 
 See [Code Style](code-style.md).
+
+## Pull Requests, Issues & Milestones
+
+### Pull Requests
+- Every PR should be associated with an existing Issue.
+- If a PR is associated with an Issue, it **must** have an `Issue` trailer.
+
+### Issues
+- **Type**: Each issue **must** have it's type assigned (e.g. `Bug`, `Feature request`, etc.). Labels should be used only for additional context, not as a substitute for the type.
+- **Title**: Issue titles must be self-contained — i.e. meaningful and readable without needing context from a parent issue.
+- **Dependency**: If an issue is blocked by, or is blocking another issue, the dependency should be declared in the the Issue's `Relationships` field (blocked by / blocking).
+- **Template**: Use the appropriate issue template when creating an issue. If no special template applies, fall back to the 'blank' template.
+
+### Milestones
+- Issues that don't relate to `src` files in the repo have type Process and aren't associated with a given milestone.
+- Only **issues** — not PRs — should be linked to milestones.
