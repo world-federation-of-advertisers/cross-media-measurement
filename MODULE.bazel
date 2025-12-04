@@ -145,6 +145,10 @@ bazel_dep(
     version = "1.1.0",
 )
 bazel_dep(
+    name = "grpc",
+    version = "1.72.0",
+)
+bazel_dep(
     name = "rules_proto_grpc_python",
     version = "5.1.0"
 )
@@ -428,4 +432,8 @@ single_version_override(
 single_version_override(
     module_name = "protobuf",
     version = "29.5",
+)
+single_version_override(
+    module_name = "googleapis",
+    version = "0.0.0-20251127-8cd3749f",
 )
