@@ -50,7 +50,7 @@ service ReportingSets {
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/reportingSets"
-      body: "reporting_set"
+      body: "*"
     };
     option (google.api.method_signature) =
         "parent,reporting_set,reporting_set_id";
