@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import com.google.cloud.spanner.Options
-import com.google.protobuf.Descriptors
 import com.google.protobuf.Empty
 import com.google.type.DateTime
 import io.grpc.Status
@@ -92,8 +91,10 @@ class SpannerReportResultsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportResultsGrpcKt.ReportResultsCoroutineImplBase(coroutineContext) {
   private val eventMessageVersion =
-    EventTemplates.getEventDescriptor(impressionQualificationFilterMapping.eventMessageDescriptor).currentVersion
-  private val groupingDimensions = GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+    EventTemplates.getEventDescriptor(impressionQualificationFilterMapping.eventMessageDescriptor)
+      .currentVersion
+  private val groupingDimensions =
+    GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {

@@ -84,7 +84,8 @@ class SpannerBasicReportsService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
-  private val groupingDimensions = GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+  private val groupingDimensions =
+    GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
 
   private sealed class ReportingSetKey {
     data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()

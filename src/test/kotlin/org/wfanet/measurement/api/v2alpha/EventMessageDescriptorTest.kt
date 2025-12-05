@@ -36,7 +36,8 @@ class EventMessageDescriptorTest {
   @Test
   fun `EventMessageDescriptor instantiation succeeds`() {
     val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
-    val eventMessageDescriptor = EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
+    val eventMessageDescriptor =
+      EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
     assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(6)
     assertThat(eventMessageDescriptor.eventTemplateFieldsByPath)

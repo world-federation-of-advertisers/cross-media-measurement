@@ -20,7 +20,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Descriptors
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import com.google.type.date
@@ -107,11 +106,7 @@ abstract class ReportResultsServiceTest {
 
   private val grpcChannel by lazy {
     val serverName = InProcessServerBuilder.generateName()
-    val services =
-      createServices(
-        idGenerator,
-        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
-      )
+    val services = createServices(idGenerator, IMPRESSION_QUALIFICATION_FILTER_MAPPING)
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .apply {

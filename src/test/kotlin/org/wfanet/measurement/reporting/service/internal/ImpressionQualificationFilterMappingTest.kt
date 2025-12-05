@@ -113,7 +113,7 @@ class ImpressionQualificationFilterMappingTest {
         ImpressionQualificationFilterMapping(
           impressionQualificationFilterConfig,
           TestEvent.getDescriptor(),
-          )
+        )
       }
 
     assertThat(exception.message).contains("Invalid impression qualification filter spec")
