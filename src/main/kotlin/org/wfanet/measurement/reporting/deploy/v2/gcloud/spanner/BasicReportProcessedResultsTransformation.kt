@@ -66,8 +66,10 @@ object BasicReportProcessedResultsTransformation {
     val reportingImpressionQualificationFilterByExternalId:
       Map<String, ReportingImpressionQualificationFilter> =
       buildMap {
-        for (impressionQualificationFilter in
-          basicReport.details.impressionQualificationFiltersList) {
+        val impressionQualificationFilters =
+          basicReport.details.effectiveImpressionQualificationFiltersList
+
+        for (impressionQualificationFilter in impressionQualificationFilters) {
           if (impressionQualificationFilter.externalImpressionQualificationFilterId.isEmpty()) {
             customReportingImpressionQualificationFilter = impressionQualificationFilter
           } else {

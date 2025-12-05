@@ -54,6 +54,8 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * @param campaignGroup
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
+ * @param requireImpressionQualificationFilters Whether impression_qualification_filters field is
+ *   required or not
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -61,6 +63,7 @@ fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  requireImpressionQualificationFilters: Boolean,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -97,6 +100,7 @@ fun validateCreateBasicReportRequest(
   validateReportingImpressionQualificationFilters(
     request.basicReport.impressionQualificationFiltersList,
     eventTemplateFieldsByPath,
+    requireImpressionQualificationFilters,
   )
   validateResultGroupSpecs(
     request.basicReport.resultGroupSpecsList,
@@ -592,14 +596,17 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
  *   to validate
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
+ * @param requireImpressionQualificationFilters Whether impression_qualification_filters field is
+ *   required or not
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
 fun validateReportingImpressionQualificationFilters(
   reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  requireImpressionQualificationFilters: Boolean,
 ) {
-  if (reportingImpressionQualificationFilters.isEmpty()) {
+  if (reportingImpressionQualificationFilters.isEmpty() && requireImpressionQualificationFilters) {
     throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
   }
 

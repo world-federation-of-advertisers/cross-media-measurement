@@ -71,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportScheduleIterationsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportSchedulesGrpcKt.ReportSchedulesCoroutineStub as InternalReportSchedulesCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.reporting.deploy.v2.common.EncryptionKeyPairMap
@@ -84,6 +85,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.EventGroupsService
+import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ModelLinesService
@@ -93,6 +95,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
@@ -200,6 +203,37 @@ private object V2AlphaPublicApiServer {
           when (e.status.code) {
             Status.Code.ALREADY_EXISTS -> {}
             else -> throw e
+          }
+        }
+      }
+    }
+
+    val internalImpressionQualificationFiltersCoroutineStub =
+      InternalImpressionQualificationFiltersCoroutineStub(channel)
+
+    val baseImpressionQualificationFilters: List<InternalImpressionQualificationFilter> = buildList {
+      runBlocking {
+        reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
+          try {
+            add(internalImpressionQualificationFiltersCoroutineStub.getImpressionQualificationFilter(
+              getImpressionQualificationFilterRequest {
+                externalImpressionQualificationFilterId =
+                  ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
+                    ?: throw IllegalArgumentException(
+                      "$it in base_impression_qualification_filters is an invalid resource name"
+                    )
+              }
+            ))
+          } catch (e: StatusException) {
+            when (e.status.code) {
+              Status.Code.NOT_FOUND -> {
+                throw IllegalArgumentException(
+                  "$it in base_impression_qualification_filters is not found"
+                )
+              }
+
+              else -> throw e
+            }
           }
         }
       }
@@ -359,7 +393,7 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
             InternalBasicReportsCoroutineStub(channel),
-            InternalImpressionQualificationFiltersCoroutineStub(channel),
+            internalImpressionQualificationFiltersCoroutineStub,
             InternalReportingSetsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
             ReportsCoroutineStub(inProcessReportsChannel),
@@ -369,6 +403,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
+            baseImpressionQualificationFilters,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),

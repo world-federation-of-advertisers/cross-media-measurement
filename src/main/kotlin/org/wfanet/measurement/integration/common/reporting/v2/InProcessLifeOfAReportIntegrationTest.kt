@@ -2316,6 +2316,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         basicReport.copy {
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters +=
+            retrievedPublicBasicReport.impressionQualificationFiltersList
           effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
         }
       )
@@ -2685,6 +2687,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 }
               }
           }
+          effectiveImpressionQualificationFilters += impressionQualificationFilters
 
           resultGroups += resultGroup {
             title = "title"
