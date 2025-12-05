@@ -29,5 +29,6 @@ package org.wfanet.measurement.computation
 data class KAnonymityParams(
   val minUsers: Int,
   val minImpressions: Int,
-  val reachMaxFrequencyPerUser: Int = 126,
+  val reachMaxFrequencyPerUser: Int =
+    minOf(Byte.MAX_VALUE.toInt(), ComputationParams.MAX_RING_MODULUS),
 )

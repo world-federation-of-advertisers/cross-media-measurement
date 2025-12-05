@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import org.wfanet.measurement.computation.ComputationParams.MAX_RING_MODULUS
+
 /**
  * Thread-safe, memory-efficient frequency vector using striped byte arrays.
  *
@@ -32,7 +34,7 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
   companion object {
     private const val DEFAULT_STRIPE_COUNT = 1024
     // The max should be less than the minimum of Byte.MAX_VALUE and the HMShuffle Ring Modulus
-    private const val MAX_VALUE = 126
+    private val MAX_VALUE = minOf(Byte.MAX_VALUE.toInt(), MAX_RING_MODULUS)
   }
 
   // same as ceil(size / stripeCount) to avoid losing the last stripe
