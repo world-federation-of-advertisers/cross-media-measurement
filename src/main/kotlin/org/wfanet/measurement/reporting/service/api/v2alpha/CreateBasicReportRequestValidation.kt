@@ -25,7 +25,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
@@ -60,7 +60,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -118,7 +118,7 @@ fun validateCreateBasicReportRequest(
 fun validateResultGroupSpecs(
   resultGroupSpecs: List<ResultGroupSpec>,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (resultGroupSpecs.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.result_group_specs")
@@ -203,7 +203,7 @@ fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set
  */
 fun validateDimensionSpec(
   dimensionSpec: DimensionSpec,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   val groupingEventTemplateFieldsSet: Set<String> = buildSet {
     if (dimensionSpec.hasGrouping()) {
@@ -252,7 +252,7 @@ fun validateDimensionSpec(
  */
 fun validateDimensionSpecGrouping(
   grouping: DimensionSpec.Grouping,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (grouping.eventTemplateFieldsList.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -298,7 +298,7 @@ fun validateDimensionSpecGrouping(
  */
 fun validateDimensionSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (eventTemplateField.path.isEmpty()) {
     throw RequiredFieldNotSetException(
@@ -391,7 +391,7 @@ fun validateDimensionSpecEventTemplateField(
  */
 fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
   eventTemplateField: EventTemplateField,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   mediaType: MediaType,
 ) {
   if (eventTemplateField.path.isEmpty()) {
@@ -597,7 +597,7 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
  */
 fun validateReportingImpressionQualificationFilters(
   reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (reportingImpressionQualificationFilters.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
@@ -643,7 +643,7 @@ fun validateReportingImpressionQualificationFilters(
  */
 fun validateCustomImpressionQualificationFilterSpec(
   customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ) {
   if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
     throw RequiredFieldNotSetException(

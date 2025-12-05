@@ -88,13 +88,12 @@ import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetExce
 class SpannerReportResultsService(
   private val spannerClient: AsyncDatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
-  eventMessageDescriptor: Descriptors.Descriptor,
   private val idGenerator: IdGenerator = RandomIdGenerator(),
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportResultsGrpcKt.ReportResultsCoroutineImplBase(coroutineContext) {
   private val eventMessageVersion =
-    EventTemplates.getEventDescriptor(eventMessageDescriptor).currentVersion
-  private val groupingDimensions = GroupingDimensions(eventMessageDescriptor)
+    EventTemplates.getEventDescriptor(impressionQualificationFilterMapping.eventMessageDescriptor).currentVersion
+  private val groupingDimensions = GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {

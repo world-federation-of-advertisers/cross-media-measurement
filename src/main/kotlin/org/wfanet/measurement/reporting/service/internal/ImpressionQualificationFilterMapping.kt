@@ -16,7 +16,7 @@ package org.wfanet.measurement.reporting.service.internal
 
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.MediaType as EventAnnotationMediaType
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
@@ -30,10 +30,12 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 
 class ImpressionQualificationFilterMapping(
   config: ImpressionQualificationFilterConfig,
-  eventDescriptor: EventDescriptor?,
+  val eventMessageDescriptor: Descriptors.Descriptor,
 ) {
-  private val eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo> =
-    eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+  private val eventDescriptor: EventMessageDescriptor = EventMessageDescriptor(eventMessageDescriptor)
+
+  private val eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo> =
+    eventDescriptor.eventTemplateFieldsByPath
 
   val impressionQualificationFilters:
     List<ImpressionQualificationFilterConfig.ImpressionQualificationFilter> =

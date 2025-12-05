@@ -23,7 +23,6 @@ import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -46,7 +45,6 @@ import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -100,7 +98,7 @@ val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig 
 val IMPRESSION_QUALIFICATION_FILTER_MAPPING: ImpressionQualificationFilterMapping =
   ImpressionQualificationFilterMapping(
     IMPRESSION_QUALIFICATION_FILTER_CONFIG,
-    EventDescriptor(TestEvent.getDescriptor()),
+    TestEvent.getDescriptor(),
   )
 
 val AGGREGATOR_NAME =

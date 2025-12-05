@@ -22,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfigKt.impressionQualificationFilter
@@ -78,7 +77,7 @@ class ImpressionQualificationFilterMappingTest {
 
     ImpressionQualificationFilterMapping(
       impressionQualificationFilterConfig,
-      EventDescriptor(TestEvent.getDescriptor()),
+      TestEvent.getDescriptor(),
     )
 
     assert(true)
@@ -113,8 +112,8 @@ class ImpressionQualificationFilterMappingTest {
       assertFailsWith<IllegalArgumentException> {
         ImpressionQualificationFilterMapping(
           impressionQualificationFilterConfig,
-          EventDescriptor(TestEvent.getDescriptor()),
-        )
+          TestEvent.getDescriptor(),
+          )
       }
 
     assertThat(exception.message).contains("Invalid impression qualification filter spec")

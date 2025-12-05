@@ -19,7 +19,6 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TestRule
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -46,14 +45,12 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
           spannerClient = spannerDatabaseClient,
           postgresClient = postgresDatabaseClient,
           impressionQualificationFilterMapping = impressionQualificationFilterMapping,
-          eventMessageDescriptor = TestEvent.getDescriptor(),
         ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
       PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
       SpannerReportResultsService(
         spannerClient = spannerDatabaseClient,
         impressionQualificationFilterMapping = impressionQualificationFilterMapping,
-        eventMessageDescriptor = TestEvent.getDescriptor(),
       ),
     )
   }

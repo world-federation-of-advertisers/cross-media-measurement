@@ -63,7 +63,7 @@ kt_jvm_library(
     name = "event_message_flags",
     srcs = ["EventMessageFlags.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

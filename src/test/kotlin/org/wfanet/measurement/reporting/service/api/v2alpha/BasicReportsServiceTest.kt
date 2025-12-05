@@ -69,7 +69,7 @@ import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.getRuntimePath
@@ -205,7 +205,6 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
-        TestEvent.getDescriptor(),
       )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
@@ -9023,7 +9022,7 @@ class BasicReportsServiceTest {
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
-    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
+    private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
 
     private val SECRETS_DIR =
       getRuntimePath(
@@ -9119,7 +9118,7 @@ class BasicReportsServiceTest {
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
       ImpressionQualificationFilterMapping(
         IMPRESSION_QUALIFICATION_FILTER_CONFIG,
-        EventDescriptor(TestEvent.getDescriptor()),
+        TestEvent.getDescriptor(),
       )
 
     private val BASIC_REPORT = basicReport {

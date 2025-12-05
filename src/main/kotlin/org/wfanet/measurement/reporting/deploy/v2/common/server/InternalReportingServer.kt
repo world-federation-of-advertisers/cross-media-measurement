@@ -29,7 +29,6 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
@@ -225,7 +224,7 @@ class InternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(
           impressionQualificationFilterConfig,
-          EventDescriptor(eventMessageDescriptor),
+          eventMessageDescriptor,
         )
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->

@@ -56,7 +56,7 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:access_services_factory",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_access",

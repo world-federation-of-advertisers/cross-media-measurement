@@ -36,7 +36,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -1904,7 +1903,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
       ImpressionQualificationFilterMapping(
         IMPRESSION_QUALIFICATION_FILTER_CONFIG,
-        EventDescriptor(TestEvent.getDescriptor()),
+        TestEvent.getDescriptor(),
       )
 
     private val REPORTING_SET = reportingSet {

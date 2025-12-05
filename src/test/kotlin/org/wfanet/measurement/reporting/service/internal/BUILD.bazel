@@ -30,7 +30,7 @@ kt_jvm_test(
     name = "ImpressionQualificationFilterMappingTest",
     srcs = ["ImpressionQualificationFilterMappingTest.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",

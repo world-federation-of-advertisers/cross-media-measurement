@@ -321,7 +321,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/common:timestamps",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:measurement_consumer_credentials",
@@ -346,7 +346,7 @@ kt_jvm_library(
     name = "basic_report_transformations",
     srcs = ["BasicReportTransformations.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
@@ -364,8 +364,8 @@ kt_jvm_library(
     srcs = ["CreateBasicReportRequestValidation.kt"],
     deps = [
         ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/common:event_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
         "//src/main/kotlin/org/wfanet/measurement/common/mediatype:media_type",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
