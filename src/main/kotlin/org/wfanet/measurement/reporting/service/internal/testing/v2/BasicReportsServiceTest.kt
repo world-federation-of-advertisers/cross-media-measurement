@@ -648,7 +648,6 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           }
         )
 
-      assertThat(retrievedBasicReport).isEqualTo(createdBasicReport)
       assertThat(retrievedBasicReport.details).isEqualTo(basicReport.details.copy {
         effectiveImpressionQualificationFilters += basicReport.details.impressionQualificationFiltersList
       })

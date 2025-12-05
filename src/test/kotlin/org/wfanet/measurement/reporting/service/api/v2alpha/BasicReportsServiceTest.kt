@@ -92,6 +92,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
+import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -1695,22 +1696,8 @@ class BasicReportsServiceTest {
         modelLine = specifiedModelLine.name
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+            ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
               .toName()
-        }
-        impressionQualificationFilters += reportingImpressionQualificationFilter {
-          custom =
-            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.DISPLAY
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "banner_ad.viewable"
-                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                  }
-                }
-              }
-            }
         }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
@@ -2431,7 +2418,7 @@ class BasicReportsServiceTest {
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
         listOf(
-          ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+          INTERNAL_AMI_IQF
         ),
       )
 
@@ -2543,7 +2530,7 @@ class BasicReportsServiceTest {
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
         listOf(
-          ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+          INTERNAL_AMI_IQF
         ),
       )
 
@@ -2665,10 +2652,8 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           listOf(
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
-              .toName(),
-            ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
-              .toName(),
+            INTERNAL_AMI_IQF,
+            INTERNAL_MRC_IQF,
           ),
         )
 
@@ -9437,6 +9422,38 @@ class BasicReportsServiceTest {
         }
     }
 
+    private val INTERNAL_AMI_IQF = internalImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      filterSpecs +=
+        internalImpressionQualificationFilterSpec {
+          mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+          filters +=
+            internalEventFilter {
+              terms +=
+                internalEventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
+                }
+            }
+        }
+    }
+
+    private val INTERNAL_MRC_IQF = internalImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = "mrc"
+      filterSpecs +=
+        internalImpressionQualificationFilterSpec {
+          mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+          filters +=
+            internalEventFilter {
+              terms +=
+                internalEventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = InternalEventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+            }
+        }
+    }
+
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
@@ -9448,7 +9465,7 @@ class BasicReportsServiceTest {
               terms +=
                 ImpressionQualificationFilterConfigKt.eventTemplateField {
                   path = "banner_ad.viewable"
-                  value = fieldValue { boolValue = true }
+                  value = fieldValue { boolValue = false }
                 }
             }
         }

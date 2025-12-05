@@ -46,6 +46,7 @@ import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as ImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -117,7 +118,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  private val baseImpressionQualificationFilters: List<String>,
+  private val baseImpressionQualificationFilters: List<ImpressionQualificationFilter>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -125,6 +126,26 @@ class BasicReportsService(
 
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
+
+  private val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
+    Map<String, InternalReportingImpressionQualificationFilter> =
+    buildMap {
+      for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
+        val key =
+          ImpressionQualificationFilterKey(
+            baseImpressionQualificationFilter.externalImpressionQualificationFilterId
+          )
+
+        put(
+          key.toName(),
+          reportingImpressionQualificationFilter {
+            externalImpressionQualificationFilterId =
+              baseImpressionQualificationFilter.externalImpressionQualificationFilterId
+            filterSpecs += baseImpressionQualificationFilter.filterSpecsList
+          },
+        )
+      }
+    }
 
   private data class ReportingSetMaps(
     // Map of DataProvider resource name to Primitive ReportingSet
@@ -238,32 +259,13 @@ class BasicReportsService(
       MutableList<List<ImpressionQualificationFilterSpec>> =
       mutableListOf()
 
-    val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
-      Map<String, InternalReportingImpressionQualificationFilter> =
-      buildMap {
-        for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
-          val key = ImpressionQualificationFilterKey.fromName(baseImpressionQualificationFilter)
-          val internalImpressionQualificationFilter =
-            internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
-              getImpressionQualificationFilterRequest {
-                externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
-              }
-            )
-
-          put(
-            baseImpressionQualificationFilter,
-            reportingImpressionQualificationFilter {
-              externalImpressionQualificationFilterId =
-                internalImpressionQualificationFilter.externalImpressionQualificationFilterId
-              filterSpecs += internalImpressionQualificationFilter.filterSpecsList
-            },
-          )
-
-          impressionQualificationFilterSpecsLists.add(
-            internalImpressionQualificationFilter.toImpressionQualificationFilter().filterSpecsList
-          )
+    impressionQualificationFilterSpecsLists.addAll(
+      baseImpressionQualificationFilters.map { baseImpressionQualificationFilter ->
+        baseImpressionQualificationFilter.filterSpecsList.map {
+          it.toImpressionQualificationFilterSpec()
         }
       }
+    )
 
     val internalReportingImpressionQualificationFilters:
       List<InternalReportingImpressionQualificationFilter> =
@@ -272,7 +274,7 @@ class BasicReportsService(
           request.basicReport.impressionQualificationFiltersList) {
           if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
             if (
-              baseImpressionQualificationFilters.contains(
+              baseInternalReportingQualificationFilterByImpressionQualificationFilterName.contains(
                 impressionQualificationFilter.impressionQualificationFilter
               )
             ) {

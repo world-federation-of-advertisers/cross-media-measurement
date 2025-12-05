@@ -153,14 +153,23 @@ fun ReportingImpressionQualificationFilter.toInternal():
       }
       ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
         for (filterSpec in source.custom.filterSpecList) {
-          filterSpecs += internalImpressionQualificationFilterSpec {
-            mediaType = filterSpec.mediaType.toInternal()
-            filters += filterSpec.filtersList.map { it.toInternal() }
-          }
+          filterSpecs += filterSpec.toInternal()
         }
       }
       ReportingImpressionQualificationFilter.SelectorCase.SELECTOR_NOT_SET -> {}
     }
+  }
+}
+
+/**
+ * Converts the public [ImpressionQualificationFilterSpec] to the internal
+ * [InternalImpressionQualificationFilterSpec].
+ */
+fun ImpressionQualificationFilterSpec.toInternal(): InternalImpressionQualificationFilterSpec {
+  val source = this
+  return internalImpressionQualificationFilterSpec {
+    mediaType = source.mediaType.toInternal()
+    filters += source.filtersList.map { it.toInternal() }
   }
 }
 

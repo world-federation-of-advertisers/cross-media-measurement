@@ -95,6 +95,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
@@ -209,26 +210,30 @@ private object V2AlphaPublicApiServer {
 
     val internalImpressionQualificationFiltersCoroutineStub =
       InternalImpressionQualificationFiltersCoroutineStub(channel)
-    runBlocking {
-      reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
-        try {
-          internalImpressionQualificationFiltersCoroutineStub.getImpressionQualificationFilter(
-            getImpressionQualificationFilterRequest {
-              externalImpressionQualificationFilterId =
-                ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
-                  ?: throw IllegalArgumentException(
-                    "$it in base_impression_qualification_filters is an invalid resource name"
-                  )
+
+    val baseImpressionQualificationFilters: List<InternalImpressionQualificationFilter> = buildList {
+      runBlocking {
+        reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
+          try {
+            add(internalImpressionQualificationFiltersCoroutineStub.getImpressionQualificationFilter(
+              getImpressionQualificationFilterRequest {
+                externalImpressionQualificationFilterId =
+                  ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
+                    ?: throw IllegalArgumentException(
+                      "$it in base_impression_qualification_filters is an invalid resource name"
+                    )
+              }
+            ))
+          } catch (e: StatusException) {
+            when (e.status.code) {
+              Status.Code.NOT_FOUND -> {
+                throw IllegalArgumentException(
+                  "$it in base_impression_qualification_filters is not found"
+                )
+              }
+
+              else -> throw e
             }
-          )
-        } catch (e: StatusException) {
-          when (e.status.code) {
-            Status.Code.NOT_FOUND -> {
-              throw IllegalArgumentException(
-                "$it in base_impression_qualification_filters is not found"
-              )
-            }
-            else -> throw e
           }
         }
       }
@@ -398,7 +403,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
-            reportingApiServerFlags.baseImpressionQualificationFilters,
+            baseImpressionQualificationFilters,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),

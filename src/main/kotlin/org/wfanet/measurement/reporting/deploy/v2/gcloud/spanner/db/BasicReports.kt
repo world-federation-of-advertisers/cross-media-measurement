@@ -312,6 +312,8 @@ private fun buildBasicReport(row: Struct): BasicReport {
     resultDetails =
       row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
+    // For handling BasicReports that were created before
+    // effective_impression_qualification_filters was added.
     if (details.effectiveImpressionQualificationFiltersList.isEmpty()) {
       details = details.copy {
         effectiveImpressionQualificationFilters += this@copy.impressionQualificationFilters
