@@ -40,7 +40,7 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     when (trusTeeParams) {
       is TrusTeeReachAndFrequencyParams -> {
         maxFrequency = trusTeeParams.maximumFrequency
-        require(maxFrequency in 2..MAX_VALUE) { "Invalid max frequency: $maxFrequency" }
+        require(maxFrequency in 2..Byte.MAX_VALUE) { "Invalid max frequency: $maxFrequency" }
         vidSamplingIntervalWidth = trusTeeParams.vidSamplingIntervalWidth
       }
       is TrusTeeReachParams -> {
@@ -129,8 +129,5 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     override fun create(trusTeeParams: TrusTeeParams): TrusTeeProcessor {
       return TrusTeeProcessorImpl(trusTeeParams)
     }
-
-    // The max should be less than the minimum of Byte.MAX_VALUE and the HMShuffle Ring Modulus
-    private const val MAX_VALUE = 126
   }
 }
