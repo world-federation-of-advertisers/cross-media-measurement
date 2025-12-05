@@ -33,8 +33,8 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
 
   companion object {
     private const val DEFAULT_STRIPE_COUNT = 1024
-    // The max should be less than the minimum of Byte.MAX_VALUE and the HMShuffle Ring Modulus
-    private val MAX_VALUE = minOf(Byte.MAX_VALUE.toInt(), MAX_RING_MODULUS)
+    // The max should be <= Byte.MAX_VALUE and < HMShuffle Ring Modulus
+    private val MAX_VALUE = minOf(Byte.MAX_VALUE.toInt(), MAX_RING_MODULUS - 1)
   }
 
   // same as ceil(size / stripeCount) to avoid losing the last stripe
