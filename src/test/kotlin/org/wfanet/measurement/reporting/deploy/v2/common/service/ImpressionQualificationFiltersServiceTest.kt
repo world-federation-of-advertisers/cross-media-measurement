@@ -18,7 +18,6 @@ import java.nio.file.Paths
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
@@ -31,7 +30,7 @@ class ImpressionQualificationFiltersServiceTest :
 
   override fun newService(): ImpressionQualificationFiltersService {
     val impressionQualificationFilterMapping =
-      ImpressionQualificationFilterMapping(IQF_CONFIG, EventDescriptor(TestEvent.getDescriptor()))
+      ImpressionQualificationFilterMapping(IQF_CONFIG, TestEvent.getDescriptor())
 
     return ImpressionQualificationFiltersService(impressionQualificationFilterMapping)
   }

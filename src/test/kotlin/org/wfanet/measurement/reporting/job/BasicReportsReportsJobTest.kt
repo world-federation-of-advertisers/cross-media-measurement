@@ -41,7 +41,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -2247,7 +2247,7 @@ class BasicReportsReportsJobTest {
   }
 
   companion object {
-    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
+    private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
 
     /**
      * Descriptors of repeated fields in [ReportingSetResult] that are treated as unordered lists.

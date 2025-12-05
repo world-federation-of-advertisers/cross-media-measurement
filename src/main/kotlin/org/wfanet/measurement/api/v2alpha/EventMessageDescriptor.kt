@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Duration
 import com.google.protobuf.Timestamp
-import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
-import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
-import org.wfanet.measurement.api.v2alpha.MediaType
 
 /** Wrapper around Descriptor for an Event message */
-class EventDescriptor(eventDescriptor: Descriptors.Descriptor) {
+class EventMessageDescriptor(eventDescriptor: Descriptors.Descriptor) {
   data class SupportedReportingFeatures(
     val groupable: Boolean,
     val filterable: Boolean,

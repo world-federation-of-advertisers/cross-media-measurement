@@ -40,7 +40,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -112,7 +111,6 @@ abstract class ReportResultsServiceTest {
       createServices(
         idGenerator,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
-        TestEvent.getDescriptor(),
       )
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
@@ -143,7 +141,6 @@ abstract class ReportResultsServiceTest {
   protected abstract fun createServices(
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
-    eventMessageDescriptor: Descriptors.Descriptor,
   ): List<BindableService>
 
   @Test
@@ -669,7 +666,7 @@ abstract class ReportResultsServiceTest {
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
       ImpressionQualificationFilterMapping(
         IMPRESSION_QUALIFICATION_FILTER_CONFIG,
-        EventDescriptor(TestEvent.getDescriptor()),
+        TestEvent.getDescriptor(),
       )
 
     val CREATE_REPORT_RESULT_REQUEST = createReportResultRequest {

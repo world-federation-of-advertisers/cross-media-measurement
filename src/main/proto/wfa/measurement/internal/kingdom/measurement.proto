@@ -182,6 +182,8 @@ message Requisition {
       LiquidLegionsV2Params reach_only_liquid_legions_v2 = 3;
 
       HonestMajorityShareShuffleParams honest_majority_share_shuffle = 4;
+
+      TrusTeeParams trus_tee = 5;
     }
   }
   // Map of external Duchy ID to DuchyValue.

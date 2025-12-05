@@ -48,7 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -307,7 +307,7 @@ class InProcessReportingServer(
                 internalMetricCalculationSpecsClient,
                 PublicReportsCoroutineStub(this@GrpcTestServerRule.channel),
                 publicKingdomModelLinesClient,
-                EventDescriptor(eventDescriptor),
+                EventMessageDescriptor(eventDescriptor),
                 METRIC_SPEC_CONFIG,
                 SecureRandom().asKotlinRandom(),
                 authorization,

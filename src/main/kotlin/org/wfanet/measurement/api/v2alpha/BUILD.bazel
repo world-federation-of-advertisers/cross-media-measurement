@@ -107,3 +107,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "event_message_descriptor",
+    srcs = ["EventMessageDescriptor.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:media_type_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)

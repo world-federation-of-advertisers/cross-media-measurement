@@ -28,7 +28,7 @@ import kotlin.math.roundToInt
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
@@ -86,7 +86,7 @@ class BasicReportsReportsJob(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
-  private val eventDescriptor: EventDescriptor?,
+  private val eventMessageDescriptor: EventMessageDescriptor?,
 ) {
 
   /**
@@ -94,7 +94,7 @@ class BasicReportsReportsJob(
    * each of those BasicReports, the Report is retrieved.
    */
   suspend fun execute() {
-    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     val eventTemplateFieldByPredicate =
       buildEventTemplateFieldByPredicateMap(eventTemplateFieldsByPath)
@@ -227,7 +227,7 @@ class BasicReportsReportsJob(
     reportResult: ReportResult,
     basicReport: BasicReport,
     report: Report,
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
     val reportingSetResultInfoByReportingSetResultInfoKey:
@@ -534,7 +534,7 @@ class BasicReportsReportsJob(
    * @return Map of Predicate String to [EventTemplateField]
    */
   private fun buildEventTemplateFieldByPredicateMap(
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>
   ): Map<String, EventTemplateField> {
     return buildMap {
       for (eventTemplateFieldEntry in eventTemplateFieldsByPath.entries) {
@@ -566,7 +566,7 @@ class BasicReportsReportsJob(
    */
   private fun buildFilterInfoByFilterString(
     basicReport: BasicReport,
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): Map<String, FilterInfo> {
     return buildMap {
       for (reportingImpressionQualificationFilter in

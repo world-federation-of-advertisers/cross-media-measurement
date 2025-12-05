@@ -23,7 +23,7 @@ import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
 import org.wfanet.measurement.api.v2alpha.MediaTypeProto
-import org.wfanet.measurement.common.EventDescriptor
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.ProtoReflection
 import picocli.CommandLine
 
@@ -50,7 +50,7 @@ class EventMessageFlags {
   var eventMessageDescriptorSetFiles: List<File> = emptyList()
     private set
 
-  val eventDescriptor: EventDescriptor? by lazy {
+  val eventDescriptor: EventMessageDescriptor? by lazy {
     // TODO(@tristanvuong2021): Flags will be required once BasicReports Phase 2 is completed.
     // When the flags are required, this will be moved to a common location that covers
     // PopulationRequisitionFulfillerDaemon as well.
@@ -63,7 +63,7 @@ class EventMessageFlags {
           "--event-message-type-url is invalid"
         }
 
-      EventDescriptor(eventDescriptor)
+      EventMessageDescriptor(eventDescriptor)
     } else {
       null
     }

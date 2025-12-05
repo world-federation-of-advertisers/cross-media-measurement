@@ -41,7 +41,6 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -431,7 +430,7 @@ class ImpressionQualificationFiltersServiceTest {
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
       ImpressionQualificationFilterMapping(
         IMPRESSION_QUALIFICATION_FILTER_CONFIG,
-        EventDescriptor(TestEvent.getDescriptor()),
+        TestEvent.getDescriptor(),
       )
   }
 }

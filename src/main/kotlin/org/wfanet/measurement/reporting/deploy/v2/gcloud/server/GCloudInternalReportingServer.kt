@@ -19,7 +19,6 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.EventDescriptor
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
@@ -66,7 +65,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
       val impressionQualificationFilterMapping =
         ImpressionQualificationFilterMapping(
           impressionQualificationFilterConfig,
-          EventDescriptor(eventMessageDescriptor),
+          eventMessageDescriptor,
         )
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
