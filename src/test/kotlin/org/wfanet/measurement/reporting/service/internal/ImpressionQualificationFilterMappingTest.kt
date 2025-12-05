@@ -31,7 +31,7 @@ import org.wfanet.measurement.config.reporting.impressionQualificationFilterConf
 @RunWith(JUnit4::class)
 class ImpressionQualificationFilterMappingTest {
   @Test
-  fun `processing valid config is successful`() {
+  fun `processing valid config returns instance`() {
     val amiIqf = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
@@ -79,8 +79,6 @@ class ImpressionQualificationFilterMappingTest {
       impressionQualificationFilterConfig,
       TestEvent.getDescriptor(),
     )
-
-    assert(true)
   }
 
   @Test
