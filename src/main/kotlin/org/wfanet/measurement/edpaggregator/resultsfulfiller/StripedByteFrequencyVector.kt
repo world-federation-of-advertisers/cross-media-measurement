@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
-import org.wfanet.measurement.computation.ComputationParams.MAX_RING_MODULUS
+import org.wfanet.measurement.computation.ComputationParams.MIN_RING_MODULUS
 
 /**
  * Thread-safe, memory-efficient frequency vector using striped byte arrays.
