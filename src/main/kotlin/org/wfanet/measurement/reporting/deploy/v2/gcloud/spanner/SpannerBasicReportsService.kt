@@ -359,6 +359,11 @@ class SpannerBasicReportsService(
         campaignGroupDisplayName = campaignGroup.displayName
         createTime = commitTimestamp
         state = BasicReport.State.CREATED
+        if (request.basicReport.details.effectiveImpressionQualificationFiltersList.isEmpty()) {
+          details = request.basicReport.details.copy {
+            effectiveImpressionQualificationFilters += request.basicReport.details.impressionQualificationFiltersList
+          }
+        }
       }
     }
   }

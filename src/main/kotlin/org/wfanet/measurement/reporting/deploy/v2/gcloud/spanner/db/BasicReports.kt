@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 
 data class BasicReportResult(
@@ -311,6 +312,11 @@ private fun buildBasicReport(row: Struct): BasicReport {
     resultDetails =
       row.getProtoMessage("BasicReportResultDetails", BasicReportResultDetails.getDefaultInstance())
     details = row.getProtoMessage("BasicReportDetails", BasicReportDetails.getDefaultInstance())
+    if (details.effectiveImpressionQualificationFiltersList.isEmpty()) {
+      details = details.copy {
+        effectiveImpressionQualificationFilters += this@copy.impressionQualificationFilters
+      }
+    }
     createTime = row.getTimestamp("CreateTime").toProto()
     state = row.getProtoEnum("State", BasicReport.State::forNumber)
     if (!row.isNull("CreateReportRequestId")) {

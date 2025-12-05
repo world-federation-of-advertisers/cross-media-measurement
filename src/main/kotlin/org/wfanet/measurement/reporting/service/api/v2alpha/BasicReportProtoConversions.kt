@@ -390,14 +390,10 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       impressionQualificationFilters +=
         internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
     }
-    if (source.details.effectiveImpressionQualificationFiltersList.isNotEmpty()) {
-      for (internalImpressionQualificationFilter in
-        source.details.effectiveImpressionQualificationFiltersList) {
-        effectiveImpressionQualificationFilters +=
-          internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
-      }
-    } else {
-      effectiveImpressionQualificationFilters += impressionQualificationFilters
+    for (internalImpressionQualificationFilter in
+      source.details.effectiveImpressionQualificationFiltersList) {
+      effectiveImpressionQualificationFilters +=
+        internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
     }
     for (internalResultGroupSpec in source.details.resultGroupSpecsList) {
       resultGroupSpecs += internalResultGroupSpec.toResultGroupSpec()
