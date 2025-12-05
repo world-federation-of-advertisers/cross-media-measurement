@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
+from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2, )
 
@@ -30,6 +31,7 @@ from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import result_group_pb2
 
+BasicMetricSet = result_group_pb2.ResultGroup.MetricSet.BasicMetricSet
 ReportingSet = reporting_set_pb2.ReportingSet
 
 
@@ -59,6 +61,141 @@ class PostProcessReportResultTest(unittest.TestCase):
                 reporting_sets_textproto,
                 reporting_sets_service_pb2.BatchGetReportingSetsResponse(),
             )
+
+    def test_compute_basic_metric_set_no_population_raise_error(self):
+        with self.assertRaisesRegex(ValueError,
+                                    "Population must be a positive number."):
+            compute_basic_metric_set(
+                reach=50,
+                frequency_values=[20, 10, 15, 5, 0],
+                impressions=200,
+                population=0,
+            )
+
+    def test_compute_basic_metric_set_no_metric(self):
+        basic_metric_set = compute_basic_metric_set(reach=None,
+                                                    impressions=None,
+                                                    frequency_values=None,
+                                                    population=100)
+        expected_basic_metric_set = BasicMetricSet()
+        self.assertEqual(basic_metric_set, expected_basic_metric_set)
+
+    def test_compute_basic_metric_set_reach_only(self):
+        basic_metric_set = compute_basic_metric_set(reach=500,
+                                                    frequency_values=None,
+                                                    impressions=None,
+                                                    population=1000)
+        self.assertEqual(basic_metric_set.reach, 500)
+        self.assertEqual(basic_metric_set.percent_reach, 50.0)
+        self.assertEqual(basic_metric_set.impressions, 0)
+        self.assertEqual(basic_metric_set.grps, 0.0)
+        self.assertEqual(basic_metric_set.average_frequency, 0.0)
+        self.assertEqual(len(basic_metric_set.k_plus_reach), 0)
+        self.assertEqual(len(basic_metric_set.percent_k_plus_reach), 0)
+
+    def test_compute_basic_metric_set_impressions_only(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=None,
+            frequency_values=None,
+            impressions=200,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 0)
+        self.assertEqual(basic_metric_set.percent_reach, 0.0)
+        self.assertEqual(basic_metric_set.impressions, 200)
+        self.assertEqual(basic_metric_set.grps, 200.0)
+        self.assertEqual(basic_metric_set.average_frequency, 0.0)
+        self.assertEqual(len(basic_metric_set.k_plus_reach), 0)
+        self.assertEqual(len(basic_metric_set.percent_k_plus_reach), 0)
+
+    def test_compute_basic_metric_set_frequency_only(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=None,
+            frequency_values=[10, 20, 15, 5, 0],
+            impressions=None,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 0)
+        self.assertEqual(basic_metric_set.percent_reach, 0.0)
+        self.assertEqual(basic_metric_set.impressions, 0)
+        self.assertEqual(basic_metric_set.grps, 0.0)
+        self.assertEqual(basic_metric_set.average_frequency, 0.0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach),
+                         [50, 40, 20, 5, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [50.0, 40.0, 20.0, 5.0, 0.0])
+
+    def test_compute_basic_metric_set_without_reach(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=None,
+            frequency_values=[10, 20, 15, 5, 0],
+            impressions=200,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 0)
+        self.assertEqual(basic_metric_set.percent_reach, 0.0)
+        self.assertEqual(basic_metric_set.impressions, 200)
+        self.assertEqual(basic_metric_set.grps, 200.0)
+        self.assertEqual(basic_metric_set.average_frequency, 0.0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach),
+                         [50, 40, 20, 5, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [50.0, 40.0, 20.0, 5.0, 0.0])
+
+    def test_compute_basic_metric_set_without_frequency(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=50,
+            frequency_values=None,
+            impressions=200,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 50)
+        self.assertEqual(basic_metric_set.percent_reach, 50.0)
+        self.assertEqual(basic_metric_set.impressions, 200)
+        self.assertEqual(basic_metric_set.grps, 200.0)
+        self.assertEqual(basic_metric_set.average_frequency, 4.0)
+        self.assertEqual(len(basic_metric_set.k_plus_reach), 0)
+        self.assertEqual(len(basic_metric_set.percent_k_plus_reach), 0)
+
+    def test_compute_basic_metric_set_without_impressions(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=50,
+            frequency_values=[10, 20, 15, 5, 0],
+            impressions=None,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 50)
+        self.assertEqual(basic_metric_set.percent_reach, 50.0)
+        self.assertEqual(basic_metric_set.impressions, 0)
+        self.assertEqual(basic_metric_set.average_frequency, 0.0)
+        self.assertEqual(basic_metric_set.grps, 0.0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach),
+                         [50, 40, 20, 5, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [50.0, 40.0, 20.0, 5.0, 0.0])
+
+    def test_compute_basic_metric_set_all_metrics(self):
+        basic_metric_set = compute_basic_metric_set(
+            reach=50,
+            frequency_values=[10, 20, 15, 5, 0],
+            impressions=200,
+            population=100,
+        )
+
+        self.assertEqual(basic_metric_set.reach, 50)
+        self.assertEqual(basic_metric_set.percent_reach, 50.0)
+        self.assertEqual(basic_metric_set.impressions, 200)
+        self.assertEqual(basic_metric_set.grps, 200.0)
+        self.assertEqual(basic_metric_set.average_frequency, 4.0)
+        self.assertEqual(list(basic_metric_set.k_plus_reach),
+                         [50, 40, 20, 5, 0])
+        self.assertEqual(list(basic_metric_set.percent_k_plus_reach),
+                         [50.0, 40.0, 20.0, 5.0, 0.0])
 
     def test_post_process_report_result_success(self):
         # Configures the mock stubs to return the data from the textproto files.

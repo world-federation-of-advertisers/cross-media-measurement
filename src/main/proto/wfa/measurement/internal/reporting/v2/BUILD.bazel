@@ -37,10 +37,6 @@ proto_and_kt_jvm_proto_library(
 )
 
 proto_and_kt_jvm_proto_library(
-    name = "reporting_set",
-)
-
-proto_and_kt_jvm_proto_library(
     name = "noise_mechanism",
 )
 
@@ -62,6 +58,12 @@ proto_and_kt_jvm_proto_library(
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:duration_proto",
     ],
+)
+
+proto_library(
+    name = "reporting_set_proto",
+    srcs = ["reporting_set.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
 )
 
 proto_library(
@@ -222,6 +224,7 @@ MESSAGE_LIBS = [
     "report_result",
     "reporting_impression_qualification_filter",
     "reporting_interval",
+    "reporting_set",
     "reporting_unit",
     "result_group_spec",
 ]
@@ -431,11 +434,6 @@ proto_library(
     for prefix in SERVICE_LIBS
 ]
 
-py_proto_library(
-    name = "reporting_set_py_pb2",
-    deps = [":reporting_set_proto"],
-)
-
 proto_descriptor_set(
     name = "descriptor_set",
     deps = [
@@ -454,3 +452,4 @@ proto_descriptor_set(
         ":result_group_spec_proto",
     ],
 )
+

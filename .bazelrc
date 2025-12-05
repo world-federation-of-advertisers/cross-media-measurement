@@ -23,6 +23,7 @@ coverage --combined_report=lcov
 
 # Use C++17 language features.
 build --cxxopt='-std=c++17'
+build --host_cxxopt='-std=c++17'
 
 # Use JDK 17.
 build --java_runtime_version=remotejdk_17

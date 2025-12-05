@@ -13,10 +13,11 @@
 # limitations under the License.
 """A tool for fetching, correcting, and updating a report."""
 
+from typing import Any
+from typing import Optional
 from typing import TypeAlias
 from collections.abc import Iterable
 
-from absl import flags
 from absl import logging
 
 from wfa.measurement.internal.reporting.postprocessing import \
@@ -74,7 +75,7 @@ class PostProcessReportResult:
         self,
         cmms_measurement_consumer_id: str,
         external_report_result_id: int,
-    ) -> AddProcessedResultValuesRequest:
+    ) -> Optional[AddProcessedResultValuesRequest]:
         """Executes the full post-processing workflow.
 
         Args:
@@ -82,11 +83,12 @@ class PostProcessReportResult:
             external_report_result_id: The external ID of the report result.
         """
         # Gets the report result.
-        reporting_set_results = self._get_report_result(
-            cmms_measurement_consumer_id, external_report_result_id)
+        reporting_set_results: list[
+            ReportingSetResult] = self._get_report_result(
+                cmms_measurement_consumer_id, external_report_result_id)
 
         # Gets the set of the external_reporting_set_ids from the reporting sets.
-        external_reporting_set_ids = {
+        external_reporting_set_ids: set[str] = {
             result.dimension.external_reporting_set_id
             for result in reporting_set_results
         }
@@ -102,7 +104,8 @@ class PostProcessReportResult:
             return
 
         # Runs report post processor on each report summary v2.
-        all_updated_measurements = {}
+        # TODO(@ple13): Write the status to the output log.
+        all_updated_measurements: dict[str, float] = {}
         for report_summary in report_summaries:
             result = ReportSummaryV2Processor(report_summary).process()
             if result.status.status_code in [
@@ -126,8 +129,9 @@ class PostProcessReportResult:
 
         return request
 
-    def _get_report_result(self, cmms_measurement_consumer_id: str,
-                           external_report_result_id: int):
+    def _get_report_result(
+            self, cmms_measurement_consumer_id: str,
+            external_report_result_id: int) -> list[ReportingSetResult]:
         """Fetches all reporting set results for a given report result.
 
         Args:
@@ -144,11 +148,11 @@ class PostProcessReportResult:
             view=report_result_pb2.ReportingSetResultView.
             REPORTING_SET_RESULT_VIEW_UNPROCESSED,
         )
-        results = []
+        results: list[ReportingSetResult] = []
         response = self._report_results_stub.ListReportingSetResults(request)
         results.extend(response.reporting_set_results)
 
-        # TODO(@ple13): Support pagination.
+        # TODO(@ple13): Support pagination when the internal API supports it.
 
         return results
 
@@ -173,7 +177,7 @@ class PostProcessReportResult:
         )
         response = self._reporting_sets_stub.BatchGetReportingSets(request)
 
-        reporting_set_map = {
+        reporting_set_map: dict[str, ReportingSet] = {
             reporting_set.external_reporting_set_id: reporting_set
             for reporting_set in response.reporting_sets
         }
@@ -183,7 +187,7 @@ class PostProcessReportResult:
             if reporting_set.WhichOneof("value") == "primitive":
                 return {reporting_set.external_reporting_set_id}
             else:
-                primitive_ids = set()
+                primitive_ids: set[str] = set()
                 for weighted_subset_union in reporting_set.weighted_subset_unions:
                     for primitive_reporting_set_base in weighted_subset_union.primitive_reporting_set_bases:
                         primitive_ids.add(primitive_reporting_set_base.
@@ -202,7 +206,7 @@ class PostProcessReportResult:
         window_results: list[ReportSummaryWindowResult],
         prefix: str,
         updated_measurements: dict[str, int],
-        results_by_window: dict,
+        results_by_window: dict[str, dict[str, Any]],
     ):
         """Processes a list of window results and groups them by window key.
 
@@ -241,7 +245,7 @@ class PostProcessReportResult:
         self,
         reporting_summary_set_result: ReportSummarySetResult,
         updated_measurements: dict[str, int],
-    ) -> dict:
+    ) -> dict[str, dict[str, Any]]:
         """Groups corrected results by their reporting window.
 
         Args:
@@ -252,7 +256,7 @@ class PostProcessReportResult:
         Returns:
             A dictionary with results grouped by serialized window key.
         """
-        results_by_window = {}
+        results_by_window: dict[str, dict[str, Any]] = {}
 
         self._process_window_results(
             reporting_summary_set_result.cumulative_results, 'cumulative',
@@ -273,7 +277,7 @@ class PostProcessReportResult:
         self,
         report_summaries: list[ReportSummaryV2],
         updated_measurements: dict[str, int],
-    ) -> AddProcessedResultValuesRequest:
+    ) -> Optional[AddProcessedResultValuesRequest]:
         """Creates AddProcessedResultValuesRequest messages from corrected measurements.
 
         Args:
@@ -283,6 +287,8 @@ class PostProcessReportResult:
         Returns:
             An AddProcessedResultValuesRequest message.
         """
+        # TODO(@ple13): When no report summary exists, write the error message to the
+        # output log.
         if not report_summaries:
             logging.warning(
                 "No report summaries were provided; skipping update.")
@@ -330,7 +336,7 @@ class PostProcessReportResult:
         window_data: dict,
         population: int,
         processed_window_entry: ReportingWindowEntry,
-    ):
+    ) -> None:
         """Populates a single processed window entry with updated metrics.
 
         Args:
@@ -360,16 +366,12 @@ class PostProcessReportResult:
 
     def _populate_basic_metric_set(
         self,
-        window_data: dict,
+        window_data: dict[str, Any],
         prefix: str,
         population: int,
         basic_metric_set: BasicMetricSet,
-    ):
+    ) -> None:
         """Populates a BasicMetricSet with calculated and corrected metrics.
-
-        This function calculates reach, impressions, GRPs, k+ reach, and other
-        metrics based on the corrected values and populates the provided
-        `BasicMetricSet` message.
 
         Args:
             window_data: A dictionary containing the data for a single window.
@@ -381,24 +383,64 @@ class PostProcessReportResult:
         impressions_key = f'{prefix}_impressions'
         frequency_key = f'{prefix}_frequency'
 
-        if reach_key in window_data:
-            reach = round(window_data[reach_key])
-            basic_metric_set.reach = reach
-            basic_metric_set.percent_reach = reach / population * 100
+        reach = round(
+            window_data[reach_key]) if reach_key in window_data else None
 
-        if impressions_key in window_data:
-            impressions = round(window_data[impressions_key])
-            basic_metric_set.impressions = impressions
-            basic_metric_set.grps = impressions / population * 100
-            if basic_metric_set.reach > 0:
-                basic_metric_set.average_frequency = impressions / basic_metric_set.reach
+        impressions = round(window_data[impressions_key]
+                            ) if impressions_key in window_data else None
+
+        frequency_values = None
 
         if frequency_key in window_data:
             sorted_freqs = sorted(window_data[frequency_key].items())
-            freq_values = [value for _, value in sorted_freqs]
-            k_plus_reach_values = [
-                round(sum(freq_values[i:])) for i in range(len(freq_values))
-            ]
-            basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
-            basic_metric_set.percent_k_plus_reach.extend(
-                [val / population * 100 for val in k_plus_reach_values])
+            frequency_values = [val for _, val in sorted_freqs]
+
+        computed_metrics = compute_basic_metric_set(reach, frequency_values,
+                                                    impressions, population)
+
+        basic_metric_set.CopyFrom(computed_metrics)
+
+
+def compute_basic_metric_set(
+    reach: int | None,
+    frequency_values: list[int] | None,
+    impressions: int | None,
+    population: int,
+) -> BasicMetricSet:
+    """Computes a BasicMetricSet from reach, frequencies, and impressions.
+
+    Args:
+        reach: The reach value.
+        frequency_values: The frequency histogram.
+        impressions: The impressions.
+        population: The population.
+
+    Returns:
+        A populated BasicMetricSet message.
+    """
+    if population <= 0:
+        raise ValueError("Population must be a positive number.")
+
+    basic_metric_set = BasicMetricSet()
+
+    if reach is not None:
+        basic_metric_set.reach = reach
+        basic_metric_set.percent_reach = reach / population * 100
+
+    if impressions is not None:
+        basic_metric_set.impressions = impressions
+        basic_metric_set.grps = impressions / population * 100
+        if basic_metric_set.reach > 0:
+            basic_metric_set.average_frequency = (impressions /
+                                                  basic_metric_set.reach)
+
+    if frequency_values is not None:
+        k_plus_reach_values = [
+            round(sum(frequency_values[i:]))
+            for i in range(len(frequency_values))
+        ]
+        basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
+        basic_metric_set.percent_k_plus_reach.extend(
+            [val / population * 100 for val in k_plus_reach_values])
+
+    return basic_metric_set

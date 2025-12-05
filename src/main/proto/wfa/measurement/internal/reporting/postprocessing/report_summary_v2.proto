@@ -67,7 +67,6 @@ message ReportSummaryV2 {
     // The list of data providers whose data is included in these results.
     repeated string data_providers = 4;
 
-    // The value of metric frequency spec is either weekly or total.
     wfa.measurement.internal.reporting.v2.MetricFrequencySpec
         metric_frequency_spec = 5;
 

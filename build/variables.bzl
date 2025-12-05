@@ -105,6 +105,8 @@ DUCHY_K8S_SETTINGS = struct(
     worker2_id = "$(worker2_id)",
     public_api_address_name = "$(duchy_public_api_address_name)",
     system_api_address_name = "$(duchy_system_api_address_name)",
+    internal_api_address_name = "$(duchy_internal_api_address_name)",
+    trustee_mill_subnetwork_cidr_range = "$(trustee_mill_subnetwork_cidr_range)",
     public_api_eip_allocs = "$(duchy_public_api_eip_allocs)",
     system_api_eip_allocs = "$(duchy_system_api_eip_allocs)",
 )

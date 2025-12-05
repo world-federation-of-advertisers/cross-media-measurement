@@ -431,6 +431,17 @@ proto_library(
     for label_str in SERVICE_LIBS
 ]
 
+# OpenAPI specifications for services exposed by the Reporting grpc-gateway.
+filegroup(
+    name = "exposed_openapi_specs",
+    srcs = [
+        ":basic_reports_service_openapi",
+        ":event_groups_service_openapi",
+        ":impression_qualification_filters_service_openapi",
+        ":reporting_sets_service_openapi",
+    ],
+)
+
 GO_IMPORT_PATH = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb"
 
 GO_DEPS = [
