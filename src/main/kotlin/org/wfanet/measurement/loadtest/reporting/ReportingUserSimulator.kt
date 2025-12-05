@@ -345,9 +345,10 @@ class ReportingUserSimulator(
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
           effectiveModelLine = retrievedBasicReport.effectiveModelLine
-          reportingInterval = basicReport.reportingInterval.copy {
-            effectiveReportStart = basicReport.reportingInterval.reportStart
-          }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
         }
       )
 
