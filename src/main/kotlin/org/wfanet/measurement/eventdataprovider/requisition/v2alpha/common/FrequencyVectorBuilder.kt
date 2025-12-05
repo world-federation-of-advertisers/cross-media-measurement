@@ -60,9 +60,9 @@ val PopulationSpec.size: Long
 class FrequencyVectorBuilder(
   val populationSpec: PopulationSpec,
   val measurementSpec: MeasurementSpec,
-  val overrideImpressionMaxFrequencyPerUser: Int?,
   val strict: Boolean = true,
   val kAnonymityParams: KAnonymityParams? = null,
+  overrideImpressionMaxFrequencyPerUser: Int?,
 ) {
 
   /** The maximum frequency allowed in the output frequency vector. */
@@ -85,6 +85,12 @@ class FrequencyVectorBuilder(
     if (measurementSpec.hasReach() && kAnonymityParams != null) {
       require(kAnonymityParams.reachMaxFrequencyPerUser >= 1) {
         "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
+      }
+    }
+
+    if (overrideImpressionMaxFrequencyPerUser != null) {
+      require(overrideImpressionMaxFrequencyPerUser >= 1) {
+        "overrideImpressionMaxFrequencyPerUser must be >= 1"
       }
     }
 
@@ -179,9 +185,9 @@ class FrequencyVectorBuilder(
   ) : this(
     populationSpec,
     measurementSpec,
-    overrideImpressionMaxFrequencyPerUser,
     strict,
     kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
   ) {
     require(frequencyVector.dataCount == frequencyData.size) {
       "frequencyVector is of incompatible size: ${frequencyVector.dataCount} " +
@@ -218,9 +224,9 @@ class FrequencyVectorBuilder(
   ) : this(
     populationSpec,
     measurementSpec,
-    overrideImpressionMaxFrequencyPerUser,
     strict,
     kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
   ) {
     // Batch copy primary range
     var destIndex = 0
