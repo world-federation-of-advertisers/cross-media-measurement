@@ -55,8 +55,8 @@ jobs:
           #DO_NOT_SUBMIT: restore parameter usage
           #BASE_REF: ${{ inputs.base-ref }}
           #TARGET_REF: ${{ inputs.target-ref }}
-          BASE_REF: "refs/tags/v0.5.23"
-          TARGET_REF: "refs/tags/v0.5.28-rc1"
+          BASE_REF: "refs/tags/v0.5.28"
+          TARGET_REF: "refs/tags/nightly/20251205.1"
         run: >
           python .github/workflows/scripts/scanning-alerts/compute-vulnerabilities-diff.py 
           --base_ref "${BASE_REF}"
