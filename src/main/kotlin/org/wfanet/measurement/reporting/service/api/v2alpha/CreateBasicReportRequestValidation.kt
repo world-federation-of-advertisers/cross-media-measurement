@@ -55,6 +55,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
+ * @throws FieldUnimplementedException
  */
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
@@ -113,6 +114,7 @@ fun validateCreateBasicReportRequest(
  *   info for the field. Used for validating [EventTemplateField]
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
+ * @throws FieldUnimplementedException
  */
 fun validateResultGroupSpecs(
   resultGroupSpecs: List<ResultGroupSpec>,

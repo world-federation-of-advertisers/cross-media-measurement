@@ -79,6 +79,14 @@ permissions {
   key: "reporting.metrics.create"
   value {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    description: "Create a Metric resource."
+  }
+}
+permissions {
+  key: "reporting.metrics.createWithDevModelLine"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    description: "When creating a Metric resource, use a ModelLine of type DEV."
   }
 }
 permissions {
