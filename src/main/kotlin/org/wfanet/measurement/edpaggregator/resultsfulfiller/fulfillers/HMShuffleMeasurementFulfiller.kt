@@ -157,6 +157,7 @@ class HMShuffleMeasurementFulfiller(
             measurementSpec = measurementSpec,
             populationSpec = populationSpec,
             strict = false,
+            overrideImpressionMaxFrequencyPerUser = null,
           )
           .build()
       } else {
