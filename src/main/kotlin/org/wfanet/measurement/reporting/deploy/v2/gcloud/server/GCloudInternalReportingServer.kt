@@ -59,10 +59,14 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
           impressionQualificationFilterConfigFile,
           ImpressionQualificationFilterConfig.getDefaultInstance(),
         )
-      val impressionQualificationFilterMapping =
-        ImpressionQualificationFilterMapping(impressionQualificationFilterConfig)
 
       val eventMessageDescriptor = getEventMessageDescriptor()
+
+      val impressionQualificationFilterMapping =
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          eventMessageDescriptor,
+        )
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient

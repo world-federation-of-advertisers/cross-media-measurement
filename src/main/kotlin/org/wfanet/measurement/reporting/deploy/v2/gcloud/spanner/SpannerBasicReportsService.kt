@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.SpannerException
-import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
@@ -82,11 +81,11 @@ class SpannerBasicReportsService(
   private val spannerClient: AsyncDatabaseClient,
   private val postgresClient: DatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
-  eventMessageDescriptor: Descriptors.Descriptor,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
-  private val groupingDimensions = GroupingDimensions(eventMessageDescriptor)
+  private val groupingDimensions =
+    GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
 
   private sealed class ReportingSetKey {
     data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()

@@ -31,6 +31,7 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
@@ -111,7 +112,7 @@ class BasicReportsService(
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
   private val kingdomModelLinesStub: KingdomModelLinesCoroutineStub,
-  private val eventDescriptor: EventDescriptor?,
+  private val eventMessageDescriptor: EventMessageDescriptor?,
   private val metricSpecConfig: MetricSpecConfig,
   private val secureRandom: Random,
   private val authorization: Authorization,
@@ -157,7 +158,7 @@ class BasicReportsService(
     // Required for creating Report
     val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
 
-    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     try {
       validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)

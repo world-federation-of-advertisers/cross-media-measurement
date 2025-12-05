@@ -20,7 +20,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Descriptors
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import com.google.type.date
@@ -107,12 +106,7 @@ abstract class ReportResultsServiceTest {
 
   private val grpcChannel by lazy {
     val serverName = InProcessServerBuilder.generateName()
-    val services =
-      createServices(
-        idGenerator,
-        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
-        TestEvent.getDescriptor(),
-      )
+    val services = createServices(idGenerator, IMPRESSION_QUALIFICATION_FILTER_MAPPING)
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .apply {
@@ -142,7 +136,6 @@ abstract class ReportResultsServiceTest {
   protected abstract fun createServices(
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
-    eventMessageDescriptor: Descriptors.Descriptor,
   ): List<BindableService>
 
   @Test
@@ -647,25 +640,29 @@ abstract class ReportResultsServiceTest {
         filterSpecs +=
           ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
             mediaType =
-              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.VIDEO
-          }
-        filterSpecs +=
-          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
-            mediaType =
               ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
                 .DISPLAY
-          }
-        filterSpecs +=
-          ImpressionQualificationFilterConfigKt.impressionQualificationFilterSpec {
-            mediaType =
-              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.OTHER
+            filters +=
+              ImpressionQualificationFilterConfigKt.eventFilter {
+                terms +=
+                  ImpressionQualificationFilterConfigKt.eventTemplateField {
+                    path = "banner_ad.viewable"
+                    value =
+                      ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                        boolValue = false
+                      }
+                  }
+              }
           }
       }
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
       impressionQualificationFilters += AMI_IQF
     }
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+      ImpressionQualificationFilterMapping(
+        IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+        TestEvent.getDescriptor(),
+      )
 
     val CREATE_REPORT_RESULT_REQUEST = createReportResultRequest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
