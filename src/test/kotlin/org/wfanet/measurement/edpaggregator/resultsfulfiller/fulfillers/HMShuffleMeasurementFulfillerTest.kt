@@ -217,6 +217,7 @@ class HMShuffleMeasurementFulfillerTest {
         FrequencyVectorBuilder(
           measurementSpec = MEASUREMENT_SPEC,
           populationSpec = POPULATION_SPEC,
+          overrideImpressionMaxFrequencyPerUser = null,
           strict = false,
         )
       listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
@@ -269,6 +270,7 @@ class HMShuffleMeasurementFulfillerTest {
         FrequencyVectorBuilder(
           measurementSpec = MEASUREMENT_SPEC,
           populationSpec = POPULATION_SPEC,
+          overrideImpressionMaxFrequencyPerUser = null,
           strict = false,
         )
       listOf(4, 5, 6).forEach { frequencyVectorBuilder.increment(it) }
@@ -377,6 +379,7 @@ class HMShuffleMeasurementFulfillerTest {
     FrequencyVectorBuilder(
         measurementSpec = MEASUREMENT_SPEC,
         populationSpec = POPULATION_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
         strict = false,
       )
       .build()

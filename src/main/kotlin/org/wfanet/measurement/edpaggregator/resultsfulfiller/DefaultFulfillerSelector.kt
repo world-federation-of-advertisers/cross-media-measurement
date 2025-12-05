@@ -72,6 +72,7 @@ class DefaultFulfillerSelector(
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
+
     val vec =
       FrequencyVectorBuilder(
         populationSpec = populationSpec,
@@ -148,6 +149,7 @@ class DefaultFulfillerSelector(
         frequencyData,
         maxPopulation,
         kAnonymityParams = kAnonymityParams,
+        impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
     return DirectMeasurementFulfiller(
       requisition.name,

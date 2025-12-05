@@ -62,7 +62,7 @@ class FrequencyVectorBuilder(
   val measurementSpec: MeasurementSpec,
   val strict: Boolean = true,
   val kAnonymityParams: KAnonymityParams? = null,
-  val overrideImpressionMaxFrequencyPerUser: Int? = null,
+  overrideImpressionMaxFrequencyPerUser: Int?,
 ) {
 
   /** The maximum frequency allowed in the output frequency vector. */
@@ -85,6 +85,12 @@ class FrequencyVectorBuilder(
     if (measurementSpec.hasReach() && kAnonymityParams != null) {
       require(kAnonymityParams.reachMaxFrequencyPerUser >= 1) {
         "kAnonymityParams.maxFrequencyPerUser must be >= 1 for reach measurements with kAnonymity"
+      }
+    }
+
+    if (overrideImpressionMaxFrequencyPerUser != null) {
+      require(overrideImpressionMaxFrequencyPerUser >= 1) {
+        "overrideImpressionMaxFrequencyPerUser must be >= 1"
       }
     }
 
@@ -173,9 +179,9 @@ class FrequencyVectorBuilder(
     populationSpec: PopulationSpec,
     measurementSpec: MeasurementSpec,
     frequencyVector: FrequencyVector,
+    overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
     kAnonymityParams: KAnonymityParams? = null,
-    overrideImpressionMaxFrequencyPerUser: Int? = null,
   ) : this(
     populationSpec,
     measurementSpec,
@@ -212,9 +218,9 @@ class FrequencyVectorBuilder(
     populationSpec: PopulationSpec,
     measurementSpec: MeasurementSpec,
     frequencyDataBytes: ByteArray,
+    overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
     kAnonymityParams: KAnonymityParams? = null,
-    overrideImpressionMaxFrequencyPerUser: Int? = null,
   ) : this(
     populationSpec,
     measurementSpec,
@@ -323,20 +329,37 @@ class FrequencyVectorBuilder(
   }
 
   companion object {
+
     /** Allow for DSL syntax when building a FrequencyVector. */
     fun build(
       populationSpec: PopulationSpec,
       measurementSpec: MeasurementSpec,
+      overrideImpressionMaxFrequencyPerUser: Int? = null,
       bind: FrequencyVectorBuilder.() -> Unit,
-    ): FrequencyVector = FrequencyVectorBuilder(populationSpec, measurementSpec).apply(bind).build()
+    ): FrequencyVector =
+      FrequencyVectorBuilder(
+          populationSpec,
+          measurementSpec,
+          overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        )
+        .apply(bind)
+        .build()
 
     /** Allow for DSL syntax when building a FrequencyVector. */
     fun build(
       populationSpec: PopulationSpec,
       measurementSpec: MeasurementSpec,
       frequencyVector: FrequencyVector,
+      overrideImpressionMaxFrequencyPerUser: Int? = null,
       bind: FrequencyVectorBuilder.() -> Unit,
     ): FrequencyVector =
-      FrequencyVectorBuilder(populationSpec, measurementSpec, frequencyVector).apply(bind).build()
+      FrequencyVectorBuilder(
+          populationSpec,
+          measurementSpec,
+          frequencyVector,
+          overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        )
+        .apply(bind)
+        .build()
   }
 }
