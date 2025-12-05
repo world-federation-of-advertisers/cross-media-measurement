@@ -117,7 +117,7 @@ duchy: #SpannerDuchy & {
 	}
 	_kingdom_system_api_target:       #KingdomSystemApiTarget
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
-	_trusteeMillSubnetworkCidrRange:  _trusteeMillSubnetworkCidrRange
+	_trusteeMillSubnetworkRange:      _trusteeMillSubnetworkCidrRange
 	_blob_storage_flags:              _cloudStorageConfig.flags
 	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
