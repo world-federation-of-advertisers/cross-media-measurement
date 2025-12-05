@@ -45,6 +45,7 @@ object DirectMeasurementResultFactory {
     frequencyData: IntArray,
     maxPopulation: Int?,
     kAnonymityParams: KAnonymityParams?,
+    impressionMaxFrequencyPerUser: Int?,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -72,7 +73,7 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            measurementSpec.impression.maximumFrequencyPerUser,
+            impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser,
             kAnonymityParams,
           )
         impressionResultBuilder.buildMeasurementResult()

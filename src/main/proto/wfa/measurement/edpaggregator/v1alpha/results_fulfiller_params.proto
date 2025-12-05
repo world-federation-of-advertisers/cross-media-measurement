@@ -124,4 +124,8 @@ message ResultsFulfillerParams {
 
   // The k-anonymity params to be applied.
   KAnonymityParams k_anonymity_params = 6;
+
+  // The maximum frequency used for impression count in impression measurements.
+  // Only apply for direct measurements.
+  int32 impression_max_frequency_per_user = 7;
 }

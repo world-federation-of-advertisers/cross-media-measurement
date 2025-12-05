@@ -27,6 +27,8 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -49,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadata
@@ -77,8 +80,9 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt as InternalStreamEventGroupsRequests
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
+import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as InternalUpdateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
@@ -87,7 +91,7 @@ import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
-import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
 class EventGroupsService(
   private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
@@ -224,12 +228,74 @@ class EventGroupsService(
 
     validateRequestEventGroup(request.eventGroup)
 
-    val updateRequest = updateEventGroupRequest {
+    val updateRequest = internalUpdateEventGroupRequest {
       eventGroup =
         request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
     }
     return try {
       internalEventGroupsStub.updateEventGroup(updateRequest).toEventGroup()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+  }
+
+  override suspend fun batchUpdateEventGroups(
+    request: BatchUpdateEventGroupsRequest
+  ): BatchUpdateEventGroupsResponse {
+    val parentKey: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
+
+    val internalRequests = mutableListOf<InternalUpdateEventGroupRequest>()
+    request.requestsList.forEach { childRequest ->
+      grpcRequireNotNull(childRequest.eventGroup) { "Child request event group is unspecified" }
+
+      val eventGroupKey =
+        grpcRequireNotNull(EventGroupKey.fromName(childRequest.eventGroup.name)) {
+          "Child request event group name is either unspecified invalid"
+        }
+
+      if (eventGroupKey.parentKey != parentKey) {
+        throw Status.INVALID_ARGUMENT.withDescription(
+            "parent DataProvider and child DataProviderKey do not match"
+          )
+          .asRuntimeException()
+      }
+
+      val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+      if (authenticatedPrincipal.resourceKey != eventGroupKey.parentKey) {
+        throw Permission.UPDATE.deniedStatus(childRequest.eventGroup.name).asRuntimeException()
+      }
+
+      validateRequestEventGroup(childRequest.eventGroup)
+
+      internalRequests += internalUpdateEventGroupRequest {
+        eventGroup =
+          childRequest.eventGroup.toInternal(
+            eventGroupKey.dataProviderId,
+            eventGroupKey.eventGroupId,
+          )
+      }
+    }
+
+    val internalBatchRequest = internalBatchUpdateEventGroupsRequest {
+      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+      requests += internalRequests
+    }
+
+    return try {
+      batchUpdateEventGroupsResponse {
+        eventGroups +=
+          internalEventGroupsStub.batchUpdateEventGroup(internalBatchRequest).eventGroupsList.map {
+            it.toEventGroup()
+          }
+      }
     } catch (e: StatusException) {
       throw when (e.status.code) {
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
@@ -432,7 +498,7 @@ class EventGroupsService(
     return streamEventGroupsRequest {
       allowStaleReads = true
       this.filter =
-        InternalStreamEventGroupsRequests.filter {
+        StreamEventGroupsRequestKt.filter {
           if (parentKey is DataProviderKey) {
             externalDataProviderId = ApiId(parentKey.dataProviderId).externalId.value
           }

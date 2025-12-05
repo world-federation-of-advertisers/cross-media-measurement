@@ -51,6 +51,7 @@ class DefaultFulfillerSelector(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val noiserSelector: NoiserSelector,
   private val kAnonymityParams: KAnonymityParams?,
+  private val overrideImpressionMaxFrequencyPerUser: Int?,
 ) : FulfillerSelector {
 
   /**
@@ -71,6 +72,7 @@ class DefaultFulfillerSelector(
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
+
     val vec =
       FrequencyVectorBuilder(
         populationSpec = populationSpec,
@@ -78,6 +80,7 @@ class DefaultFulfillerSelector(
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
         kAnonymityParams = kAnonymityParams,
+        overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
@@ -146,6 +149,7 @@ class DefaultFulfillerSelector(
         frequencyData,
         maxPopulation,
         kAnonymityParams = kAnonymityParams,
+        impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
       )
     return DirectMeasurementFulfiller(
       requisition.name,

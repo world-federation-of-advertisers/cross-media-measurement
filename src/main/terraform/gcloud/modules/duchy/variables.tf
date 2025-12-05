@@ -52,6 +52,13 @@ variable "system_v1alpha_ip_address" {
   default     = null
 }
 
+variable "internal_ip_address" {
+  description = "IP address for internal API"
+  type        = string
+  nullable    = true
+  default     = null
+}
+
 variable "dashboard_json_files" {
   description = "List of filenames of dashboard json templates"
   type        = list(string)

@@ -412,6 +412,42 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
+  suspend fun createTrusTeeMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
+  ): Measurement {
+    val details = measurementDetails {
+      apiVersion = API_VERSION
+      measurementSpec = "MeasurementSpec".toByteStringUtf8()
+      measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+      measurementSpecSignatureAlgorithmOid = "2.9999"
+      protocolConfig = protocolConfig { trusTee = ProtocolConfig.TrusTee.getDefaultInstance() }
+    }
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details,
+    )
+  }
+
+  suspend fun createTrusTeeMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider,
+  ): Measurement {
+    return createTrusTeeMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() },
+    )
+  }
+
   suspend fun createDirectMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
