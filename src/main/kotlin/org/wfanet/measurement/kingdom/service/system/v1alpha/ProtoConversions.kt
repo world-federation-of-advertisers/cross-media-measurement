@@ -162,8 +162,9 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
                 }
             }
-            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE ->
-              error("TRUS_TEE is not supported")
+            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE -> {
+              trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
+            }
             InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }
@@ -445,8 +446,8 @@ fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
     InternalNoiseMechanism.CONTINUOUS_LAPLACE,
-    InternalNoiseMechanism.CONTINUOUS_GAUSSIAN,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.NONE,
     InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")

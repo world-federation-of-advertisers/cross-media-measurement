@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -26,7 +27,11 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerDetails
 
 class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result>() {
-  data class Result(val measurementConsumer: MeasurementConsumer, val measurementConsumerId: Long)
+  data class Result(
+    val measurementConsumer: MeasurementConsumer,
+    val measurementConsumerId: Long,
+    val externalMeasurementConsumerId: Long,
+  )
 
   override val baseSql: String =
     """
@@ -50,7 +55,11 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"))
+    Result(
+      buildMeasurementConsumer(struct),
+      struct.getLong("MeasurementConsumerId"),
+      struct.getLong("ExternalMeasurementConsumerId"),
+    )
 
   private fun buildMeasurementConsumer(struct: Struct): MeasurementConsumer =
     MeasurementConsumer.newBuilder()
@@ -92,6 +101,41 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
           column,
         ) ?: return null
       return row.getInternalId(column)
+    }
+
+    /** Reads [InternalId]s for MeasurementConsumers given their [ExternalId]s. * */
+    suspend fun readInternalIdsByExternalIds(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalMeasurementConsumerIds: Collection<ExternalId>,
+    ): Map<ExternalId, InternalId> {
+      if (externalMeasurementConsumerIds.isEmpty()) {
+        return emptyMap()
+      }
+
+      val keySet =
+        KeySet.newBuilder()
+          .apply {
+            for (externalId in externalMeasurementConsumerIds) {
+              addKey(Key.of(externalId.value))
+            }
+          }
+          .build()
+
+      return buildMap {
+        readContext
+          .readUsingIndex(
+            "MeasurementConsumers",
+            "MeasurementConsumersByExternalId",
+            keySet,
+            listOf("ExternalMeasurementConsumerId", "MeasurementConsumerId"),
+          )
+          .collect { struct ->
+            put(
+              ExternalId(struct.getLong("ExternalMeasurementConsumerId")),
+              InternalId(struct.getLong("MeasurementConsumerId")),
+            )
+          }
+      }
     }
   }
 }
