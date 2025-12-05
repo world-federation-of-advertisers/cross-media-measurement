@@ -19,8 +19,8 @@ package org.wfanet.measurement.computation
 /** Holds configuration parameters for computation. */
 object ComputationParams {
   /**
-   * The maximum ring modulus value that may be used in an HMShuffle computation. This value
-   * represents the upper bound for the ring modulus parameter.
+   * The lowest ring modulus value that may be used in an HMShuffle computation. This value
+   * represents the lower bound for the ring modulus parameter.
    */
-  const val MAX_RING_MODULUS = 127
+  const val MIN_RING_MODULUS = 127
 }
