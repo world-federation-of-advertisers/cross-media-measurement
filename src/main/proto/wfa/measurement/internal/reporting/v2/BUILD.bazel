@@ -452,4 +452,3 @@ proto_descriptor_set(
         ":result_group_spec_proto",
     ],
 )
-
