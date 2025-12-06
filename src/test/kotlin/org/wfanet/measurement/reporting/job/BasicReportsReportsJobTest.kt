@@ -197,10 +197,10 @@ class BasicReportsReportsJobTest {
 
           val reportingSetResult1Attribute =
             ReportKt.MetricCalculationResultKt.resultAttribute {
-              groupingPredicates += "person.gender == 1"
-              groupingPredicates += "person.age_group == 1"
+              groupingPredicates += "has(person.gender) && person.gender == 1"
+              groupingPredicates += "has(person.gender) && person.age_group == 1"
               filter =
-                "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
+                "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (has(person.age_group) && person.age_group == 1)"
             }
 
           metricCalculationResults +=
@@ -259,10 +259,10 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  groupingPredicates += "person.gender == 1"
-                  groupingPredicates += "person.age_group == 2"
+                  groupingPredicates += "has(person.gender) && person.gender == 1"
+                  groupingPredicates += "has(person.age_group) && person.age_group == 2"
                   filter =
-                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 1)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (has(person.age_group) && person.age_group == 1)"
                   metricSpec = metricSpec {
                     impressionCount = MetricSpecKt.impressionCountParams {}
                   }
@@ -349,11 +349,11 @@ class BasicReportsReportsJobTest {
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
-                  groupingPredicates += "person.gender == 1"
-                  groupingPredicates += "person.age_group == 1"
+                  groupingPredicates += "has(person.gender) && person.gender == 1"
+                  groupingPredicates += "has(person.age_group) && person.age_group == 1"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   filter =
-                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (person.age_group == 2)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true) || (has(video_ad.viewed_fraction) && video_ad.viewed_fraction == 1.0)) && (has(person.age_group) && person.age_group == 2)"
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
                     endTime = timestamp { seconds = 1736755200 }
@@ -1275,9 +1275,9 @@ class BasicReportsReportsJobTest {
 
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                groupingPredicates += "person.gender == 1"
-                groupingPredicates += "person.age_group == 1"
-                groupingPredicates += "person.social_grade_group == 1"
+                groupingPredicates += "has(person.gender) && person.gender == 1"
+                groupingPredicates += "has(person.age_group) && person.age_group == 1"
+                groupingPredicates += "has(person.social_grade_group) && person.social_grade_group == 1"
                 filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                 timeInterval = interval {
@@ -1430,7 +1430,7 @@ class BasicReportsReportsJobTest {
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   filter =
-                    "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                    "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (has(person.age_group) && person.age_group == 1)"
                   metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400 }
