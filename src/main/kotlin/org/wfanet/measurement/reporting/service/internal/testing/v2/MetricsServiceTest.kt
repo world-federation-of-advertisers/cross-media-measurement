@@ -575,6 +575,7 @@ abstract class MetricsServiceTest<T : MetricsCoroutineImplBase> {
       .isNotEmpty()
   }
 
+  @Test
   fun `createMetric succeeds with model line`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet = createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService)

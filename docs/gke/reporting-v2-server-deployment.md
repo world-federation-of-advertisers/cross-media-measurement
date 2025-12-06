@@ -112,7 +112,8 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
   --define 'event_message_type_url=type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.EventMessage' \
   --define basic_reports_enabled=true \
-  --define spanner_instance=instance
+  --define spanner_instance=instance \
+  --define pdp_name=dataProviders/KnvDaDC7QKA
 ```
 
 Note: The value of the `spanner_instance` variable is only used when

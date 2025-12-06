@@ -86,6 +86,7 @@ jobs:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+        PDP_NAME: ${{ vars.PDP_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -100,6 +101,7 @@ jobs:
         build --define reporting_public_api_address_name=reporting-v2alpha
         build --define basic_reports_enabled=true
         build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
+        build --define "pdp_name=$PDP_NAME"
         EOF
 
     - name: Export BAZEL_BIN

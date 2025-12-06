@@ -198,7 +198,7 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   return eventTemplateFieldsList.map { field ->
     val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
-    val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+    val predicatesList = fieldInfoEnumType.values.map { "has($field) && $field == ${it.number}" }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
   }
 }
@@ -266,7 +266,7 @@ fun createMetricCalculationSpecFilters(
             EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
               throw IllegalArgumentException("Selector not set")
           }
-        "${term.path} == $termValue"
+        "has(${term.path}) && ${term.path} == $termValue"
       }
 
   return buildList {

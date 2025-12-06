@@ -178,6 +178,7 @@ abstract class InProcessEventGroupsTest(
           TestEvent.getDescriptor(),
           "",
           verboseGrpcLogging = false,
+          populationDataProviderName = "",
         )
       }
 

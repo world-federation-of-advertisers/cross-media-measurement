@@ -640,13 +640,13 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     if (existingMetricsMap.size < requests.size) {
       transactionContext.run {
         executeStatement(statement)
-        if (metricCalculationSpecReportingMetricsValuesList.size > 0) {
+        if (metricCalculationSpecReportingMetricsValuesList.isNotEmpty()) {
           executeStatement(metricCalculationSpecReportingMetricsStatement)
         }
         executeStatement(measurementsStatement)
         executeStatement(metricMeasurementsStatement)
         executeStatement(primitiveReportingSetBasesStatement)
-        if (primitiveReportingSetBasisFiltersValuesList.size > 0) {
+        if (primitiveReportingSetBasisFiltersValuesList.isNotEmpty()) {
           executeStatement(primitiveReportingSetBasisFiltersStatement)
         }
         executeStatement(measurementPrimitiveReportingSetBasesStatement)

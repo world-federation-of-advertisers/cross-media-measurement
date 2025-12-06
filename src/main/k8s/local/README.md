@@ -161,7 +161,8 @@ bazel build //src/main/k8s/local:cmms.tar \
   --define edp6_cert_name=dataProviders/QOgxPtsZVGk/certificates/QOgxPtsZVGk \
   --define aggregator_cert_name=duchies/aggregator/certificates/clMWAdsZVFM \
   --define worker1_cert_name=duchies/worker1/certificates/Lm30i9sZVDo \
-  --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M
+  --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M \
+  --define pdp_name=dataProviders/AOgxPtsZVGk
 ```
 
 Extract this archive to some directory (e.g. `/tmp/cmms`).

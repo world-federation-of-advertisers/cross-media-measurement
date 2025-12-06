@@ -106,6 +106,7 @@ class InProcessReportingServer(
   private val eventDescriptor: Descriptors.Descriptor,
   // May be empty
   private val defaultModelLineName: String,
+  private val populationDataProviderName: String,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
@@ -287,6 +288,7 @@ class InProcessReportingServer(
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
+                populationDataProvider = populationDataProviderName,
               )
               .withTrustedPrincipalAuthentication(),
             ReportingSetsService(internalReportingSetsClient, authorization)

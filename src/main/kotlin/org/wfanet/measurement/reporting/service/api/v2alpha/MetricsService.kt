@@ -36,6 +36,7 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.collections.map
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -43,6 +44,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
+import kotlin.text.isNullOrBlank
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -250,6 +252,7 @@ class MetricsService(
   trustedCertificates: Map<ByteString, X509Certificate>,
   defaultVidModelLine: String,
   measurementConsumerModelLines: Map<String, String>,
+  populationDataProvider: String,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
@@ -279,6 +282,7 @@ class MetricsService(
       cacheLoaderContext,
       defaultVidModelLine,
       measurementConsumerModelLines,
+      populationDataProvider,
     )
 
   private class MeasurementSupplier(
@@ -297,6 +301,7 @@ class MetricsService(
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val defaultModelLine: String,
     private val measurementConsumerModelLines: Map<String, String>,
+    private val populationDataProvider: String,
   ) {
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
@@ -462,7 +467,7 @@ class MetricsService(
     }
 
     /** Builds a CMMS [CreateMeasurementRequest]. */
-    private fun buildCreateMeasurementRequest(
+    private suspend fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
       metric: InternalMetric,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
@@ -471,8 +476,6 @@ class MetricsService(
       dataProviderInfoMap: Map<String, DataProviderInfo>,
       measurementConsumerSigningKey: SigningKeyHandle,
     ): CreateMeasurementRequest {
-      val eventGroupEntriesByDataProvider =
-        groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
       val packedMeasurementEncryptionPublicKey = measurementConsumer.publicKey.message
 
       return createMeasurementRequest {
@@ -480,13 +483,30 @@ class MetricsService(
         measurement = measurement {
           measurementConsumerCertificate = measurementConsumerCreds.signingCertificateKey.toName()
 
-          dataProviders +=
-            buildDataProviderEntries(
-              eventGroupEntriesByDataProvider,
-              packedMeasurementEncryptionPublicKey,
-              measurementConsumerSigningKey,
-              dataProviderInfoMap,
-            )
+          if (metric.metricSpec.hasPopulationCount()) {
+            dataProviders +=
+              buildPopulationDataProviderEntry(
+                packedMeasurementEncryptionPublicKey,
+                measurementConsumerSigningKey,
+                internalMeasurement,
+                measurementConsumerCreds,
+                metric,
+              )
+          } else {
+            val eventGroupEntriesByDataProvider =
+              groupEventGroupEntriesByDataProvider(
+                internalMeasurement,
+                internalPrimitiveReportingSetMap,
+              )
+
+            dataProviders +=
+              buildDataProviderEntries(
+                eventGroupEntriesByDataProvider,
+                packedMeasurementEncryptionPublicKey,
+                measurementConsumerSigningKey,
+                dataProviderInfoMap,
+              )
+          }
 
           val unsignedMeasurementSpec: MeasurementSpec =
             buildUnsignedMeasurementSpec(
@@ -536,9 +556,6 @@ class MetricsService(
 
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
-        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
-        // field.
-        serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
         this.nonceHashes += nonceHashes
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -660,6 +677,66 @@ class MetricsService(
       return dataProviderInfoMap
     }
 
+    /** Build a [Measurement.DataProviderEntry] message for a Population DataProvider. */
+    private suspend fun buildPopulationDataProviderEntry(
+      packedMeasurementEncryptionPublicKey: ProtoAny,
+      measurementConsumerSigningKey: SigningKeyHandle,
+      measurement: InternalMeasurement,
+      measurementConsumerCreds: MeasurementConsumerCredentials,
+      metric: InternalMetric,
+    ): Measurement.DataProviderEntry {
+      val dataProviderInfo =
+        buildDataProviderInfoMap(
+            measurementConsumerCreds.callCredentials,
+            listOf(populationDataProvider),
+          )
+          .values
+          .first()
+
+      val filtersList =
+        measurement.primitiveReportingSetBasesList
+          .map { primitiveReportingSetBasis ->
+            val filtersList = primitiveReportingSetBasis.filtersList.filter { !it.isNullOrBlank() }
+            if (filtersList.isEmpty()) {
+              ""
+            } else {
+              buildConjunction(filtersList)
+            }
+          }
+          .filter { it.isNotBlank() }
+
+      val requisitionSpec = requisitionSpec {
+        population =
+          RequisitionSpecKt.population {
+            filter =
+              RequisitionSpecKt.eventFilter {
+                if (filtersList.isNotEmpty()) {
+                  expression = buildDisjunction(filtersList)
+                }
+              }
+            interval = metric.timeInterval
+          }
+        measurementPublicKey = packedMeasurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+      val encryptRequisitionSpec =
+        encryptRequisitionSpec(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+          dataProviderInfo.publicKey.unpack(),
+        )
+
+      return dataProviderEntry {
+        key = populationDataProvider
+        value =
+          MeasurementKt.DataProviderEntryKt.value {
+            dataProviderCertificate = dataProviderInfo.certificateName
+            dataProviderPublicKey = dataProviderInfo.publicKey.message
+            this.encryptedRequisitionSpec = encryptRequisitionSpec
+            nonceHash = Hashing.hashSha256(requisitionSpec.nonce)
+          }
+      }
+    }
+
     /**
      * Builds a [List] of [Measurement.DataProviderEntry] messages from
      * [eventGroupEntriesByDataProvider].
@@ -677,9 +754,6 @@ class MetricsService(
         val requisitionSpec = requisitionSpec {
           events = RequisitionSpecKt.events { eventGroups += eventGroupEntriesList }
           measurementPublicKey = packedMeasurementEncryptionPublicKey
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
-          // field.
-          serializedMeasurementPublicKey = packedMeasurementEncryptionPublicKey.value
           nonce = secureRandom.nextLong()
         }
         val encryptRequisitionSpec =
@@ -747,6 +821,11 @@ class MetricsService(
     /** Combines event group filters. */
     private fun buildConjunction(filters: Collection<String>): String {
       return filters.joinToString(separator = " && ") { filter -> "($filter)" }
+    }
+
+    /** Combines event group filters. */
+    private fun buildDisjunction(filters: Collection<String>): String {
+      return filters.joinToString(separator = " || ") { filter -> "($filter)" }
     }
 
     /** Gets a [MeasurementConsumer] based on a CMMS ID. */
@@ -2209,10 +2288,12 @@ private fun calculateWatchDurationResult(
 private fun calculatePopulationResult(
   weightedMeasurements: List<WeightedMeasurement>
 ): MetricResult.PopulationCountResult {
-  // Only take the first measurement because Population measurements will only have one element.
   val populationResult =
-    aggregateResults(weightedMeasurements.single().measurement.details.resultsList)
-  return populationCountResult { value = populationResult.population.value }
+    weightedMeasurements.sumOf { weightedMeasurement ->
+      aggregateResults(weightedMeasurement.measurement.details.resultsList).population.value *
+        weightedMeasurement.weight
+    }
+  return populationCountResult { value = populationResult }
 }
 
 /** Converts [ProtoDuration] format to [Double] second. */
