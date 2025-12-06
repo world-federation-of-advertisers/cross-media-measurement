@@ -139,6 +139,7 @@ import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
@@ -402,18 +403,19 @@ class BasicReportsServiceTest {
     val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
     assertThat(response)
-      .ignoringFields(
-        BasicReport.NAME_FIELD_NUMBER,
-        BasicReport.CREATE_TIME_FIELD_NUMBER,
-        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
-        BasicReport.STATE_FIELD_NUMBER,
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
+        }
       )
-      .isEqualTo(basicReport)
-    assertThat(response.name)
-      .isEqualTo(BasicReportKey(measurementConsumerKey, request.basicReportId).toName())
     assertThat(response.createTime.seconds).isAtLeast(1)
-    assertThat(response.campaignGroupDisplayName).isEqualTo(campaignGroup.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
   }
 
   @Test
@@ -675,6 +677,105 @@ class BasicReportsServiceTest {
 
       assertThat(response.basicReportsList).hasSize(1)
     }
+
+  @Test
+  fun `createBasicReport ignores report_start minutes, seconds, nanos`(): Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          hours = 8
+          minutes = 6
+          seconds = 5
+          nanos = 4
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        impressionQualificationFilter =
+          ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId).toName()
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        dimensionSpec = DimensionSpec.getDefaultInstance()
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val createdBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    val createReportRequest =
+      argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
+
+    assertThat(createReportRequest.report.reportingInterval.reportStart)
+      .isEqualTo(
+        basicReport.reportingInterval.reportStart.copy {
+          clearMinutes()
+          clearSeconds()
+          clearNanos()
+        }
+      )
+
+    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+      .isEqualTo(
+        basicReport.reportingInterval.reportStart.copy {
+          clearMinutes()
+          clearSeconds()
+          clearNanos()
+        }
+      )
+  }
 
   @Test
   fun `createBasicReport creates new primitive reportingsets only when needed`(): Unit =
@@ -7634,6 +7735,7 @@ class BasicReportsServiceTest {
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           state = BasicReport.State.SUCCEEDED
@@ -8388,6 +8490,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport.createTime
@@ -8650,6 +8753,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport1.createTime
@@ -8766,6 +8870,7 @@ class BasicReportsServiceTest {
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
+              effectiveReportStart = dateTime { day = 3 }
               reportEnd = date { day = 5 }
             }
             createTime = internalBasicReport1.createTime
@@ -8880,6 +8985,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport2.createTime

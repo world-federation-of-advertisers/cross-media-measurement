@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.type.DateTime
 import com.google.type.copy
 import com.google.type.interval
 import io.grpc.Status
@@ -189,6 +190,13 @@ class BasicReportsService(
     val measurementConsumerCredentials =
       MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
 
+    val effectiveReportStart =
+      request.basicReport.reportingInterval.reportStart.copy {
+        clearMinutes()
+        clearSeconds()
+        clearNanos()
+      }
+
     val validModelLines =
       kingdomModelLinesStub
         .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
@@ -196,9 +204,9 @@ class BasicReportsService(
           enumerateValidModelLinesRequest {
             parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
             timeInterval = interval {
-              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
+              startTime = effectiveReportStart.toTimestamp()
               endTime =
-                request.basicReport.reportingInterval.reportStart
+                effectiveReportStart
                   .copy {
                     day = request.basicReport.reportingInterval.reportEnd.day
                     month = request.basicReport.reportingInterval.reportEnd.month
@@ -305,6 +313,7 @@ class BasicReportsService(
                 internalReportingImpressionQualificationFilters =
                   internalReportingImpressionQualificationFilters,
                 effectiveModelLine = modelLine,
+                effectiveReportStart = effectiveReportStart,
               )
             requestId = request.requestId
           }
@@ -353,6 +362,7 @@ class BasicReportsService(
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
         modelLine,
+        effectiveReportStart,
       )
 
     val createReportRequest = createReportRequest {
@@ -763,6 +773,7 @@ class BasicReportsService(
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    * @param modelLine The model line to use for the report.
+   * @param effectiveReportStart The report start to use for the report.
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -771,6 +782,7 @@ class BasicReportsService(
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
     modelLine: String,
+    effectiveReportStart: DateTime,
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
@@ -833,7 +845,7 @@ class BasicReportsService(
 
       reportingInterval =
         ReportKt.reportingInterval {
-          reportStart = basicReport.reportingInterval.reportStart
+          reportStart = effectiveReportStart
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }

@@ -34,6 +34,11 @@ message ReportingInterval {
   // This side of the interval is closed.
   google.type.DateTime report_start = 1;
 
+  // The date and time of the start of the report.
+  //
+  // `report_start` with minutes, seconds, and nanos cleared.
+  google.type.DateTime effective_report_start = 3;
+
   // The end date of the report.
   //
   // The time is considered to be the same as that specified in the report
