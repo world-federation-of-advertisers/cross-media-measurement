@@ -234,7 +234,7 @@ def _create_report_summary_for_group(
     """
     report_summary = ReportSummaryV2()
     report_summary.cmms_measurement_consumer_id = cmms_measurement_consumer_id
-    report_summary.external_report_result_id = str(external_report_result_id)
+    report_summary.external_report_result_id = external_report_result_id
 
     # Verifies that there is at least one result for this group.
     if not results_for_group:
@@ -331,7 +331,10 @@ def _add_report_summary_set_result_metadata(
     dimension = reporting_set_result.dimension
     report_summary_set_result = report_summary.report_summary_set_results.add()
 
-    # Get impression filter.
+    report_summary_set_result.external_reporting_set_result_id = (
+        reporting_set_result.external_reporting_set_result_id)
+
+    # Gets the impression filter.
     if dimension.custom:
         report_summary_set_result.impression_filter = "custom"
     else:
@@ -339,7 +342,7 @@ def _add_report_summary_set_result_metadata(
             dimension.external_impression_qualification_filter_id
         )
 
-    # Get set operation
+    # Gets the set operation.
     if (
         dimension.venn_diagram_region_type
         == ReportingSetResult.Dimension.VennDiagramRegionType.UNION
@@ -361,6 +364,9 @@ def _add_report_summary_set_result_metadata(
     report_summary_set_result.data_providers.extend(
         sorted(primitive_reporting_sets_by_reporting_set_id[reporting_set_id]))
 
+    report_summary_set_result.metric_frequency_spec.CopyFrom(
+        dimension.metric_frequency_spec)
+
     return report_summary_set_result
 
 
@@ -381,6 +387,8 @@ def _process_reporting_windows(
           populate.
     """
     dimension = reporting_set_result.dimension
+    external_reporting_set_result_id = (
+        reporting_set_result.external_reporting_set_result_id)
     sorted_windows = sorted(
         reporting_set_result.reporting_window_results,
         key=lambda x: _proto_date_to_datetime(x.key.end),
@@ -399,16 +407,22 @@ def _process_reporting_windows(
             if metric_frequency_spec_type == "total":
                 window_result = report_summary_set_result.whole_campaign_result
                 _copy_window_results(
-                    ReportSummaryWindowResult.MetricFrequencyType.TOTAL,
-                    noisy_values.cumulative_results, report_summary_set_result,
-                    is_cumulative, window_entry.key.end, window_result)
+                    noisy_values.cumulative_results,
+                    external_reporting_set_result_id,
+                    is_cumulative,
+                    window_entry.key,
+                    window_result
+                )
             elif metric_frequency_spec_type == "weekly":
                 window_result = report_summary_set_result.cumulative_results.add(
                 )
                 _copy_window_results(
-                    ReportSummaryWindowResult.MetricFrequencyType.WEEKLY,
-                    noisy_values.cumulative_results, report_summary_set_result,
-                    is_cumulative, window_entry.key.end, window_result)
+                    noisy_values.cumulative_results,
+                    external_reporting_set_result_id,
+                    is_cumulative,
+                    window_entry.key,
+                    window_result
+                )
             else:
                 raise ValueError(f"Unsupported metric frequency type: "
                                  f"{metric_frequency_spec_type}")
@@ -419,17 +433,19 @@ def _process_reporting_windows(
             window_result = report_summary_set_result.non_cumulative_results.add(
             )
             _copy_window_results(
-                ReportSummaryWindowResult.MetricFrequencyType.WEEKLY,
-                noisy_values.non_cumulative_results, report_summary_set_result,
-                is_cumulative, window_entry.key.end, window_result)
+                noisy_values.non_cumulative_results,
+                external_reporting_set_result_id,
+                is_cumulative,
+                window_entry.key,
+                window_result
+            )
 
 
 def _copy_window_results(
-    metric_frequency_type: ReportSummaryWindowResult.MetricFrequencyType,
     noisy_metric_set: NoisyMetricSet,
-    report_summary_set_result: ReportSummaryV2.ReportSummarySetResult,
+    external_reporting_set_result_id,
     is_cumulative: bool,
-    window_end_date: ProtoDate,
+    reporting_window: ReportingSetResult.ReportingWindow,
     report_summary_window_result: ReportSummaryWindowResult,
 ) -> None:
     """Copies metric values from a NoisyMetricSet to a ReportSummaryWindowResult.
@@ -443,34 +459,19 @@ def _copy_window_results(
       metric_frequency_type: The frequency of the metric (e.g., TOTAL, WEEKLY).
       noisy_metric_set: The noisy metric values.
       report_summary_window_result: The destination proto to be populated.
-      report_summary_set_result: The parent set result which is used to get the
-        data providers and impression filter.
       is_cumulative: A boolean indicating if the metric is cumulative.
-      window_end_date: The end date of the reporting window, used for the metric
-        name.
+      reporting_window: The source reporting window, used for the metric name and
+        to populate the key.
       """
 
-    report_summary_window_result.metric_frequency_type = metric_frequency_type
+    # Copies the reporting window key.
+    report_summary_window_result.key.CopyFrom(reporting_window)
 
-    # Generates the unique name for the metric ID.
-    metric_name_parts = []
-    if metric_frequency_type == ReportSummaryWindowResult.MetricFrequencyType.TOTAL:
-        metric_name_parts.append("whole_campaign")
-    elif metric_frequency_type == ReportSummaryWindowResult.MetricFrequencyType.WEEKLY:
-        if is_cumulative:
-            metric_name_parts.append("cumulative")
-        else:
-            metric_name_parts.append("non_cumulative")
-    else:
-        raise ValueError(
-            f"Unsupported metric frequency type: {metric_frequency_type}")
-
-    metric_name_parts.extend(report_summary_set_result.data_providers)
-    metric_name_parts.append(report_summary_set_result.impression_filter)
-    metric_name_parts.append(
-        f"{window_end_date.year}_{window_end_date.month:02d}_{window_end_date.day:02d}"
+    base_metric_name = get_metric_name(
+        external_reporting_set_result_id,
+        is_cumulative,
+        reporting_window
     )
-    base_metric_name = "_".join(metric_name_parts)
 
     # Copies reach.
     if noisy_metric_set.HasField("reach"):
@@ -499,6 +500,36 @@ def _copy_window_results(
                     bin_result.univariate_statistics.standard_deviation
                 )
         report_summary_window_result.frequency.metric = f"frequency_{base_metric_name}"
+
+
+def get_metric_name(
+    external_reporting_set_result_id: int,
+    is_cumulative: bool,
+    reporting_window: ReportingSetResult.ReportingWindow,
+) -> str:
+    """Generates the unique name for the metric ID.
+
+    Args:
+        metric_frequency_type: The frequency of the metric (e.g., TOTAL, WEEKLY).
+        report_summary_set_result: The parent set result which is used to get the
+          data providers and impression filter.
+        is_cumulative: A boolean indicating if the metric is cumulative.
+        reporting_window: The source reporting window, used for the metric name.
+
+    Returns:
+        The base name for the metric.
+    """
+    metric_name_parts = [str(external_reporting_set_result_id)]
+
+    if is_cumulative:
+        metric_name_parts.append("cumulative")
+    else:
+        metric_name_parts.append("non_cumulative")
+
+    metric_name_parts.append(
+        f"{reporting_window.end.year}_{reporting_window.end.month:02d}_{reporting_window.end.day:02d}"
+    )
+    return "_".join(metric_name_parts)
 
 
 def _get_population(results_for_group: Sequence[ReportingSetResult]) -> int:

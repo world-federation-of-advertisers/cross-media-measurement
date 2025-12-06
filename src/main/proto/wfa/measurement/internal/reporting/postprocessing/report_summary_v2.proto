@@ -16,8 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.postprocessing;
 
+import "google/type/date.proto";
+import "google/type/datetime.proto";
 import "wfa/measurement/internal/reporting/v2/event_filter.proto";
 import "wfa/measurement/internal/reporting/v2/event_template_field.proto";
+import "wfa/measurement/internal/reporting/v2/metric_frequency_spec.proto";
+import "wfa/measurement/internal/reporting/v2/report_result.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.postprocessing";
 option java_multiple_files = true;
@@ -29,15 +33,42 @@ option java_outer_classname = "ReportSummaryV2Proto";
 message ReportSummaryV2 {
   // Represents a set of results for a specific combination of data providers
   // and reporting policies.
+
+  // The CMMS Measurement Consumer ID.
+  string cmms_measurement_consumer_id = 1;
+
+  // The external ID of the report result from which this summary was generated.
+  fixed64 external_report_result_id = 2;
+
+  // The event template dimensions from the `DimensionSpec`, ordered by
+  // `path`. Each event template field path may exist at most once in this
+  // list.
+  repeated wfa.measurement.internal.reporting.v2.EventTemplateField groupings =
+      3;
+
+  // The event filters from the `DimensionSpec`, ordered by `terms`
+  // lexicographically. The terms themselves are ordered by `path` and
+  // `value`, following the natural order of the value type.
+  repeated wfa.measurement.internal.reporting.v2.EventFilter event_filters = 4;
+
+  // The total population size of the selected demographic groups in this report
+  // summary.
+  int64 population = 5;
+
   message ReportSummarySetResult {
+    fixed64 external_reporting_set_result_id = 1;
+
     // Specifies the filter type (e.g. AMI, MRC, CUSTOM).
-    string impression_filter = 1;
+    string impression_filter = 2;
 
     // Specifies the set operation (e.g. "union").
-    string set_operation = 2;
+    string set_operation = 3;
 
     // The list of data providers whose data is included in these results.
-    repeated string data_providers = 3;
+    repeated string data_providers = 4;
+
+    wfa.measurement.internal.reporting.v2.MetricFrequencySpec
+        metric_frequency_spec = 5;
 
     // Represents a single reach result.
     message ReachResult {
@@ -72,52 +103,23 @@ message ReportSummaryV2 {
 
     // The results for a single result within a reporting window.
     message ReportSummaryWindowResult {
-      enum MetricFrequencyType {
-        METRIC_FREQUENCY_TYPE_UNSPECIFIED = 0;
-        TOTAL = 1;
-        WEEKLY = 2;
-      }
-
-      MetricFrequencyType metric_frequency_type = 1;
-
-      ReachResult reach = 4;
-      FrequencyResult frequency = 5;
-      ImpressionCountResult impression_count = 6;
+      wfa.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindow
+          key = 1;
+      ReachResult reach = 2;
+      FrequencyResult frequency = 3;
+      ImpressionCountResult impression_count = 4;
     }
 
     // A list of cumulative results, ordered by the end date of the window.
-    repeated ReportSummaryWindowResult cumulative_results = 5;
+    repeated ReportSummaryWindowResult cumulative_results = 6;
 
     // A list of non-cumulative results, ordered by the end date of the window.
-    repeated ReportSummaryWindowResult non_cumulative_results = 6;
+    repeated ReportSummaryWindowResult non_cumulative_results = 7;
 
-    ReportSummaryWindowResult whole_campaign_result = 7;
-
-    string external_reporting_set_id = 8;
+    ReportSummaryWindowResult whole_campaign_result = 8;
   }
 
   // A list containing the details and results for each set of metrics included
   // in the report summary.
-  repeated ReportSummarySetResult report_summary_set_results = 1;
-
-  // The event template dimensions from the `DimensionSpec`, ordered by
-  // `path`. Each event template field path may exist at most once in this
-  // list.
-  repeated wfa.measurement.internal.reporting.v2.EventTemplateField groupings =
-      2;
-
-  // The event filters from the `DimensionSpec`, ordered by `terms`
-  // lexicographically. The terms themselves are ordered by `path` and
-  // `value`, following the natural order of the value type.
-  repeated wfa.measurement.internal.reporting.v2.EventFilter event_filters = 3;
-
-  // The total population size of the selected demographic groups in this report
-  // summary.
-  int64 population = 4;
-
-  // The CMMS Measurement Consumer ID.
-  string cmms_measurement_consumer_id = 5;
-
-  // The external ID of the report result from which this summary was generated.
-  string external_report_result_id = 6;
+  repeated ReportSummarySetResult report_summary_set_results = 6;
 }

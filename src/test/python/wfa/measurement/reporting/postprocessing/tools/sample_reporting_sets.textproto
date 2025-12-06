@@ -1,0 +1,85 @@
+# proto-file: wfa/measurement/internal/reporting/v2/reporting_sets_service.proto
+# proto-message: wfa.measurement.internal.reporting.v2.BatchGetReportingSetsResponse
+reporting_sets {
+  cmms_measurement_consumer_id: "cmms-id"
+  external_reporting_set_id: "edp1"
+  primitive {}
+  weighted_subset_unions {
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp1"
+    }
+  }
+}
+reporting_sets {
+  cmms_measurement_consumer_id: "cmms-id"
+  external_reporting_set_id: "edp2"
+  primitive {}
+  weighted_subset_unions {
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp2"
+    }
+  }
+}
+reporting_sets {
+  cmms_measurement_consumer_id: "cmms-id"
+  external_reporting_set_id: "edp3"
+  primitive {}
+  weighted_subset_unions {
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp3"
+    }
+  }
+}
+reporting_sets {
+  cmms_measurement_consumer_id: "cmms-id"
+  external_reporting_set_id: "edp1_edp2"
+  composite {
+    operation: UNION
+    lhs {
+      external_reporting_set_id: "edp1"
+    }
+    rhs {
+      external_reporting_set_id: "edp2"
+    }
+  }
+  weighted_subset_unions {
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp1"
+    }
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp2"
+    }
+  }
+}
+reporting_sets {
+  cmms_measurement_consumer_id: "cmms-id"
+  external_reporting_set_id: "edp1_edp2_edp3"
+  composite {
+    operation: UNION
+    lhs {
+      external_reporting_set_id: "edp1"
+    }
+    rhs {
+      expression {
+        operation: UNION
+        lhs {
+          external_reporting_set_id: "edp2"
+        }
+        rhs {
+          external_reporting_set_id: "edp3"
+        }
+      }
+    }
+  }
+  weighted_subset_unions {
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp1"
+    }
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp2"
+    }
+    primitive_reporting_set_bases {
+      external_reporting_set_id: "edp3"
+    }
+  }
+}
