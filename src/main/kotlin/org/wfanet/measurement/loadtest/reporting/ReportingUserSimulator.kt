@@ -54,6 +54,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -437,6 +438,10 @@ class ReportingUserSimulator(
           metricCalculationSpecId = "a-$runId"
           metricCalculationSpec = metricCalculationSpec {
             displayName = "union reach"
+            modelLine = modelLineName
+            metricSpecs += metricSpec {
+              populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+            }
             metricSpecs += metricSpec {
               reach =
                 MetricSpecKt.reachParams {

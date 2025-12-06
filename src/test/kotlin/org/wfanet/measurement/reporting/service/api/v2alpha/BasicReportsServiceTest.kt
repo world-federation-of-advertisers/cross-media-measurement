@@ -1807,9 +1807,9 @@ class BasicReportsServiceTest {
               MetricCalculationSpecKt.details {
                 groupings +=
                   MetricCalculationSpecKt.grouping {
-                    predicates += "person.social_grade_group == 0"
-                    predicates += "person.social_grade_group == 1"
-                    predicates += "person.social_grade_group == 2"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 0"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 1"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 2"
                   }
                 filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricFrequencySpec =
@@ -1920,9 +1920,9 @@ class BasicReportsServiceTest {
               MetricCalculationSpecKt.details {
                 groupings +=
                   MetricCalculationSpecKt.grouping {
-                    predicates += "person.social_grade_group == 0"
-                    predicates += "person.social_grade_group == 1"
-                    predicates += "person.social_grade_group == 2"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 0"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 1"
+                    predicates += "has(person.social_grade_group) && person.social_grade_group == 2"
                   }
                 filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricFrequencySpec =
@@ -2066,7 +2066,7 @@ class BasicReportsServiceTest {
             details =
               MetricCalculationSpecKt.details {
                 filter =
-                  "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                  "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (has(person.age_group) && person.age_group == 1)"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
                     weekly =
@@ -2115,7 +2115,7 @@ class BasicReportsServiceTest {
             details =
               MetricCalculationSpecKt.details {
                 filter =
-                  "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (person.age_group == 1)"
+                  "((has(banner_ad.viewable) && banner_ad.viewable == true)) && (has(person.age_group) && person.age_group == 1)"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
                     weekly =
