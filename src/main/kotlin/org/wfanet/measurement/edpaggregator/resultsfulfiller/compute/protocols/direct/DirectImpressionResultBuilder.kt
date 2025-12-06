@@ -76,7 +76,6 @@ class DirectImpressionResultBuilder(
         DirectNoiseMechanism.CONTINUOUS_LAPLACE -> NoiseMechanism.CONTINUOUS_LAPLACE
         DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> NoiseMechanism.CONTINUOUS_GAUSSIAN
       }
-
     return MeasurementKt.result {
       impression = impression {
         value = impressionValue
