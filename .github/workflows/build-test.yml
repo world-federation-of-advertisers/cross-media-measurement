@@ -125,6 +125,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          PYTHON_EXE_PATH=$(which python3.11)
+          if [ -z "$PYTHON_EXE_PATH" ]; then
+            echo "Error: python3.11 executable not found in PATH."
+            exit 1
+          fi
+
           readarray -t kt_files_with_inline_fun < <(grep -rl --include '*.kt' "inline fun" src/main/kotlin/*)
 
           files_as_labels=()
@@ -135,7 +141,7 @@ jobs:
           done
 
           query="kind(rule, rdeps(//..., set(${files_as_labels[*]}), 1))"
-          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label | sed 's/^/-/' | paste -sd,)
+          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label --host_force_python="$PYTHON_EXE_PATH" | sed 's/^/-/' | paste -sd,)
           echo "exclusion_filter=${exclusion_filter}" >> "$GITHUB_OUTPUT"
 
       - name: Run tests with coverage
