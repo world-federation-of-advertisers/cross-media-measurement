@@ -49,11 +49,6 @@ jobs:
       - name: Set up Bazel
         uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - uses: ./.github/actions/free-disk-space
 
       - name: Write auth.bazelrc
@@ -125,12 +120,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          PYTHON_EXE_PATH=$(which python3.11)
-          if [ -z "$PYTHON_EXE_PATH" ]; then
-            echo "Error: python3.11 executable not found in PATH."
-            exit 1
-          fi
-
           readarray -t kt_files_with_inline_fun < <(grep -rl --include '*.kt' "inline fun" src/main/kotlin/*)
 
           files_as_labels=()
@@ -141,7 +130,7 @@ jobs:
           done
 
           query="kind(rule, rdeps(//..., set(${files_as_labels[*]}), 1))"
-          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label --@rules_python//python/config_settings:python_version=3.11 | sed 's/^/-/' | paste -sd,)
+          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label | sed 's/^/-/' | paste -sd,)
           echo "exclusion_filter=${exclusion_filter}" >> "$GITHUB_OUTPUT"
 
       - name: Run tests with coverage
