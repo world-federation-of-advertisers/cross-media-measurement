@@ -146,7 +146,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_proto_grpc_python",
-    version = "5.1.0"
+    version = "5.2.0"
 )
 
 # Must be compatible with the protobuf version declared in requirements.txt
