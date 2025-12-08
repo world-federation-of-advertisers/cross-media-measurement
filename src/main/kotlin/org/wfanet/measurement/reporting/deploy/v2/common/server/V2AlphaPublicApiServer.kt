@@ -31,7 +31,6 @@ import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.PrincipalAuthInterceptor
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
@@ -63,7 +62,8 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpc as InternalImpressionQualificationFiltersGrpc
+import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpc as InternalMeasurementConsumersGrpc
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
@@ -186,54 +186,51 @@ private object V2AlphaPublicApiServer {
         measurementConsumerConfigs.configsMap.getValue(systemMeasurementConsumerName)
       }
 
-    val internalMeasurementConsumersCoroutineStub =
-      InternalMeasurementConsumersCoroutineStub(channel)
-    runBlocking {
-      measurementConsumerConfigs.configsMap.keys.forEach {
-        val measurementConsumerKey =
-          MeasurementConsumerKey.fromName(it)
-            ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
-        try {
-          internalMeasurementConsumersCoroutineStub.createMeasurementConsumer(
-            measurementConsumer {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-            }
-          )
-        } catch (e: StatusException) {
-          when (e.status.code) {
-            Status.Code.ALREADY_EXISTS -> {}
-            else -> throw e
+    val internalMeasurementConsumersBlockingStub =
+      InternalMeasurementConsumersGrpc.newBlockingStub(channel)
+
+    measurementConsumerConfigs.configsMap.keys.forEach {
+      val measurementConsumerKey =
+        MeasurementConsumerKey.fromName(it)
+          ?: throw IllegalArgumentException("measurement_consumer_config is invalid")
+      try {
+        internalMeasurementConsumersBlockingStub.createMeasurementConsumer(
+          measurementConsumer {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
           }
+        )
+      } catch (e: StatusException) {
+        when (e.status.code) {
+          Status.Code.ALREADY_EXISTS -> {}
+          else -> throw e
         }
       }
     }
 
-    val internalImpressionQualificationFiltersCoroutineStub =
-      InternalImpressionQualificationFiltersCoroutineStub(channel)
+    val internalImpressionQualificationFiltersBlockingStub =
+      InternalImpressionQualificationFiltersGrpc.newBlockingStub(channel)
 
     val baseImpressionQualificationFilters: List<InternalImpressionQualificationFilter> = buildList {
-      runBlocking {
-        reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
-          try {
-            add(internalImpressionQualificationFiltersCoroutineStub.getImpressionQualificationFilter(
-              getImpressionQualificationFilterRequest {
-                externalImpressionQualificationFilterId =
-                  ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
-                    ?: throw IllegalArgumentException(
-                      "$it in base_impression_qualification_filters is an invalid resource name"
-                    )
-              }
-            ))
-          } catch (e: StatusException) {
-            when (e.status.code) {
-              Status.Code.NOT_FOUND -> {
-                throw IllegalArgumentException(
-                  "$it in base_impression_qualification_filters is not found"
-                )
-              }
-
-              else -> throw e
+      reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
+        try {
+          add(internalImpressionQualificationFiltersBlockingStub.getImpressionQualificationFilter(
+            getImpressionQualificationFilterRequest {
+              externalImpressionQualificationFilterId =
+                ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
+                  ?: throw IllegalArgumentException(
+                    "$it in base_impression_qualification_filters is an invalid resource name"
+                  )
             }
+          ))
+        } catch (e: StatusException) {
+          when (e.status.code) {
+            Status.Code.NOT_FOUND -> {
+              throw IllegalArgumentException(
+                "$it in base_impression_qualification_filters is not found"
+              )
+            }
+
+            else -> throw e
           }
         }
       }
@@ -393,7 +390,8 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
             InternalBasicReportsCoroutineStub(channel),
-            internalImpressionQualificationFiltersCoroutineStub,
+          InternalImpressionQualificationFiltersCoroutineStub(channel)
+          ,
             InternalReportingSetsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
             ReportsCoroutineStub(inProcessReportsChannel),
