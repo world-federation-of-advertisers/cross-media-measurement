@@ -123,7 +123,9 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
         val primitiveReportingSetMutableMap =
           computeIfAbsent(primitiveReportingSets.first()) { mutableMapOf() }
 
-        // Population Metric cannot use ImpressionQualificationFilter
+        // Population Metric cannot use ImpressionQualificationFilter in the filter because only
+        // Population fields are allowed and ImpressionQualificationFilter filter fields are not
+        // population fields.
         primitiveReportingSetMutableMap
           .computeIfAbsent(
             MetricCalculationSpecInfoKey(
