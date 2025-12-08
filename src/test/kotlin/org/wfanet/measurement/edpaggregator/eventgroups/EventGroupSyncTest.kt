@@ -122,7 +122,7 @@ class EventGroupSyncTest {
           eventGroups +=
             listOf(
               cmmsEventGroup {
-                name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
+                name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
                 measurementConsumer = "measurementConsumers/measurement-consumer-1"
                 eventGroupReferenceId = "reference-id-1"
                 mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
@@ -140,7 +140,7 @@ class EventGroupSyncTest {
                 }
               },
               cmmsEventGroup {
-                name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
+                name = "dataProviders/data-provider-2/eventGroups/resource-id-2"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-2"
                 mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
@@ -158,7 +158,7 @@ class EventGroupSyncTest {
                 }
               },
               cmmsEventGroup {
-                name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-3"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-3"
                 mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
@@ -176,7 +176,7 @@ class EventGroupSyncTest {
                 }
               },
               cmmsEventGroup {
-                name = "dataProviders/data-provider-3/eventGroups/reference-id-4"
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-4"
                 measurementConsumer = "measurementConsumers/measurement-consumer-other"
                 eventGroupReferenceId = "reference-id-1"
                 mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
@@ -275,10 +275,10 @@ class EventGroupSyncTest {
     val deleteRequests = deleteCaptor.allValues
     assertThat(deleteRequests.map { it.name })
       .containsExactly(
-        "dataProviders/data-provider-1/eventGroups/reference-id-1",
-        "dataProviders/data-provider-2/eventGroups/reference-id-2",
-        "dataProviders/data-provider-3/eventGroups/reference-id-3",
-              "dataProviders/data-provider-3/eventGroups/reference-id-4",
+        "dataProviders/data-provider-1/eventGroups/resource-id-1",
+        "dataProviders/data-provider-2/eventGroups/resource-id-2",
+        "dataProviders/data-provider-3/eventGroups/resource-id-3",
+        "dataProviders/data-provider-3/eventGroups/resource-id-4",
       )
   }
 
@@ -345,10 +345,10 @@ class EventGroupSyncTest {
       assertThat(result.toList().map { it.eventGroupResource to it.eventGroupReferenceId })
         .isEqualTo(
           listOf(
-            "dataProviders/data-provider-1/eventGroups/reference-id-1" to "reference-id-1",
-            "dataProviders/data-provider-2/eventGroups/reference-id-2" to "reference-id-2",
-            "dataProviders/data-provider-3/eventGroups/reference-id-3" to "reference-id-3",
-            "dataProviders/data-provider-3/eventGroups/reference-id-4" to "reference-id-1",
+            "dataProviders/data-provider-1/eventGroups/resource-id-1" to "reference-id-1",
+            "dataProviders/data-provider-2/eventGroups/resource-id-2" to "reference-id-2",
+            "dataProviders/data-provider-3/eventGroups/resource-id-3" to "reference-id-3",
+            "dataProviders/data-provider-3/eventGroups/resource-id-4" to "reference-id-1",
           )
         )
     }
