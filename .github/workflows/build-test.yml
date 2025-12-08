@@ -130,7 +130,7 @@ jobs:
           done
 
           query="kind(rule, rdeps(//..., set(${files_as_labels[*]}), 1))"
-          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label | sed 's/^/-/' | paste -sd,)
+          exclusion_filter=$(bazel cquery --noimplicit_deps "${query}" --output label --@rules_python//python/config_settings:python_version=3.11 | sed 's/^/-/' | paste -sd,)
           echo "exclusion_filter=${exclusion_filter}" >> "$GITHUB_OUTPUT"
 
       - name: Run tests with coverage
