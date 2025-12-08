@@ -109,7 +109,7 @@ class BasicReportTransformationsTest {
             filter = "(person.age_group == 1 && person.gender == 1)"
             metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
           }
-        )
+        ),
       )
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
       .containsEntry(
@@ -952,7 +952,7 @@ class BasicReportTransformationsTest {
             filter = "(person.age_group == 1 && person.gender == 1)"
             metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
           }
-        )
+        ),
       )
   }
 
@@ -1013,7 +1013,7 @@ class BasicReportTransformationsTest {
             filter = "(person.age_group == 1 && person.gender == 1)"
             metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
           }
-        )
+        ),
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1285,7 +1285,7 @@ class BasicReportTransformationsTest {
             filter = "(person.age_group == 1 && person.gender == 1)"
             metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
           }
-        )
+        ),
       )
 
     assertThat(reportingSetMetricCalculationSpecDetailsMap)
@@ -1794,7 +1794,8 @@ class BasicReportTransformationsTest {
         buildList {
           add(
             MetricCalculationSpecKt.details {
-              filter = "(banner_ad.viewable == true && person.age_group == 1 && video_ad.viewed_fraction == 0.5)"
+              filter =
+                "(banner_ad.viewable == true && person.age_group == 1 && video_ad.viewed_fraction == 0.5)"
               metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
             }
           )

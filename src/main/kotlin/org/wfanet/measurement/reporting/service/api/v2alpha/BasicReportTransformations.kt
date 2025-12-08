@@ -92,9 +92,9 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
       for (resultGroupSpec in resultGroupSpecs) {
         val groupings: Set<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
-            resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
-              eventTemplateFieldsByPath
-            ).toSet()
+            resultGroupSpec.dimensionSpec.grouping
+              .toMetricCalculationSpecGroupings(eventTemplateFieldsByPath)
+              .toSet()
           } else {
             emptySet()
           }
@@ -120,21 +120,22 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           }
 
         // ReportingSet used is irrelevant for Population.
-        val primitiveReportingSetMutableMap = computeIfAbsent(primitiveReportingSets.first()) {
-          mutableMapOf()
-        }
+        val primitiveReportingSetMutableMap =
+          computeIfAbsent(primitiveReportingSets.first()) { mutableMapOf() }
 
         // Population Metric cannot use ImpressionQualificationFilter
-        primitiveReportingSetMutableMap.computeIfAbsent(
-          MetricCalculationSpecInfoKey(
-            filter = dimensionSpecFilter,
-            groupings = groupings,
-            metricFrequencySpec = null,
-            trailingWindow = null,
-          )
-        ) {
-          MetricCalculationSpecInfo()
-        }.includePopulationCount = true
+        primitiveReportingSetMutableMap
+          .computeIfAbsent(
+            MetricCalculationSpecInfoKey(
+              filter = dimensionSpecFilter,
+              groupings = groupings,
+              metricFrequencySpec = null,
+              trailingWindow = null,
+            )
+          ) {
+            MetricCalculationSpecInfo()
+          }
+          .includePopulationCount = true
 
         // Adds or updates entries in the map
         computeResultGroupSpecTransformation(

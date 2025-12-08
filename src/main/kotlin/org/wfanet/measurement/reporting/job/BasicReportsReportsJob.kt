@@ -231,7 +231,10 @@ class BasicReportsReportsJob(
     eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
-    val (populationCountByPopulationResultKey: Map<PopulationResultKey, Int>, reportingSetResultInfoByReportingSetResultInfoKey: Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
+    val (
+      populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+      reportingSetResultInfoByReportingSetResultInfoKey:
+        Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
       buildReportResultInfo(
         report,
         basicReport.cmmsMeasurementConsumerId,
@@ -268,13 +271,14 @@ class BasicReportsReportsJob(
                 }
               eventFilters += Normalization.normalizeEventFilters(filterInfo.dimensionSpecFilters)
             }
-          populationSize = populationCountByPopulationResultKey.getOrDefault(
-            PopulationResultKey(
-              filterInfo.dimensionSpecFilter,
-              reportingSetResultInfoEntry.key.groupingPredicates,
-            ),
-            0
-          )
+          populationSize =
+            populationCountByPopulationResultKey.getOrDefault(
+              PopulationResultKey(
+                filterInfo.dimensionSpecFilter,
+                reportingSetResultInfoEntry.key.groupingPredicates,
+              ),
+              0,
+            )
 
           for (reportingWindowResultInfoEntry: Map.Entry<Date, ReportingWindowResultInfo> in
             reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
@@ -376,7 +380,8 @@ class BasicReportsReportsJob(
       )
 
     val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Int> = mutableMapOf()
-    val reportingSetResultInfoByReportingSetResultInfoKey: Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
+    val reportingSetResultInfoByReportingSetResultInfoKey:
+      Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
       buildMap {
         for (metricCalculationResult in report.metricCalculationResultsList) {
           val externalReportingSetId =
@@ -390,13 +395,15 @@ class BasicReportsReportsJob(
             vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
 
           val firstResultAttribute = metricCalculationResult.resultAttributesList.first()
-          if (metricCalculationResult.resultAttributesList.size == 1 && firstResultAttribute.metricResult.hasPopulationCount()) {
+          if (
+            metricCalculationResult.resultAttributesList.size == 1 &&
+              firstResultAttribute.metricResult.hasPopulationCount()
+          ) {
             populationCountByPopulationResultKey[
               PopulationResultKey(
                 filter = firstResultAttribute.filter,
                 groupingPredicates = firstResultAttribute.groupingPredicatesList.toSet(),
-              )
-            ] = firstResultAttribute.metricResult.populationCount.value.toInt()
+              )] = firstResultAttribute.metricResult.populationCount.value.toInt()
           } else {
             for (resultAttribute in metricCalculationResult.resultAttributesList) {
               val reportingSetResultInfo: ReportingSetResultInfo =
@@ -422,7 +429,9 @@ class BasicReportsReportsJob(
                       ZoneOffset.ofTotalSeconds(reportStart.utcOffset.seconds.toInt())
                     )
                   } else {
-                    resultAttribute.timeInterval.startTime.toDate(ZoneId.of(reportStart.timeZone.id))
+                    resultAttribute.timeInterval.startTime.toDate(
+                      ZoneId.of(reportStart.timeZone.id)
+                    )
                   }
                 } else {
                   null
@@ -488,8 +497,7 @@ class BasicReportsReportsJob(
                     PopulationResultKey(
                       filter = resultAttribute.filter,
                       groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
-                    )
-                  ] = resultAttribute.metricResult.populationCount.value.toInt()
+                    )] = resultAttribute.metricResult.populationCount.value.toInt()
                 }
 
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {
@@ -502,7 +510,10 @@ class BasicReportsReportsJob(
         }
       }
 
-    return ReportResultInfo(populationCountByPopulationResultKey, reportingSetResultInfoByReportingSetResultInfoKey)
+    return ReportResultInfo(
+      populationCountByPopulationResultKey,
+      reportingSetResultInfoByReportingSetResultInfoKey,
+    )
   }
 
   /**
@@ -611,7 +622,8 @@ class BasicReportsReportsJob(
           val dimensionSpecFilter: String =
             createDimensionSpecFilter(
               dimensionSpecFilters.map { it.toEventFilter() },
-              eventTemplateFieldsByPath,            )
+              eventTemplateFieldsByPath,
+            )
           val filter =
             createMetricCalculationSpecFilters(
                 listOf(impressionQualificationFilterString),
@@ -623,7 +635,14 @@ class BasicReportsReportsJob(
             reportingImpressionQualificationFilter.externalImpressionQualificationFilterId.ifEmpty {
               null
             }
-          put(filter, FilterInfo(externalImpressionQualificationFilterId, dimensionSpecFilters, dimensionSpecFilter))
+          put(
+            filter,
+            FilterInfo(
+              externalImpressionQualificationFilterId,
+              dimensionSpecFilters,
+              dimensionSpecFilter,
+            ),
+          )
         }
       }
     }
@@ -734,13 +753,11 @@ class BasicReportsReportsJob(
 
   private data class ReportResultInfo(
     val populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
-    val reportingSetResultInfoByReportingSetResultInfoKey: Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
+    val reportingSetResultInfoByReportingSetResultInfoKey:
+      Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
   )
 
-  private data class PopulationResultKey(
-    val filter: String,
-    val groupingPredicates: Set<String>,
-  )
+  private data class PopulationResultKey(val filter: String, val groupingPredicates: Set<String>)
 
   private data class ReportingSetResultInfoKey(
     val externalReportingSetId: String,

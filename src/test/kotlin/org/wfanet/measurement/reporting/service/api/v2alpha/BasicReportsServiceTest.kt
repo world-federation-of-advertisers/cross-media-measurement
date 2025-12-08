@@ -520,16 +520,22 @@ class BasicReportsServiceTest {
         .filter { it.externalReportingSetId != campaignGroupKey.reportingSetId }
 
     val primitiveReportingSet1 =
-      createdReportingSets.first { it.primitive.eventGroupKeysList.first() == ReportingSetKt.PrimitiveKt.eventGroupKey {
-        cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-        cmmsEventGroupId = "1235"
-      } }
+      createdReportingSets.first {
+        it.primitive.eventGroupKeysList.first() ==
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+            cmmsEventGroupId = "1235"
+          }
+      }
 
     val primitiveReportingSet2 =
-      createdReportingSets.first { it.primitive.eventGroupKeysList.last() == ReportingSetKt.PrimitiveKt.eventGroupKey {
-        cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
-        cmmsEventGroupId = "1235"
-      } }
+      createdReportingSets.first {
+        it.primitive.eventGroupKeysList.last() ==
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+            cmmsEventGroupId = "1235"
+          }
+      }
 
     val createdMetricCalculationSpecs =
       internalMetricCalculationSpecsService
@@ -545,10 +551,14 @@ class BasicReportsServiceTest {
       createdMetricCalculationSpecs.first { it.details.hasTrailingWindow() }
 
     val cumulativeMetricCalculationSpec =
-      createdMetricCalculationSpecs.first { it.details.hasMetricFrequencySpec() && !it.details.hasTrailingWindow() }
+      createdMetricCalculationSpecs.first {
+        it.details.hasMetricFrequencySpec() && !it.details.hasTrailingWindow()
+      }
 
     val populationMetricCalculationSpec =
-      createdMetricCalculationSpecs.first { !(it.details.hasMetricFrequencySpec() || it.details.hasTrailingWindow()) }
+      createdMetricCalculationSpecs.first {
+        !(it.details.hasMetricFrequencySpec() || it.details.hasTrailingWindow())
+      }
 
     val createReportRequest =
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
@@ -575,9 +585,9 @@ class BasicReportsServiceTest {
                   ReportKt.reportingMetricCalculationSpec {
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
-                        measurementConsumerKey,
-                        populationMetricCalculationSpec.externalMetricCalculationSpecId,
-                      )
+                          measurementConsumerKey,
+                          populationMetricCalculationSpec.externalMetricCalculationSpecId,
+                        )
                         .toName()
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(

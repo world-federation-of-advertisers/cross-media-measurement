@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
@@ -73,7 +74,6 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
-import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
@@ -282,16 +282,16 @@ class BasicReportsReportsJobTest {
             ReportKt.metricCalculationResult {
               metricCalculationSpec =
                 MetricCalculationSpecKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
                   .toName()
 
               reportingSet =
                 ReportingSetKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                  )
                   .toName()
 
               resultAttributes +=
@@ -316,16 +316,16 @@ class BasicReportsReportsJobTest {
             ReportKt.metricCalculationResult {
               metricCalculationSpec =
                 MetricCalculationSpecKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
                   .toName()
 
               reportingSet =
                 ReportingSetKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                  )
                   .toName()
 
               resultAttributes +=
@@ -436,16 +436,16 @@ class BasicReportsReportsJobTest {
             ReportKt.metricCalculationResult {
               metricCalculationSpec =
                 MetricCalculationSpecKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
                   .toName()
 
               reportingSet =
                 ReportingSetKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                )
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                  )
                   .toName()
 
               resultAttributes +=
@@ -521,10 +521,11 @@ class BasicReportsReportsJobTest {
           }
           resultGroupSpecs += resultGroupSpec {
             dimensionSpec = dimensionSpec {
-              grouping = DimensionSpecKt.grouping {
-                eventTemplateFields += "person.gender"
-                eventTemplateFields += "person.age_group"
-              }
+              grouping =
+                DimensionSpecKt.grouping {
+                  eventTemplateFields += "person.gender"
+                  eventTemplateFields += "person.age_group"
+                }
               filters += eventFilter {
                 terms += eventTemplateField {
                   path = "person.age_group"
@@ -535,10 +536,11 @@ class BasicReportsReportsJobTest {
           }
           resultGroupSpecs += resultGroupSpec {
             dimensionSpec = dimensionSpec {
-              grouping = DimensionSpecKt.grouping {
-                eventTemplateFields += "person.gender"
-                eventTemplateFields += "person.age_group"
-              }
+              grouping =
+                DimensionSpecKt.grouping {
+                  eventTemplateFields += "person.gender"
+                  eventTemplateFields += "person.age_group"
+                }
               filters += eventFilter {
                 terms += eventTemplateField {
                   path = "person.age_group"
@@ -1787,16 +1789,16 @@ class BasicReportsReportsJobTest {
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
               MetricCalculationSpecKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
                 .toName()
 
             reportingSet =
               ReportingSetKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                PRIMITIVE_REPORTING_SET.externalReportingSetId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                )
                 .toName()
 
             resultAttributes +=
