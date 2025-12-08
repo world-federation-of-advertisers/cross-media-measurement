@@ -288,7 +288,6 @@ fun createDimensionSpecFilter(
                 ?.findValueByName(term.value.enumValue)
                 ?.number
             }
-
             EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
             EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
             EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
