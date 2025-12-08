@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.dimensionSpec
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
@@ -134,6 +135,7 @@ class BasicReportsReportsJobTest {
           metricCalculationSpecs += NON_CUMULATIVE_METRIC_CALCULATION_SPEC
           metricCalculationSpecs += CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC
           metricCalculationSpecs += TOTAL_METRIC_CALCULATION_SPEC
+          metricCalculationSpecs += POPULATION_METRIC_CALCULATION_SPEC
         }
       )
   }
@@ -280,6 +282,74 @@ class BasicReportsReportsJobTest {
             ReportKt.metricCalculationResult {
               metricCalculationSpec =
                 MetricCalculationSpecKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
+                  .toName()
+
+              reportingSet =
+                ReportingSetKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                )
+                  .toName()
+
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  groupingPredicates += "person.gender == 1"
+                  groupingPredicates += "person.age_group == 1"
+                  metricSpec = metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                  filter = "(person.age_group == 1)"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult {
+                    populationCount = MetricResultKt.populationCountResult { value = 1000L }
+                  }
+                }
+            }
+
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
+                  .toName()
+
+              reportingSet =
+                ReportingSetKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                )
+                  .toName()
+
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  groupingPredicates += "person.gender == 1"
+                  groupingPredicates += "person.age_group == 2"
+                  metricSpec = metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                  filter = "(person.age_group == 1)"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult {
+                    populationCount = MetricResultKt.populationCountResult { value = 2000L }
+                  }
+                }
+            }
+
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
                     CMMS_MEASUREMENT_CONSUMER_ID,
                     CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
                   )
@@ -361,6 +431,40 @@ class BasicReportsReportsJobTest {
                   metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
                 }
             }
+
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
+                  .toName()
+
+              reportingSet =
+                ReportingSetKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                )
+                  .toName()
+
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  groupingPredicates += "person.gender == 1"
+                  groupingPredicates += "person.age_group == 1"
+                  metricSpec = metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                  filter = "(person.age_group == 2)"
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult {
+                    populationCount = MetricResultKt.populationCountResult { value = 3000L }
+                  }
+                }
+            }
         }
 
       whenever(reportsMock.getReport(any())).thenReturn(report)
@@ -417,6 +521,10 @@ class BasicReportsReportsJobTest {
           }
           resultGroupSpecs += resultGroupSpec {
             dimensionSpec = dimensionSpec {
+              grouping = DimensionSpecKt.grouping {
+                eventTemplateFields += "person.gender"
+                eventTemplateFields += "person.age_group"
+              }
               filters += eventFilter {
                 terms += eventTemplateField {
                   path = "person.age_group"
@@ -427,6 +535,10 @@ class BasicReportsReportsJobTest {
           }
           resultGroupSpecs += resultGroupSpec {
             dimensionSpec = dimensionSpec {
+              grouping = DimensionSpecKt.grouping {
+                eventTemplateFields += "person.gender"
+                eventTemplateFields += "person.age_group"
+              }
               filters += eventFilter {
                 terms += eventTemplateField {
                   path = "person.age_group"
@@ -595,6 +707,7 @@ class BasicReportsReportsJobTest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               externalReportResultId = EXTERNAL_REPORT_RESULT_ID
               reportingSetResult = reportingSetResult {
+                populationSize = 2000
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
@@ -653,6 +766,7 @@ class BasicReportsReportsJobTest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               externalReportResultId = EXTERNAL_REPORT_RESULT_ID
               reportingSetResult = reportingSetResult {
+                populationSize = 3000
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = COMPOSITE_REPORTING_SET.externalReportingSetId
@@ -1667,9 +1781,26 @@ class BasicReportsReportsJobTest {
                     }
                 }
               }
+          }
+
+        metricCalculationResults +=
+          ReportKt.metricCalculationResult {
+            metricCalculationSpec =
+              MetricCalculationSpecKey(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+              )
+                .toName()
+
+            reportingSet =
+              ReportingSetKey(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                PRIMITIVE_REPORTING_SET.externalReportingSetId,
+              )
+                .toName()
+
             resultAttributes +=
               ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricSpec = metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
                 timeInterval = interval {
                   startTime = timestamp { seconds = 1736150400 }
@@ -2456,6 +2587,12 @@ class BasicReportsReportsJobTest {
     private val TOTAL_METRIC_CALCULATION_SPEC = metricCalculationSpec {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalMetricCalculationSpecId = "total"
+      externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
+    }
+
+    private val POPULATION_METRIC_CALCULATION_SPEC = metricCalculationSpec {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      externalMetricCalculationSpecId = "population"
       externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
     }
   }

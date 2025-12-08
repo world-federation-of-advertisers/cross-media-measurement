@@ -519,6 +519,18 @@ class BasicReportsServiceTest {
         .toList()
         .filter { it.externalReportingSetId != campaignGroupKey.reportingSetId }
 
+    val primitiveReportingSet1 =
+      createdReportingSets.first { it.primitive.eventGroupKeysList.first() == ReportingSetKt.PrimitiveKt.eventGroupKey {
+        cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+        cmmsEventGroupId = "1235"
+      } }
+
+    val primitiveReportingSet2 =
+      createdReportingSets.first { it.primitive.eventGroupKeysList.last() == ReportingSetKt.PrimitiveKt.eventGroupKey {
+        cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+        cmmsEventGroupId = "1235"
+      } }
+
     val createdMetricCalculationSpecs =
       internalMetricCalculationSpecsService
         .listMetricCalculationSpecs(
@@ -528,6 +540,15 @@ class BasicReportsServiceTest {
           }
         )
         .metricCalculationSpecsList
+
+    val nonCumulativeMetricCalculationSpec =
+      createdMetricCalculationSpecs.first { it.details.hasTrailingWindow() }
+
+    val cumulativeMetricCalculationSpec =
+      createdMetricCalculationSpecs.first { it.details.hasMetricFrequencySpec() && !it.details.hasTrailingWindow() }
+
+    val populationMetricCalculationSpec =
+      createdMetricCalculationSpecs.first { !(it.details.hasMetricFrequencySpec() || it.details.hasTrailingWindow()) }
 
     val createReportRequest =
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
@@ -547,21 +568,27 @@ class BasicReportsServiceTest {
                 key =
                   ReportingSetKey(
                       measurementConsumerKey,
-                      createdReportingSets[0].externalReportingSetId,
+                      primitiveReportingSet1.externalReportingSetId,
                     )
                     .toName()
                 value =
                   ReportKt.reportingMetricCalculationSpec {
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
+                        measurementConsumerKey,
+                        populationMetricCalculationSpec.externalMetricCalculationSpecId,
+                      )
+                        .toName()
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                          nonCumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                          cumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                   }
@@ -571,7 +598,7 @@ class BasicReportsServiceTest {
                 key =
                   ReportingSetKey(
                       measurementConsumerKey,
-                      createdReportingSets[1].externalReportingSetId,
+                      primitiveReportingSet2.externalReportingSetId,
                     )
                     .toName()
                 value =
@@ -579,13 +606,13 @@ class BasicReportsServiceTest {
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                          nonCumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                          cumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                   }
@@ -1794,7 +1821,7 @@ class BasicReportsServiceTest {
           .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
           .metricCalculationSpecsList
 
-      assertThat(updatedMetricCalculationSpecs).hasSize(4)
+      assertThat(updatedMetricCalculationSpecs).hasSize(6)
       assertThat(updatedMetricCalculationSpecs)
         .ignoringRepeatedFieldOrder()
         .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
@@ -1819,9 +1846,6 @@ class BasicReportsServiceTest {
                         dayOfWeek = DayOfWeek.MONDAY
                       }
                   }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
                 metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
@@ -1924,6 +1948,23 @@ class BasicReportsServiceTest {
                     predicates += "person.social_grade_group == 1"
                     predicates += "person.social_grade_group == 2"
                   }
+                metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
+              }
+          },
+          internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = specifiedModelLine.name
+            details =
+              MetricCalculationSpecKt.details {
+                groupings +=
+                  MetricCalculationSpecKt.grouping {
+                    predicates += "person.social_grade_group == 0"
+                    predicates += "person.social_grade_group == 1"
+                    predicates += "person.social_grade_group == 2"
+                  }
                 filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
@@ -1937,9 +1978,6 @@ class BasicReportsServiceTest {
                     count = 1
                     increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                   }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
                 metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
@@ -2103,6 +2141,15 @@ class BasicReportsServiceTest {
                         METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
                     }
                 }
+              }
+          },
+          internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = specifiedModelLine.name
+            details =
+              MetricCalculationSpecKt.details {
+                filter = "(person.age_group == 1)"
                 metricSpecs += metricSpec {
                   populationCount = MetricSpecKt.populationCountParams {}
                 }
@@ -2187,9 +2234,6 @@ class BasicReportsServiceTest {
                         }
                     }
                 }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
               }
           },
         )
@@ -2207,7 +2251,7 @@ class BasicReportsServiceTest {
           .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
           .metricCalculationSpecsList
 
-      assertThat(identicalMetricCalculationSpecs).hasSize(4)
+      assertThat(identicalMetricCalculationSpecs).hasSize(6)
       assertThat(updatedMetricCalculationSpecs)
         .ignoringRepeatedFieldOrder()
         .containsExactlyElementsIn(identicalMetricCalculationSpecs)
