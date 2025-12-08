@@ -288,7 +288,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--pdp-name=\(_pdpName)",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -313,7 +313,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--pdp-name=\(_pdpName)",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {

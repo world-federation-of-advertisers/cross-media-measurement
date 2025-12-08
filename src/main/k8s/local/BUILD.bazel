@@ -245,7 +245,6 @@ cue_library(
 
 cue_dump(
     name = "reporting_v2",
-    srcs = ["reporting_v2.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "db_secret_name": DB_SECRET_NAME,
