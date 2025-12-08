@@ -76,11 +76,21 @@ class PostProcessReportResult:
         cmms_measurement_consumer_id: str,
         external_report_result_id: int,
     ) -> Optional[AddProcessedResultValuesRequest]:
-        """Executes the full post-processing workflow.
+        """Executes the post-processing workflow.
+
+        A list of reporting set results is fetched and groups by their
+        dimension. Each group forms a report summary and will be processed. At
+        the end, the combined updated measurements will be used to generate an
+        AddProcessedResultValuesRequest.
 
         Args:
             cmms_measurement_consumer_id: The Measurement Consumer ID.
             external_report_result_id: The external ID of the report result.
+
+        Returns:
+            An AddProcessedResultValuesRequest message or None if there is no
+            reporting set results. If any of the report summaries is failed to
+            be processed, an exception will be raised.
         """
         # Gets the report result.
         reporting_set_results: list[
@@ -408,15 +418,16 @@ def compute_basic_metric_set(
     population: int,
 ) -> BasicMetricSet:
     """Computes a BasicMetricSet from reach, frequencies, and impressions.
-
+ 
     Args:
         reach: The reach value.
         frequency_values: The frequency histogram.
         impressions: The impressions.
-        population: The population.
+        population: The total population for the demographic group.
 
     Returns:
-        A populated BasicMetricSet message.
+        A populated BasicMetricSet message. If population is not provided, an
+        exception will be raised.
     """
     if population <= 0:
         raise ValueError("Population must be a positive number.")
