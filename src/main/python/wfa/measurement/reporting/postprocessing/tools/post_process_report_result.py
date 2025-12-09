@@ -418,7 +418,7 @@ def compute_basic_metric_set(
     population: int,
 ) -> BasicMetricSet:
     """Computes a BasicMetricSet from reach, frequencies, and impressions.
-
+ 
     Args:
         reach: The reach value.
         frequency_values: The frequency histogram.
