@@ -567,8 +567,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
       )
-    assertThat(retrievedMetric.result.populationCount.value)
-      .isEqualTo(expectedResult)
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
 
   @Test
