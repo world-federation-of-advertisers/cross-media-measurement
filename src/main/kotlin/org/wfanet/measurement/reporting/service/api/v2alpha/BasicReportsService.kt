@@ -78,12 +78,14 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
-import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
+import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
+import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -132,62 +134,58 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    if (request.parent.isEmpty()) {
-      throw RequiredFieldNotSetException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    val measurementConsumerKey =
-      MeasurementConsumerKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    authorization.check(listOf(request.parent, measurementConsumerKey.toName()), Permission.CREATE)
+    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     if (request.basicReport.campaignGroup.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.campaign_group")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
     val campaignGroupKey =
       ReportingSetKey.fromName(request.basicReport.campaignGroup)
-        ?: throw InvalidFieldValueException("basic_report.campaign_group")
+        ?: throw InvalidFieldValueException("basic_report.campaign_group") { fieldPath ->
+            "$fieldPath is not a valid ReportingSet resource name"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    // Required for creating Report
-    val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
-
-    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
-
-    try {
-      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
-    } catch (e: ServiceException) {
-      throw when (e.reason) {
-        Errors.Reason.REQUIRED_FIELD_NOT_SET,
-        Errors.Reason.INVALID_FIELD_VALUE ->
-          e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        Errors.Reason.FIELD_UNIMPLEMENTED -> e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
-        Errors.Reason.BASIC_REPORT_NOT_FOUND,
-        Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-        Errors.Reason.REPORTING_SET_NOT_FOUND,
-        Errors.Reason.METRIC_NOT_FOUND,
-        Errors.Reason.CAMPAIGN_GROUP_INVALID,
-        Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
-        Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
-        Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-          e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
+    val campaignGroup: ReportingSet =
+      try {
+        getReportingSet(campaignGroupKey)
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
+    if (campaignGroup.campaignGroup != campaignGroup.name) {
+      throw CampaignGroupInvalidException(request.basicReport.campaignGroup)
+        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
+    val (parentKey: MeasurementConsumerKey) =
+      try {
+        CreateBasicReportRequestValidation.validateRequest(
+          request,
+          campaignGroup,
+          eventTemplateFieldsByPath,
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: FieldUnimplementedException) {
+        throw e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
+      } catch (e: DataProviderNotFoundForCampaignGroupException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: EventTemplateFieldInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
 
+    authorization.check(listOf(request.parent, parentKey.toName()), Permission.CREATE)
+
+    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[request.parent]
         ?: throw Status.INTERNAL.withDescription("Config not found for $request.parent")
           .asRuntimeException()
 
     val measurementConsumerCredentials =
-      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
+      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
 
     val validModelLines =
       kingdomModelLinesStub
@@ -298,7 +296,7 @@ class BasicReportsService(
           createBasicReportRequest {
             basicReport =
               request.basicReport.toInternal(
-                cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
@@ -314,7 +312,7 @@ class BasicReportsService(
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
             BasicReportAlreadyExistsException(
                 BasicReportKey(
-                    cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                    cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
                     basicReportId = request.basicReportId,
                   )
                   .toName()
@@ -366,7 +364,7 @@ class BasicReportsService(
 
     internalBasicReportsStub.setExternalReportId(
       setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        cmmsMeasurementConsumerId = parentKey.measurementConsumerId
         externalBasicReportId = request.basicReportId
         externalReportId = createReportRequest.reportId
       }
@@ -474,15 +472,18 @@ class BasicReportsService(
     }
   }
 
-  /** Get a single [ReportingSet] */
-  private suspend fun getReportingSet(name: String): ReportingSet {
-    val reportingSetKey = ReportingSetKey.fromName(name)!!
+  /**
+   * Gets a single [ReportingSet].
+   *
+   * @throws ReportingSetNotFoundException
+   */
+  private suspend fun getReportingSet(key: ReportingSetKey): ReportingSet {
     return try {
       internalReportingSetsStub
         .batchGetReportingSets(
           batchGetReportingSetsRequest {
-            cmmsMeasurementConsumerId = reportingSetKey.cmmsMeasurementConsumerId
-            externalReportingSetIds += reportingSetKey.reportingSetId
+            cmmsMeasurementConsumerId = key.cmmsMeasurementConsumerId
+            externalReportingSetIds += key.reportingSetId
           }
         )
         .reportingSetsList
@@ -490,9 +491,7 @@ class BasicReportsService(
         .toReportingSet()
     } catch (e: StatusException) {
       throw when (ReportingInternalException.getErrorCode(e)) {
-        ErrorCode.REPORTING_SET_NOT_FOUND ->
-          throw ReportingSetNotFoundException(name)
-            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        ErrorCode.REPORTING_SET_NOT_FOUND -> ReportingSetNotFoundException(key.toName())
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.REPORTING_SET_ALREADY_EXISTS,
         ErrorCode.CAMPAIGN_GROUP_INVALID,
@@ -513,7 +512,7 @@ class BasicReportsService(
         ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
         ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
         ErrorCode.UNRECOGNIZED,
-        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        null -> Exception("Internal error retrieving ReportingSet", e)
       }
     }
   }
