@@ -498,7 +498,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
-        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[0] to "person.age_group <= ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
         eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
       )
 
@@ -567,24 +567,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
       )
-
-    val expectedResult2 =
-      MeasurementResults.computePopulation(
-        inProcessCmmsComponents.getPopulationData().populationSpec,
-        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE})",
-        TestEvent.getDescriptor(),
-      )
-    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult - expectedResult2)
+    assertThat(retrievedMetric.result.populationCount.value)
+      .isEqualTo(expectedResult)
   }
 
   @Test
   fun `population metric with no reporting set filters has correct result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
-    val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(
-        eventGroups[0] to "",
-      )
+    val eventGroupEntries: List<Pair<EventGroup, String>> = listOf(eventGroups[0] to "")
 
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
