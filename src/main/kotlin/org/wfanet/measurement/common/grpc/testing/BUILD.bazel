@@ -1,0 +1,17 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "status_exception_subject",
+    srcs = ["StatusExceptionSubject.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
