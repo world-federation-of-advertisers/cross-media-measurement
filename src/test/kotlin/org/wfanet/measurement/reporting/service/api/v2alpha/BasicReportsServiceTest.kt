@@ -49,6 +49,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
 import org.wfanet.measurement.access.client.v1alpha.testing.PrincipalMatcher.Companion.hasPrincipal
@@ -72,7 +73,6 @@ import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.StatusExceptionSubject.Companion.assertThat
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -2544,6 +2544,170 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport throws PERMISSION_DENIED when caller does not have permission for DEV ModelLine`() =
+    runBlocking {
+      wheneverBlocking { permissionsServiceMock.checkPermissions(any()) } doAnswer
+        { invocation ->
+          val request: CheckPermissionsRequest = invocation.getArgument(0)
+          checkPermissionsResponse {
+            permissions +=
+              request.permissionsList.intersect(
+                listOf("permissions/${BasicReportsService.Permission.CREATE}")
+              )
+          }
+        }
+      val modelLine = modelLine {
+        name = ModelLineKey("1234", "1234", "1234").toName()
+        type = ModelLine.Type.DEV
+      }
+      whenever(modelLinesServiceMock.enumerateValidModelLines(any()))
+        .thenReturn(enumerateValidModelLinesResponse { modelLines += modelLine })
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = basicReport {
+          title = "title"
+          campaignGroup = campaignGroupKey.toName()
+          this.modelLine = modelLine.name
+          reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 3
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2026
+              month = 1
+              day = 5
+            }
+          }
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            impressionQualificationFilter =
+              ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+                .toName()
+          }
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                filterSpec += impressionQualificationFilterSpec {
+                  mediaType = MediaType.DISPLAY
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "banner_ad.viewable"
+                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                    }
+                  }
+                }
+              }
+          }
+          resultGroupSpecs += resultGroupSpec {
+            title = "title"
+            reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+            metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+            dimensionSpec = dimensionSpec {
+              grouping =
+                DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "person.age_group"
+                  value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+              }
+            }
+            resultGroupMetricSpec = resultGroupMetricSpec {
+              populationSize = true
+              reportingUnit =
+                ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                  nonCumulative =
+                    ResultGroupMetricSpecKt.basicMetricSetSpec {
+                      reach = true
+                      percentReach = true
+                      kPlusReach = 5
+                      percentKPlusReach = true
+                      averageFrequency = true
+                      impressions = true
+                      grps = true
+                    }
+                  cumulative =
+                    ResultGroupMetricSpecKt.basicMetricSetSpec {
+                      reach = true
+                      percentReach = true
+                      kPlusReach = 5
+                      percentKPlusReach = true
+                      averageFrequency = true
+                      impressions = true
+                      grps = true
+                    }
+                  stackedIncrementalReach = false
+                }
+              component =
+                ResultGroupMetricSpecKt.componentMetricSetSpec {
+                  nonCumulative =
+                    ResultGroupMetricSpecKt.basicMetricSetSpec {
+                      reach = true
+                      percentReach = true
+                      kPlusReach = 5
+                      percentKPlusReach = true
+                      averageFrequency = true
+                      impressions = true
+                      grps = true
+                    }
+                  cumulative =
+                    ResultGroupMetricSpecKt.basicMetricSetSpec {
+                      reach = true
+                      percentReach = true
+                      kPlusReach = 5
+                      percentKPlusReach = true
+                      averageFrequency = true
+                      impressions = true
+                      grps = true
+                    }
+                  nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                  cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                }
+            }
+          }
+        }
+        basicReportId = "a1234"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE)
+    }
+
+  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when basicReportId is missing`() = runBlocking {
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -2926,7 +3090,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when modelLine not part of valid list`(): Unit =
+  fun `createBasicReport throws FAILED_PRECONDITION when modelLine not part of valid list`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -2999,8 +3163,8 @@ class BasicReportsServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.model_line"
+            reason = Errors.Reason.MODEL_LINE_NOT_ACTIVE.name
+            metadata[Errors.Metadata.MODEL_LINE.key] = request.basicReport.modelLine
           }
         )
     }
@@ -9125,6 +9289,7 @@ class BasicReportsServiceTest {
         BasicReportsService.Permission.GET,
         BasicReportsService.Permission.LIST,
         BasicReportsService.Permission.CREATE,
+        BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE,
       )
     private val SCOPES = ALL_PERMISSIONS
     private val PRINCIPAL = principal { name = "principals/mc-user" }
