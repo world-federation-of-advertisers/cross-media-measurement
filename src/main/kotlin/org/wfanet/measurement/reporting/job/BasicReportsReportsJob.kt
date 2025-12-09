@@ -27,8 +27,8 @@ import java.util.logging.Logger
 import kotlin.math.roundToInt
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant

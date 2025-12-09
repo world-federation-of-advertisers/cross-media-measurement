@@ -20,8 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.DayOfWeek
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt

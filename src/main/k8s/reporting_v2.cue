@@ -85,9 +85,10 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_basicReportsEnabled: string
-	_secretName:          string
-	_mcConfigSecretName:  string
+	_basicReportsEnabled:        string
+	_secretName:                 string
+	_mcConfigSecretName:         string
+	_populationDataProviderName: string
 
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
@@ -193,9 +194,9 @@ package k8s
 						"--require-client-auth=false",
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
-						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
 						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -288,6 +289,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -312,6 +314,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {

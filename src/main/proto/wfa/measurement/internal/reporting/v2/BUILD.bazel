@@ -1,5 +1,6 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
+load("@rules_proto_grpc_python//:defs.bzl", "python_grpc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
@@ -36,10 +37,6 @@ proto_and_kt_jvm_proto_library(
 )
 
 proto_and_kt_jvm_proto_library(
-    name = "reporting_set",
-)
-
-proto_and_kt_jvm_proto_library(
     name = "noise_mechanism",
 )
 
@@ -64,6 +61,12 @@ proto_and_kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "reporting_set_proto",
+    srcs = ["reporting_set.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+proto_library(
     name = "measurements_service_proto",
     srcs = ["measurements_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -85,11 +88,6 @@ proto_library(
     deps = [
         ":reporting_set_proto",
     ],
-)
-
-kt_jvm_grpc_proto_library(
-    name = "reporting_sets_service_kt_jvm_grpc_proto",
-    deps = [":reporting_sets_service_proto"],
 )
 
 proto_and_kt_jvm_proto_library(
@@ -226,6 +224,7 @@ MESSAGE_LIBS = [
     "report_result",
     "reporting_impression_qualification_filter",
     "reporting_interval",
+    "reporting_set",
     "reporting_unit",
     "result_group_spec",
 ]
@@ -372,6 +371,7 @@ proto_library(
 SERVICE_LIBS = [
     "basic_reports",
     "report_results",
+    "reporting_sets",
 ]
 
 proto_library(
@@ -422,6 +422,14 @@ proto_library(
     py_proto_library(
         name = "{prefix}_service_py_pb2".format(prefix = prefix),
         deps = [":{prefix}_service_proto".format(prefix = prefix)],
+    )
+    for prefix in SERVICE_LIBS
+]
+
+[
+    python_grpc_library(
+        name = "{prefix}_service_py_pb2_grpc".format(prefix = prefix),
+        protos = [":{prefix}_service_proto".format(prefix = prefix)],
     )
     for prefix in SERVICE_LIBS
 ]

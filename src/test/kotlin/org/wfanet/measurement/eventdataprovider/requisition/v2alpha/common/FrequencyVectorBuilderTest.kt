@@ -41,6 +41,7 @@ class FrequencyVectorBuilderTest {
           reachAndFrequency = reachAndFrequency {}
           vidSamplingInterval = FULL_SAMPLING_INTERVAL
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
   }
@@ -54,6 +55,7 @@ class FrequencyVectorBuilderTest {
           impression = impression {}
           vidSamplingInterval = FULL_SAMPLING_INTERVAL
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
   }
@@ -70,6 +72,7 @@ class FrequencyVectorBuilderTest {
             width = 0.5f
           }
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
 
@@ -83,6 +86,7 @@ class FrequencyVectorBuilderTest {
             width = 0.5f
           }
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
 
@@ -96,6 +100,7 @@ class FrequencyVectorBuilderTest {
             width = 0f
           }
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
 
@@ -109,6 +114,7 @@ class FrequencyVectorBuilderTest {
             width = 2f
           }
         },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
   }
@@ -158,6 +164,7 @@ class FrequencyVectorBuilderTest {
         SMALL_POPULATION_SPEC,
         FULL_REACH_MEASUREMENT_SPEC,
         frequencyVector { data += listOf<Int>(2, 1, 0, 0, 0) },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
     }
   }
@@ -169,6 +176,7 @@ class FrequencyVectorBuilderTest {
         SMALL_POPULATION_SPEC,
         FULL_REACH_MEASUREMENT_SPEC,
         frequencyVector { data += listOf<Int>(1, 1, 0, 0, 0, 0, 0, 0, 0, 0) },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     val frequencyVector =
@@ -193,6 +201,7 @@ class FrequencyVectorBuilderTest {
         SMALL_POPULATION_SPEC,
         FULL_REACH_MEASUREMENT_SPEC,
         frequencyVector { data += listOf<Int>(0, 0, 0, 0, 0, 0, 0, 0, 0, 0) },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     val builder2 =
@@ -200,6 +209,7 @@ class FrequencyVectorBuilderTest {
         SMALL_POPULATION_SPEC,
         PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
         frequencyVector { data += listOf<Int>(0, 0, 0, 0, 0) },
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     assertFailsWith<IllegalArgumentException>("expected exception") {
@@ -210,7 +220,11 @@ class FrequencyVectorBuilderTest {
   @Test
   fun `increment fails with out of range VID in strict mode`() {
     val builder =
-      FrequencyVectorBuilder(SMALL_POPULATION_SPEC, PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC)
+      FrequencyVectorBuilder(
+        SMALL_POPULATION_SPEC,
+        PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
 
     // This fails because the partial interval is from 0.3 to 0.8, and therefore does
     // not include the global index zero.
@@ -224,6 +238,7 @@ class FrequencyVectorBuilderTest {
         SMALL_POPULATION_SPEC,
         PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Since we are not in strict mode this has no effect.
@@ -234,7 +249,11 @@ class FrequencyVectorBuilderTest {
   @Test
   fun `incrementBy fails when amount is 0`() {
     val builder =
-      FrequencyVectorBuilder(SMALL_POPULATION_SPEC, PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC)
+      FrequencyVectorBuilder(
+        SMALL_POPULATION_SPEC,
+        PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
     assertFailsWith<IllegalArgumentException>("expected exception") { builder.incrementBy(5, 0) }
   }
 
@@ -269,6 +288,7 @@ class FrequencyVectorBuilderTest {
       FrequencyVectorBuilder(
         SMALL_COMPLEX_POPULATION_SPEC,
         PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Population size is 10, interval is [0.3, 0.8)
@@ -300,7 +320,11 @@ class FrequencyVectorBuilderTest {
   @Test
   fun `build returns a frequency vector for reach over partial wrapping interval`() {
     val builder =
-      FrequencyVectorBuilder(SMALL_COMPLEX_POPULATION_SPEC, PARTIAL_WRAPPING_REACH_MEASUREMENT_SPEC)
+      FrequencyVectorBuilder(
+        SMALL_COMPLEX_POPULATION_SPEC,
+        PARTIAL_WRAPPING_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
 
     // Population size is 10 interval is [0.8, 1.0] + [0, 0.3)
     val expectedSize = 5
@@ -337,7 +361,11 @@ class FrequencyVectorBuilderTest {
   @Test
   fun `build returns a frequency vector for reach over full wrapping interval`() {
     val builder =
-      FrequencyVectorBuilder(SMALL_POPULATION_SPEC, FULL_WRAPPING_REACH_MEASUREMENT_SPEC)
+      FrequencyVectorBuilder(
+        SMALL_POPULATION_SPEC,
+        FULL_WRAPPING_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
+      )
 
     // Population size is 10, interval is [1.0, 1.0) + [0, 1.0)
     val expectedSize = 10
@@ -367,6 +395,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // For reach, all frequencies should be capped at 1
@@ -390,6 +419,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = frequencyMeasurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Frequencies should be capped at maximum of 5
@@ -414,6 +444,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = frequencyMeasurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Verify unsigned conversion: -56 as byte = 200 unsigned, 255 stays 255
@@ -432,6 +463,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = PARTIAL_NON_WRAPPING_REACH_MEASUREMENT_SPEC,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Should only include indices 3-7, and cap at 1 for reach
@@ -456,6 +488,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = frequencyMeasurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Output order: indices 8, 9, 0, 1, 2
@@ -474,6 +507,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     assertThat(builder.build())
@@ -491,6 +525,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Remaining VIDs should have frequency 0
@@ -511,6 +546,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
       )
 
     // Build using manual increment
@@ -518,6 +554,7 @@ class FrequencyVectorBuilderTest {
       FrequencyVectorBuilder(
         populationSpec = SMALL_POPULATION_SPEC,
         measurementSpec = FULL_REACH_MEASUREMENT_SPEC,
+        overrideImpressionMaxFrequencyPerUser = null,
         strict = false,
       )
     for (index in frequencyData.indices) {
@@ -554,6 +591,7 @@ class FrequencyVectorBuilderTest {
         measurementSpec = reachMeasurementSpec,
         frequencyDataBytes = frequencyDataBytes,
         strict = false,
+        overrideImpressionMaxFrequencyPerUser = null,
         kAnonymityParams = kAnonymityParams,
       )
 

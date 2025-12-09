@@ -177,7 +177,7 @@ jobs:
 
   update-edp-aggregator-service:
     uses: ./.github/workflows/configure-edp-aggregator.yml
-    needs: [publish-images, terraform]
+    needs: [publish-images, terraform, update-kingdom]
     secrets: inherit
     permissions:
       contents: read

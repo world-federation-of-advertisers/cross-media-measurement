@@ -42,13 +42,13 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -106,6 +106,7 @@ class InProcessReportingServer(
   private val eventDescriptor: Descriptors.Descriptor,
   // May be empty
   private val defaultModelLineName: String,
+  private val populationDataProviderName: String,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
@@ -287,6 +288,7 @@ class InProcessReportingServer(
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
+                populationDataProvider = populationDataProviderName,
               )
               .withTrustedPrincipalAuthentication(),
             ReportingSetsService(internalReportingSetsClient, authorization)

@@ -107,4 +107,12 @@ class ReportingApiServerFlags {
   )
   var allowSamplingIntervalWrapping by Delegates.notNull<Boolean>()
     private set
+
+  @CommandLine.Option(
+    names = ["--pdp-name"],
+    description = ["The Population DataProvider resource name."],
+    required = true,
+  )
+  lateinit var populationDataProvider: String
+    private set
 }
