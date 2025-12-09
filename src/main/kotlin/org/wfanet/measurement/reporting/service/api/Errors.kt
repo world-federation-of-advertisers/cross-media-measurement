@@ -40,6 +40,11 @@ object Errors {
     INVALID_METRIC_STATE_TRANSITION,
     ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
     IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+    MODEL_LINE_NOT_FOUND,
+    MODEL_LINE_NOT_ACTIVE,
+    DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
+    /** A reference to a field in an event template is invalid for the Event message type. */
+    EVENT_TEMPLATE_FIELD_INVALID,
   }
 
   enum class Metadata(val key: String) {
@@ -49,7 +54,10 @@ object Errors {
     NEW_METRIC_STATE("newMetricState"),
     REPORTING_SET("reportingSet"),
     FIELD_NAME("fieldName"),
-    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter");
+    IMPRESSION_QUALIFICATION_FILTER("impressionQualificationFilter"),
+    MODEL_LINE("modelLine"),
+    DATA_PROVIDER("dataProvider"),
+    EVENT_TEMPLATE_FIELD_PATH("eventTemplateFieldPath");
 
     companion object {
       private val METADATA_BY_KEY by lazy { entries.associateBy { it.key } }
@@ -204,4 +212,49 @@ class ImpressionQualificationFilterNotFoundException(name: String, cause: Throwa
     "ImpressionQualificationFilter $name not found",
     mapOf(Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER to name),
     cause,
-  ) {}
+  )
+
+class ModelLineNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.MODEL_LINE_NOT_FOUND,
+    "ModelLine $name not found",
+    mapOf(Errors.Metadata.MODEL_LINE to name),
+    cause,
+  )
+
+class ModelLineNotActiveException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.MODEL_LINE_NOT_ACTIVE,
+    "ModelLine $name not active for the DataProviders within the interval",
+    mapOf(Errors.Metadata.MODEL_LINE to name),
+    cause,
+  )
+
+class DataProviderNotFoundForCampaignGroupException(
+  dataProviderName: String,
+  reportingSetName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP,
+    "$dataProviderName has no EventGroups in Campaign Group $reportingSetName",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER to dataProviderName,
+      Errors.Metadata.REPORTING_SET to reportingSetName,
+    ),
+    cause,
+  )
+
+class EventTemplateFieldInvalidException(
+  eventTemplateFieldPath: String,
+  cause: Throwable? = null,
+  buildMessage: (eventTemplateFieldPath: String) -> String = {
+    "Reference to field $eventTemplateFieldPath is invalid for the event message type"
+  },
+) :
+  ServiceException(
+    Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID,
+    buildMessage(eventTemplateFieldPath),
+    mapOf(Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH to eventTemplateFieldPath),
+    cause,
+  )
