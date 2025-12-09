@@ -260,6 +260,7 @@ private object V2AlphaPublicApiServer {
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         coroutineContext = serviceDispatcher,
+        populationDataProvider = reportingApiServerFlags.populationDataProvider,
       )
 
     startInProcessServerWithService(
