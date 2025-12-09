@@ -22,6 +22,10 @@ proto_library(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_filter_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_frequency_spec_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:datetime_proto",
     ],
 )
 
