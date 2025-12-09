@@ -144,6 +144,7 @@ private fun run(
         dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
+        populationDataProvider = reportingApiServerFlags.populationDataProvider,
       )
       .withTrustedPrincipalAuthentication()
 

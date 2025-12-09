@@ -26,6 +26,9 @@ from wfa.measurement.internal.reporting.postprocessing import (
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
 from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from wfa.measurement.internal.reporting.v2 import event_template_field_pb2
+from wfa.measurement.internal.reporting.v2 import (
+    metric_frequency_spec_pb2,
+)
 
 ReportSummaryWindowResult = (report_summary_v2_pb2.ReportSummaryV2.
                              ReportSummarySetResult.ReportSummaryWindowResult)
@@ -327,6 +330,7 @@ class ReportConversionTest(unittest.TestCase):
             reporting_set_results {
               cmms_measurement_consumer_id: "abcd"
               external_report_result_id: 123
+              external_reporting_set_result_id: 1
               dimension {
                 external_reporting_set_id: "edp1"
                 venn_diagram_region_type: UNION
@@ -377,7 +381,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_ami_report_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           groupings {
             path: "person.age_group"
             value { enum_value: "YEARS_18_TO_34" }
@@ -394,26 +398,31 @@ class ReportConversionTest(unittest.TestCase):
           }
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { total: true }
             whole_campaign_result {
-              metric_frequency_type: TOTAL
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_whole_campaign_edp1_ami_2025_10_15"
+                metric: "reach_1_cumulative_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_whole_campaign_edp1_ami_2025_10_15"
+                metric: "impression_1_cumulative_2025_10_15"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_whole_campaign_edp1_ami_2025_10_15"
+                metric: "frequency_1_cumulative_2025_10_15"
               }
             }
           }
@@ -471,29 +480,34 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_custom_report_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { total: true }
             whole_campaign_result {
-              metric_frequency_type: TOTAL
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 5000
                 standard_deviation: 200
-                metric: "reach_whole_campaign_edp1_custom_2025_10_15"
+                metric: "reach_1_cumulative_2025_10_15"
               }
               impression_count {
                 value: 50000
-                metric: "impression_whole_campaign_edp1_custom_2025_10_15"
+                metric: "impression_1_cumulative_2025_10_15"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 2500 }
                 }
-                metric: "frequency_whole_campaign_edp1_custom_2025_10_15"
+                metric: "frequency_1_cumulative_2025_10_15"
               }
             }
           }
@@ -569,47 +583,55 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_ami_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { weekly: MONDAY }
             non_cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
               reach {
                 value: 2000
-                metric: "reach_non_cumulative_edp1_ami_2025_10_08"
+                metric: "reach_1_non_cumulative_2025_10_08"
               }
               impression_count {
                 value: 20000
-                metric: "impression_non_cumulative_edp1_ami_2025_10_08"
+                metric: "impression_1_non_cumulative_2025_10_08"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 1000 }
                 }
-                metric: "frequency_non_cumulative_edp1_ami_2025_10_08"
+                metric: "frequency_1_non_cumulative_2025_10_08"
               }
             }
             non_cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 3000
                 standard_deviation: 150
-                metric: "reach_non_cumulative_edp1_ami_2025_10_15"
+                metric: "reach_1_non_cumulative_2025_10_15"
               }
               impression_count {
                 value: 30000
-                metric: "impression_non_cumulative_edp1_ami_2025_10_15"
+                metric: "impression_1_non_cumulative_2025_10_15"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 1500 }
                 }
-                metric: "frequency_non_cumulative_edp1_ami_2025_10_15"
+                metric: "frequency_1_non_cumulative_2025_10_15"
               }
             }
           }
@@ -702,7 +724,7 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_custom_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           groupings {
             path: "person.age_group"
             value { enum_value: "YEARS_18_TO_34" }
@@ -719,44 +741,52 @@ class ReportConversionTest(unittest.TestCase):
           }
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { weekly: MONDAY }
             non_cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
               reach {
                 value: 2000
-                metric: "reach_non_cumulative_edp1_custom_2025_10_08"
+                metric: "reach_1_non_cumulative_2025_10_08"
               }
               impression_count {
                 value: 20000
-                metric: "impression_non_cumulative_edp1_custom_2025_10_08"
+                metric: "impression_1_non_cumulative_2025_10_08"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 1000 }
                 }
-                metric: "frequency_non_cumulative_edp1_custom_2025_10_08"
+                metric: "frequency_1_non_cumulative_2025_10_08"
               }
             }
             non_cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 3000
                 standard_deviation: 150
-                metric: "reach_non_cumulative_edp1_custom_2025_10_15"
+                metric: "reach_1_non_cumulative_2025_10_15"
               }
               impression_count {
                 value: 30000
-                metric: "impression_non_cumulative_edp1_custom_2025_10_15"
+                metric: "impression_1_non_cumulative_2025_10_15"
               }
               frequency {
                 bins {
                   key: 1
                   value { value: 1500 }
                 }
-                metric: "frequency_non_cumulative_edp1_custom_2025_10_15"
+                metric: "frequency_1_non_cumulative_2025_10_15"
               }
             }
          }
@@ -823,25 +853,33 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_ami_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "ami"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { weekly: MONDAY }
             cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
               reach {
                 value: 2000
-                metric: "reach_cumulative_edp1_ami_2025_10_08"
+                metric: "reach_1_cumulative_2025_10_08"
               }
             }
             cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 3000
                 standard_deviation: 150
-                metric: "reach_cumulative_edp1_ami_2025_10_15"
+                metric: "reach_1_cumulative_2025_10_15"
               }
             }
           }
@@ -907,25 +945,33 @@ class ReportConversionTest(unittest.TestCase):
         """
         expected_custom_summary_textproto = """
           cmms_measurement_consumer_id: "abcd"
-          external_report_result_id: "123"
+          external_report_result_id: 123
           population: 10000
           report_summary_set_results {
+            external_reporting_set_result_id: 1
             impression_filter: "custom"
             set_operation: "union"
             data_providers: "edp1"
+            metric_frequency_spec { weekly: MONDAY }
             cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
               reach {
                 value: 2000
-                metric: "reach_cumulative_edp1_custom_2025_10_08"
+                metric: "reach_1_cumulative_2025_10_08"
               }
             }
             cumulative_results {
-              metric_frequency_type: WEEKLY
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
               reach {
                 value: 3000
                 standard_deviation: 150
-                metric: "reach_cumulative_edp1_custom_2025_10_15"
+                metric: "reach_1_cumulative_2025_10_15"
               }
             }
           }
@@ -1004,115 +1050,129 @@ class ReportConversionTest(unittest.TestCase):
 
         # Verifies that the total campaign measurements for the 3 edps are in the
         # report summary.
-        expected_reporting_set_result_18_34 = (
-            report_summary_v2_pb2.ReportSummaryV2.ReportSummarySetResult())
-        expected_reporting_set_result_18_34.impression_filter = 'custom'
-        expected_reporting_set_result_18_34.set_operation = 'union'
-        expected_reporting_set_result_18_34.data_providers.extend(
-            ['edp1', 'edp2', 'edp3'])
-        # There are only non-cumulative whole campaign measurements.
-        whole_campaign = (
-            expected_reporting_set_result_18_34.whole_campaign_result)
-        whole_campaign.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.TOTAL)
-        whole_campaign.reach.value = 19030737
-        whole_campaign.reach.standard_deviation = 10000.0
-        whole_campaign.reach.metric = (
-            'reach_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
-        whole_campaign.impression_count.value = 35936915
-        whole_campaign.impression_count.standard_deviation = 10000.0
-        whole_campaign.impression_count.metric = (
-            'impression_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
-        whole_campaign.frequency.metric = (
-            'frequency_whole_campaign_edp1_edp2_edp3_custom_2025_10_15')
-        freq_bins = {
-            1: (9822316, 10000.0),
-            2: (4911158, 10000.0),
-            3: (2455579, 10000.0),
-            4: (1227790, 10000.0),
-            5: (613894, 10000.0),
-        }
-        for k, v in freq_bins.items():
-            whole_campaign.frequency.bins[k].value = v[0]
-            whole_campaign.frequency.bins[k].standard_deviation = v[1]
+        expected_reporting_summary_set_result_18_34 = text_format.Parse(
+            """
+            external_reporting_set_result_id: 25
+            impression_filter: "custom"
+            set_operation: "union"
+            data_providers: "edp1"
+            data_providers: "edp2"
+            data_providers: "edp3"
+            metric_frequency_spec { total: true }
+            whole_campaign_result {
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 15 }
+              }
+              reach {
+                value: 19030737
+                standard_deviation: 10000.0
+                metric: "reach_25_cumulative_2025_10_15"
+              }
+              impression_count {
+                value: 35936915
+                standard_deviation: 10000.0
+                metric: "impression_25_cumulative_2025_10_15"
+              }
+              frequency {
+                bins { key: 1 value { value: 9822316 standard_deviation: 10000.0 } }
+                bins { key: 2 value { value: 4911158 standard_deviation: 10000.0 } }
+                bins { key: 3 value { value: 2455579 standard_deviation: 10000.0 } }
+                bins { key: 4 value { value: 1227790 standard_deviation: 10000.0 } }
+                bins { key: 5 value { value: 613894 standard_deviation: 10000.0 } }
+                metric: "frequency_25_cumulative_2025_10_15"
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2.ReportSummarySetResult(),
+        )
 
-        self.assertIn(expected_reporting_set_result_18_34,
+        self.assertIn(expected_reporting_summary_set_result_18_34,
                       report_summary_18_34.report_summary_set_results)
 
         # Verifies that a specific, expected set result is present in the summary.
-        expected_reporting_set_result_35_54 = (
-            report_summary_v2_pb2.ReportSummaryV2.ReportSummarySetResult())
-        expected_reporting_set_result_35_54.impression_filter = 'ami'
-        expected_reporting_set_result_35_54.set_operation = 'union'
-        expected_reporting_set_result_35_54.data_providers.extend(['edp1'])
-
-        # There are cumulative, non-cumulative whole campaign, and weekly
-        # non-cumulative measurements.
-        # First cumulative reach.
-        cumulative1 = expected_reporting_set_result_35_54.cumulative_results.add(
+        expected_reporting_summary_set_result_35_54 = text_format.Parse(
+            """
+            external_reporting_set_result_id: 1
+            impression_filter: "ami"
+            set_operation: "union"
+            data_providers: "edp1"
+            metric_frequency_spec { weekly: MONDAY }
+            cumulative_results {
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
+              reach {
+                value: 9992500
+                standard_deviation: 10000.0
+                metric: "reach_1_cumulative_2025_10_08"
+              }
+            }
+            cumulative_results {
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
+              reach {
+                value: 11998422
+                standard_deviation: 10000.0
+                metric: "reach_1_cumulative_2025_10_15"
+              }
+            }
+            non_cumulative_results {
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 1 }
+                end { year: 2025 month: 10 day: 8 }
+              }
+              reach {
+                value: 10008130
+                standard_deviation: 10000.0
+                metric: "reach_1_non_cumulative_2025_10_08"
+              }
+              impression_count {
+                value: 18379493
+                standard_deviation: 10000.0
+                metric: "impression_1_non_cumulative_2025_10_08"
+              }
+              frequency {
+                bins { key: 1 value { value: 5165486 standard_deviation: 10000.0 } }
+                bins { key: 2 value { value: 2582743 standard_deviation: 10000.0 } }
+                bins { key: 3 value { value: 1291372 standard_deviation: 10000.0 } }
+                bins { key: 4 value { value: 645686 standard_deviation: 10000.0 } }
+                bins { key: 5 value { value: 322843 standard_deviation: 10000.0 } }
+                metric: "frequency_1_non_cumulative_2025_10_08"
+              }
+            }
+            non_cumulative_results {
+              key {
+                non_cumulative_start { year: 2025 month: 10 day: 8 }
+                end { year: 2025 month: 10 day: 15 }
+              }
+              reach {
+                value: 2452001
+                standard_deviation: 10000.0
+                metric: "reach_1_non_cumulative_2025_10_15"
+              }
+              impression_count {
+                value: 4471035
+                standard_deviation: 10000.0
+                metric: "impression_1_non_cumulative_2025_10_15"
+              }
+              frequency {
+                bins { key: 1 value { value: 1265549 standard_deviation: 10000.0 } }
+                bins { key: 2 value { value: 632775 standard_deviation: 10000.0 } }
+                bins { key: 3 value { value: 316388 standard_deviation: 10000.0 } }
+                bins { key: 4 value { value: 158194 standard_deviation: 10000.0 } }
+                bins { key: 5 value { value: 79095 standard_deviation: 10000.0 } }
+                metric: "frequency_1_non_cumulative_2025_10_15"
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2.ReportSummarySetResult(),
         )
-        cumulative1.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
-        cumulative1.reach.value = 9992500
-        cumulative1.reach.standard_deviation = 10000.0
-        cumulative1.reach.metric = 'reach_cumulative_edp1_ami_2025_10_08'
 
-        # First non-cumulative results.
-        non_cumulative1 = expected_reporting_set_result_35_54.non_cumulative_results.add(
-        )
-        non_cumulative1.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
-        non_cumulative1.reach.value = 10008130
-        non_cumulative1.reach.standard_deviation = 10000.0
-        non_cumulative1.reach.metric = 'reach_non_cumulative_edp1_ami_2025_10_08'
-        non_cumulative1.impression_count.value = 18379493
-        non_cumulative1.impression_count.standard_deviation = 10000.0
-        non_cumulative1.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_08'
-        non_cumulative1.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_08'
-        freq_bins1 = {
-            1: (5165486, 10000.0),
-            2: (2582743, 10000.0),
-            3: (1291372, 10000.0),
-            4: (645686, 10000.0),
-            5: (322843, 10000.0),
-        }
-        for k, v in freq_bins1.items():
-            non_cumulative1.frequency.bins[k].value = v[0]
-            non_cumulative1.frequency.bins[k].standard_deviation = v[1]
-
-        # Second cumulative reach.
-        cumulative2 = expected_reporting_set_result_35_54.cumulative_results.add(
-        )
-        cumulative2.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
-        cumulative2.reach.value = 11998422
-        cumulative2.reach.standard_deviation = 10000.0
-        cumulative2.reach.metric = 'reach_cumulative_edp1_ami_2025_10_15'
-
-        # Second non-cumulative results.
-        non_cumulative2 = expected_reporting_set_result_35_54.non_cumulative_results.add(
-        )
-        non_cumulative2.metric_frequency_type = (
-            ReportSummaryWindowResult.MetricFrequencyType.WEEKLY)
-        non_cumulative2.reach.value = 2452001
-        non_cumulative2.reach.standard_deviation = 10000.0
-        non_cumulative2.reach.metric = 'reach_non_cumulative_edp1_ami_2025_10_15'
-        non_cumulative2.impression_count.value = 4471035
-        non_cumulative2.impression_count.standard_deviation = 10000.0
-        non_cumulative2.impression_count.metric = 'impression_non_cumulative_edp1_ami_2025_10_15'
-        non_cumulative2.frequency.metric = 'frequency_non_cumulative_edp1_ami_2025_10_15'
-        freq_bins2 = {
-            1: (1265549, 10000.0),
-            2: (632775, 10000.0),
-            3: (316388, 10000.0),
-            4: (158194, 10000.0),
-            5: (79095, 10000.0),
-        }
-        for k, v in freq_bins2.items():
-            non_cumulative2.frequency.bins[k].value = v[0]
-            non_cumulative2.frequency.bins[k].standard_deviation = v[1]
-
-        self.assertIn(expected_reporting_set_result_35_54,
+        self.assertIn(expected_reporting_summary_set_result_35_54,
                       report_summary_35_54.report_summary_set_results)
 
 

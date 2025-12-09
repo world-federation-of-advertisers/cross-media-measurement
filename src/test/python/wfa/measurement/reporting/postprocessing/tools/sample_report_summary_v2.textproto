@@ -2,9 +2,17 @@ report_summary_set_results {
   impression_filter: "ami"
   set_operation: "union"
   data_providers: "EDP_ONE"
-  external_reporting_set_id: "rs_1"
+  external_reporting_set_result_id: 1
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 9992500
       standard_deviation: 10000.0
@@ -12,7 +20,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 11998422
       standard_deviation: 10000.0
@@ -20,7 +35,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 10008130
       standard_deviation: 10000.0
@@ -71,7 +93,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 2452001
       standard_deviation: 10000.0
@@ -121,8 +150,22 @@ report_summary_set_results {
       metric: "m_011"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_result_id: 31
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 11978894
       standard_deviation: 10000.0
@@ -177,23 +220,45 @@ report_summary_set_results {
   impression_filter: "ami"
   set_operation: "union"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_2"
+  external_reporting_set_result_id: 2
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 5000000
       metric: "m_012"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 6000000
       metric: "m_013"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 5000000
       metric: "m_017"
@@ -237,7 +302,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1100000
       metric: "m_020"
@@ -280,8 +352,22 @@ report_summary_set_results {
       metric: "m_022"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 32
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 6000000
       metric: "m_014"
@@ -329,23 +415,45 @@ report_summary_set_results {
   impression_filter: "ami"
   set_operation: "union"
   data_providers: "EDP_THREE"
-  external_reporting_set_id: "rs_3"
+  external_reporting_set_result_id: 3
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 800000
       metric: "m_023"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1000000
       metric: "m_024"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 800000
       metric: "m_028"
@@ -389,7 +497,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 202952
       metric: "m_031"
@@ -432,8 +547,22 @@ report_summary_set_results {
       metric: "m_033"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_result_id: 33
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1000000
       metric: "m_025"
@@ -482,9 +611,17 @@ report_summary_set_results {
   set_operation: "union"
   data_providers: "EDP_ONE"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_4"
+  external_reporting_set_result_id: 34
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 16686873
       standard_deviation: 10000.0
@@ -503,9 +640,17 @@ report_summary_set_results {
   data_providers: "EDP_ONE"
   data_providers: "EDP_THREE"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_5"
+  external_reporting_set_result_id: 5
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 15830545
       standard_deviation: 10000.0
@@ -513,7 +658,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 19010669
       standard_deviation: 10000.0
@@ -521,7 +673,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 15829304
       standard_deviation: 10000.0
@@ -572,7 +731,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 3761510
       standard_deviation: 10000.0
@@ -622,8 +788,24 @@ report_summary_set_results {
       metric: "m_046"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "ami"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_THREE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 35
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 19021738
       standard_deviation: 10000.0
@@ -678,9 +860,17 @@ report_summary_set_results {
   impression_filter: "mrc"
   set_operation: "union"
   data_providers: "EDP_ONE"
-  external_reporting_set_id: "rs_6"
+  external_reporting_set_result_id: 6
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 9501618
       standard_deviation: 10000.0
@@ -688,7 +878,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 11389309
       standard_deviation: 10000.0
@@ -696,7 +893,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 9503446
       standard_deviation: 10000.0
@@ -747,7 +951,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 2289252
       standard_deviation: 10000.0
@@ -797,8 +1008,22 @@ report_summary_set_results {
       metric: "m_057"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_result_id: 36
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 11382243
       standard_deviation: 10000.0
@@ -853,23 +1078,45 @@ report_summary_set_results {
   impression_filter: "mrc"
   set_operation: "union"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_7"
+  external_reporting_set_result_id: 7
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 4750000
       metric: "m_058"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 5700000
       metric: "m_059"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 4750000
       metric: "m_063"
@@ -913,7 +1160,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1039801
       metric: "m_066"
@@ -956,8 +1210,22 @@ report_summary_set_results {
       metric: "m_068"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 37
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 5700000
       metric: "m_060"
@@ -1005,23 +1273,45 @@ report_summary_set_results {
   impression_filter: "mrc"
   set_operation: "union"
   data_providers: "EDP_THREE"
-  external_reporting_set_id: "rs_8"
+  external_reporting_set_result_id: 8
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 760000
       metric: "m_069"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 950000
       metric: "m_070"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 760000
       metric: "m_074"
@@ -1065,7 +1355,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 192662
       metric: "m_077"
@@ -1108,8 +1405,22 @@ report_summary_set_results {
       metric: "m_079"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_result_id: 38
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 950000
       metric: "m_071"
@@ -1158,9 +1469,17 @@ report_summary_set_results {
   set_operation: "union"
   data_providers: "EDP_ONE"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_9"
+  external_reporting_set_result_id: 9
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 13427250
       standard_deviation: 10000.0
@@ -1168,7 +1487,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 15920317
       standard_deviation: 10000.0
@@ -1176,7 +1502,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 13426464
       standard_deviation: 10000.0
@@ -1227,7 +1560,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 3278136
       standard_deviation: 10000.0
@@ -1277,8 +1617,23 @@ report_summary_set_results {
       metric: "m_090"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "mrc"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 39
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 15908881
       standard_deviation: 10000.0
@@ -1333,9 +1688,17 @@ report_summary_set_results {
   impression_filter: "custom"
   set_operation: "union"
   data_providers: "EDP_ONE"
-  external_reporting_set_id: "rs_10"
+  external_reporting_set_result_id: 10
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 9984642
       standard_deviation: 10000.0
@@ -1343,7 +1706,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 12020226
       standard_deviation: 10000.0
@@ -1351,7 +1721,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 10000981
       standard_deviation: 10000.0
@@ -1402,7 +1779,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 2441042
       standard_deviation: 10000.0
@@ -1452,8 +1836,22 @@ report_summary_set_results {
       metric: "m_101"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  external_reporting_set_result_id: 40
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 12017026
       standard_deviation: 10000.0
@@ -1508,23 +1906,45 @@ report_summary_set_results {
   impression_filter: "custom"
   set_operation: "union"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_11"
+  external_reporting_set_result_id: 11
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 5000000
       metric: "m_102"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 6000000
       metric: "m_103"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 5000000
       metric: "m_107"
@@ -1568,7 +1988,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1100000
       metric: "m_110"
@@ -1611,8 +2038,22 @@ report_summary_set_results {
       metric: "m_112"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 41
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 6000000
       metric: "m_104"
@@ -1660,23 +2101,45 @@ report_summary_set_results {
   impression_filter: "custom"
   set_operation: "union"
   data_providers: "EDP_THREE"
-  external_reporting_set_id: "rs_12"
+  external_reporting_set_result_id: 12
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 800000
       metric: "m_113"
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1000000
       metric: "m_114"
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 800000
       metric: "m_118"
@@ -1720,7 +2183,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 202952
       metric: "m_121"
@@ -1763,8 +2233,22 @@ report_summary_set_results {
       metric: "m_123"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_THREE"
+  external_reporting_set_result_id: 42
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 1000000
       metric: "m_115"
@@ -1814,9 +2298,17 @@ report_summary_set_results {
   data_providers: "EDP_ONE"
   data_providers: "EDP_THREE"
   data_providers: "EDP_TWO"
-  external_reporting_set_id: "rs_13"
+  external_reporting_set_result_id: 13
+  metric_frequency_spec { weekly: MONDAY }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 15799013
       standard_deviation: 10000.0
@@ -1824,7 +2316,14 @@ report_summary_set_results {
     }
   }
   cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 19015392
       standard_deviation: 10000.0
@@ -1832,7 +2331,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 8 }
+    }
     reach {
       value: 15819974
       standard_deviation: 10000.0
@@ -1883,7 +2389,14 @@ report_summary_set_results {
     }
   }
   non_cumulative_results {
-    metric_frequency_type: WEEKLY
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 8
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 3751542
       standard_deviation: 10000.0
@@ -1933,8 +2446,24 @@ report_summary_set_results {
       metric: "m_134"
     }
   }
+}
+report_summary_set_results {
+  impression_filter: "custom"
+  set_operation: "union"
+  data_providers: "EDP_ONE"
+  data_providers: "EDP_THREE"
+  data_providers: "EDP_TWO"
+  external_reporting_set_result_id: 43
+  metric_frequency_spec { total: true }
   whole_campaign_result {
-    metric_frequency_type: TOTAL
+    key {
+      non_cumulative_start {
+        year: 2025
+        month: 10
+        day: 1
+      }
+      end { year: 2025 month: 10 day: 15 }
+    }
     reach {
       value: 19030737
       standard_deviation: 10000.0
