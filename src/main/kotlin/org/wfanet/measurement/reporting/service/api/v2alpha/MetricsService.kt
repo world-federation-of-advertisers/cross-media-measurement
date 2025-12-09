@@ -27,7 +27,6 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.File
-import java.lang.IllegalStateException
 import java.security.PrivateKey
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
@@ -85,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
@@ -185,6 +185,7 @@ import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.InvalidMetricStateTransitionException
 import org.wfanet.measurement.reporting.service.api.MetricNotFoundException
+import org.wfanet.measurement.reporting.service.api.ModelLineNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
@@ -248,8 +249,8 @@ class MetricsService(
   private val secureRandom: Random,
   signingPrivateKeyDir: File,
   trustedCertificates: Map<ByteString, X509Certificate>,
-  defaultVidModelLine: String,
-  measurementConsumerModelLines: Map<String, String>,
+  private val defaultVidModelLine: String,
+  private val measurementConsumerModelLines: Map<String, String>,
   certificateCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   dataProviderCacheExpirationDuration: Duration = Duration.ofMinutes(60),
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
@@ -277,8 +278,6 @@ class MetricsService(
       dataProviderCacheExpirationDuration = dataProviderCacheExpirationDuration,
       keyReaderContext,
       cacheLoaderContext,
-      defaultVidModelLine,
-      measurementConsumerModelLines,
     )
 
   private class MeasurementSupplier(
@@ -295,9 +294,16 @@ class MetricsService(
     dataProviderCacheExpirationDuration: Duration,
     private val keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
-    private val defaultModelLine: String,
-    private val measurementConsumerModelLines: Map<String, String>,
   ) {
+    data class RunningMetric(
+      val internalMetric: InternalMetric,
+      val effectiveModelLineName: String,
+    ) {
+      init {
+        require(internalMetric.state == InternalMetric.State.RUNNING)
+      }
+    }
+
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
       val apiAuthenticationKey: String,
@@ -329,7 +335,7 @@ class MetricsService(
 
     /** Creates CMM public [Measurement]s from a list of [InternalMetric]. */
     suspend fun createCmmsMeasurements(
-      internalMetricsList: List<InternalMetric>,
+      runningMetrics: Iterable<RunningMetric>,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumerCreds: MeasurementConsumerCredentials,
     ) {
@@ -348,13 +354,13 @@ class MetricsService(
       val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(measurementConsumerCreds)
 
       val cmmsCreateMeasurementRequests: Flow<CreateMeasurementRequest> = flow {
-        for (internalMetric in internalMetricsList) {
-          for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
+        for (runningMetric in runningMetrics) {
+          for (weightedMeasurement in runningMetric.internalMetric.weightedMeasurementsList) {
             if (weightedMeasurement.measurement.cmmsMeasurementId.isBlank()) {
               emit(
                 buildCreateMeasurementRequest(
                   weightedMeasurement.measurement,
-                  internalMetric,
+                  runningMetric,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
                   measurementConsumerCreds,
@@ -464,7 +470,7 @@ class MetricsService(
     /** Builds a CMMS [CreateMeasurementRequest]. */
     private fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
-      metric: InternalMetric,
+      runningMetric: RunningMetric,
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
       measurementConsumerCreds: MeasurementConsumerCredentials,
@@ -490,10 +496,9 @@ class MetricsService(
 
           val unsignedMeasurementSpec: MeasurementSpec =
             buildUnsignedMeasurementSpec(
-              measurementConsumer.name,
               packedMeasurementEncryptionPublicKey,
               dataProviders.map { it.value.nonceHash },
-              metric,
+              runningMetric,
             )
 
           measurementSpec =
@@ -526,12 +531,12 @@ class MetricsService(
 
     /** Builds an unsigned [MeasurementSpec]. */
     private fun buildUnsignedMeasurementSpec(
-      measurementConsumerName: String,
       packedMeasurementEncryptionPublicKey: ProtoAny,
       nonceHashes: List<ByteString>,
-      metric: InternalMetric,
+      runningMetric: RunningMetric,
     ): MeasurementSpec {
       val isSingleDataProvider: Boolean = nonceHashes.size == 1
+      val metric = runningMetric.internalMetric
       val metricSpec = metric.metricSpec
 
       return measurementSpec {
@@ -572,10 +577,7 @@ class MetricsService(
               "Unset metric type should've already raised error."
             }
         }
-        modelLine =
-          metric.cmmsModelLine.ifEmpty {
-            measurementConsumerModelLines.getOrDefault(measurementConsumerName, defaultModelLine)
-          }
+        modelLine = runningMetric.effectiveModelLineName
 
         // Add reporting metadata
         reportingMetadata = reportingMetadata {
@@ -1354,14 +1356,44 @@ class MetricsService(
         .asRuntimeException()
     }
 
-    authorization.check(measurementConsumerName, Permission.CREATE)
-
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[measurementConsumerName]
         ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
           .asRuntimeException()
     val measurementConsumerCreds =
       MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
+    val effectiveModelLineName =
+      try {
+        getEffectiveModelLine(
+          request.metric.modelLine,
+          "metric.model_line",
+          measurementConsumerName,
+        )
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+      if (effectiveModelLineName.isNotEmpty()) {
+        val modelLine =
+          try {
+            kingdomModelLinesStub
+              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
+              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                ModelLineNotFoundException(effectiveModelLineName, e)
+                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+              else -> Status.INTERNAL.withCause(e).asRuntimeException()
+            }
+          }
+        if (modelLine.type == ModelLine.Type.DEV) {
+          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
+        }
+      }
+    }
+    authorization.check(measurementConsumerName, requiredPermissionIds)
 
     val batchGetReportingSetsResponse =
       batchGetInternalReportingSets(
@@ -1381,7 +1413,6 @@ class MetricsService(
         request,
         batchGetReportingSetsResponse.reportingSetsList.single(),
         internalPrimitiveReportingSetMap,
-        measurementConsumerCreds,
       )
 
     val internalMetric =
@@ -1407,7 +1438,7 @@ class MetricsService(
 
     if (internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(
-        listOf(internalMetric),
+        listOf(MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)),
         internalPrimitiveReportingSetMap,
         measurementConsumerCreds,
       )
@@ -1426,14 +1457,50 @@ class MetricsService(
       }
 
     val measurementConsumerName: String = parentKey.toName()
-    authorization.check(measurementConsumerName, Permission.CREATE)
-
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[measurementConsumerName]
         ?: throw Status.INTERNAL.withDescription("Config not found for $measurementConsumerName")
           .asRuntimeException()
     val measurementConsumerCreds =
       MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
+    val effectiveModelLineNames =
+      request.requestsList.mapIndexed { index, subRequest ->
+        try {
+          getEffectiveModelLine(
+            subRequest.metric.modelLine,
+            "requests[$index].metric.model_line",
+            measurementConsumerName,
+          )
+        } catch (e: InvalidFieldValueException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+      for (effectiveModelLineName in effectiveModelLineNames) {
+        if (effectiveModelLineName.isEmpty()) {
+          continue
+        }
+        val modelLine =
+          try {
+            kingdomModelLinesStub
+              .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
+              .getModelLine(getModelLineRequest { name = effectiveModelLineName })
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                ModelLineNotFoundException(effectiveModelLineName, e)
+                  .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+              else -> StatusRuntimeException(Status.INTERNAL)
+            }
+          }
+        if (modelLine.type == ModelLine.Type.DEV) {
+          add(Permission.CREATE_WITH_DEV_MODEL_LINE)
+        }
+      }
+    }
+    authorization.check(measurementConsumerName, requiredPermissionIds)
 
     grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
     grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
@@ -1491,22 +1558,22 @@ class MetricsService(
         reportingSetNameToInternalReportingSetMap.values,
       )
 
-    val internalCreateMetricRequestsList: List<Deferred<InternalCreateMetricRequest>> =
+    val internalCreateMetricRequests: List<InternalCreateMetricRequest> =
       coroutineScope {
-        request.requestsList.map { createMetricRequest ->
-          async {
-            buildInternalCreateMetricRequest(
-              parentKey.measurementConsumerId,
-              createMetricRequest,
-              reportingSetNameToInternalReportingSetMap.getValue(
-                createMetricRequest.metric.reportingSet
-              ),
-              internalPrimitiveReportingSetMap,
-              measurementConsumerCreds,
-            )
+          request.requestsList.map { createMetricRequest ->
+            async {
+              buildInternalCreateMetricRequest(
+                parentKey.measurementConsumerId,
+                createMetricRequest,
+                reportingSetNameToInternalReportingSetMap.getValue(
+                  createMetricRequest.metric.reportingSet
+                ),
+                internalPrimitiveReportingSetMap,
+              )
+            }
           }
         }
-      }
+        .awaitAll()
 
     val internalMetrics =
       try {
@@ -1514,7 +1581,7 @@ class MetricsService(
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
               cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-              requests += internalCreateMetricRequestsList.awaitAll()
+              requests += internalCreateMetricRequests
             }
           )
           .metricsList
@@ -1532,10 +1599,13 @@ class MetricsService(
           .asRuntimeException()
       }
 
-    val internalRunningMetrics =
-      internalMetrics.filter { internalMetric ->
-        internalMetric.state == InternalMetric.State.RUNNING
-      }
+    val internalRunningMetrics: List<MeasurementSupplier.RunningMetric> =
+      internalMetrics
+        .zip(effectiveModelLineNames)
+        .filter { (internalMetric, _) -> internalMetric.state == InternalMetric.State.RUNNING }
+        .map { (internalMetric, effectiveModelLineName) ->
+          MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)
+        }
     if (internalRunningMetrics.isNotEmpty()) {
       measurementSupplier.createCmmsMeasurements(
         internalRunningMetrics,
@@ -1548,13 +1618,43 @@ class MetricsService(
     return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
   }
 
+  /**
+   * Returns the resource name of the effective [ModelLine], or empty string if there is none.
+   *
+   * @param requestModelLine resource name of the [ModelLine] from a request, which may be empty
+   * @param fieldPath field path of [requestModelLine] relative to the request
+   * @param measurementConsumer resource name of the [MeasurementConsumer]
+   * @throws InvalidFieldValueException if [requestModelLine] is specified and invalid
+   */
+  private fun getEffectiveModelLine(
+    requestModelLine: String,
+    fieldPath: String,
+    measurementConsumer: String,
+  ): String {
+    val key: ModelLineKey? =
+      if (requestModelLine.isEmpty()) {
+        val effectiveModelLine =
+          measurementConsumerModelLines[measurementConsumer] ?: defaultVidModelLine.ifEmpty { null }
+        if (effectiveModelLine == null) {
+          null
+        } else {
+          checkNotNull(ModelLineKey.fromName(effectiveModelLine)) {
+            "Invalid ModelLine $effectiveModelLine for $measurementConsumer in config"
+          }
+        }
+      } else {
+        ModelLineKey.fromName(requestModelLine) ?: throw InvalidFieldValueException(fieldPath)
+      }
+
+    return key?.toName() ?: ""
+  }
+
   /** Builds an [InternalCreateMetricRequest]. */
-  private suspend fun buildInternalCreateMetricRequest(
+  private fun buildInternalCreateMetricRequest(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
     internalReportingSet: InternalReportingSet,
     internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
-    measurementConsumerCreds: MeasurementConsumerCredentials,
   ): InternalCreateMetricRequest {
     grpcRequire(request.metricId.matches(RESOURCE_ID_REGEX)) { "Metric ID is invalid." }
     grpcRequire(request.metric.reportingSet.isNotEmpty()) {
@@ -1589,25 +1689,6 @@ class MetricsService(
     ) {
       failGrpc(Status.INVALID_ARGUMENT) {
         "Reach-and-frequency metrics can only be computed on union-only set expressions."
-      }
-    }
-
-    if (request.metric.modelLine.isNotEmpty()) {
-      ModelLineKey.fromName(request.metric.modelLine)
-        ?: throw InvalidFieldValueException("request.metric.model_line")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-      try {
-        kingdomModelLinesStub
-          .withAuthenticationKey(measurementConsumerCreds.callCredentials.apiAuthenticationKey)
-          .getModelLine(getModelLineRequest { name = request.metric.modelLine })
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.NOT_FOUND ->
-            InvalidFieldValueException("request.metric.model_line")
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          else -> StatusRuntimeException(Status.INTERNAL)
-        }
       }
     }
 
@@ -1905,6 +1986,7 @@ class MetricsService(
     const val GET = "reporting.metrics.get"
     const val LIST = "reporting.metrics.list"
     const val CREATE = "reporting.metrics.create"
+    const val CREATE_WITH_DEV_MODEL_LINE = "reporting.metrics.createWithDevModelLine"
     const val INVALIDATE = "reporting.metrics.invalidate"
   }
 
