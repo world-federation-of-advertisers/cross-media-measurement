@@ -17,7 +17,9 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import com.google.type.DateTime
 import io.grpc.Status
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
@@ -53,6 +55,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * @param campaignGroup
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
+ * @param defaultReportStartHour [DateTime] containing default report start hour and timeOffset
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
@@ -60,6 +63,7 @@ fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
   eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  defaultReportStartHour: DateTime?,
 ) {
   if (request.basicReportId.isEmpty()) {
     throw RequiredFieldNotSetException("basic_report_id")
@@ -82,7 +86,7 @@ fun validateCreateBasicReportRequest(
   }
 
   if (request.basicReport.hasReportingInterval()) {
-    validateReportingInterval(request.basicReport.reportingInterval)
+    validateReportingInterval(request.basicReport.reportingInterval, defaultReportStartHour)
   } else {
     throw RequiredFieldNotSetException("basic_report.reporting_interval")
   }
@@ -550,10 +554,11 @@ fun validateResultGroupMetricSpec(
  * Validates a [ReportingInterval]
  *
  * @param reportingInterval [ReportingInterval] to validate
+ * @param defaultReportStartHour [DateTime] containing default report start hour and timeOffset
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateReportingInterval(reportingInterval: ReportingInterval) {
+fun validateReportingInterval(reportingInterval: ReportingInterval, defaultReportStartHour: DateTime?) {
   if (!reportingInterval.hasReportStart()) {
     throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
   }
@@ -564,12 +569,39 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
 
   if (
     reportingInterval.reportStart.year == 0 ||
-      reportingInterval.reportStart.month == 0 ||
-      reportingInterval.reportStart.day == 0 ||
-      !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
+    reportingInterval.reportStart.month == 0 ||
+    reportingInterval.reportStart.day == 0 ||
+    reportingInterval.reportStart.minutes != 0 ||
+    reportingInterval.reportStart.seconds != 0 ||
+    reportingInterval.reportStart.nanos != 0
   ) {
     throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
-      "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
+      "$fieldName requires year, month, and day to all be set, and minutes, seconds, and nanos to all not be set"
+    }
+  }
+
+  if (defaultReportStartHour == null) {
+    if (
+      reportingInterval.reportStart.hours == 0 ||
+      !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
+    ) {
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
+        "$fieldName requires hours to be set, as well as either time_zone or utc_offset, when there is no default"
+      }
+    }
+
+    if (reportingInterval.reportStart.hasTimeZone() and !TimeZone.getAvailableIDs().toSet().contains(reportingInterval.reportStart.timeZone.id)) {
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start.time_zone.id") { fieldName ->
+        "$fieldName is an invalid time zone ID"
+      }
+    } else if (reportingInterval.reportStart.hasUtcOffset()) {
+      val utcOffset = reportingInterval.reportStart.utcOffset
+      // Valid range is -18 to 18 hours, which is equivalent to -64,800 to 64,800 seconds.
+      if (utcOffset.seconds < -64800 || utcOffset.seconds > 64800) {
+        throw InvalidFieldValueException("basic_report.reporting_interval.report_start.utc_offset") { fieldName ->
+          "$fieldName is an invalid offset"
+        }
+      }
     }
   }
 

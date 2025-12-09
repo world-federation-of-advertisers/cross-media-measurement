@@ -155,15 +155,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             year = 2025
             month = 7
             day = 3
-            minutes = 10
-            seconds = 5
-            nanos = 2
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           effectiveReportStart = dateTime {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -540,15 +539,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             year = 2025
             month = 7
             day = 3
-            minutes = 10
-            seconds = 5
-            nanos = 2
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           effectiveReportStart = dateTime {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {

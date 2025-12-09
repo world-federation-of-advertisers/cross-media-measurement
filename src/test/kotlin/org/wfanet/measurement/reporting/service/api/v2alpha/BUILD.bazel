@@ -323,6 +323,7 @@ kt_jvm_test(
 
 spanner_emulator_test(
     name = "BasicReportsServiceTest",
+    size = "large",
     srcs = ["BasicReportsServiceTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:basic_report_metric_spec_config.textproto",

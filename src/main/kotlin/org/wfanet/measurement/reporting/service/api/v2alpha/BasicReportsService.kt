@@ -117,6 +117,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  private val defaultReportStartHour: DateTime? = null,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -161,7 +162,7 @@ class BasicReportsService(
     val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     try {
-      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath)
+      validateCreateBasicReportRequest(request, campaignGroup, eventTemplateFieldsByPath, defaultReportStartHour)
     } catch (e: ServiceException) {
       throw when (e.reason) {
         Errors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -191,10 +192,21 @@ class BasicReportsService(
       MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
 
     val effectiveReportStart =
-      request.basicReport.reportingInterval.reportStart.copy {
-        clearMinutes()
-        clearSeconds()
-        clearNanos()
+      if (defaultReportStartHour != null) {
+        request.basicReport.reportingInterval.reportStart.copy {
+          if (hours == 0) {
+            hours = defaultReportStartHour.hours
+          }
+          if (timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+            if (defaultReportStartHour.timeOffsetCase == DateTime.TimeOffsetCase.UTC_OFFSET) {
+              utcOffset = defaultReportStartHour.utcOffset
+            } else {
+              timeZone = defaultReportStartHour.timeZone
+            }
+          }
+        }
+      } else {
+        request.basicReport.reportingInterval.reportStart
       }
 
     val validModelLines =

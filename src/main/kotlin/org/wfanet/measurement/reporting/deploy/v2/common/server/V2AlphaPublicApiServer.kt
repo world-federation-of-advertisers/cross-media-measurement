@@ -18,7 +18,11 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.duration
 import com.google.protobuf.util.JsonFormat
+import com.google.type.DateTime
+import com.google.type.dateTime
+import com.google.type.timeZone
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
@@ -27,6 +31,7 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
+import java.util.TimeZone
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -298,6 +303,43 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
+    val defaultReportStartHourFlag = reportingApiServerFlags.defaultReportStartHour
+    val defaultReportStartTimeOffsetFlag = reportingApiServerFlags.defaultReportStartTimeOffset
+    if ((defaultReportStartTimeOffsetFlag == null && defaultReportStartHourFlag != null) ||
+      (defaultReportStartTimeOffsetFlag != null && defaultReportStartHourFlag == null)) {
+      throw IllegalArgumentException(
+        "Both --default-report-start-utc-offset and --default-report-start-hour must be set, both --default-report-start-time-zone and --default-report-start-hour must be set, or all 3 must not be set"
+      )
+    }
+
+    val defaultReportStartHour: DateTime? =
+      if (defaultReportStartTimeOffsetFlag != null && defaultReportStartHourFlag != null) {
+        dateTime {
+          hours = defaultReportStartHourFlag
+          val defaultTimeZoneFlag = defaultReportStartTimeOffsetFlag.timeZone
+          if (defaultTimeZoneFlag != null) {
+            if (!TimeZone.getAvailableIDs().toSet().contains(defaultTimeZoneFlag)) {
+              throw IllegalArgumentException("--default-report-start-time-zone is invalid")
+            }
+            timeZone = timeZone {
+              id = defaultTimeZoneFlag
+            }
+          } else {
+            val defaultUtcOffsetFlag = defaultReportStartTimeOffsetFlag.utcOffset
+            if (defaultUtcOffsetFlag != null) {
+              if (defaultUtcOffsetFlag < -18 || defaultUtcOffsetFlag > 18) {
+                throw IllegalArgumentException("--default-report-start-utc-offset is invalid")
+              }
+              utcOffset = duration {
+                seconds = defaultUtcOffsetFlag.toLong() * 60 * 60
+              }
+            }
+          }
+        }
+      } else {
+        null
+      }
+
     val services: List<ServerServiceDefinition> =
       listOf(
         DataProvidersService(
@@ -369,6 +411,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
+            defaultReportStartHour,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),

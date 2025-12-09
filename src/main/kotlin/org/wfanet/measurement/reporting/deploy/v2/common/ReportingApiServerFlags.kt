@@ -99,4 +99,37 @@ class ReportingApiServerFlags {
   )
   var allowSamplingIntervalWrapping by Delegates.notNull<Boolean>()
     private set
+
+  class TimeOffset {
+    @CommandLine.Option(
+      names = ["--default-report-start-utc-offset"],
+      description = ["UTC offset in hours"],
+      required = false,
+    )
+    var utcOffset: Int? = null
+      private set
+
+    @CommandLine.Option(
+      names = ["--default-report-start-time-zone"],
+      description = ["IANA Time zone"],
+      required = false,
+    )
+    var timeZone: String? = null
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "0..1",
+    heading = "UTC offset or time zone\n",
+  )
+  var defaultReportStartTimeOffset: TimeOffset? = null
+
+  @CommandLine.Option(
+    names = ["--default-report-start-hour"],
+    description = ["hour"],
+    required = false,
+  )
+  var defaultReportStartHour: Int? = null
+    private set
 }

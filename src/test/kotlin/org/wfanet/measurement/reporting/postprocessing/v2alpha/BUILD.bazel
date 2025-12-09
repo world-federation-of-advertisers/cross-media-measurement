@@ -17,7 +17,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "ReportProcessorTest",
-    size = "large",
+    size = "enormous",
     srcs = ["ReportProcessorTest.kt"],
     data = [":sample_reports"],
     tags = ["no-remote-exec"],

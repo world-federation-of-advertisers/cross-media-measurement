@@ -2204,9 +2204,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           month = 3
           day = 14
           hours = 17
-          minutes = 10
-          seconds = 9
-          nanos = 8
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
