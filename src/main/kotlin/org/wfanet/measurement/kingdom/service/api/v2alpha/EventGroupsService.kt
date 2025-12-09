@@ -22,6 +22,9 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
@@ -72,30 +75,27 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.EventGroupDetails
-import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
-import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.eventGroupDetails
-import org.wfanet.measurement.internal.kingdom.eventGroupKey
-import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.EmptyCoroutineContext
-import kotlin.math.min
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest as InternalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest as InternalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupDetails
+import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as InternalUpdateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest as internalBatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupDetails
+import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
 class EventGroupsService(
