@@ -271,9 +271,9 @@ class BasicReportsReportsJob(
                 }
               eventFilters += Normalization.normalizeEventFilters(filterInfo.dimensionSpecFilters)
             }
-          // Population Metrics only use DimensionSpec because ImpressionQualificationFilter filters
-          // includes non-Population fields, and the ReportingSet is irrelevant so the ReportingSet
-          // to use to lookup the result in the other map is unknown.
+          // Population results are not keyed by IQF and ReportingSet, as IQFs include
+          // non-Population fields and the ReportingSet EventGroups are irrelevant to the Population
+          // Measurement.
           populationSize =
             populationCountByPopulationResultKey.getOrDefault(
               PopulationResultKey(
