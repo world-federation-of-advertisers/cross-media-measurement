@@ -493,6 +493,138 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
+  fun `population metric for difference has correct result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+      )
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val compositeReportingSet = reportingSet {
+      displayName = "composite"
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[0].name
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[1].name
+                }
+            }
+        }
+    }
+
+    val createdCompositeReportingSet =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = compositeReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            metricId = "population"
+            metric = metric {
+              reportingSet = createdCompositeReportingSet.name
+              timeInterval = interval {
+                startTime = timestamp { seconds = 1615791600 }
+                endTime = timestamp { seconds = 1615964400 }
+              }
+              metricSpec = metricSpec {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
+              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              modelLine = inProcessCmmsComponents.modelLineResourceName
+            }
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val expectedResult =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+
+    val expectedResult2 =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult - expectedResult2)
+  }
+
+  @Test
+  fun `population metric with no reporting set filters has correct result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroups[0] to "",
+      )
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            metricId = "population"
+            metric = metric {
+              reportingSet = createdPrimitiveReportingSets[0].name
+              timeInterval = interval {
+                startTime = timestamp { seconds = 1615791600 }
+                endTime = timestamp { seconds = 1615964400 }
+              }
+              metricSpec = metricSpec {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
+              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              modelLine = inProcessCmmsComponents.modelLineResourceName
+            }
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val expectedResult =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
+  }
+
+  @Test
   fun `reporting set is created and then retrieved`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
