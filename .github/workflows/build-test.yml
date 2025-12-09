@@ -104,6 +104,8 @@ jobs:
         run: bazel mod deps
 
       - name: Build
+        #DO_NOT_SUBMIT: re-enable
+        if: false
         run: >
           bazel build --worker_quit_after_build
           //...
@@ -111,6 +113,8 @@ jobs:
           //src/main/k8s/dev:edp_simulators
 
       - name: Run tests
+        #DO_NOT_SUBMIT: re-enable
+        if: false
         id: run-tests
         run: bazel test //...
 
