@@ -60,7 +60,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel, mock_channel, mock_channel)
+            mock_channel)
 
     def tearDown(self):
         for patch in self.patches:

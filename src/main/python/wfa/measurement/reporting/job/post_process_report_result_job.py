@@ -29,16 +29,17 @@ class PostProcessReportResultJob:
 
     def __init__(
         self,
-        report_results_channel: grpc.Channel,
-        reporting_sets_channel: grpc.Channel,
-        basic_reports_channel: grpc.Channel,
+        kingdom_internal_api_channel: grpc.Channel,
     ):
-        self._report_results_stub = (report_results_service_pb2_grpc.
-                                     ReportResultsStub(report_results_channel))
-        self._reporting_sets_stub = (reporting_sets_service_pb2_grpc.
-                                     ReportingSetsStub(reporting_sets_channel))
-        self._basic_reports_stub = (basic_reports_service_pb2_grpc.
-                                    BasicReportsStub(basic_reports_channel))
+        self._report_results_stub = (
+            report_results_service_pb2_grpc.ReportResultsStub(
+                kingdom_internal_api_channel))
+        self._reporting_sets_stub = (
+            reporting_sets_service_pb2_grpc.ReportingSetsStub(
+                kingdom_internal_api_channel))
+        self._basic_reports_stub = (
+            basic_reports_service_pb2_grpc.BasicReportsStub(
+                kingdom_internal_api_channel))
         self._post_processor = post_process_report_result.PostProcessReportResult(
             self._report_results_stub, self._reporting_sets_stub)
 
@@ -62,4 +63,6 @@ class PostProcessReportResultJob:
                 report.external_report_result_id,
             )
             if request:
+                logging.info(
+                    f"Updating report: {report.external_report_result_id}")
                 self._report_results_stub.AddProcessedResultValues(request)

@@ -13,6 +13,7 @@
 # limitations under the License.
 """A one-shot job for fetching, correcting, and updating a report."""
 
+import os
 import grpc
 
 from absl import app
@@ -21,48 +22,59 @@ from absl import logging
 
 from job import post_process_report_result_job
 
-_REPORT_RESULTS_TARGET = flags.DEFINE_string(
-    "report_results_target",
+_KINGDOM_INTERNAL_API_TARGET = flags.DEFINE_string(
+    "kingdom_internal_api_target",
     None,
-    "The target for the ReportResults service.",
-    required=True,
-)
-_REPORTING_SETS_TARGET = flags.DEFINE_string(
-    "reporting_sets_target",
-    None,
-    "The target for the ReportingSets service.",
-    required=True,
-)
-_BASIC_REPORTS_TARGET = flags.DEFINE_string(
-    "basic_reports_target",
-    None,
-    "The target for the BasicReports service.",
+    "The target for the Kingdom internal API.",
     required=True,
 )
 
-_TLS_CERT_FILE = flags.DEFINE_string("tls_cert_file",
-                                     None,
-                                     "The path to the TLS certificate file.",
-                                     required=True)
-_TLS_KEY_FILE = flags.DEFINE_string("tls_key_file",
-                                    None,
-                                    "The path to the TLS private key file.",
-                                    required=True)
-_TLS_CA_CERT_FILE = flags.DEFINE_string(
-    "tls_ca_cert_file",
+_TLS_CLIENT_CERT_FILE = flags.DEFINE_string(
+    "tls_client_cert_file",
     None,
-    "The path to the CA certificate file for server validation.",
+    "The path to the TLS certificate file, used to identify this client.",
+    required=True,
+)
+_TLS_CLIENT_KEY_FILE = flags.DEFINE_string(
+    "tls_client_key_file",
+    None,
+    "The path to the TLS private key file for this client's cert.",
+    required=True,
+)
+_TLS_ROOT_CA_CERT_FILE = flags.DEFINE_string(
+    "tls_root_ca_cert_file",
+    None,
+    "The path to the CA certificate file for validating the server's cert.",
     required=True)
 
 
-def _get_secure_credentials() -> grpc.ChannelCredentials:
+def _get_secure_credentials(
+        tls_client_key_path: str, tls_client_cert_path: str,
+        tls_root_ca_cert_path: str) -> grpc.ChannelCredentials:
     """Creates secure gRPC channel credentials."""
-    with open(_TLS_KEY_FILE.value, "rb") as f:
-        private_key = f.read()
-    with open(_TLS_CERT_FILE.value, "rb") as f:
-        certificate_chain = f.read()
-    with open(_TLS_CA_CERT_FILE.value, "rb") as f:
-        root_certificates = f.read()
+    try:
+        with open(tls_client_key_path, "rb") as f:
+            private_key = f.read()
+    except IOError as e:
+        raise ValueError(
+            f"Error reading TLS client key from {tls_client_key_path}") from e
+
+    try:
+        with open(tls_client_cert_path, "rb") as f:
+            certificate_chain = f.read()
+    except IOError as e:
+        raise ValueError(
+            f"Error reading TLS client cert from {tls_client_cert_path}"
+        ) from e
+
+    try:
+        with open(tls_root_ca_cert_path, "rb") as f:
+            root_certificates = f.read()
+    except IOError as e:
+        raise ValueError(
+            f"Error reading TLS root CA cert from {tls_root_ca_cert_path}"
+        ) from e
+
     return grpc.ssl_channel_credentials(
         root_certificates=root_certificates,
         private_key=private_key,
@@ -70,47 +82,54 @@ def _get_secure_credentials() -> grpc.ChannelCredentials:
     )
 
 
-def _create_secure_channel(target: str, credentials) -> grpc.Channel:
+def _create_secure_channel(
+        target: str, credentials: grpc.ChannelCredentials) -> grpc.Channel:
     """Creates a secure gRPC channel."""
     return grpc.secure_channel(target, credentials)
 
 
 def main(argv):
-    # The program doesn't take any arguments other than the required flags.
     if len(argv) > 1:
         raise app.UsageError("Too many command-line arguments.")
 
     # Parses flags.
     flags.FLAGS(argv)
 
-    credentials = _get_secure_credentials()
+    kingdom_internal_api_target = _KINGDOM_INTERNAL_API_TARGET.value
+    if not kingdom_internal_api_target:
+        raise app.UsageError("kingdom_internal_api_target must be non-empty.")
 
-    report_results_channel = None
-    reporting_sets_channel = None
-    basic_reports_channel = None
+    tls_client_cert_file = _TLS_CLIENT_CERT_FILE.value
+    if not os.path.exists(tls_client_cert_file):
+        raise app.UsageError(
+            f"TLS client cert file not found at {tls_client_cert_file}")
 
+    tls_client_key_file = _TLS_CLIENT_KEY_FILE.value
+    if not os.path.exists(tls_client_key_file):
+        raise app.UsageError(
+            f"TLS client key file not found at {tls_client_key_file}")
+
+    tls_root_ca_cert_file = _TLS_ROOT_CA_CERT_FILE.value
+    if not os.path.exists(tls_root_ca_cert_file):
+        raise app.UsageError(
+            f"TLS root CA cert file not found at {tls_root_ca_cert_file}")
+
+    credentials = _get_secure_credentials(tls_client_key_file,
+                                          tls_client_cert_file,
+                                          tls_root_ca_cert_file)
+
+    kingdom_internal_api_channel = None
     try:
-        report_results_channel = _create_secure_channel(
-            _REPORT_RESULTS_TARGET.value, credentials)
-
-        reporting_sets_channel = _create_secure_channel(
-            _REPORTING_SETS_TARGET.value, credentials)
-
-        basic_reports_channel = _create_secure_channel(
-            _BASIC_REPORTS_TARGET.value, credentials)
+        kingdom_internal_api_channel = _create_secure_channel(
+            kingdom_internal_api_target, credentials)
 
         job = post_process_report_result_job.PostProcessReportResultJob(
-            report_results_channel, reporting_sets_channel,
-            basic_reports_channel)
+            kingdom_internal_api_channel)
 
         job.execute()
     finally:
-        if report_results_channel:
-            report_results_channel.close()
-        if reporting_sets_channel:
-            reporting_sets_channel.close()
-        if basic_reports_channel:
-            basic_reports_channel.close()
+        if kingdom_internal_api_channel:
+            kingdom_internal_api_channel.close()
 
 
 if __name__ == "__main__":
