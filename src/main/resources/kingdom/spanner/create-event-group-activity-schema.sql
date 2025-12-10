@@ -17,9 +17,6 @@
 -- changeset lindreamdeyi:32 dbms:cloudspanner
 -- comment: Create EventGroupActivities table.
 
--- Set protobuf FileDescriptorSet as a base64 string. This gets applied to the next DDL batch.
-SET PROTO_DESCRIPTORS = ''
-
 START BATCH DDL;
 
 CREATE TABLE EventGroupActivities (
