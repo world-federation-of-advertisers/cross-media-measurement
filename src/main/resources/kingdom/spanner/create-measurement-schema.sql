@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset lindreamdeyi:2 dbms:cloudspanner
+-- changeset sanjayvas:1 dbms:cloudspanner
 -- preconditions onFail:MARK_RAN onError:HALT
 -- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Measurements'
 

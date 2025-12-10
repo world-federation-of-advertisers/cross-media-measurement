@@ -110,3 +110,6 @@ databaseChangeLog:
 - include:
     file: add-population-details.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-event-group-activity-schema.sql
+    relativeToChangeLogFile: true
