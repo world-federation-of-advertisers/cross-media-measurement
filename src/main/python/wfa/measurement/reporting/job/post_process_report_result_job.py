@@ -52,17 +52,31 @@ class PostProcessReportResultJob:
         response = self._basic_reports_stub.ListBasicReports(request)
         return response.basic_reports
 
-    def execute(self):
-        """Runs the post-processing job."""
+    def execute(self) -> bool:
+        """Runs the post-processing job.
+
+        Returns:
+            True if all reports were processed successfully, False otherwise.
+        """
+        job_succeeded = True
         basic_reports = self._list_unprocessed_basic_reports()
         for report in basic_reports:
-            logging.info(
-                f"Processing report: {report.external_report_result_id}")
-            request = self._post_processor.process(
-                report.cmms_measurement_consumer_id,
-                report.external_report_result_id,
-            )
-            if request:
+            try:
                 logging.info(
-                    f"Updating report: {report.external_report_result_id}")
-                self._report_results_stub.AddProcessedResultValues(request)
+                    f"Processing report: {report.external_report_result_id}")
+                request = self._post_processor.process(
+                    report.cmms_measurement_consumer_id,
+                    report.external_report_result_id,
+                )
+                if request:
+                    logging.info(
+                        f"Updating report: {report.external_report_result_id}")
+                    self._report_results_stub.AddProcessedResultValues(request)
+            except Exception:
+                logging.warning(
+                    f"Failed to process report {report.external_report_result_id}"
+                )
+                # TODO(@ple13): Marked report as processed but is still
+                # inconsistent when internal API supports this.
+                job_succeeded = False
+        return job_succeeded

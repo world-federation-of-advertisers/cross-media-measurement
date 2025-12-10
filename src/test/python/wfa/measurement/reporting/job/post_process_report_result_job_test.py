@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from absl import logging
 import unittest
 from unittest import mock
 import grpc
@@ -86,9 +87,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_post_processor.process.return_value = mock_request
 
         # Executes the job.
-        self.job.execute()
+        result = self.job.execute()
 
         # Verifies the expected behavior.
+        self.assertTrue(result)
         self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
         self.assertEqual(self.mock_post_processor.process.call_count, 2)
         self.mock_post_processor.process.assert_any_call("mc_id_1", 101)
@@ -107,13 +109,52 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                 basic_reports=[]))
 
         # Executes the job.
-        self.job.execute()
+        result = self.job.execute()
 
         # Verifies the expected behavior.
+        self.assertTrue(result)
         self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
         self.mock_post_processor.process.assert_not_called()
         self.mock_report_results_stub.AddProcessedResultValues.assert_not_called(
         )
+
+    @mock.patch.object(logging, "warning", autospec=True)
+    def test_execute_with_failure(self, mock_logging):
+        # Sets up mock objects.
+        mock_report1 = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        mock_report2 = BasicReport(
+            cmms_measurement_consumer_id="mc_id_2",
+            external_report_result_id=102,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report1, mock_report2]))
+
+        mock_request = (
+            report_results_service_pb2.AddProcessedResultValuesRequest())
+
+        # The first call fails, the second succeeds.
+        self.mock_post_processor.process.side_effect = [
+            Exception("Error processing report"),
+            mock_request,
+        ]
+
+        # Executes the job.
+        result = self.job.execute()
+
+        # Verifies the expected behavior.
+        self.assertFalse(result)
+        self.assertEqual(self.mock_post_processor.process.call_count, 2)
+
+        # Verifies that the successful report was still updated.
+        self.mock_report_results_stub.AddProcessedResultValues.assert_called_once_with(
+            mock_request)
+        # Verifies that the exception was logged.
+        mock_logging.assert_called_once_with(
+            "Failed to process report 101")
 
 
 if __name__ == "__main__":
