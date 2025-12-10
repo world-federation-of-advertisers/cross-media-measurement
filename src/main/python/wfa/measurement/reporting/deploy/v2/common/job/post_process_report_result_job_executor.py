@@ -52,6 +52,7 @@ def _get_secure_credentials(
         tls_client_key_path: str, tls_client_cert_path: str,
         tls_root_ca_cert_path: str) -> grpc.ChannelCredentials:
     """Creates secure gRPC channel credentials."""
+    logging.info("Get secure credentials.")
     try:
         with open(tls_client_key_path, "rb") as f:
             private_key = f.read()
@@ -123,10 +124,13 @@ def main(argv):
         kingdom_internal_api_channel = _create_secure_channel(
             kingdom_internal_api_target, credentials)
 
+        logging.info("Create PostProcessReportResultJob.")
         job = post_process_report_result_job.PostProcessReportResultJob(
             kingdom_internal_api_channel)
 
+        logging.info("Executing PostProcessReportResultJob.")
         job.execute()
+        logging.info("Done executing PostProcessReportResultJob.")
     finally:
         if kingdom_internal_api_channel:
             kingdom_internal_api_channel.close()
