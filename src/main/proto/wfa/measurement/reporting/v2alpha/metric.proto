@@ -394,6 +394,8 @@ message Metric {
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
   // The resource name of the reporting set to calculate the metric on.
+  //
+  // EventGroups are ignored if Metric Type is Population Count.
   string reporting_set = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
