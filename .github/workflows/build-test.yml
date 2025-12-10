@@ -50,6 +50,9 @@ jobs:
         uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
 
       - uses: ./.github/actions/free-disk-space
+        #DO_NOT_SUBMIT: re-enable
+        if: false
+
 
       - name: Write auth.bazelrc
         env:
@@ -101,6 +104,9 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Check lockfile
+        #DO_NOT_SUBMIT: re-enable
+        if: false
+
         run: bazel mod deps
 
       - name: Build
