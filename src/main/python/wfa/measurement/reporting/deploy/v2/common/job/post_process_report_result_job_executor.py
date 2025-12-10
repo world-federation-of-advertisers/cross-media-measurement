@@ -22,58 +22,58 @@ from absl import logging
 
 from job import post_process_report_result_job
 
-_KINGDOM_INTERNAL_API_TARGET = flags.DEFINE_string(
-    "kingdom_internal_api_target",
+_INTERNAL_REPORTING_TARGET = flags.DEFINE_string(
+    "internal_reporting_target",
     None,
-    "The target for the Kingdom internal API.",
+    "The target for the internal reporting API.",
     required=True,
 )
 
-_TLS_CLIENT_CERT_FILE = flags.DEFINE_string(
-    "tls_client_cert_file",
+_TLS_CERT_FILE = flags.DEFINE_string(
+    "tls_cert_file",
     None,
     "The path to the TLS certificate file, used to identify this client.",
     required=True,
 )
-_TLS_CLIENT_KEY_FILE = flags.DEFINE_string(
-    "tls_client_key_file",
+_TLS_KEY_FILE = flags.DEFINE_string(
+    "tls_key_file",
     None,
     "The path to the TLS private key file for this client's cert.",
     required=True,
 )
-_TLS_ROOT_CA_CERT_FILE = flags.DEFINE_string(
-    "tls_root_ca_cert_file",
+_CERT_COLLECTION_FILE = flags.DEFINE_string(
+    "cert_collection_file",
     None,
-    "The path to the CA certificate file for validating the server's cert.",
+    "The path to the certificate collection file for validating the server's cert.",
     required=True)
 
 
 def _get_secure_credentials(
-        tls_client_key_path: str, tls_client_cert_path: str,
-        tls_root_ca_cert_path: str) -> grpc.ChannelCredentials:
+        tls_key_path: str, tls_cert_path: str,
+        cert_collection_path: str) -> grpc.ChannelCredentials:
     """Creates secure gRPC channel credentials."""
     logging.info("Get secure credentials.")
     try:
-        with open(tls_client_key_path, "rb") as f:
+        with open(tls_key_path, "rb") as f:
             private_key = f.read()
     except IOError as e:
         raise ValueError(
-            f"Error reading TLS client key from {tls_client_key_path}") from e
+            f"Error reading TLS client key from {tls_key_path}") from e
 
     try:
-        with open(tls_client_cert_path, "rb") as f:
+        with open(tls_cert_path, "rb") as f:
             certificate_chain = f.read()
     except IOError as e:
         raise ValueError(
-            f"Error reading TLS client cert from {tls_client_cert_path}"
+            f"Error reading TLS cert from {tls_cert_path}"
         ) from e
 
     try:
-        with open(tls_root_ca_cert_path, "rb") as f:
+        with open(cert_collection_path, "rb") as f:
             root_certificates = f.read()
     except IOError as e:
         raise ValueError(
-            f"Error reading TLS root CA cert from {tls_root_ca_cert_path}"
+            f"Error reading cert collection from {cert_collection_path}"
         ) from e
 
     return grpc.ssl_channel_credentials(
@@ -96,44 +96,44 @@ def main(argv):
     # Parses flags.
     flags.FLAGS(argv)
 
-    kingdom_internal_api_target = _KINGDOM_INTERNAL_API_TARGET.value
-    if not kingdom_internal_api_target:
-        raise ValueError("kingdom_internal_api_target must be non-empty.")
+    internal_reporting_target = _INTERNAL_REPORTING_TARGET.value
+    if not internal_reporting_target:
+        raise ValueError("internal_reporting_target must be non-empty.")
 
-    tls_client_cert_file = _TLS_CLIENT_CERT_FILE.value
-    if not os.path.exists(tls_client_cert_file):
+    tls_cert_file = _TLS_CERT_FILE.value
+    if not os.path.exists(tls_cert_file):
         raise ValueError(
-            f"TLS client cert file not found at {tls_client_cert_file}")
+            f"TLS cert file not found at {tls_cert_file}")
 
-    tls_client_key_file = _TLS_CLIENT_KEY_FILE.value
-    if not os.path.exists(tls_client_key_file):
+    tls_key_file = _TLS_KEY_FILE.value
+    if not os.path.exists(tls_key_file):
         raise ValueError(
-            f"TLS client key file not found at {tls_client_key_file}")
+            f"TLS key file not found at {tls_key_file}")
 
-    tls_root_ca_cert_file = _TLS_ROOT_CA_CERT_FILE.value
-    if not os.path.exists(tls_root_ca_cert_file):
+    cert_collection_file = _CERT_COLLECTION_FILE.value
+    if not os.path.exists(cert_collection_file):
         raise ValueError(
-            f"TLS root CA cert file not found at {tls_root_ca_cert_file}")
+            f"The cert collection file not found at {cert_collection_file}")
 
-    credentials = _get_secure_credentials(tls_client_key_file,
-                                          tls_client_cert_file,
-                                          tls_root_ca_cert_file)
+    credentials = _get_secure_credentials(tls_key_file,
+                                          tls_cert_file,
+                                          cert_collection_file)
 
-    kingdom_internal_api_channel = None
+    internal_reporting_channel = None
     try:
-        kingdom_internal_api_channel = _create_secure_channel(
-            kingdom_internal_api_target, credentials)
+        internal_reporting_channel = _create_secure_channel(
+            internal_reporting_target, credentials)
 
         logging.info("Create PostProcessReportResultJob.")
         job = post_process_report_result_job.PostProcessReportResultJob(
-            kingdom_internal_api_channel)
+            internal_reporting_channel)
 
         logging.info("Executing PostProcessReportResultJob.")
         job.execute()
         logging.info("Done executing PostProcessReportResultJob.")
     finally:
-        if kingdom_internal_api_channel:
-            kingdom_internal_api_channel.close()
+        if internal_reporting_channel:
+            internal_reporting_channel.close()
 
 
 if __name__ == "__main__":

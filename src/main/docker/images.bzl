@@ -294,9 +294,9 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/v2/basic-reports-reports",
     ),
     struct(
-        name = "post_process_report_result_job_executor_image",
+        name = "report_result_post_processor_image",
         image = "//src/main/python/wfa/measurement/reporting/deploy/v2/common/job:post_process_report_result_job_executor_image",
-        repository = _PREFIX + "/reporting/v2/post-process-report-result",
+        repository = _PREFIX + "/reporting/v2/report-result-post-processor",
     ),
     struct(
         name = "reporting_spanner_update_schema_image",

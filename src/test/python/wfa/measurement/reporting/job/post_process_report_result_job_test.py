@@ -78,9 +78,15 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             cmms_measurement_consumer_id="mc_id_2",
             external_report_result_id=102,
         )
-        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+        self.mock_basic_reports_stub.ListBasicReports.side_effect = [
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report1, mock_report2]))
+                basic_reports=[mock_report1],
+                next_page_token=basic_reports_service_pb2.ListBasicReportsPageToken(),
+            ),
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report2],
+            ),
+        ]
 
         mock_request = (
             report_results_service_pb2.AddProcessedResultValuesRequest())
@@ -91,7 +97,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         # Verifies the expected behavior.
         self.assertTrue(result)
-        self.mock_basic_reports_stub.ListBasicReports.assert_called_once()
+        self.assertEqual(
+            self.mock_basic_reports_stub.ListBasicReports.call_count, 2)
         self.assertEqual(self.mock_post_processor.process.call_count, 2)
         self.mock_post_processor.process.assert_any_call("mc_id_1", 101)
         self.mock_post_processor.process.assert_any_call("mc_id_2", 102)
@@ -122,10 +129,12 @@ class PostProcessReportResultJobTest(unittest.TestCase):
     def test_execute_with_failure(self, mock_logging):
         # Sets up mock objects.
         mock_report1 = BasicReport(
+            external_basic_report_id="basic_report_1",
             cmms_measurement_consumer_id="mc_id_1",
             external_report_result_id=101,
         )
         mock_report2 = BasicReport(
+            external_basic_report_id="basic_report2",
             cmms_measurement_consumer_id="mc_id_2",
             external_report_result_id=102,
         )
@@ -152,9 +161,15 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         # Verifies that the successful report was still updated.
         self.mock_report_results_stub.AddProcessedResultValues.assert_called_once_with(
             mock_request)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once_with(
+            basic_reports_service_pb2.FailBasicReportRequest(
+                cmms_measurement_consumer_id="mc_id_1",
+                external_basic_report_id="basic_report_1",
+            ))
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
-            "Failed to process report 101")
+            "Failed to process  basic report basic_report_1for measurement consumer mc_id_1."
+        )
 
 
 if __name__ == "__main__":

@@ -26,10 +26,10 @@ from job import post_process_report_result_job
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
     @flagsaver.flagsaver(
-        kingdom_internal_api_target="kingdom_target",
-        tls_client_cert_file="client_cert",
-        tls_client_key_file="client_key",
-        tls_root_ca_cert_file="root_ca_cert",
+        internal_reporting_target="kingdom_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
     )
     @mock.patch("os.path.exists", return_value=True)
     @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
@@ -68,17 +68,16 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         mock_channel.close.assert_called_once()
 
     @parameterized.named_parameters(
-        ("missing_kingdom_internal_api_target_flag",
-         "kingdom_internal_api_target"),
-        ("missing_tls_client_cert_file_flag", "tls_client_cert_file"),
-        ("missing_tls_client_key_file_flag", "tls_client_key_file"),
-        ("missing_tls_root_ca_cert_file_flag", "tls_root_ca_cert_file"),
+        ("missing_internal_reporting_target_flag", "internal_reporting_target"),
+        ("missing_tls_cert_file_flag", "tls_cert_file"),
+        ("missing_tls_key_file_flag", "tls_key_file"),
+        ("missing_cert_collection_file_flag", "cert_collection_file"),
     )
     @flagsaver.flagsaver(
-        kingdom_internal_api_target="kingdom_target",
-        tls_client_cert_file="client_cert",
-        tls_client_key_file="client_key",
-        tls_root_ca_cert_file="root_ca_cert",
+        internal_reporting_target="kingdom_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
     )
     def test_post_process_report_result_job_executor_missing_flag_raises_error(
             self, flag_to_omit):
@@ -88,15 +87,15 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
             post_process_report_result_job_executor.main(["test_program"])
 
     @parameterized.named_parameters(
-        ("missing_client_cert", "tls_client_cert_file", "client_cert"),
-        ("missing_client_key", "tls_client_key_file", "client_key"),
-        ("missing_root_ca_cert", "tls_root_ca_cert_file", "root_ca_cert"),
+        ("missing_tls_cert", "tls_cert_file", "client_cert"),
+        ("missing_tls_key", "tls_key_file", "client_key"),
+        ("missing_cert_collection", "cert_collection_file", "root_ca_cert"),
     )
     @flagsaver.flagsaver(
-        kingdom_internal_api_target="kingdom_target",
-        tls_client_cert_file="client_cert",
-        tls_client_key_file="client_key",
-        tls_root_ca_cert_file="root_ca_cert",
+        internal_reporting_target="kingdom_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
     )
     @mock.patch("os.path.exists")
     def test_post_process_report_result_job_executor_raises_error_if_cert_not_found(
