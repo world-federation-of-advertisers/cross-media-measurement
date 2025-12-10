@@ -84,7 +84,7 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
     )
     @mock.patch("os.path.exists", return_value=False)
     def test_main_raises_error_if_cert_file_not_found(self, mock_exists):
-        with self.assertRaises(app.UsageError):
+        with self.assertRaises(ValueError):
             post_process_report_result_job_executor.main(["test_program"])
         mock_exists.assert_called_once_with("client_cert")
 

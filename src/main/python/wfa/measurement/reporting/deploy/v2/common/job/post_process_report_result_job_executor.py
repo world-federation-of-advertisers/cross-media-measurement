@@ -97,21 +97,21 @@ def main(argv):
 
     kingdom_internal_api_target = _KINGDOM_INTERNAL_API_TARGET.value
     if not kingdom_internal_api_target:
-        raise app.UsageError("kingdom_internal_api_target must be non-empty.")
+        raise ValueError("kingdom_internal_api_target must be non-empty.")
 
     tls_client_cert_file = _TLS_CLIENT_CERT_FILE.value
     if not os.path.exists(tls_client_cert_file):
-        raise app.UsageError(
+        raise ValueError(
             f"TLS client cert file not found at {tls_client_cert_file}")
 
     tls_client_key_file = _TLS_CLIENT_KEY_FILE.value
     if not os.path.exists(tls_client_key_file):
-        raise app.UsageError(
+        raise ValueError(
             f"TLS client key file not found at {tls_client_key_file}")
 
     tls_root_ca_cert_file = _TLS_ROOT_CA_CERT_FILE.value
     if not os.path.exists(tls_root_ca_cert_file):
-        raise app.UsageError(
+        raise ValueError(
             f"TLS root CA cert file not found at {tls_root_ca_cert_file}")
 
     credentials = _get_secure_credentials(tls_client_key_file,
