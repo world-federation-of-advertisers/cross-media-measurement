@@ -14,6 +14,7 @@
 
 import os
 import unittest
+from absl.testing import parameterized
 from unittest import mock
 from absl import flags
 from absl.testing import flagsaver
@@ -22,7 +23,7 @@ from job import post_process_report_result_job_executor
 from job import post_process_report_result_job
 
 
-class PostProcessReportResultJobExecutorTest(unittest.TestCase):
+class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
     @flagsaver.flagsaver(
         kingdom_internal_api_target="kingdom_target",
@@ -31,8 +32,8 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
         tls_root_ca_cert_file="root_ca_cert",
     )
     @mock.patch("os.path.exists", return_value=True)
-    @mock.patch(
-        "job.post_process_report_result_job.PostProcessReportResultJob")
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
+                )
     @mock.patch(
         "job.post_process_report_result_job_executor._get_secure_credentials")
     @mock.patch(
@@ -57,7 +58,8 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
             mock.call("client_key"),
             mock.call("root_ca_cert"),
         ])
-        mock_get_credentials.assert_called_once_with("client_key", "client_cert",
+        mock_get_credentials.assert_called_once_with("client_key",
+                                                     "client_cert",
                                                      "root_ca_cert")
         mock_create_channel.assert_called_once_with("kingdom_target",
                                                     mock_credentials)
@@ -65,28 +67,43 @@ class PostProcessReportResultJobExecutorTest(unittest.TestCase):
         mock_job_instance.execute.assert_called_once()
         mock_channel.close.assert_called_once()
 
-    @flagsaver.flagsaver(
-        # Missing --kingdom_internal_api_target
-        tls_client_cert_file="client_cert",
-        tls_client_key_file="client_key",
-        tls_root_ca_cert_file="root_ca_cert",
+    @parameterized.named_parameters(
+        ("missing_kingdom_internal_api_target_flag",
+         "kingdom_internal_api_target"),
+        ("missing_tls_client_cert_file_flag", "tls_client_cert_file"),
+        ("missing_tls_client_key_file_flag", "tls_client_key_file"),
+        ("missing_tls_root_ca_cert_file_flag", "tls_root_ca_cert_file"),
     )
-    def test_post_process_report_result_job_executor_raises_error_with_missing_flag(
-            self):
-        with self.assertRaises(flags.Error):
-            post_process_report_result_job_executor.main(["test_program"])
-
     @flagsaver.flagsaver(
         kingdom_internal_api_target="kingdom_target",
         tls_client_cert_file="client_cert",
         tls_client_key_file="client_key",
         tls_root_ca_cert_file="root_ca_cert",
     )
-    @mock.patch("os.path.exists", return_value=False)
-    def test_main_raises_error_if_cert_file_not_found(self, mock_exists):
+    def test_post_process_report_result_job_executor_missing_flag_raises_error(
+            self, flag_to_omit):
+        flags.FLAGS[flag_to_omit].value = None
+
+        with self.assertRaises(flags.Error):
+            post_process_report_result_job_executor.main(["test_program"])
+
+    @parameterized.named_parameters(
+        ("missing_client_cert", "tls_client_cert_file", "client_cert"),
+        ("missing_client_key", "tls_client_key_file", "client_key"),
+        ("missing_root_ca_cert", "tls_root_ca_cert_file", "root_ca_cert"),
+    )
+    @flagsaver.flagsaver(
+        kingdom_internal_api_target="kingdom_target",
+        tls_client_cert_file="client_cert",
+        tls_client_key_file="client_key",
+        tls_root_ca_cert_file="root_ca_cert",
+    )
+    @mock.patch("os.path.exists")
+    def test_post_process_report_result_job_executor_raises_error_if_cert_not_found(
+            self, flag_to_make_missing, missing_file_path, mock_exists):
+        mock_exists.side_effect = lambda path: path != missing_file_path
         with self.assertRaises(ValueError):
             post_process_report_result_job_executor.main(["test_program"])
-        mock_exists.assert_called_once_with("client_cert")
 
 
 if __name__ == "__main__":
