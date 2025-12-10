@@ -28,7 +28,6 @@ START BATCH DDL;
 --   ├── DataProviders
 --   │   ├── DataProviderCertificates
 --   │   └── EventGroups
---   │       └── EventGroupActivities
 --   ├── DuchyCertificates
 --   ├── MeasurementConsumerCreationTokens
 --   ├── MeasurementConsumers
@@ -51,7 +50,6 @@ START BATCH DDL;
 --
 --   EventGroups -[many:1]-> MeasurementConsumers
 --   EventGroups -[many:1]-> DataProviders
---   EventGroupActivities -[many:1]-> DataProviders
 --   Requisitions -[many:1]-> Measurements
 --
 --   MeasurementConsumerCertificates -[many:1]-> MeasurementConsumers
@@ -260,23 +258,6 @@ CREATE UNIQUE INDEX EventGroupsByExternalId
   ON EventGroups(DataProviderId, ExternalEventGroupId);
 CREATE UNIQUE NULL_FILTERED INDEX EventGroupsByProvidedId
   ON EventGroups(DataProviderId, ProvidedEventGroupId);
-
-CREATE TABLE EventGroupActivities (
-  DataProviderId                          INT64 NOT NULL,
-  EventGroupId                            INT64 NOT NULL,
-  EventGroupActivityId                    INT64 NOT NULL,
-
-  ActivityDate                            DATE  NOT NULL,
-
-  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-
-  FOREIGN KEY (DataProviderId)
-     REFERENCES DataProviders(DataProviderId),
-) PRIMARY KEY (DataProviderId, EventGroupId, EventGroupActivityId),
-    INTERLEAVE IN PARENT EventGroups ON DELETE CASCADE;
-
-CREATE UNIQUE INDEX EventGroupActivityByActivityDate
-  ON EventGroupActivities(DataProviderId, EventGroupId, ActivityDate);
 
 CREATE TABLE EventGroupMetadataDescriptors (
   DataProviderId                          INT64 NOT NULL,

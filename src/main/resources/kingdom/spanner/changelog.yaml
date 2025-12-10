@@ -111,5 +111,5 @@ databaseChangeLog:
     file: add-population-details.sql
     relativeToChangeLogFile: true
 - include:
-    file: create-event-group-activity-schema.sql
+    file: create-event-group-activities-table.sql
     relativeToChangeLogFile: true
