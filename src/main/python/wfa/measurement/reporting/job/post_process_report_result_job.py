@@ -88,7 +88,7 @@ class PostProcessReportResultJob:
             except Exception:
                 logging.warning(
                     f"Failed to process  basic report {report.external_basic_report_id}"
-                    f"for measurement consumer {report.cmms_measurement_consumer_id}."
+                    f" for measurement consumer {report.cmms_measurement_consumer_id}."
                 )
                 self._basic_reports_stub.FailBasicReport(
                     basic_reports_service_pb2.FailBasicReportRequest(
