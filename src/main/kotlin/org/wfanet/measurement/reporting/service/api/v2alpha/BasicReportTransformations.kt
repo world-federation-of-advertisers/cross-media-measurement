@@ -53,6 +53,7 @@ private data class MetricCalculationSpecInfo(
   var includeFrequency: Boolean = false,
   var includeReach: Boolean = false,
   var includeImpressionCount: Boolean = false,
+  var includePopulationCount: Boolean = false,
 )
 
 /**
@@ -89,22 +90,27 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
     Map<ReportingSet, MutableMap<MetricCalculationSpecInfoKey, MetricCalculationSpecInfo>> =
     buildMap {
       for (resultGroupSpec in resultGroupSpecs) {
-        val groupings: List<MetricCalculationSpec.Grouping> =
+        val groupings: Set<MetricCalculationSpec.Grouping> =
           if (resultGroupSpec.dimensionSpec.hasGrouping()) {
-            resultGroupSpec.dimensionSpec.grouping.toMetricCalculationSpecGroupings(
-              eventTemplateFieldsByPath
-            )
+            resultGroupSpec.dimensionSpec.grouping
+              .toMetricCalculationSpecGroupings(eventTemplateFieldsByPath)
+              .toSet()
           } else {
-            emptyList()
+            emptySet()
           }
+
+        val dimensionSpecFilter: String =
+          createDimensionSpecFilter(
+            resultGroupSpec.dimensionSpec.filtersList,
+            eventTemplateFieldsByPath,
+          )
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
         // DimensionSpec
         val metricCalculationSpecFilters: List<String> =
           createMetricCalculationSpecFilters(
             impressionQualificationFilterSpecsFilters,
-            resultGroupSpec.dimensionSpec.filtersList,
-            eventTemplateFieldsByPath,
+            dimensionSpecFilter,
           )
 
         // The Primitive ReportingSets for the ReportingUnit
@@ -112,6 +118,26 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           resultGroupSpec.reportingUnit.componentsList.map {
             dataProviderPrimitiveReportingSetMap.getValue(it)
           }
+
+        // ReportingSet used is irrelevant for Population.
+        val primitiveReportingSetMutableMap =
+          computeIfAbsent(primitiveReportingSets.first()) { mutableMapOf() }
+
+        // Population Metric cannot use ImpressionQualificationFilter in the filter because only
+        // Population fields are allowed and ImpressionQualificationFilter filter fields are not
+        // population fields.
+        primitiveReportingSetMutableMap
+          .computeIfAbsent(
+            MetricCalculationSpecInfoKey(
+              filter = dimensionSpecFilter,
+              groupings = groupings,
+              metricFrequencySpec = null,
+              trailingWindow = null,
+            )
+          ) {
+            MetricCalculationSpecInfo()
+          }
+          .includePopulationCount = true
 
         // Adds or updates entries in the map
         computeResultGroupSpecTransformation(
@@ -227,24 +253,25 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
       metricSpecs += metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
     }
 
-    metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+    if (source.value.includePopulationCount) {
+      metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
+    }
   }
 }
 
 /**
- * Creates a List of CEL strings
+ * Creates a CEL string from a List of [EventFilter]s from [DimensionSpec]
  *
- * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
- *   [ReportingImpressionQualificationFilter]s
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
  * @param eventTemplateFieldsByPath for creating a CEL string from [EventTemplateField]
  */
-fun createMetricCalculationSpecFilters(
-  impressionQualificationFilterSpecsFilters: List<String>,
+fun createDimensionSpecFilter(
   dimensionSpecFilters: List<EventFilter>,
   eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-): List<String> {
-  val dimensionSpecFilter =
+): String {
+  return if (dimensionSpecFilters.isEmpty()) {
+    ""
+  } else {
     dimensionSpecFilters
       // To normalize the filter string
       .sortedBy { it.termsList.first().path }
@@ -268,10 +295,23 @@ fun createMetricCalculationSpecFilters(
           }
         "${term.path} == $termValue"
       }
+  }
+}
 
+/**
+ * Creates a List of CEL strings
+ *
+ * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
+ *   [ReportingImpressionQualificationFilter]s
+ * @param dimensionSpecFilter CEL string created from [DimensionSpec]
+ */
+fun createMetricCalculationSpecFilters(
+  impressionQualificationFilterSpecsFilters: List<String>,
+  dimensionSpecFilter: String,
+): List<String> {
   return buildList {
     if (impressionQualificationFilterSpecsFilters.isNotEmpty()) {
-      if (dimensionSpecFilters.isNotEmpty()) {
+      if (dimensionSpecFilter.isNotEmpty()) {
         for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
           add("$impressionQualificationSpecsFilter && $dimensionSpecFilter")
         }
@@ -281,7 +321,7 @@ fun createMetricCalculationSpecFilters(
         }
       }
     } else {
-      if (dimensionSpecFilters.isNotEmpty()) {
+      if (dimensionSpecFilter.isNotEmpty()) {
         add(dimensionSpecFilter)
       }
     }
@@ -301,7 +341,7 @@ fun createMetricCalculationSpecFilters(
  *   components
  * @param campaignGroupName Resource name of the CampaignGroup [ReportingSet]
  * @param resultGroupSpec [ResultGroupSpec] to transform
- * @param groupings: List of [MetricCalculationSpec.Grouping] to use
+ * @param groupings: Set of [MetricCalculationSpec.Grouping] to use
  * @param metricCalculationSpecFilters: List of CEL filters to use
  */
 private fun MutableMap<
@@ -312,7 +352,7 @@ private fun MutableMap<
   primitiveReportingSets: List<ReportingSet>,
   campaignGroupName: String,
   resultGroupSpec: ResultGroupSpec,
-  groupings: List<MetricCalculationSpec.Grouping>,
+  groupings: Set<MetricCalculationSpec.Grouping>,
   metricCalculationSpecFilters: List<String>,
 ) {
   // Composite ReportingSets are made from Primitive ReportingSet names
@@ -361,7 +401,7 @@ private fun MutableMap<
  *   for each component in the [ReportingUnit]
  * @param reportingUnitMetricSetSpec [ReportingUnitMetricSetSpec] to transform
  * @param metricFrequencySpec [MetricFrequencySpec]
- * @param groupings list of [MetricCalculationSpec.Grouping]
+ * @param groupings set of [MetricCalculationSpec.Grouping]
  * @param filters list of [String] CEL filters
  * @param firstComponentReportingSet Primitive [ReportingSet] for first component in [ReportingUnit]
  * @param primitiveReportingSetNames List of Primitive [ReportingSet] names
@@ -375,7 +415,7 @@ private fun MutableMap<
   reportingUnitReportingSet: ReportingSet,
   reportingUnitMetricSetSpec: ReportingUnitMetricSetSpec,
   metricFrequencySpec: MetricFrequencySpec,
-  groupings: List<MetricCalculationSpec.Grouping>,
+  groupings: Set<MetricCalculationSpec.Grouping>,
   filters: List<String>,
   firstComponentReportingSet: ReportingSet,
   primitiveReportingSetNames: List<String>,
@@ -454,7 +494,7 @@ private fun MutableMap<
  *   for each component in the [ReportingUnit]
  * @param componentMetricSetSpec [ComponentMetricSetSpec] to transform
  * @param metricFrequencySpec [MetricFrequencySpec]
- * @param groupings list of [MetricCalculationSpec.Grouping]
+ * @param groupings set of [MetricCalculationSpec.Grouping]
  * @param filters list of [String] CEL filters
  * @param primitiveReportingSets List of Primitive [ReportingSet]s in order of [ReportingUnit]
  *   components
@@ -469,7 +509,7 @@ private fun MutableMap<
   reportingUnitReportingSet: ReportingSet,
   componentMetricSetSpec: ComponentMetricSetSpec,
   metricFrequencySpec: MetricFrequencySpec,
-  groupings: List<MetricCalculationSpec.Grouping>,
+  groupings: Set<MetricCalculationSpec.Grouping>,
   filters: List<String>,
   primitiveReportingSets: List<ReportingSet>,
   primitiveReportingSetNames: List<String>,
@@ -651,13 +691,13 @@ private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
  * Create an object for using as a key in a map
  *
  * @param metricCalculationSpecFilter filter for [MetricCalculationSpec]
- * @param groupings list of [MetricCalculationSpec.Grouping]
+ * @param groupings set of [MetricCalculationSpec.Grouping]
  * @param cumulative determines whether [MetricCalculationSpec.TrailingWindow] is set
  * @return [MetricCalculationSpecInfoKey] for use as a key in a map
  */
 private fun createMetricCalculationSpecInfoKey(
   metricCalculationSpecFilter: String,
-  groupings: List<MetricCalculationSpec.Grouping>,
+  groupings: Set<MetricCalculationSpec.Grouping>,
   cumulative: Boolean,
   basicReportMetricFrequencySpec: MetricFrequencySpec,
 ): MetricCalculationSpecInfoKey {
@@ -685,7 +725,7 @@ private fun createMetricCalculationSpecInfoKey(
 
   return MetricCalculationSpecInfoKey(
     filter = metricCalculationSpecFilter,
-    groupings = groupings.toSet(),
+    groupings = groupings,
     metricFrequencySpec = metricFrequencySpec,
     trailingWindow = trailingWindow,
   )
