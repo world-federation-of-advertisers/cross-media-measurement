@@ -194,6 +194,7 @@ package k8s
 						"--require-client-auth=false",
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
+						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
 						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
