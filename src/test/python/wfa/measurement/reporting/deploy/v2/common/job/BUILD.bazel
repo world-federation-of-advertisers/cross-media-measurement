@@ -1,0 +1,15 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_testonly = True)
+
+py_test(
+    name = "post_process_report_result_job_executor_test",
+    srcs = ["post_process_report_result_job_executor_test.py"],
+    deps = [
+        requirement("absl-py"),
+        requirement("protobuf"),
+        "//src/main/python/wfa/measurement/reporting/deploy/v2/common/job:post_process_report_result_job_executor",
+        "//src/main/python/wfa/measurement/reporting/job:post_process_report_result_job",
+    ],
+)

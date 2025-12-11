@@ -1,0 +1,19 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_testonly = True)
+
+py_test(
+    name = "post_process_report_result_job_test",
+    srcs = ["post_process_report_result_job_test.py"],
+    deps = [
+        requirement("absl-py"),
+        requirement("protobuf"),
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
+        "//src/main/python/wfa/measurement/reporting/job:post_process_report_result_job",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
+    ],
+)

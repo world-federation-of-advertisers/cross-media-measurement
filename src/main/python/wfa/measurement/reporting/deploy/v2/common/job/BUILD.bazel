@@ -1,0 +1,21 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_binary")
+load("//build/rules_oci:defs.bzl", "py_image")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+py_binary(
+    name = "post_process_report_result_job_executor",
+    srcs = ["post_process_report_result_job_executor.py"],
+    imports = ["../"],
+    deps = [
+        requirement("absl-py"),
+        "//src/main/python/wfa/measurement/reporting/job:post_process_report_result_job",
+    ],
+)
+
+py_image(
+    name = "post_process_report_result_job_executor_image",
+    binary = ":post_process_report_result_job_executor",
+    visibility = ["//src:docker_image_deployment"],
+)
