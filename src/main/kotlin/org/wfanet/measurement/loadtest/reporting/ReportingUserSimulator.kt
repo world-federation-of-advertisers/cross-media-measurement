@@ -262,6 +262,7 @@ class ReportingUserSimulator(
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
+        .addQueryParameter("basic_report_id", basicReportKey.basicReportId)
         .build()
 
     val accessToken = getReportingAccessToken()
@@ -269,16 +270,7 @@ class ReportingUserSimulator(
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(
-          JsonFormat.printer()
-            .print(
-              createBasicReportRequest {
-                this.basicReport = basicReport
-                basicReportId = basicReportKey.basicReportId
-              }
-            )
-            .toRequestBody()
-        )
+        .post(JsonFormat.printer().print(basicReport).toRequestBody())
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer $accessToken")
         .build()
