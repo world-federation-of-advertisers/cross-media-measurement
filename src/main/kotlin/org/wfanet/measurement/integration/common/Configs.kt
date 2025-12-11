@@ -22,6 +22,7 @@ import java.security.cert.X509Certificate
 import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -44,7 +45,6 @@ import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt.storageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -96,7 +96,10 @@ val IMPRESSION_QUALIFICATION_FILTER_CONFIG: ImpressionQualificationFilterConfig 
     ImpressionQualificationFilterConfig.getDefaultInstance(),
   )
 val IMPRESSION_QUALIFICATION_FILTER_MAPPING: ImpressionQualificationFilterMapping =
-  ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+  ImpressionQualificationFilterMapping(
+    IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+    TestEvent.getDescriptor(),
+  )
 
 val AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.honestMajorityShareShuffle.aggregatorDuchyId!!
