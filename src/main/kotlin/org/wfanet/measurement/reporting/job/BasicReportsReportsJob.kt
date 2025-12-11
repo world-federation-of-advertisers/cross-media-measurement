@@ -66,6 +66,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.createDimensionSpecFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.createImpressionQualificationFilterSpecsFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.createMetricCalculationSpecFilters
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
@@ -146,7 +147,7 @@ class BasicReportsReportsJob(
                   TrustedPrincipalAuthInterceptor.Credentials(
                     // TODO(@SanjayVas): Read full Principal from Access.
                     principal { name = measurementConsumerConfig.offlinePrincipal },
-                    setOf("reporting.reports.get"),
+                    setOf("reporting.reports.get", "reporting.metrics.get"),
                   )
                 )
                 .getReport(
@@ -230,9 +231,11 @@ class BasicReportsReportsJob(
     eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
-    val reportingSetResultInfoByReportingSetResultInfoKey:
-      Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
-      buildReportingResultSetInfoByReportingResultSetInfoKeyMap(
+    val (
+      populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+      reportingSetResultInfoByReportingSetResultInfoKey:
+        Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
+      buildReportResultInfo(
         report,
         basicReport.cmmsMeasurementConsumerId,
         basicReport.externalCampaignGroupId,
@@ -247,11 +250,11 @@ class BasicReportsReportsJob(
         externalReportResultId = reportResult.externalReportResultId
 
         reportingSetResult = reportingSetResult {
+          val filterInfo = filterInfoByFilter.getValue(reportingSetResultInfoEntry.key.filter)
           dimension =
             ReportingSetResultKt.dimension {
               externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId
               vennDiagramRegionType = reportingSetResultInfoEntry.value.vennDiagramRegionType
-              val filterInfo = filterInfoByFilter.getValue(reportingSetResultInfoEntry.key.filter)
               if (filterInfo.externalImpressionQualificationFilterId != null) {
                 externalImpressionQualificationFilterId =
                   filterInfo.externalImpressionQualificationFilterId
@@ -268,7 +271,17 @@ class BasicReportsReportsJob(
                 }
               eventFilters += Normalization.normalizeEventFilters(filterInfo.dimensionSpecFilters)
             }
-          populationSize = reportingSetResultInfoEntry.value.populationSize
+          // Population results are not keyed by IQF and ReportingSet, as IQFs include
+          // non-Population fields and the ReportingSet EventGroups are irrelevant to the Population
+          // Measurement.
+          populationSize =
+            populationCountByPopulationResultKey.getOrDefault(
+              PopulationResultKey(
+                filterInfo.dimensionSpecFilter,
+                reportingSetResultInfoEntry.key.groupingPredicates,
+              ),
+              0,
+            )
 
           for (reportingWindowResultInfoEntry: Map.Entry<Date, ReportingWindowResultInfo> in
             reportingSetResultInfoEntry.value.reportingWindowResultInfoByEndDate.entries) {
@@ -344,17 +357,17 @@ class BasicReportsReportsJob(
   }
 
   /**
-   * Builds Map of [ReportingSetResultInfoKey] to [ReportingSetResultInfo]
+   * Builds a [ReportResultInfo] from [Report]
    *
    * @param report [Report]
    * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
    * @param externalCampaignGroupId ExternalReportingSetId for CampaignGroup
    */
-  private suspend fun buildReportingResultSetInfoByReportingResultSetInfoKeyMap(
+  private suspend fun buildReportResultInfo(
     report: Report,
     cmmsMeasurementConsumerId: String,
     externalCampaignGroupId: String,
-  ): Map<ReportingSetResultInfoKey, ReportingSetResultInfo> {
+  ): ReportResultInfo {
     val reportStart = report.reportingInterval.reportStart
 
     val metricCalculationSpecInfoByName: Map<String, MetricCalculationSpecInfo> =
@@ -369,113 +382,141 @@ class BasicReportsReportsJob(
         externalCampaignGroupId = externalCampaignGroupId,
       )
 
-    return buildMap {
-      for (metricCalculationResult in report.metricCalculationResultsList) {
-        val externalReportingSetId =
-          requireNotNull(ReportingSetKey.fromName(metricCalculationResult.reportingSet))
-            .reportingSetId
+    val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Int> = mutableMapOf()
+    val reportingSetResultInfoByReportingSetResultInfoKey:
+      Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
+      buildMap {
+        for (metricCalculationResult in report.metricCalculationResultsList) {
+          val externalReportingSetId =
+            requireNotNull(ReportingSetKey.fromName(metricCalculationResult.reportingSet))
+              .reportingSetId
 
-        val metricCalculationSpecInfo: MetricCalculationSpecInfo =
-          metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
+          val metricCalculationSpecInfo: MetricCalculationSpecInfo =
+            metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
 
-        val vennDiagramRegionType: VennDiagramRegionType =
-          vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
+          val vennDiagramRegionType: VennDiagramRegionType =
+            vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
 
-        for (resultAttribute in metricCalculationResult.resultAttributesList) {
-          val reportingSetResultInfo: ReportingSetResultInfo =
-            getOrPut(
-              ReportingSetResultInfoKey(
-                externalReportingSetId = externalReportingSetId,
-                filter = resultAttribute.filter,
-                groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
-              )
-            ) {
-              ReportingSetResultInfo(
-                vennDiagramRegionType = vennDiagramRegionType,
-                metricFrequencySpec =
-                  metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
-                populationSize = 0,
-                reportingWindowResultInfoByEndDate = mutableMapOf(),
-              )
-            }
+          val firstResultAttribute = metricCalculationResult.resultAttributesList.first()
+          if (
+            metricCalculationResult.resultAttributesList.size == 1 &&
+              firstResultAttribute.metricResult.hasPopulationCount()
+          ) {
+            populationCountByPopulationResultKey[
+              PopulationResultKey(
+                filter = firstResultAttribute.filter,
+                groupingPredicates = firstResultAttribute.groupingPredicatesList.toSet(),
+              )] = firstResultAttribute.metricResult.populationCount.value.toInt()
+          } else {
+            for (resultAttribute in metricCalculationResult.resultAttributesList) {
+              val reportingSetResultInfo: ReportingSetResultInfo =
+                getOrPut(
+                  ReportingSetResultInfoKey(
+                    externalReportingSetId = externalReportingSetId,
+                    filter = resultAttribute.filter,
+                    groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
+                  )
+                ) {
+                  ReportingSetResultInfo(
+                    vennDiagramRegionType = vennDiagramRegionType,
+                    metricFrequencySpec =
+                      metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
+                    reportingWindowResultInfoByEndDate = mutableMapOf(),
+                  )
+                }
 
-          val startDate: Date? =
-            if (metricCalculationSpecInfo.hasTrailingWindow) {
-              if (reportStart.hasUtcOffset()) {
-                resultAttribute.timeInterval.startTime.toDate(
-                  ZoneOffset.ofTotalSeconds(reportStart.utcOffset.seconds.toInt())
-                )
-              } else {
-                resultAttribute.timeInterval.startTime.toDate(ZoneId.of(reportStart.timeZone.id))
+              val startDate: Date? =
+                if (metricCalculationSpecInfo.hasTrailingWindow) {
+                  if (reportStart.hasUtcOffset()) {
+                    resultAttribute.timeInterval.startTime.toDate(
+                      ZoneOffset.ofTotalSeconds(reportStart.utcOffset.seconds.toInt())
+                    )
+                  } else {
+                    resultAttribute.timeInterval.startTime.toDate(
+                      ZoneId.of(reportStart.timeZone.id)
+                    )
+                  }
+                } else {
+                  null
+                }
+
+              val endDate =
+                if (reportStart.hasUtcOffset()) {
+                  resultAttribute.timeInterval.endTime.toDate(
+                    ZoneOffset.ofTotalSeconds(reportStart.utcOffset.seconds.toInt())
+                  )
+                } else {
+                  resultAttribute.timeInterval.endTime.toDate(ZoneId.of(reportStart.timeZone.id))
+                }
+
+              val reportingWindowResultInfo: ReportingWindowResultInfo =
+                reportingSetResultInfo.reportingWindowResultInfoByEndDate.getOrPut(endDate) {
+                  ReportingWindowResultInfo()
+                }
+
+              if (startDate != null) {
+                reportingWindowResultInfo.startDate = startDate
               }
-            } else {
-              null
-            }
 
-          val endDate =
-            if (reportStart.hasUtcOffset()) {
-              resultAttribute.timeInterval.endTime.toDate(
-                ZoneOffset.ofTotalSeconds(reportStart.utcOffset.seconds.toInt())
-              )
-            } else {
-              resultAttribute.timeInterval.endTime.toDate(ZoneId.of(reportStart.timeZone.id))
-            }
+              val metricResults =
+                if (metricCalculationSpecInfo.hasTrailingWindow) {
+                  if (reportingWindowResultInfo.nonCumulativeResults == null) {
+                    reportingWindowResultInfo.nonCumulativeResults = MetricResults()
+                    reportingWindowResultInfo.nonCumulativeResults
+                  } else {
+                    reportingWindowResultInfo.nonCumulativeResults
+                  }
+                } else {
+                  if (reportingWindowResultInfo.cumulativeResults == null) {
+                    reportingWindowResultInfo.cumulativeResults = MetricResults()
+                    reportingWindowResultInfo.cumulativeResults
+                  } else {
+                    reportingWindowResultInfo.cumulativeResults
+                  }
+                }
 
-          val reportingWindowResultInfo: ReportingWindowResultInfo =
-            reportingSetResultInfo.reportingWindowResultInfoByEndDate.getOrPut(endDate) {
-              ReportingWindowResultInfo()
-            }
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof cannot be null.
+              when (resultAttribute.metricSpec.typeCase) {
+                MetricSpec.TypeCase.REACH -> {
+                  metricResults!!.reach = resultAttribute.metricResult.reach
+                }
 
-          if (startDate != null) {
-            reportingWindowResultInfo.startDate = startDate
-          }
+                MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
+                  metricResults!!.reach = resultAttribute.metricResult.reachAndFrequency.reach
+                  metricResults.frequencyHistogram =
+                    resultAttribute.metricResult.reachAndFrequency.frequencyHistogram
+                }
 
-          val metricResults =
-            if (metricCalculationSpecInfo.hasTrailingWindow) {
-              if (reportingWindowResultInfo.nonCumulativeResults == null) {
-                reportingWindowResultInfo.nonCumulativeResults = MetricResults()
-                reportingWindowResultInfo.nonCumulativeResults
-              } else {
-                reportingWindowResultInfo.nonCumulativeResults
+                MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+                  metricResults!!.impressionCount = resultAttribute.metricResult.impressionCount
+                }
+
+                MetricSpec.TypeCase.WATCH_DURATION -> {
+                  // Do nothing. Not supported
+                }
+
+                MetricSpec.TypeCase.POPULATION_COUNT -> {
+                  populationCountByPopulationResultKey[
+                    PopulationResultKey(
+                      filter = resultAttribute.filter,
+                      groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
+                    )] = resultAttribute.metricResult.populationCount.value.toInt()
+                }
+
+                MetricSpec.TypeCase.TYPE_NOT_SET -> {
+                  // This should be impossible to reach under normal circumstances
+                  error("Metric ${resultAttribute.metric} is missing metric_spec.type")
+                }
               }
-            } else {
-              if (reportingWindowResultInfo.cumulativeResults == null) {
-                reportingWindowResultInfo.cumulativeResults = MetricResults()
-                reportingWindowResultInfo.cumulativeResults
-              } else {
-                reportingWindowResultInfo.cumulativeResults
-              }
-            }
-
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof cannot be null.
-          when (resultAttribute.metricSpec.typeCase) {
-            MetricSpec.TypeCase.REACH -> {
-              metricResults!!.reach = resultAttribute.metricResult.reach
-            }
-            MetricSpec.TypeCase.REACH_AND_FREQUENCY -> {
-              metricResults!!.reach = resultAttribute.metricResult.reachAndFrequency.reach
-              metricResults.frequencyHistogram =
-                resultAttribute.metricResult.reachAndFrequency.frequencyHistogram
-            }
-
-            MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-              metricResults!!.impressionCount = resultAttribute.metricResult.impressionCount
-            }
-            MetricSpec.TypeCase.WATCH_DURATION -> {
-              // Do nothing. Not supported
-            }
-            MetricSpec.TypeCase.POPULATION_COUNT -> {
-              reportingSetResultInfo.populationSize =
-                resultAttribute.metricResult.populationCount.value.toInt()
-            }
-            MetricSpec.TypeCase.TYPE_NOT_SET -> {
-              // This should be impossible to reach under normal circumstances
-              error("Metric ${resultAttribute.metric} is missing metric_spec.type")
             }
           }
         }
       }
-    }
+
+    return ReportResultInfo(
+      populationCountByPopulationResultKey,
+      reportingSetResultInfoByReportingSetResultInfoKey,
+    )
   }
 
   /**
@@ -581,11 +622,15 @@ class BasicReportsReportsJob(
 
         for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
           val dimensionSpecFilters = resultGroupSpec.dimensionSpec.filtersList
+          val dimensionSpecFilter: String =
+            createDimensionSpecFilter(
+              dimensionSpecFilters.map { it.toEventFilter() },
+              eventTemplateFieldsByPath,
+            )
           val filter =
             createMetricCalculationSpecFilters(
                 listOf(impressionQualificationFilterString),
-                dimensionSpecFilters.map { it.toEventFilter() },
-                eventTemplateFieldsByPath,
+                dimensionSpecFilter,
               )
               .first()
 
@@ -593,7 +638,14 @@ class BasicReportsReportsJob(
             reportingImpressionQualificationFilter.externalImpressionQualificationFilterId.ifEmpty {
               null
             }
-          put(filter, FilterInfo(externalImpressionQualificationFilterId, dimensionSpecFilters))
+          put(
+            filter,
+            FilterInfo(
+              externalImpressionQualificationFilterId,
+              dimensionSpecFilters,
+              dimensionSpecFilter,
+            ),
+          )
         }
       }
     }
@@ -623,18 +675,16 @@ class BasicReportsReportsJob(
           }
         )
         .collect {
-          if (it.externalReportingSetId != it.externalCampaignGroupId) {
-            val vennDiagramRegionType =
-              if (it.hasPrimitive()) {
-                VennDiagramRegionType.PRIMITIVE
-              } else {
-                VennDiagramRegionType.UNION
-              }
-            put(
-              ReportingSetKey(it.cmmsMeasurementConsumerId, it.externalReportingSetId).toName(),
-              vennDiagramRegionType,
-            )
-          }
+          val vennDiagramRegionType =
+            if (it.hasPrimitive()) {
+              VennDiagramRegionType.PRIMITIVE
+            } else {
+              VennDiagramRegionType.UNION
+            }
+          put(
+            ReportingSetKey(it.cmmsMeasurementConsumerId, it.externalReportingSetId).toName(),
+            vennDiagramRegionType,
+          )
         }
     }
   }
@@ -704,6 +754,14 @@ class BasicReportsReportsJob(
     val hasTrailingWindow: Boolean,
   )
 
+  private data class ReportResultInfo(
+    val populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+    val reportingSetResultInfoByReportingSetResultInfoKey:
+      Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
+  )
+
+  private data class PopulationResultKey(val filter: String, val groupingPredicates: Set<String>)
+
   private data class ReportingSetResultInfoKey(
     val externalReportingSetId: String,
     val filter: String,
@@ -713,7 +771,6 @@ class BasicReportsReportsJob(
   private data class ReportingSetResultInfo(
     val vennDiagramRegionType: VennDiagramRegionType,
     val metricFrequencySpec: MetricFrequencySpec,
-    var populationSize: Int,
     val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>,
   )
 
@@ -732,6 +789,8 @@ class BasicReportsReportsJob(
   private data class FilterInfo(
     val externalImpressionQualificationFilterId: String? = null,
     val dimensionSpecFilters: List<EventFilter>,
+    // CEL String created from dimensionSpecFilters
+    val dimensionSpecFilter: String,
   )
 
   companion object {
