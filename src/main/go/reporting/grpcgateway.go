@@ -54,10 +54,7 @@ func run() error {
 	// Register handlers for every service.
 	for _, f := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
 		reportingpb.RegisterEventGroupsHandler,
-		reportingpb.RegisterMetricCalculationSpecsHandler,
-		reportingpb.RegisterMetricsHandler,
 		reportingpb.RegisterReportingSetsHandler,
-		reportingpb.RegisterReportsHandler,
 		reportingpb.RegisterImpressionQualificationFiltersHandler,
 		reportingpb.RegisterBasicReportsHandler,
 		cmmspb.RegisterDataProvidersHandler,

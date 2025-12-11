@@ -27,6 +27,7 @@ import java.util.logging.Logger
 import kotlin.math.roundToInt
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -62,7 +63,6 @@ import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -87,7 +87,7 @@ class BasicReportsReportsJob(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
-  private val eventDescriptor: EventDescriptor?,
+  private val eventMessageDescriptor: EventMessageDescriptor?,
 ) {
 
   /**
@@ -95,7 +95,7 @@ class BasicReportsReportsJob(
    * each of those BasicReports, the Report is retrieved.
    */
   suspend fun execute() {
-    val eventTemplateFieldsByPath = eventDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     val eventTemplateFieldByPredicate =
       buildEventTemplateFieldByPredicateMap(eventTemplateFieldsByPath)
@@ -228,7 +228,7 @@ class BasicReportsReportsJob(
     reportResult: ReportResult,
     basicReport: BasicReport,
     report: Report,
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
     val (
@@ -575,7 +575,7 @@ class BasicReportsReportsJob(
    * @return Map of Predicate String to [EventTemplateField]
    */
   private fun buildEventTemplateFieldByPredicateMap(
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>
   ): Map<String, EventTemplateField> {
     return buildMap {
       for (eventTemplateFieldEntry in eventTemplateFieldsByPath.entries) {
@@ -607,7 +607,7 @@ class BasicReportsReportsJob(
    */
   private fun buildFilterInfoByFilterString(
     basicReport: BasicReport,
-    eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   ): Map<String, FilterInfo> {
     return buildMap {
       for (reportingImpressionQualificationFilter in

@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
-import com.google.protobuf.Descriptors
 import io.grpc.BindableService
 import org.junit.ClassRule
 import org.junit.Rule
@@ -39,7 +38,6 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
   override fun createServices(
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
-    eventMessageDescriptor: Descriptors.Descriptor,
   ): List<BindableService> {
     val spannerClient = spannerDatabase.databaseClient
     val postgresClient = postgresDatabaseProvider.createDatabase()
@@ -48,14 +46,12 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
       SpannerReportResultsService(
         spannerClient,
         impressionQualificationFilterMapping,
-        eventMessageDescriptor,
         idGenerator = idGenerator,
       ),
       SpannerBasicReportsService(
         spannerClient,
         postgresClient,
         impressionQualificationFilterMapping,
-        eventMessageDescriptor,
         idGenerator = idGenerator,
       ),
       PostgresReportingSetsService(integerIdGenerator, postgresClient),

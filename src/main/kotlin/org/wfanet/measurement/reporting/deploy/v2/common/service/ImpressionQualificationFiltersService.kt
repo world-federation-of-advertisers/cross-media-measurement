@@ -27,10 +27,10 @@ import org.wfanet.measurement.internal.reporting.v2.ListImpressionQualificationF
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersPageToken
 import org.wfanet.measurement.internal.reporting.v2.listImpressionQualificationFiltersResponse
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping.Companion.toImpressionQualificationFilter
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.internal.toImpressionQualificationFilter
 
 /**
  * Internal impression qualification filter service.

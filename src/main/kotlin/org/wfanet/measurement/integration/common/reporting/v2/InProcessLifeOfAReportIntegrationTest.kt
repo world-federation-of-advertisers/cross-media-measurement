@@ -3071,9 +3071,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionQualificationFilter {
           name = "impressionQualificationFilters/ami"
           displayName = "ami"
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+          filterSpecs += impressionQualificationFilterSpec {
+            mediaType = MediaType.DISPLAY
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "banner_ad.viewable"
+                value = EventTemplateFieldKt.fieldValue { boolValue = false }
+              }
+            }
+          }
         }
       )
   }
@@ -3108,17 +3114,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 mediaType = MediaType.DISPLAY
                 filters += eventFilter {
                   terms += eventTemplateField {
-                    path = "banner_ad.viewable_fraction_1_second"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
-                  }
-                }
-              }
-              filterSpecs += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "video.viewable_fraction_1_second"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+                    path = "banner_ad.viewable"
+                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
                   }
                 }
               }

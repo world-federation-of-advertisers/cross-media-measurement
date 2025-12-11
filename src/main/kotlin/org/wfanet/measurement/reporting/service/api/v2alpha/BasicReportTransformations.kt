@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
@@ -75,7 +76,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
   dataProviderPrimitiveReportingSetMap: Map<String, ReportingSet>,
   resultGroupSpecs: List<ResultGroupSpec>,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
     impressionQualificationFilterSpecsLists.map {
@@ -166,7 +167,7 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
  */
 fun createImpressionQualificationFilterSpecsFilter(
   impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
   return impressionQualificationFilterSpecs
     .map { impressionQualificationFilterSpec ->
@@ -208,7 +209,7 @@ fun createImpressionQualificationFilterSpecsFilter(
  * @return List of [MetricCalculationSpec.Grouping]
  */
 private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>
 ): List<MetricCalculationSpec.Grouping> {
   if (eventTemplateFieldsList.isEmpty()) {
     return emptyList()
@@ -267,7 +268,7 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  */
 fun createDimensionSpecFilter(
   dimensionSpecFilters: List<EventFilter>,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
   return if (dimensionSpecFilters.isEmpty()) {
     ""

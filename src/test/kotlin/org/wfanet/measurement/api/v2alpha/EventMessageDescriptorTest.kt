@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.reporting.service.api.v2alpha
+package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Descriptors
@@ -23,7 +23,6 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingFieldAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.MissingTemplateAnnotationEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -33,21 +32,22 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedRep
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.UnsupportedReportingFeatureEvent
 
 @RunWith(JUnit4::class)
-class EventDescriptorTest {
+class EventMessageDescriptorTest {
   @Test
-  fun `EventDescriptor instantiation succeeds`() {
+  fun `EventMessageDescriptor instantiation succeeds`() {
     val typeRegistry = TypeRegistry.newBuilder().add(listOf(TestEvent.getDescriptor())).build()
-    val eventDescriptor = EventDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
+    val eventMessageDescriptor =
+      EventMessageDescriptor(typeRegistry.find(TestEvent.getDescriptor().fullName))
 
-    assertThat(eventDescriptor.eventTemplateFieldsByPath).hasSize(6)
-    assertThat(eventDescriptor.eventTemplateFieldsByPath)
+    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath).hasSize(6)
+    assertThat(eventMessageDescriptor.eventTemplateFieldsByPath)
       .containsExactly(
         "person.gender",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
           isPopulationAttribute = true,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = true,
               filterable = true,
               impressionQualification = false,
@@ -56,11 +56,11 @@ class EventDescriptorTest {
           enumType = Person.Gender.getDescriptor(),
         ),
         "person.age_group",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
           isPopulationAttribute = true,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = true,
               filterable = true,
               impressionQualification = false,
@@ -69,11 +69,11 @@ class EventDescriptorTest {
           enumType = Person.AgeGroup.getDescriptor(),
         ),
         "person.social_grade_group",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.MEDIA_TYPE_UNSPECIFIED,
           isPopulationAttribute = true,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = true,
               filterable = true,
               impressionQualification = false,
@@ -82,11 +82,11 @@ class EventDescriptorTest {
           enumType = Person.SocialGradeGroup.getDescriptor(),
         ),
         "video_ad.length",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.VIDEO,
           isPopulationAttribute = false,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = false,
               filterable = true,
               impressionQualification = false,
@@ -95,11 +95,11 @@ class EventDescriptorTest {
           enumType = null,
         ),
         "video_ad.viewed_fraction",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.VIDEO,
           isPopulationAttribute = false,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = false,
               filterable = false,
               impressionQualification = true,
@@ -108,11 +108,11 @@ class EventDescriptorTest {
           enumType = null,
         ),
         "banner_ad.viewable",
-        EventDescriptor.EventTemplateFieldInfo(
+        EventMessageDescriptor.EventTemplateFieldInfo(
           mediaType = MediaType.DISPLAY,
           isPopulationAttribute = false,
           supportedReportingFeatures =
-            EventDescriptor.SupportedReportingFeatures(
+            EventMessageDescriptor.SupportedReportingFeatures(
               groupable = false,
               filterable = false,
               impressionQualification = true,
@@ -124,37 +124,37 @@ class EventDescriptorTest {
   }
 
   @Test
-  fun `EventDescriptor instantiation fails with exception when EventTemplate annotation missing`() {
+  fun `EventMessageDescriptor instantiation fails with exception when EventTemplate annotation missing`() {
     assertFailsWith<IllegalArgumentException> {
-      EventDescriptor(MissingTemplateAnnotationEvent.getDescriptor())
+      EventMessageDescriptor(MissingTemplateAnnotationEvent.getDescriptor())
     }
   }
 
   @Test
-  fun `EventDescriptor instantiation fails with exception when field annotation missing`() {
+  fun `EventMessageDescriptor instantiation fails with exception when field annotation missing`() {
     assertFailsWith<IllegalArgumentException> {
-      EventDescriptor(MissingFieldAnnotationEvent.getDescriptor())
+      EventMessageDescriptor(MissingFieldAnnotationEvent.getDescriptor())
     }
   }
 
   @Test
-  fun `EventDescriptor instantiation fails with exception when reporting feature invalid`() {
+  fun `EventMessageDescriptor instantiation fails with exception when reporting feature invalid`() {
     assertFailsWith<IllegalArgumentException> {
-      EventDescriptor(UnsupportedReportingFeatureEvent.getDescriptor())
+      EventMessageDescriptor(UnsupportedReportingFeatureEvent.getDescriptor())
     }
   }
 
   @Test
-  fun `EventDescriptor instantiation fails with exception when field repeated`() {
+  fun `EventMessageDescriptor instantiation fails with exception when field repeated`() {
     assertFailsWith<IllegalArgumentException> {
-      EventDescriptor(UnsupportedRepeatedFieldEvent.getDescriptor())
+      EventMessageDescriptor(UnsupportedRepeatedFieldEvent.getDescriptor())
     }
   }
 
   @Test
-  fun `EventDescriptor instantiation fails with exception when field unsupported type`() {
+  fun `EventMessageDescriptor instantiation fails with exception when field unsupported type`() {
     assertFailsWith<IllegalArgumentException> {
-      EventDescriptor(UnsupportedFieldTypeEvent.getDescriptor())
+      EventMessageDescriptor(UnsupportedFieldTypeEvent.getDescriptor())
     }
   }
 }

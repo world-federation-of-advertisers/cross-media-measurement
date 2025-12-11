@@ -6,16 +6,15 @@ impression_qualification_filters {
   external_impression_qualification_filter_id: "ami"
   impression_qualification_filter_id: 1
   filter_specs {
-    media_type: VIDEO
-    filters: []
-  }
-  filter_specs {
     media_type: DISPLAY
-    filters: []
-  }
-  filter_specs {
-    media_type: OTHER
-    filters: []
+    filters: {
+      terms: {
+        path: "banner_ad.viewable"
+        value {
+          bool_value: false
+        }
+      }
+    }
   }
 }
 
@@ -27,20 +26,9 @@ impression_qualification_filters {
     media_type: DISPLAY
     filters: {
       terms: {
-        path: "banner_ad.viewable_fraction_1_second"
+        path: "banner_ad.viewable"
         value {
-          float_value: 0.5
-        }
-      }
-    }
-  }
-  filter_specs {
-    media_type: VIDEO
-    filters: {
-      terms: {
-        path: "video.viewable_fraction_1_second"
-        value: {
-          float_value: 1.0
+          bool_value: true
         }
       }
     }

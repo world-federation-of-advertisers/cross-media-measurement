@@ -86,7 +86,6 @@ object DataServices {
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
-          eventMessageDescriptor,
           coroutineContext,
         )
       } else {
@@ -113,7 +112,6 @@ object DataServices {
         SpannerReportResultsService(
           spannerClient,
           impressionQualificationFilterMapping,
-          eventMessageDescriptor,
           idGenerator,
           coroutineContext,
         )
