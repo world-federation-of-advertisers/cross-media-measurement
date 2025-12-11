@@ -66,7 +66,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
+  eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
   hasDefaultReportStartHour: Boolean,
 ) {
   if (request.basicReportId.isEmpty()) {
