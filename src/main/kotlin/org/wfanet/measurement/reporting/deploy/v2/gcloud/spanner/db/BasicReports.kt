@@ -315,9 +315,10 @@ private fun buildBasicReport(row: Struct): BasicReport {
     // For handling BasicReports that were created before
     // effective_impression_qualification_filters was added.
     if (details.effectiveImpressionQualificationFiltersList.isEmpty()) {
-      details = details.copy {
-        effectiveImpressionQualificationFilters += this@copy.impressionQualificationFilters
-      }
+      details =
+        details.copy {
+          effectiveImpressionQualificationFilters += this@copy.impressionQualificationFilters
+        }
     }
     createTime = row.getTimestamp("CreateTime").toProto()
     state = row.getProtoEnum("State", BasicReport.State::forNumber)

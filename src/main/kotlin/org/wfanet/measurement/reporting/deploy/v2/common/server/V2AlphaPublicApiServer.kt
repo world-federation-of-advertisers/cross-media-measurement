@@ -61,8 +61,9 @@ import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpc as InternalImpressionQualificationFiltersGrpc
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpc as InternalMeasurementConsumersGrpc
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
@@ -95,7 +96,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.validate
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
-import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import picocli.CommandLine
@@ -210,31 +210,34 @@ private object V2AlphaPublicApiServer {
     val internalImpressionQualificationFiltersBlockingStub =
       InternalImpressionQualificationFiltersGrpc.newBlockingStub(channel)
 
-    val baseImpressionQualificationFilters: List<InternalImpressionQualificationFilter> = buildList {
-      reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
-        try {
-          add(internalImpressionQualificationFiltersBlockingStub.getImpressionQualificationFilter(
-            getImpressionQualificationFilterRequest {
-              externalImpressionQualificationFilterId =
-                ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
-                  ?: throw IllegalArgumentException(
-                    "$it in base_impression_qualification_filters is an invalid resource name"
-                  )
-            }
-          ))
-        } catch (e: StatusException) {
-          when (e.status.code) {
-            Status.Code.NOT_FOUND -> {
-              throw IllegalArgumentException(
-                "$it in base_impression_qualification_filters is not found"
+    val baseImpressionQualificationFilters: List<InternalImpressionQualificationFilter> =
+      buildList {
+        reportingApiServerFlags.baseImpressionQualificationFilters.forEach {
+          try {
+            add(
+              internalImpressionQualificationFiltersBlockingStub.getImpressionQualificationFilter(
+                getImpressionQualificationFilterRequest {
+                  externalImpressionQualificationFilterId =
+                    ImpressionQualificationFilterKey.fromName(it)?.impressionQualificationFilterId
+                      ?: throw IllegalArgumentException(
+                        "$it in base_impression_qualification_filters is an invalid resource name"
+                      )
+                }
               )
-            }
+            )
+          } catch (e: StatusException) {
+            when (e.status.code) {
+              Status.Code.NOT_FOUND -> {
+                throw IllegalArgumentException(
+                  "$it in base_impression_qualification_filters is not found"
+                )
+              }
 
-            else -> throw e
+              else -> throw e
+            }
           }
         }
       }
-    }
 
     val metricSpecConfig =
       parseTextProto(v2AlphaFlags.metricSpecConfigFile, MetricSpecConfig.getDefaultInstance())
@@ -391,8 +394,7 @@ private object V2AlphaPublicApiServer {
           .withInterceptor(principalAuthInterceptor),
         BasicReportsService(
             InternalBasicReportsCoroutineStub(channel),
-          InternalImpressionQualificationFiltersCoroutineStub(channel)
-          ,
+            InternalImpressionQualificationFiltersCoroutineStub(channel),
             InternalReportingSetsCoroutineStub(channel),
             InternalMetricCalculationSpecsCoroutineStub(channel),
             ReportsCoroutineStub(inProcessReportsChannel),

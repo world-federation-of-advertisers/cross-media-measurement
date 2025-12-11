@@ -648,9 +648,13 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           }
         )
 
-      assertThat(retrievedBasicReport.details).isEqualTo(basicReport.details.copy {
-        effectiveImpressionQualificationFilters += basicReport.details.impressionQualificationFiltersList
-      })
+      assertThat(retrievedBasicReport.details)
+        .isEqualTo(
+          basicReport.details.copy {
+            effectiveImpressionQualificationFilters +=
+              basicReport.details.impressionQualificationFiltersList
+          }
+        )
     }
 
   @Test
@@ -944,9 +948,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           externalReportId = "report1234"
           externalReportResultId = reportResult.externalReportResultId
           state = BasicReport.State.SUCCEEDED
-          details = basicReport.details.copy {
-            effectiveImpressionQualificationFilters += basicReport.details.impressionQualificationFiltersList
-          }
+          details =
+            basicReport.details.copy {
+              effectiveImpressionQualificationFilters +=
+                basicReport.details.impressionQualificationFiltersList
+            }
           resultDetails = basicReportResultDetails {
             resultGroups += resultGroup {
               title = "title"

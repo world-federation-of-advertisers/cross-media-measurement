@@ -92,7 +92,6 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
-import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec as InternalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub as InternalImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -117,6 +116,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
@@ -2471,9 +2471,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
-        listOf(
-          INTERNAL_AMI_IQF
-        ),
+        listOf(INTERNAL_AMI_IQF),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2583,9 +2581,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
-        listOf(
-          INTERNAL_AMI_IQF
-        ),
+        listOf(INTERNAL_AMI_IQF),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2705,10 +2701,7 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
-          listOf(
-            INTERNAL_AMI_IQF,
-            INTERNAL_MRC_IQF,
-          ),
+          listOf(INTERNAL_AMI_IQF, INTERNAL_MRC_IQF),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -9478,34 +9471,28 @@ class BasicReportsServiceTest {
 
     private val INTERNAL_AMI_IQF = internalImpressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
-      filterSpecs +=
-        internalImpressionQualificationFilterSpec {
-          mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
-          filters +=
-            internalEventFilter {
-              terms +=
-                internalEventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
-                }
-            }
+      filterSpecs += internalImpressionQualificationFilterSpec {
+        mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "banner_ad.viewable"
+            value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
+          }
         }
+      }
     }
 
     private val INTERNAL_MRC_IQF = internalImpressionQualificationFilter {
       externalImpressionQualificationFilterId = "mrc"
-      filterSpecs +=
-        internalImpressionQualificationFilterSpec {
-          mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
-          filters +=
-            internalEventFilter {
-              terms +=
-                internalEventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = InternalEventTemplateFieldKt.fieldValue { boolValue = true }
-                }
-            }
+      filterSpecs += internalImpressionQualificationFilterSpec {
+        mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "banner_ad.viewable"
+            value = InternalEventTemplateFieldKt.fieldValue { boolValue = true }
+          }
         }
+      }
     }
 
     private val AMI_IQF = impressionQualificationFilter {
