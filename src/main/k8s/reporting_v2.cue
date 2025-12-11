@@ -196,6 +196,8 @@ package k8s
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 						"--pdp-name=\(_populationDataProviderName)",
+						"--default-report-start-time-zone=America/Los_Angeles",
+						"--default-report-start-hour=5",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {

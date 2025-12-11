@@ -150,6 +150,27 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       details = basicReportDetails {
         title = "title"
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          effectiveReportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
@@ -513,6 +534,27 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       details = basicReportDetails {
         title = "title"
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          effectiveReportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
@@ -691,6 +733,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 9
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            effectiveReportStart = dateTime {
               year = 2025
               month = 7
               day = 9
