@@ -35,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
@@ -1859,9 +1860,20 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
     }
 
     private val MRC_IQF = impressionQualificationFilter {
@@ -1873,29 +1885,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           ImpressionQualificationFilterConfigKt.eventFilter {
             terms +=
               ImpressionQualificationFilterConfigKt.eventTemplateField {
-                path = "banner_ad.viewable_fraction_1_second"
+                path = "banner_ad.viewable"
                 value =
                   ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
-                    floatValue = 0.5F
+                    boolValue = true
                   }
               }
           }
       }
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.VIDEO
-        filters +=
-          ImpressionQualificationFilterConfigKt.eventFilter {
-            terms +=
-              ImpressionQualificationFilterConfigKt.eventTemplateField {
-                path = "video.viewable_fraction_1_second"
-                value =
-                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
-                    floatValue = 1.0F
-                  }
-              }
-          }
-      }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
 
     private val IMPRESSION_QUALIFICATION_FILTER_CONFIG = impressionQualificationFilterConfig {
@@ -1904,7 +1901,10 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     }
 
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+      ImpressionQualificationFilterMapping(
+        IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+        TestEvent.getDescriptor(),
+      )
 
     private val REPORTING_SET = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

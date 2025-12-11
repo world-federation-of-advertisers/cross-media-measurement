@@ -40,6 +40,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -89,7 +90,6 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
-import org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -2380,7 +2380,7 @@ class BasicReportsReportsJobTest {
   }
 
   companion object {
-    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
+    private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
 
     /**
      * Descriptors of repeated fields in [ReportingSetResult] that are treated as unordered lists.
