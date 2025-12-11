@@ -270,11 +270,7 @@ class ReportingUserSimulator(
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(
-          JsonFormat.printer()
-            .print(basicReport)
-            .toRequestBody()
-        )
+        .post(JsonFormat.printer().print(basicReport).toRequestBody())
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer $accessToken")
         .build()
