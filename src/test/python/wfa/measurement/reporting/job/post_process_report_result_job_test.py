@@ -81,11 +81,11 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_basic_reports_stub.ListBasicReports.side_effect = [
             basic_reports_service_pb2.ListBasicReportsResponse(
                 basic_reports=[mock_report1],
-                next_page_token=basic_reports_service_pb2.ListBasicReportsPageToken(),
+                next_page_token=basic_reports_service_pb2.
+                ListBasicReportsPageToken(),
             ),
             basic_reports_service_pb2.ListBasicReportsResponse(
-                basic_reports=[mock_report2],
-            ),
+                basic_reports=[mock_report2], ),
         ]
 
         mock_request = (
@@ -134,7 +134,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             external_report_result_id=101,
         )
         mock_report2 = BasicReport(
-            external_basic_report_id="basic_report2",
+            external_basic_report_id="basic_report_2",
             cmms_measurement_consumer_id="mc_id_2",
             external_report_result_id=102,
         )

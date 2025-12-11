@@ -26,6 +26,7 @@ from tools import post_process_report_result
 
 _MAX_PAGE_SIZE = 50
 
+
 class PostProcessReportResultJob:
     """A job for fetching, correcting, and updating a report."""
 
@@ -45,26 +46,6 @@ class PostProcessReportResultJob:
         self._post_processor = post_process_report_result.PostProcessReportResult(
             self._report_results_stub, self._reporting_sets_stub)
 
-    def _list_unprocessed_basic_reports(
-            self
-        ) -> Iterable[basic_report_pb2.BasicReport]:
-        """Lists all basic reports with status UNPROCESSED_RESULTS_READY."""
-        request = basic_reports_service_pb2.ListBasicReportsRequest(
-            page_size=_MAX_PAGE_SIZE,
-            filter=basic_reports_service_pb2.ListBasicReportsRequest.Filter(
-                state=basic_report_pb2.BasicReport.State.
-                UNPROCESSED_RESULTS_READY))
-
-        all_reports = []
-        while True:
-            response = self._basic_reports_stub.ListBasicReports(request)
-            all_reports.extend(response.basic_reports)
-            if not response.HasField("next_page_token"):
-                break
-            request.page_token.CopyFrom(response.next_page_token)
-
-        return all_reports
-
     def execute(self) -> bool:
         """Runs the post-processing job.
 
@@ -72,29 +53,54 @@ class PostProcessReportResultJob:
             True if all reports were processed successfully, False otherwise.
         """
         job_succeeded = True
-        basic_reports = self._list_unprocessed_basic_reports()
-        for report in basic_reports:
-            try:
-                logging.info(
-                    f"Processing report: {report.external_report_result_id}")
-                request = self._post_processor.process(
-                    report.cmms_measurement_consumer_id,
-                    report.external_report_result_id,
-                )
-                if request:
+
+        # Initial requests.
+        basic_reports_request = basic_reports_service_pb2.ListBasicReportsRequest(
+            page_size=_MAX_PAGE_SIZE,
+            filter=basic_reports_service_pb2.ListBasicReportsRequest.Filter(
+                state=basic_report_pb2.BasicReport.State.
+                UNPROCESSED_RESULTS_READY))
+
+        while True:
+            response = self._basic_reports_stub.ListBasicReports(
+                basic_reports_request)
+
+            # Processes basic report in this page.
+            for report in response.basic_reports:
+                try:
                     logging.info(
-                        f"Updating report: {report.external_report_result_id}")
-                    self._report_results_stub.AddProcessedResultValues(request)
-            except Exception:
-                logging.warning(
-                    f"Failed to process  basic report {report.external_basic_report_id}"
-                    f" for measurement consumer {report.cmms_measurement_consumer_id}."
-                )
-                self._basic_reports_stub.FailBasicReport(
-                    basic_reports_service_pb2.FailBasicReportRequest(
-                        cmms_measurement_consumer_id=report.cmms_measurement_consumer_id,
-                        external_basic_report_id=report.external_basic_report_id,
+                        f"Processing report: {report.external_report_result_id}"
                     )
-                )
-                job_succeeded = False
+                    add_processed_result_values_request = self._post_processor.process(
+                        report.cmms_measurement_consumer_id,
+                        report.external_report_result_id,
+                    )
+                    if add_processed_result_values_request:
+                        logging.info(
+                            f"Updating report: {report.external_report_result_id}"
+                        )
+                        self._report_results_stub.AddProcessedResultValues(
+                            add_processed_result_values_request)
+                except Exception:
+                    logging.warning(
+                        f"Failed to process  basic report {report.external_basic_report_id}"
+                        f" for measurement consumer {report.cmms_measurement_consumer_id}."
+                    )
+                    self._basic_reports_stub.FailBasicReport(
+                        basic_reports_service_pb2.FailBasicReportRequest(
+                            cmms_measurement_consumer_id=report.
+                            cmms_measurement_consumer_id,
+                            external_basic_report_id=report.
+                            external_basic_report_id,
+                        ))
+                    job_succeeded = False
+
+            # Gets the request for the next page or breaks when there is no
+            # more basic reports to process.
+            if response.HasField("next_page_token"):
+                basic_reports_request.page_token.CopyFrom(
+                    response.next_page_token)
+            else:
+                break
+
         return job_succeeded

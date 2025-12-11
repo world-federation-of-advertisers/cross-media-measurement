@@ -26,10 +26,11 @@ from job import post_process_report_result_job
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
     @flagsaver.flagsaver(
-        internal_reporting_target="kingdom_target",
+        internal_reporting_target="internal_reporting_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
+        internal_api_cert_host="cert_host",
     )
     @mock.patch("os.path.exists", return_value=True)
     @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
@@ -38,16 +39,20 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         "job.post_process_report_result_job_executor._get_secure_credentials")
     @mock.patch(
         "job.post_process_report_result_job_executor._create_secure_channel")
-    def test_post_process_report_result_job_executor_success(
-            self, mock_create_channel, mock_get_credentials, mock_job_class,
-            mock_exists):
+    def test_post_process_report_result_with_internal_api_cert_host_success(
+        self,
+        mock_create_channel,
+        mock_get_credentials,
+        mock_job_class,
+        mock_exists,
+    ):
         # Sets up mock objects.
         mock_credentials = mock.MagicMock()
         mock_get_credentials.return_value = mock_credentials
         mock_job_instance = mock.MagicMock()
         mock_job_class.return_value = mock_job_instance
-        mock_channel = mock.MagicMock()
-        mock_create_channel.return_value = mock_channel
+        mock_channel_instance = mock.MagicMock(name="secure_channel_instance")
+        mock_create_channel.return_value.__enter__.return_value = mock_channel_instance
 
         # Calls the main function.
         post_process_report_result_job_executor.main(["test_main"])
@@ -61,20 +66,65 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         mock_get_credentials.assert_called_once_with("client_key",
                                                      "client_cert",
                                                      "root_ca_cert")
-        mock_create_channel.assert_called_once_with("kingdom_target",
-                                                    mock_credentials)
-        mock_job_class.assert_called_once_with(mock_channel)
+        expected_options = [("grpc.ssl_target_name_override", "cert_host")]
+        mock_create_channel.assert_called_once_with(
+            "internal_reporting_target",
+            mock_credentials,
+            options=expected_options)
+
+        mock_job_class.assert_called_once_with(mock_channel_instance)
         mock_job_instance.execute.assert_called_once()
-        mock_channel.close.assert_called_once()
+
+    @flagsaver.flagsaver(
+        internal_reporting_target="internal_reporting_target",
+        tls_cert_file="client_cert",
+        tls_key_file="client_key",
+        cert_collection_file="root_ca_cert",
+    )
+    @mock.patch("os.path.exists", return_value=True)
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
+                )
+    @mock.patch(
+        "job.post_process_report_result_job_executor._get_secure_credentials")
+    @mock.patch(
+        "job.post_process_report_result_job_executor._create_secure_channel")
+    def test_post_process_report_result_job_executor_no_internal_api_cert_host_success(
+            self, mock_create_channel, mock_get_credentials, mock_job_class,
+            mock_exists):
+        # Sets up mock objects.
+        mock_credentials = mock.MagicMock()
+        mock_get_credentials.return_value = mock_credentials
+        mock_job_instance = mock.MagicMock()
+        mock_job_class.return_value = mock_job_instance
+        mock_channel_instance = mock.MagicMock(name="secure_channel_instance")
+        mock_create_channel.return_value.__enter__.return_value = mock_channel_instance
+
+        # Calls the main function.
+        post_process_report_result_job_executor.main(["test_main"])
+
+        # Verifies the expected behavior.
+        mock_exists.assert_has_calls([
+            mock.call("client_cert"),
+            mock.call("client_key"),
+            mock.call("root_ca_cert"),
+        ])
+        mock_get_credentials.assert_called_once_with("client_key",
+                                                     "client_cert",
+                                                     "root_ca_cert")
+        mock_create_channel.assert_called_once_with(
+            "internal_reporting_target", mock_credentials, options=[])
+        mock_job_class.assert_called_once_with(mock_channel_instance)
+        mock_job_instance.execute.assert_called_once()
 
     @parameterized.named_parameters(
-        ("missing_internal_reporting_target_flag", "internal_reporting_target"),
+        ("missing_internal_reporting_target_flag",
+         "internal_reporting_target"),
         ("missing_tls_cert_file_flag", "tls_cert_file"),
         ("missing_tls_key_file_flag", "tls_key_file"),
         ("missing_cert_collection_file_flag", "cert_collection_file"),
     )
     @flagsaver.flagsaver(
-        internal_reporting_target="kingdom_target",
+        internal_reporting_target="internal_reporting_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
@@ -92,7 +142,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         ("missing_cert_collection", "cert_collection_file", "root_ca_cert"),
     )
     @flagsaver.flagsaver(
-        internal_reporting_target="kingdom_target",
+        internal_reporting_target="internal_reporting_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",

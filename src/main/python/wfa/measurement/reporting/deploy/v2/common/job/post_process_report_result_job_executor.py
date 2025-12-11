@@ -46,6 +46,11 @@ _CERT_COLLECTION_FILE = flags.DEFINE_string(
     None,
     "The path to the certificate collection file for validating the server's cert.",
     required=True)
+_INTERNAL_API_CERT_HOST = flags.DEFINE_string(
+    "internal_api_cert_host",
+    None,
+    "Expected hostname (DNS-ID) in the internal reporting API server's TLS certificate. This overrides derivation of the TLS DNS-ID from internal_reporting_target.",
+    required=False)
 
 
 def _get_secure_credentials(
@@ -64,9 +69,7 @@ def _get_secure_credentials(
         with open(tls_cert_path, "rb") as f:
             certificate_chain = f.read()
     except IOError as e:
-        raise ValueError(
-            f"Error reading TLS cert from {tls_cert_path}"
-        ) from e
+        raise ValueError(f"Error reading TLS cert from {tls_cert_path}") from e
 
     try:
         with open(cert_collection_path, "rb") as f:
@@ -84,9 +87,12 @@ def _get_secure_credentials(
 
 
 def _create_secure_channel(
-        target: str, credentials: grpc.ChannelCredentials) -> grpc.Channel:
+    target: str,
+    credentials: grpc.ChannelCredentials,
+    channel_options: list[tuple[str, str]] | None = None,
+) -> grpc.Channel:
     """Creates a secure gRPC channel."""
-    return grpc.secure_channel(target, credentials)
+    return grpc.secure_channel(target, credentials, options=channel_options)
 
 
 def main(argv):
@@ -102,38 +108,39 @@ def main(argv):
 
     tls_cert_file = _TLS_CERT_FILE.value
     if not os.path.exists(tls_cert_file):
-        raise ValueError(
-            f"TLS cert file not found at {tls_cert_file}")
+        raise ValueError(f"TLS cert file not found at {tls_cert_file}")
 
     tls_key_file = _TLS_KEY_FILE.value
     if not os.path.exists(tls_key_file):
-        raise ValueError(
-            f"TLS key file not found at {tls_key_file}")
+        raise ValueError(f"TLS key file not found at {tls_key_file}")
 
     cert_collection_file = _CERT_COLLECTION_FILE.value
     if not os.path.exists(cert_collection_file):
         raise ValueError(
             f"The cert collection file not found at {cert_collection_file}")
 
-    credentials = _get_secure_credentials(tls_key_file,
-                                          tls_cert_file,
+    channel_options = []
+    internal_api_cert_host = _INTERNAL_API_CERT_HOST.value
+    if internal_api_cert_host:
+        channel_options.append(
+            ("grpc.ssl_target_name_override", internal_api_cert_host))
+
+    credentials = _get_secure_credentials(tls_key_file, tls_cert_file,
                                           cert_collection_file)
 
-    internal_reporting_channel = None
     try:
-        internal_reporting_channel = _create_secure_channel(
-            internal_reporting_target, credentials)
+        with _create_secure_channel(
+                internal_reporting_target, credentials,
+                options=channel_options) as internal_reporting_channel:
+            logging.info("Create PostProcessReportResultJob.")
+            job = post_process_report_result_job.PostProcessReportResultJob(
+                internal_reporting_channel)
 
-        logging.info("Create PostProcessReportResultJob.")
-        job = post_process_report_result_job.PostProcessReportResultJob(
-            internal_reporting_channel)
-
-        logging.info("Executing PostProcessReportResultJob.")
-        job.execute()
-        logging.info("Done executing PostProcessReportResultJob.")
-    finally:
-        if internal_reporting_channel:
-            internal_reporting_channel.close()
+            logging.info("Executing PostProcessReportResultJob.")
+            job.execute()
+            logging.info("Done executing PostProcessReportResultJob.")
+    except grpc.RpcError as e:
+        logging.error(f"gRPC call failed: {e}")
 
 
 if __name__ == "__main__":
