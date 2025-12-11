@@ -22,7 +22,7 @@ import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
-import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
@@ -199,7 +199,7 @@ private object V2AlphaPublicApiServer {
             cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
           }
         )
-      } catch (e: StatusException) {
+      } catch (e: StatusRuntimeException) {
         when (e.status.code) {
           Status.Code.ALREADY_EXISTS -> {}
           else -> throw e
@@ -225,7 +225,7 @@ private object V2AlphaPublicApiServer {
                 }
               )
             )
-          } catch (e: StatusException) {
+          } catch (e: StatusRuntimeException) {
             when (e.status.code) {
               Status.Code.NOT_FOUND -> {
                 throw IllegalArgumentException(
