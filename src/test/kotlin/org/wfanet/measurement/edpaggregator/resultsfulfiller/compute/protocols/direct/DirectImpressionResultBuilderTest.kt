@@ -48,6 +48,7 @@ class DirectImpressionResultBuilderTest {
           frequencyData = frequencyData,
           maxPopulation = null,
           kAnonymityParams = null,
+          totalUncappedImpressions = 110L,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -74,6 +75,7 @@ class DirectImpressionResultBuilderTest {
           frequencyData = frequencyData,
           maxPopulation = null,
           kAnonymityParams = null,
+          totalUncappedImpressions = 110L,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult().impression.value
@@ -85,6 +87,33 @@ class DirectImpressionResultBuilderTest {
       assertThat(result).isAtLeast((rawImpressionCount - tolerance).coerceAtLeast(0))
       assertThat(result).isAtMost((rawImpressionCount + tolerance))
     }
+
+  @Test
+  fun `buildMeasurementResult uses totalUncappedImpressions when provided`() = runBlocking {
+    // frequencyData would compute to 110 impressions (90 * 1 + 10 * 2 = 110)
+    // but totalUncappedImpressions of 500 should be used instead
+    val frequencyData = IntArray(100) { if (it < 90) 1 else 2 }
+
+    val directImpressionResultBuilder =
+      DirectImpressionResultBuilder(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        maxFrequency = MAX_FREQUENCY,
+        privacyParams = PRIVACY_PARAMS,
+        samplingRate = SAMPLING_RATE,
+        directNoiseMechanism = DirectNoiseMechanism.NONE,
+        frequencyData = frequencyData,
+        maxPopulation = null,
+        kAnonymityParams = null,
+        totalUncappedImpressions = 500L,
+      )
+
+    val result = directImpressionResultBuilder.buildMeasurementResult()
+
+    // Verify totalUncappedImpressions is used instead of histogram computation
+    assertThat(result.hasImpression()).isTrue()
+    assertThat(result.impression.noiseMechanism).isEqualTo(NoiseMechanism.NONE)
+    assertThat(result.impression.value).isEqualTo(500)
+  }
 
   companion object {
     private val MAX_FREQUENCY = 2

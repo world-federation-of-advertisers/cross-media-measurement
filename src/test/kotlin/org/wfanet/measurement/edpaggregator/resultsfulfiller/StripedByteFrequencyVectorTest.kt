@@ -189,4 +189,86 @@ class StripedByteFrequencyVectorTest {
     assertThat(array[500_000]).isEqualTo(1)
     assertThat(array[999_999]).isEqualTo(1)
   }
+
+  @Test
+  fun `getTotalUncappedImpressions returns zero for empty vector`() {
+    val vector = StripedByteFrequencyVector(10)
+    assertThat(vector.getTotalUncappedImpressions()).isEqualTo(0L)
+  }
+
+  @Test
+  fun `getTotalUncappedImpressions tracks all increments without capping`() {
+    val vector = StripedByteFrequencyVector(10)
+    val index = 5
+
+    // Increment beyond the byte cap
+    repeat(150) { vector.increment(index) }
+
+    // The byte array should be capped at 127
+    val array = vector.getByteArray()
+    assertThat(array[index]).isEqualTo(127)
+
+    // But total uncapped impressions should reflect all 150 increments
+    assertThat(vector.getTotalUncappedImpressions()).isEqualTo(150L)
+  }
+
+  @Test
+  fun `getTotalUncappedImpressions counts across multiple indices`() {
+    val vector = StripedByteFrequencyVector(10)
+
+    vector.increment(0)
+    vector.increment(0)
+    vector.increment(5)
+    vector.increment(9)
+
+    assertThat(vector.getTotalUncappedImpressions()).isEqualTo(4L)
+  }
+
+  @Test
+  fun `merge combines uncapped impressions correctly`() {
+    val vector1 = StripedByteFrequencyVector(10)
+    val vector2 = StripedByteFrequencyVector(10)
+
+    repeat(100) { vector1.increment(5) }
+    repeat(50) { vector2.increment(5) }
+    repeat(30) { vector2.increment(7) }
+
+    assertThat(vector1.getTotalUncappedImpressions()).isEqualTo(100L)
+    assertThat(vector2.getTotalUncappedImpressions()).isEqualTo(80L)
+
+    vector1.merge(vector2)
+
+    // After merge, total uncapped should be sum of both
+    assertThat(vector1.getTotalUncappedImpressions()).isEqualTo(180L)
+    // The frequency vector itself should be capped
+    val result = vector1.getByteArray()
+    assertThat(result[5]).isEqualTo(127)
+  }
+
+  @Test
+  fun `concurrent increments track uncapped impressions correctly`() = runBlocking {
+    val vector = StripedByteFrequencyVector(size = 10, stripeCount = 1)
+    val concurrency = 100
+    val incrementsPerThread = 100
+
+    val jobs =
+      (0 until concurrency).map {
+        async {
+          repeat(incrementsPerThread) {
+            // All increments go to the same index to test capping vs uncapped count
+            vector.increment(0)
+          }
+        }
+      }
+
+    jobs.awaitAll()
+
+    // Total uncapped should be exactly all increments
+    val expectedTotal = concurrency.toLong() * incrementsPerThread
+    assertThat(vector.getTotalUncappedImpressions()).isEqualTo(expectedTotal)
+
+    // But the byte array should be capped at 127
+    val array = vector.getByteArray()
+    assertThat(array[0]).isEqualTo(127)
+  }
 }

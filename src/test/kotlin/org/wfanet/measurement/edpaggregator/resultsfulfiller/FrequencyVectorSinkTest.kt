@@ -191,4 +191,22 @@ class FrequencyVectorSinkTest {
     verify(mockFrequencyVector, times(5)).increment(any())
     (0..4).forEach { index -> verify(mockFrequencyVector).increment(index) }
   }
+
+  @Test
+  fun `getTotalUncappedImpressions delegates to frequency vector`() {
+    val mockFrequencyVector = mock<StripedByteFrequencyVector>()
+    val mockVidIndexMap = mock<VidIndexMap>()
+    val mockFilterProcessor = mock<FilterProcessor<TestEvent>>()
+    val filterSpec = createFilterSpec()
+
+    whenever(mockFilterProcessor.filterSpec).thenReturn(filterSpec)
+    whenever(mockFrequencyVector.getTotalUncappedImpressions()).thenReturn(42L)
+
+    val sink = FrequencyVectorSink(mockFilterProcessor, mockFrequencyVector, mockVidIndexMap)
+
+    val result = sink.getTotalUncappedImpressions()
+
+    assertThat(result).isEqualTo(42L)
+    verify(mockFrequencyVector).getTotalUncappedImpressions()
+  }
 }
