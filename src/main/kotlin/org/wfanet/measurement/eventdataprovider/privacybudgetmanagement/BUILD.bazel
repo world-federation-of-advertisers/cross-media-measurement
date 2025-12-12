@@ -9,9 +9,9 @@ kt_jvm_library(
     name = "privacy_budget_manager",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
@@ -23,8 +23,8 @@ kt_jvm_library(
         "PrivacyQuery.kt",
     ],
     deps = [
+        "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
