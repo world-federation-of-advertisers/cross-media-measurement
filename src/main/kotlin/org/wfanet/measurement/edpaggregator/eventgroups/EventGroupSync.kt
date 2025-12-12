@@ -222,7 +222,7 @@ class EventGroupSync(
   ): CmmsEventGroup {
     val request = createEventGroupRequest {
       parent = edpName
-      requestId = eventGroup.eventGroupReferenceId
+      requestId = "${eventGroup.eventGroupReferenceId}-${eventGroup.measurementConsumer}"
       this.eventGroup = cmmsEventGroup {
         measurementConsumer = eventGroup.measurementConsumer
         eventGroupReferenceId = eventGroup.eventGroupReferenceId
