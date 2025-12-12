@@ -259,6 +259,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         emptyList(),
       )
   }
@@ -741,6 +742,7 @@ class BasicReportsServiceTest {
             hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           },
+          emptyList(),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -822,7 +824,8 @@ class BasicReportsServiceTest {
             hours = 5
             utcOffset = duration { seconds = 14400 }
           },
-        )
+          emptyList(),
+          )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -902,7 +905,8 @@ class BasicReportsServiceTest {
           hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         },
-      )
+        emptyList(),
+        )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -982,7 +986,8 @@ class BasicReportsServiceTest {
           hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         },
-      )
+        emptyList(),
+        )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -2808,6 +2813,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         listOf(INTERNAL_AMI_IQF),
       )
 
@@ -2918,6 +2924,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         listOf(INTERNAL_AMI_IQF),
       )
 
@@ -3038,6 +3045,7 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
+          null,
           listOf(INTERNAL_AMI_IQF, INTERNAL_MRC_IQF),
         )
 

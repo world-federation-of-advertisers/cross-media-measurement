@@ -429,6 +429,7 @@ private object V2AlphaPublicApiServer {
             basicReportMetricSpecConfig,
             SecureRandom().asKotlinRandom(),
             authorization,
+            measurementConsumerConfigs,
             defaultReportStartHour,
             baseImpressionQualificationFilters,
             serviceDispatcher,

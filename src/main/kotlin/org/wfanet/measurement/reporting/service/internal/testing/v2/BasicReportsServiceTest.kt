@@ -171,6 +171,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
             month = 1
             day = 5
           }
+        }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           externalImpressionQualificationFilterId =
             IMPRESSION_QUALIFICATION_FILTER_MAPPING.impressionQualificationFilters
