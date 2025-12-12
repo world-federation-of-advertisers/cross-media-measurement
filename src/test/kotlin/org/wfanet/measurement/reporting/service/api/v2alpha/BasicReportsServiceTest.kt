@@ -4072,7 +4072,8 @@ class BasicReportsServiceTest {
           impressionQualificationFilters.clear()
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
-              ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId).toName()
+              ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
+                .toName()
           }
           impressionQualificationFilters += reportingImpressionQualificationFilter {
             custom =
@@ -4102,7 +4103,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters.custom"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.impression_qualification_filters.custom"
         }
       )
   }

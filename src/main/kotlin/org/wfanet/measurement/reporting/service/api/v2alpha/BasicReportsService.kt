@@ -156,7 +156,8 @@ class BasicReportsService(
 
   private data class ImpressionQualificationFilterLists(
     val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
-    val internalReportingImpressionQualificationFilters: List<InternalReportingImpressionQualificationFilter>,
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter>,
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
@@ -261,25 +262,38 @@ class BasicReportsService(
 
     val createReportRequestId = UUID.randomUUID().toString()
 
-    val impressionQualificationFilterLists = buildImpressionQualificationFilterLists(request.basicReport)
+    val impressionQualificationFilterLists =
+      buildImpressionQualificationFilterLists(request.basicReport)
 
     // This checks whether the custom ImpressionQualificationFilter, if any, has an
     // ImpressionQualificationFilterSpec that is already in an ImpressionQualificationFilter.
-    impressionQualificationFilterLists.internalReportingImpressionQualificationFilters.firstOrNull { it.externalImpressionQualificationFilterId.isEmpty() }?.let { customReportingImpressionQualificationFilter ->
-      for (customFilterSpec in customReportingImpressionQualificationFilter.filterSpecsList) {
-        for (internalReportingImpressionQualificationFilter in impressionQualificationFilterLists.internalReportingImpressionQualificationFilters) {
-          if (internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId.isNotEmpty()) {
-            for (filterSpec in internalReportingImpressionQualificationFilter.filterSpecsList) {
-              if (filterSpec.mediaType == customFilterSpec.mediaType && filterSpec.filtersList.toSet() == customFilterSpec.filtersList.toSet()) {
-                throw InvalidFieldValueException("basic_report.impression_qualification_filters.custom") { fieldPath ->
-                  "$fieldPath must not have any ImpressionQualificationFilterSpec that is already in a ImpressionQualificationFilter. $fieldPath shares an ImpressionQualificationFilterSpec with ${ImpressionQualificationFilterKey(internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId)}"
-                }.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    impressionQualificationFilterLists.internalReportingImpressionQualificationFilters
+      .firstOrNull { it.externalImpressionQualificationFilterId.isEmpty() }
+      ?.let { customReportingImpressionQualificationFilter ->
+        for (customFilterSpec in customReportingImpressionQualificationFilter.filterSpecsList) {
+          for (internalReportingImpressionQualificationFilter in
+            impressionQualificationFilterLists.internalReportingImpressionQualificationFilters) {
+            if (
+              internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId
+                .isNotEmpty()
+            ) {
+              for (filterSpec in internalReportingImpressionQualificationFilter.filterSpecsList) {
+                if (
+                  filterSpec.mediaType == customFilterSpec.mediaType &&
+                    filterSpec.filtersList.toSet() == customFilterSpec.filtersList.toSet()
+                ) {
+                  throw InvalidFieldValueException(
+                      "basic_report.impression_qualification_filters.custom"
+                    ) { fieldPath ->
+                      "$fieldPath must not have any ImpressionQualificationFilterSpec that is already in a ImpressionQualificationFilter. $fieldPath shares an ImpressionQualificationFilterSpec with ${ImpressionQualificationFilterKey(internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId)}"
+                    }
+                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                }
               }
             }
           }
         }
       }
-    }
 
     val basicReportImpressionQualificationFilterNames: List<String> =
       request.basicReport.impressionQualificationFiltersList
@@ -297,12 +311,15 @@ class BasicReportsService(
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
-                  impressionQualificationFilterLists.internalReportingImpressionQualificationFilters,
+                  impressionQualificationFilterLists
+                    .internalReportingImpressionQualificationFilters,
                 internalEffectiveReportingImpressionQualificationFilters =
                   baseInternalReportingQualificationFilterByImpressionQualificationFilterName
                     .entries
                     .filterNot { it.key in basicReportImpressionQualificationFilterNames }
-                    .map { it.value } + impressionQualificationFilterLists.internalReportingImpressionQualificationFilters,
+                    .map { it.value } +
+                    impressionQualificationFilterLists
+                      .internalReportingImpressionQualificationFilters,
                 effectiveModelLine = modelLine,
               )
             requestId = request.requestId
@@ -338,7 +355,8 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterLists.impressionQualificationFilterSpecsLists,
+        impressionQualificationFilterSpecsLists =
+          impressionQualificationFilterLists.impressionQualificationFilterSpecsLists,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
@@ -691,7 +709,7 @@ class BasicReportsService(
    * BasicReport.
    */
   private suspend fun buildImpressionQualificationFilterLists(
-    basicReport: BasicReport,
+    basicReport: BasicReport
   ): ImpressionQualificationFilterLists {
     val impressionQualificationFilterSpecsLists:
       MutableList<List<ImpressionQualificationFilterSpec>> =
@@ -708,8 +726,7 @@ class BasicReportsService(
     val internalReportingImpressionQualificationFilters:
       List<InternalReportingImpressionQualificationFilter> =
       buildList {
-        for (impressionQualificationFilter in
-        basicReport.impressionQualificationFiltersList) {
+        for (impressionQualificationFilter in basicReport.impressionQualificationFiltersList) {
           if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
             if (
               baseInternalReportingQualificationFilterByImpressionQualificationFilterName.contains(
@@ -752,8 +769,8 @@ class BasicReportsService(
               throw when (InternalErrors.getReason(e)) {
                 InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
                   ImpressionQualificationFilterNotFoundException(
-                    impressionQualificationFilter.impressionQualificationFilter
-                  )
+                      impressionQualificationFilter.impressionQualificationFilter
+                    )
                     .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
                 InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
                 InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
@@ -778,7 +795,10 @@ class BasicReportsService(
         }
       }
 
-    return ImpressionQualificationFilterLists(impressionQualificationFilterSpecsLists, internalReportingImpressionQualificationFilters)
+    return ImpressionQualificationFilterLists(
+      impressionQualificationFilterSpecsLists,
+      internalReportingImpressionQualificationFilters,
+    )
   }
 
   /**
