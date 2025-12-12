@@ -43,21 +43,21 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      principals get principals/AAAAAAHs
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      principals get principals/owner
     ```
 
 *   Create a Principal
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       principals create --principal-id=user-1 --issuer=example.com --subject=user1@example.com
     ```
 
@@ -65,21 +65,21 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      principals delete principals/AAAAAAHs
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      principals delete principals/owner
     ```
 
 *   Lookup a Principal
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       principals lookup --principal-tls-client-cert-file=src/main/k8s/testing/secretfiles/mc_tls.pem
     ```
 
@@ -89,21 +89,21 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      roles get roles/AAAAAAHs
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      roles get roles/bookReader
     ```
 
 *   List Roles
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       roles list --page-size=50 --page-token=pageTokenFromPreviousResponse
     ```
 
@@ -111,10 +111,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       roles create --role-id=bookReader \
       --permission=permissions/books.get --permission=permissions/books.put \
       --resource-type=library.googleapis.com/Desk --resource-type=library.googleapis.com/Shelf
@@ -124,11 +124,11 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      roles update --etag=etag --name=roles/AAAAAAHs \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      roles update --etag=etag --name=roles/bookReader \
       --permission=permissions/books.get --permission=permissions/books.write \
       --resource-type=library.googleapis.com/Desk --resource-type=library.googleapis.com/Shelf
     ```
@@ -139,11 +139,11 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      roles delete roles/AAAAAAHs
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      roles delete roles/bookReader
     ```
 
 #### `permissions`
@@ -152,10 +152,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       permissions get permissions/books.get
     ```
 
@@ -163,10 +163,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       permissions list --page-size=50 --page-token=pageTokenFromPreviousResponse
     ```
 
@@ -174,10 +174,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       permissions check --principal=principals/owner
       --protected-resource=library.googleapis.com/Shelf
       --permission=permissions/books.get --permission=permissions/books.write
@@ -189,21 +189,21 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      policies get policies/AAAAHS
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      policies get policies/policy-1
     ```
 
 *   Create a Policy
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       policies create --protected-resource=library.googleapis.com/Shelf \
       --binding-role=roles/bookReader --binding-member=principals/member --binding-member=principals/editor \
       --binding-role=roles/bookWriter --binding-member=principals/owner --binding-member=principals/owner \
@@ -214,10 +214,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
       policies lookup --protected-resource=library.googleapis.com/Shelf
     ```
 
@@ -225,11 +225,11 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      policies add-members --name=policies/AAAAAHS --etag=etag \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      policies add-members --name=policies/policy-1 --etag=etag \
       --binding-role=roles/bookReader --binding-member=principals/member
     ```
 
@@ -237,10 +237,10 @@ server's trusted certificate collection file.
 
     ```shell
     Access \
-      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
-      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
-      --access-public-api-target=access.dev.halo-cmm.org:8443 \
-      policies remove-members --name=policies/AAAAAHS --etag=etag \
+      --tls-cert-file=secretfiles/reporting_tls.pem \
+      --tls-key-file=secretfiles/reporting_tls.key \
+      --cert-collection-file=secretfiles/reporting_root.pem \
+      --access-public-api-target=public.access.dev.halo-cmm.org:8443 \
+      policies remove-members --name=policies/policy-1 --etag=etag \
       --binding-role=roles/bookReader --binding-member=principals/member
     ```
