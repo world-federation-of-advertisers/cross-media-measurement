@@ -78,6 +78,14 @@ message BasicReport {
         (google.api.field_behavior) = IMMUTABLE
       ];
 
+  // The impression qualification filters for the BasicReport.
+  //
+  // Includes values chosen by the system in addition to
+  // impression_qualification_filters.
+  repeated ReportingImpressionQualificationFilter
+      effective_impression_qualification_filters = 13
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
   // Specifies the ResultGroups to create
   repeated ResultGroupSpec result_group_specs = 9 [
     (google.api.field_behavior) = IMMUTABLE,

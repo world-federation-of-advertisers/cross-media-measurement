@@ -332,7 +332,10 @@ class ReportingUserSimulator(
         .build()
 
     assertThat(retrievedBasicReport)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.EFFECTIVE_IMPRESSION_QUALIFICATION_FILTERS_FIELD_NUMBER,
+      )
       .isEqualTo(
         basicReport.copy {
           name = basicReportKey.toName()

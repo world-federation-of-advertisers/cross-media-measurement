@@ -60,6 +60,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -323,6 +324,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -671,6 +673,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -844,6 +847,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -986,6 +990,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -1270,6 +1275,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -1739,6 +1745,8 @@ class BasicReportProcessedResultsTransformationTest {
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         impressionQualificationFilters += CUSTOM_IMPRESSION_QUALIFICATION_FILTER
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += CUSTOM_IMPRESSION_QUALIFICATION_FILTER
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
@@ -2063,6 +2071,7 @@ class BasicReportProcessedResultsTransformationTest {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       details = basicReportDetails {
         impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
         reportingInterval = REPORTING_INTERVAL
         resultGroupSpecs += resultGroupSpec {
           title = "result-group-1"
