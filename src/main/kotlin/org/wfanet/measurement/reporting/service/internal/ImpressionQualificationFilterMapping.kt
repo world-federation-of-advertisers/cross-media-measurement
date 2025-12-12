@@ -57,7 +57,16 @@ class ImpressionQualificationFilterMapping(
               "Impression qualification filter ID must be positive. Got: ${impressionQualificationFilter.impressionQualificationFilterId}"
             )
           }
+          val mediaTypesEncountered = mutableSetOf<ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType>()
           for (impressionQualificationFilterSpec in impressionQualificationFilter.filterSpecsList) {
+            if (mediaTypesEncountered.contains(impressionQualificationFilterSpec.mediaType)) {
+              throw IllegalArgumentException(
+                "Duplicate MediaType in $impressionQualificationFilter"
+              )
+            } else {
+              mediaTypesEncountered.add(impressionQualificationFilterSpec.mediaType)
+            }
+
             if (!isImpressionQualificationFilterSpecValid(impressionQualificationFilterSpec)) {
               throw IllegalArgumentException(
                 "Invalid impression qualification filter spec: $impressionQualificationFilterSpec"
@@ -79,12 +88,12 @@ class ImpressionQualificationFilterMapping(
     impressionQualificationFilters.associateBy { it.externalImpressionQualificationFilterId }
 
   init {
-    check(impressionQualificationFilterByExternalId.size == impressionQualificationFilters.size) {
-      "There are duplicate external ids of impressionQualificationFilters"
+    if (impressionQualificationFilterByExternalId.size < impressionQualificationFilters.size) {
+      throw IllegalArgumentException(      "There are duplicate external ids of impressionQualificationFilters")
     }
 
-    check(impressionQualificationFilterById.size == impressionQualificationFilters.size) {
-      "There are duplicate internal ids of impressionQualificationFilters"
+    if (impressionQualificationFilterById.size < impressionQualificationFilters.size) {
+      throw IllegalArgumentException(      "There are duplicate internal ids of impressionQualificationFilters")
     }
   }
 
@@ -118,59 +127,63 @@ class ImpressionQualificationFilterMapping(
       return false
     }
 
+    if (impressionQualificationFilterSpec.mediaType == ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.MEDIA_TYPE_UNSPECIFIED) {
+      return false
+    }
+
     for (eventFilter in impressionQualificationFilterSpec.filtersList) {
       for (eventTemplateField in eventFilter.termsList) {
         if (eventTemplateField.path.isEmpty()) {
           return false
-        } else {
-          val eventTemplateFieldInfo =
-            eventTemplateFieldsByPath[eventTemplateField.path] ?: return false
+        }
 
-          if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
-            return false
-          }
+        val eventTemplateFieldInfo =
+          eventTemplateFieldsByPath[eventTemplateField.path] ?: return false
 
-          if (
-            eventTemplateFieldInfo.mediaType !=
-              impressionQualificationFilterSpec.mediaType.toEventAnnotationMediaType()
-          ) {
-            return false
-          }
+        if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
+          return false
+        }
 
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-          when (eventTemplateField.value.selectorCase) {
-            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
-              .STRING_VALUE -> {
-              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-                return false
-              }
-            }
-            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
-              .ENUM_VALUE -> {
-              if (
-                eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-                  eventTemplateFieldInfo.enumType?.findValueByName(
-                    eventTemplateField.value.enumValue
-                  ) == null
-              ) {
-                return false
-              }
-            }
-            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
-              .BOOL_VALUE ->
-              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
-                return false
-              }
-            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
-              .FLOAT_VALUE -> {
-              if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
-                return false
-              }
-            }
-            ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
-              .SELECTOR_NOT_SET -> {
+        if (
+          eventTemplateFieldInfo.mediaType !=
+            impressionQualificationFilterSpec.mediaType.toEventAnnotationMediaType()
+        ) {
+          return false
+        }
+
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+        when (eventTemplateField.value.selectorCase) {
+          ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+            .STRING_VALUE -> {
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
               return false
             }
+          }
+          ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+            .ENUM_VALUE -> {
+            if (
+              eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
+                eventTemplateFieldInfo.enumType?.findValueByName(
+                  eventTemplateField.value.enumValue
+                ) == null
+            ) {
+              return false
+            }
+          }
+          ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+            .BOOL_VALUE ->
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
+              return false
+            }
+          ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+            .FLOAT_VALUE -> {
+            if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+              return false
+            }
+          }
+          ImpressionQualificationFilterConfig.EventTemplateField.FieldValue.SelectorCase
+            .SELECTOR_NOT_SET -> {
+            return false
           }
         }
       }
@@ -224,12 +237,12 @@ class ImpressionQualificationFilterMapping(
       val impressionQualificationFilter = impressionQualificationFilter {
         externalImpressionQualificationFilterId = source.externalImpressionQualificationFilterId
         filterSpecs +=
-          source.filterSpecsList.map { it ->
+          source.filterSpecsList.map { filterSpec ->
             impressionQualificationFilterSpec {
-              mediaType = it.mediaType.toMediaType()
+              mediaType = filterSpec.mediaType.toMediaType()
               filters +=
-                it.filtersList.map {
-                  eventFilter { terms += it.termsList.map { it.toEventTemplateField() } }
+                filterSpec.filtersList.map { eventFilter ->
+                  eventFilter { terms += eventFilter.termsList.map { it.toEventTemplateField() } }
                 }
             }
           }
