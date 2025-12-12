@@ -333,6 +333,7 @@ class ResultsFulfiller(
             requisitionSpec,
             frequencyDataBytes,
             populationSpec,
+            frequencyVector.getTotalUncappedImpressions(),
           )
         val fulfillerType =
           fulfiller::class.simpleName
