@@ -39,292 +39,208 @@ server's trusted certificate collection file.
 
 #### `principals`
 
-*   `get`
+*   Get a Principal
 
-    Get a Principal
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      principals get principals/AAAAAAHs
+    ```
 
-    Pre-conditions: Principal exists.
+*   Create a Principal
 
-    Usage: `shell Access principals get <principalName>`
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      principals create --principal-id=user-1 --issuer=example.com --subject=user1@example.com
+    ```
 
-    Arguments:
+*   Delete a Principal
 
-    `<principalName>`: API resource name of the Principal
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      principals delete principals/AAAAAAHs
+    ```
 
-*   `create`
+*   Lookup a Principal
 
-    Create a Principal that is either an OAuth user or Tls client.
-
-    Pre-conditions: Principal does not exist.
-
-    Usage: `shell Access principals create --principal-id=<id>
-    ((--issuer=<issuer> --subject=<subject>) |
-    [--principal-tls-client-cert-file=<tlsCertFile>])`
-
-    Arguments:
-
-    `--principal-id`: Resource ID of the Principal
-
-    `--issuer`: OAuth issuer identifier
-
-    `--subject`: OAuth subject identifier
-
-    `--principal-tls-client-cert-file`: Path to TLS client certificate belonging
-    to Principal
-
-*   `delete`
-
-    Delete a Principal using a Principal resource name (This also remove the
-    Principal from all Policy bindings).
-
-    Pre-conditions: Principal exists, and Principal type is OAuth user.
-
-    Usage: `shell Access principals delete <principalName>`
-
-    Arguments:
-
-    `<principalName>`: API resource name of the Principal
-
-*   `lookup`
-
-    Lookup a Principal using an OAuth user or Tls client.
-
-    Pre-conditions: Principal exists.
-
-    Usage: `shell Access principals lookup ((--issuer=<issuer>
-    --subject=<subject>) | [--principal-tls-client-cert-file=<tlsCertFile>])`
-
-    Arguments:
-
-    `--issuer`: OAuth issuer identifier
-
-    `--subject`: OAuth subject identifier
-
-    `--principal-tls-client-cert-file`: Path to TLS client certificate belonging
-    to Principal
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      principals lookup --principal-tls-client-cert-file=src/main/k8s/testing/secretfiles/mc_tls.pem
+    ```
 
 #### `roles`
 
-*   `get`
+*   Get a Role
 
-    Get a Role using a Role resource name.
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      roles get roles/AAAAAAHs
+    ```
 
-    Pre-conditions: Role exists.
+*   List Roles
 
-    Usage: `shell Access principals get <principalName>`
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      roles list --page-size=50 --page-token=pageTokenFromPreviousResponse
+    ```
 
-    Arguments:
+*   Create a Role.
 
-    `<roleName>`: API resource name of the Role
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      roles create --role-id=bookReader \
+      --permission=permissions/books.get --permission=permissions/books.put \
+      --resource-type=library.googleapis.com/Desk --resource-type=library.googleapis.com/Shelf
+    ```
 
-*   `list`
+*   Update a Role.
 
-    List Roles. To navigate to next page, use `--page-token`.
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      roles update --etag=etag --name=roles/AAAAAAHs \
+      --permission=permissions/books.get --permission=permissions/books.write \
+      --resource-type=library.googleapis.com/Desk --resource-type=library.googleapis.com/Shelf
+    ```
 
-    Usage: `shell Access roles list [--page-size=<listPageSize>]
-    [--page-token=<listPageToken>]`
+*   Delete a Role
 
-    Arguments:
+    This will also remove all Policy bindings which reference the Role.
 
-    `--page-size`: The maximum number of Roles to return
-
-    `--page-token`: A page token, received from a previous `ListRoles` call.
-    Provide this to retrieve the subsequent page.
-
-*   `create`
-
-    Create a Role.
-
-    Pre-conditions: Role does not exist, Permissions exist, and Resource Type
-    exists in Permission.
-
-    Usage: `shell Access roles create --role-id=<id>
-    --permission=<permissionList> [--permission=<permissionList>]...
-    --resource-type=<resourceTypeList> [--resource-type=<resourceTypeList>]`
-
-    Arguments:
-
-    `-permission`: Resource name of permission granted by this Role. Can be
-    specified multiple times.
-
-    `--resource-type`: Resource type that this Role can be granted on. Can be
-    specified multiple times.
-
-    `--role-id`: Resource ID of the Role
-
-*   `update`
-
-    Update a Role.
-
-    Pre-conditions: Role exists, Permissions exist, Permissions found in Role,
-    Etag matches, and Resource Type exists in Permission.
-
-    Usage: `shell Access roles update --etag=<roleEtag> --name=<roleName>
-    --permission=<permissionList> [--permission=<permissionList>]...
-    --resource-type=<resourceTypeList> [--resource-type=<resourceTypeList>]...`
-
-    Arguments:
-
-    `--etag`: Entity tag of the Role
-
-    `--name`: API resource name of the Role
-
-    `--permission`: Resource name of permission granted by this Role. Can be
-    specified multiple times.
-
-    `--resource-type`: Resource type that this Role can be granted on. Can be
-    specified multiple times.
-
-*   `delete`
-
-    Delete a Role using Role resource name (This will also remove all Policy
-    bindings which reference the Role).
-
-    Pre-conditions: Role exists
-
-    Usage: `shell Access roles delete <roleName>`
-
-    Arguments:
-
-    `<roleName>`: API resource name of the Role
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      roles delete roles/AAAAAAHs
+    ```
 
 #### `permissions`
 
-*   `get`
+*   Get a Permission
 
-    Get a Permission using a Permission resource name.
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      permissions get permissions/books.get
+    ```
 
-    Pre-conditions: Permission does not exist.
+*   List Permissions.
 
-    Usage: `shell Access permissions get <permissionName>`
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      permissions list --page-size=50 --page-token=pageTokenFromPreviousResponse
+    ```
 
-    Arguments:
+*   Check what Permissions a Principal has on a given resource.
 
-    `<permissionName>`: API resource name of the Permission
-
-*   `list`
-
-    List Permissions. To navigate to next page, use `--page-token`.
-
-    Usage: `shell Access permissions list [--page-size=<listPageSize>]
-    [--page-token=<listPageToken>]`
-
-    Arguments:
-
-    `--page-size`: The maximum number of Permissions to return
-
-    `--page-token`: A page token, received from a previous `ListPermissions`
-    call. Provide this to retrieve the subsequent page.
-
-*   `check`
-
-    Check what Permissions a Principal has on a given resource.
-
-    Pre-conditions: Principal and Permissions exist.
-
-    Usage: `shell Access permissions check --principal=<principalName>
-    [--protected-resource=<protectedResourceName>] --permission=<permissionList>
-    [--permission=<permissionList>]...`
-
-    Arguments:
-
-    `--permission`: Resource name of permission to check. Can be specified
-    multiple times.
-
-    `--principal`: Resource name of the Principal
-
-    `--protected-resource`: Name of resource on which to check permissions. If
-    not specified, this means the root of the protected API.
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      permissions check --principal=principals/owner
+      --protected-resource=library.googleapis.com/Shelf
+      --permission=permissions/books.get --permission=permissions/books.write
+    ```
 
 #### `policies`
 
-*   `get`
+*   Get a Policy
 
-    Get a Policy using a Policy resource name
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      policies get policies/AAAAHS
+    ```
 
-    Pre-conditions: Policy exists.
+*   Create a Policy
 
-    Usage: `shell Access policies get <policyName>`
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      policies create --protected-resource=library.googleapis.com/Shelf \
+      --binding-role=roles/bookReader --binding-member=principals/member --binding-member=principals/editor \
+      --binding-role=roles/bookWriter --binding-member=principals/owner --binding-member=principals/owner \
+      --policy-id=policy-1
+    ```
 
-    Arguments:
+*   Lookup a Policy
 
-    `<policyName>`: Resource name of the Policy
-
-*   `create`
-
-    Create a Policy
-
-    Pre-conditions: Principal exists, Principal type is oAuth user, Role exists,
-    and Policy does not exist.
-
-    Usage: `shell Access policies create [--policy-id=<id>]
-    [--protected-resource=<resource>] [--binding-role=<role>
-    --binding-member=<members> [--binding-member=<members>]...]...`
-
-    Arguments:
-
-    `--policy-id`: Resource ID of the Policy
-
-    `--protected-resource`: Name of the resource protected by this Policy. If
-    not specified, this means the root of the protected API.
-
-    `--binding-member`: Resource name of the Principal which is a member of the
-    Role on `resource`
-
-    `--binding-role`: Resource name of the Role
-
-*   `lookup`
-
-    Lookup a Policy
-
-    Pre-conditions: Policy exists for Protected Resource.
-
-    Usage: `shell Access policies lookup --protected-resource=<resource>`
-
-    Arguments:
-
-    `-protected-resource`: Name of the resource to which the policy applies
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      policies lookup --protected-resource=library.googleapis.com/Shelf
+    ```
 
 *   `add-members`
 
-    Add members to a Policy Binding
-
-    Pre-conditions: Policy exists, etag matches, Role exists, Principal exists,
-    Principal type is OAuth user, and Policy Binding does not exist
-
-    Usage: `shell Access policies add-members (--name=<policyName>
-    [--etag=<currentEtag>] (--binding-role=<role> --binding-member=<members>
-    [--binding-member=<members>]...))`
-
-    Arguments:
-
-    `--binding-member`: Resource name of the principal, which is a member of the
-    Role on resource. Can be specified multiple times.
-
-    `--binding-role`: Resource name of the Role
-
-    `--etag`: Current etag of the resource
-
-    `--name`: Resource name of the Policy
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      policies add-members --name=policies/AAAAAHS --etag=etag \
+      --binding-role=roles/bookReader --binding-member=principals/member
+    ```
 
 *   `remove-members`
 
-    Remove members from a Policy Binding
-
-    Pre-conditions: Policy exists, etag matches, Role exists, Principal exists,
-    Principal type is OAuth user, and Policy Binding exists
-
-    Usage: `shell Access policies remove-members (--name=<policyName>
-    [--etag=<currentEtag>] (--binding-role=<role> --binding-member=<members>
-    [--binding-member=<members>]...))`
-
-    Arguments:
-
-    `--binding-member`: Resource name of the principal, which is a member of the
-    Role on resource. Can be specified multiple times.
-
-    `--binding-role`: Resource name of the Role
-
-    `--etag`: Current etag of the resource
-
-    `--name`: Resource name of the Policy
+    ```shell
+    Access \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/access_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/access_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --access-public-api-target=access.dev.halo-cmm.org:8443 \
+      policies remove-members --name=policies/AAAAAHS --etag=etag \
+      --binding-role=roles/bookReader --binding-member=principals/member
+    ```
