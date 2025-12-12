@@ -122,7 +122,7 @@ class EventGroupSyncTest {
           eventGroups +=
             listOf(
               cmmsEventGroup {
-                name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
+                name = "dataProviders/data-provider-1/eventGroups/resource-id-1"
                 measurementConsumer = "measurementConsumers/measurement-consumer-1"
                 eventGroupReferenceId = "reference-id-1"
                 mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
@@ -140,7 +140,7 @@ class EventGroupSyncTest {
                 }
               },
               cmmsEventGroup {
-                name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
+                name = "dataProviders/data-provider-2/eventGroups/resource-id-2"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-2"
                 mediaTypes += listOf("OTHER").map { CmmsMediaType.valueOf(it) }
@@ -158,7 +158,7 @@ class EventGroupSyncTest {
                 }
               },
               cmmsEventGroup {
-                name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-3"
                 measurementConsumer = "measurementConsumers/measurement-consumer-2"
                 eventGroupReferenceId = "reference-id-3"
                 mediaTypes += listOf(CmmsMediaType.valueOf("OTHER"))
@@ -167,6 +167,24 @@ class EventGroupSyncTest {
                     this.campaignMetadata = cmmsCampaignMetadata {
                       brandName = "new-brand-name"
                       campaignName = "campaign-3"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              },
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-3/eventGroups/resource-id-4"
+                measurementConsumer = "measurementConsumers/measurement-consumer-other"
+                eventGroupReferenceId = "reference-id-1"
+                mediaTypes += listOf("VIDEO", "DISPLAY").map { CmmsMediaType.valueOf(it) }
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "brand-1"
+                      campaignName = "campaign-1"
                     }
                   }
                 }
@@ -253,13 +271,14 @@ class EventGroupSyncTest {
     verifyBlocking(eventGroupsServiceMock, times(1)) { createEventGroup(createCaptor.capture()) }
     assertThat(createCaptor.firstValue.eventGroup.eventGroupReferenceId).isEqualTo("reference-id-4")
     val deleteCaptor = argumentCaptor<DeleteEventGroupRequest>()
-    verifyBlocking(eventGroupsServiceMock, times(3)) { deleteEventGroup(deleteCaptor.capture()) }
+    verifyBlocking(eventGroupsServiceMock, times(4)) { deleteEventGroup(deleteCaptor.capture()) }
     val deleteRequests = deleteCaptor.allValues
     assertThat(deleteRequests.map { it.name })
       .containsExactly(
-        "dataProviders/data-provider-1/eventGroups/reference-id-1",
-        "dataProviders/data-provider-2/eventGroups/reference-id-2",
-        "dataProviders/data-provider-3/eventGroups/reference-id-3",
+        "dataProviders/data-provider-1/eventGroups/resource-id-1",
+        "dataProviders/data-provider-2/eventGroups/resource-id-2",
+        "dataProviders/data-provider-3/eventGroups/resource-id-3",
+        "dataProviders/data-provider-3/eventGroups/resource-id-4",
       )
   }
 
@@ -323,12 +342,13 @@ class EventGroupSyncTest {
           100,
         )
       val result = runBlocking { eventGroupSync.sync() }
-      assertThat(result.toList().map { it.eventGroupReferenceId to it.eventGroupResource })
+      assertThat(result.toList().map { it.eventGroupResource to it.eventGroupReferenceId })
         .isEqualTo(
           listOf(
-            "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
-            "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
-            "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
+            "dataProviders/data-provider-1/eventGroups/resource-id-1" to "reference-id-1",
+            "dataProviders/data-provider-2/eventGroups/resource-id-2" to "reference-id-2",
+            "dataProviders/data-provider-3/eventGroups/resource-id-3" to "reference-id-3",
+            "dataProviders/data-provider-3/eventGroups/resource-id-4" to "reference-id-1",
           )
         )
     }
@@ -453,7 +473,7 @@ class EventGroupSyncTest {
       // Should have 1 aggregated point for the data provider with total of 3 attempts
       assertThat(sumData.points).hasSize(1)
       val totalAttempts = sumData.points.sumOf { it.value }
-      assertThat(totalAttempts).isEqualTo(3)
+      assertThat(totalAttempts).isEqualTo(4)
 
       // Verify attributes
       val firstPoint = sumData.points.first()
@@ -485,7 +505,7 @@ class EventGroupSyncTest {
       // Should have 1 aggregated point for the data provider with total of 3 successful syncs
       assertThat(sumData.points).hasSize(1)
       val totalSuccess = sumData.points.sumOf { it.value }
-      assertThat(totalSuccess).isEqualTo(3)
+      assertThat(totalSuccess).isEqualTo(4)
     }
   }
 
@@ -515,7 +535,7 @@ class EventGroupSyncTest {
 
       // Verify all latencies are recorded (may be 0 for very fast operations)
       val point = histogramData.points.first()
-      assertThat(point.count).isEqualTo(3)
+      assertThat(point.count).isEqualTo(4)
       assertThat(point.sum).isAtLeast(0.0)
       assertThat(point.attributes.get(AttributeKey.stringKey("data_provider_name")))
         .isEqualTo("dataProviders/test-edp-789")
@@ -610,7 +630,7 @@ class EventGroupSyncTest {
       val itemSpans = spans.filter { it.name == "EventGroupSync.Item" }
 
       // Should have one span per event group (3 in CAMPAIGNS)
-      assertThat(itemSpans).hasSize(3)
+      assertThat(itemSpans).hasSize(4)
 
       // All spans should have the correct attributes and status
       itemSpans.forEach { span ->
@@ -804,6 +824,23 @@ class EventGroupSyncTest {
             endTime = timestamp { seconds = 300 }
           }
           mediaTypes += listOf(MediaType.valueOf("OTHER"))
+        },
+        eventGroup {
+          eventGroupReferenceId = "reference-id-1"
+          measurementConsumer = "measurementConsumers/measurement-consumer-other"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "brand-1"
+                campaign = "campaign-1"
+              }
+            }
+          }
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.valueOf("VIDEO"), MediaType.valueOf("DISPLAY"))
         },
       )
   }
