@@ -2854,6 +2854,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -2899,6 +2900,9 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          reportingInterval = basicReport.reportingInterval.copy {
+            effectiveReportStart = basicReport.reportingInterval.reportStart
+          }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -2969,6 +2973,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -3018,6 +3023,9 @@ class BasicReportsServiceTest {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
                 .toName()
+          }
+          reportingInterval = basicReport.reportingInterval.copy {
+            effectiveReportStart = basicReport.reportingInterval.reportStart
           }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
@@ -3091,6 +3099,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -3138,6 +3147,9 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
+            reportingInterval = basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
             effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               impressionQualificationFilter =
                 ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
