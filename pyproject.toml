@@ -1,3 +1,27 @@
+[build-system]
+requires = [
+    "setuptools == 80.9.0",
+]
+
+[project]
+name = "halo-cmm"
+version = "0.0.0"
+dependencies = [
+    "absl-py",
+    "google-api-core",
+    "google-cloud-storage",
+    # Must be compatible with the version of the grpc Bazel module.
+    "grpcio==1.74.0",
+    "highspy",
+    # Must be compatible with the version of the protobuf Bazel module.
+    "protobuf==6.33.1",
+    "numpy",
+    "openpyxl",
+    "osqp",
+    "pandas",
+    "qpsolvers",
+]
+
 [tool.pyink]
 line-length = 80
 unstable = true

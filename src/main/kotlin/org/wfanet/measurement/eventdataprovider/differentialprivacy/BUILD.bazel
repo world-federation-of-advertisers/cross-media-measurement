@@ -8,7 +8,7 @@ kt_jvm_library(
         "DynamicClipping.kt",
     ],
     deps = [
+        "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
     ],
 )
