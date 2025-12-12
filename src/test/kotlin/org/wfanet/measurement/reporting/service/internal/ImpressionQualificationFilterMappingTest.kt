@@ -113,7 +113,8 @@ class ImpressionQualificationFilterMappingTest {
         )
       }
 
-    assertThat(exception.message).contains("Invalid external impression qualification filter resource ID")
+    assertThat(exception.message)
+      .contains("Invalid external impression qualification filter resource ID")
   }
 
   @Test
@@ -149,7 +150,8 @@ class ImpressionQualificationFilterMappingTest {
         )
       }
 
-    assertThat(exception.message).contains("Invalid external impression qualification filter resource ID")
+    assertThat(exception.message)
+      .contains("Invalid external impression qualification filter resource ID")
   }
 
   @Test
@@ -205,7 +207,8 @@ class ImpressionQualificationFilterMappingTest {
         )
       }
 
-    assertThat(exception.message).contains("There are duplicate external ids of impressionQualificationFilters")
+    assertThat(exception.message)
+      .contains("There are duplicate external ids of impressionQualificationFilters")
   }
 
   @Test
@@ -296,7 +299,8 @@ class ImpressionQualificationFilterMappingTest {
         )
       }
 
-    assertThat(exception.message).contains("There are duplicate internal ids of impressionQualificationFilters")
+    assertThat(exception.message)
+      .contains("There are duplicate internal ids of impressionQualificationFilters")
   }
 
   @Test
@@ -349,7 +353,8 @@ class ImpressionQualificationFilterMappingTest {
                 path = "person.age_group"
                 value =
                   ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
-                    enumValue = "YEARS_18_TO_34"                  }
+                    enumValue = "YEARS_18_TO_34"
+                  }
               }
           }
       }
@@ -384,7 +389,8 @@ class ImpressionQualificationFilterMappingTest {
                 path = "person.age_group_non"
                 value =
                   ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
-                    enumValue = "YEARS_18_TO_34"                  }
+                    enumValue = "YEARS_18_TO_34"
+                  }
               }
           }
       }

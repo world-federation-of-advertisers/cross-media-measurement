@@ -57,7 +57,10 @@ class ImpressionQualificationFilterMapping(
               "Impression qualification filter ID must be positive. Got: ${impressionQualificationFilter.impressionQualificationFilterId}"
             )
           }
-          val mediaTypesEncountered = mutableSetOf<ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType>()
+          val mediaTypesEncountered =
+            mutableSetOf<
+              ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+            >()
           for (impressionQualificationFilterSpec in impressionQualificationFilter.filterSpecsList) {
             if (mediaTypesEncountered.contains(impressionQualificationFilterSpec.mediaType)) {
               throw IllegalArgumentException(
@@ -89,11 +92,15 @@ class ImpressionQualificationFilterMapping(
 
   init {
     if (impressionQualificationFilterByExternalId.size < impressionQualificationFilters.size) {
-      throw IllegalArgumentException(      "There are duplicate external ids of impressionQualificationFilters")
+      throw IllegalArgumentException(
+        "There are duplicate external ids of impressionQualificationFilters"
+      )
     }
 
     if (impressionQualificationFilterById.size < impressionQualificationFilters.size) {
-      throw IllegalArgumentException(      "There are duplicate internal ids of impressionQualificationFilters")
+      throw IllegalArgumentException(
+        "There are duplicate internal ids of impressionQualificationFilters"
+      )
     }
   }
 
@@ -127,7 +134,11 @@ class ImpressionQualificationFilterMapping(
       return false
     }
 
-    if (impressionQualificationFilterSpec.mediaType == ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType.MEDIA_TYPE_UNSPECIFIED) {
+    if (
+      impressionQualificationFilterSpec.mediaType ==
+        ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec.MediaType
+          .MEDIA_TYPE_UNSPECIFIED
+    ) {
       return false
     }
 
