@@ -48,6 +48,7 @@ class DirectImpressionResultBuilderTest {
           frequencyData = frequencyData,
           maxPopulation = null,
           kAnonymityParams = null,
+          totalUncappedImpressions = 110L,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -74,6 +75,7 @@ class DirectImpressionResultBuilderTest {
           frequencyData = frequencyData,
           maxPopulation = null,
           kAnonymityParams = null,
+          totalUncappedImpressions = 110L,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult().impression.value

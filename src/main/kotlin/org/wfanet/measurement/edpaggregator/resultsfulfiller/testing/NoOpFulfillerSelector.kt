@@ -39,8 +39,9 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisitionSpec: RequisitionSpec,
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
+    totalUncappedImpressions: Long,
   ): MeasurementFulfiller {
-    return NoOpMeasurementFulfiller(requisition, frequencyDataBytes)
+    return NoOpMeasurementFulfiller(requisition, frequencyDataBytes, totalUncappedImpressions)
   }
 
   companion object {
@@ -54,6 +55,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
   private class NoOpMeasurementFulfiller(
     private val requisition: Requisition,
     private val frequencyDataBytes: ByteArray,
+    private val totalUncappedImpressions: Long,
   ) : MeasurementFulfiller {
 
     override suspend fun fulfillRequisition() {
@@ -84,6 +86,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
         |    - Total frequency: $totalFrequency
         |    - Max frequency: $maxFrequency
         |    - Average frequency: $avgFrequency
+        |    - Total uncapped impressions: $totalUncappedImpressions
         |  Processing time: ${System.currentTimeMillis() - startTime}ms
         |================================
         """
