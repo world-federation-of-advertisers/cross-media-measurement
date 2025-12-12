@@ -16,13 +16,15 @@ APACHE_BEAM_VERSION = "2.45.0"
 
 K8S_CLIENT_VERSION = "21.0.1"
 
+PYTHON_VERSION = "3.11"
+
 #  --- WFA registry modules. ---
 
 # Must come before rules_kotlin due to toolchain resolution precedence.
 # See https://github.com/bazelbuild/bazel/discussions/23075.
 bazel_dep(
     name = "rules_kotlin_jvm",
-    version = "0.10.0",
+    version = "0.11.0",
     repo_name = "wfa_rules_kotlin_jvm",
 )
 bazel_dep(
@@ -37,12 +39,10 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.129.0",
     repo_name = "wfa_common_jvm",
 )
 bazel_dep(
     name = "common-cpp",
-    version = "0.13.0",
     repo_name = "wfa_common_cpp",
 )
 bazel_dep(
@@ -108,7 +108,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "bazel_skylib",
-    version = "1.7.1",
+    version = "1.8.2",
 )
 bazel_dep(
     name = "rules_proto",
@@ -116,7 +116,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_cc",
-    version = "0.1.1",
+    version = "0.2.0",
 )
 bazel_dep(
     name = "rules_pkg",
@@ -142,31 +142,27 @@ bazel_dep(
 )
 bazel_dep(
     name = "rules_python",
-    version = "1.1.0",
+    version = "1.7.0",
 )
 bazel_dep(
     name = "grpc",
-    version = "1.70.1",
-)
-bazel_dep(
-    name = "rules_proto_grpc_python",
-    version = "5.0.1"
+    version = "1.74.1",
 )
 
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
-    version = "29.5",
+    version = "32.1",
     repo_name = "com_google_protobuf",
 )
 bazel_dep(
     name = "abseil-cpp",
-    version = "20240722.0.bcr.2",
+    version = "20250814.0",
     repo_name = "com_google_absl",
 )
 bazel_dep(
     name = "googletest",
-    version = "1.15.2",
+    version = "1.17.0",
     repo_name = "com_google_googletest",
 )
 bazel_dep(
@@ -184,7 +180,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "riegeli",
-    version = "0.0.0-20240606-973b6f0",
+    version = "0.0.0-20250822-9f2744d",
     repo_name = "com_google_riegeli",
 )
 bazel_dep(
@@ -292,6 +288,7 @@ maven.install(
         "common-jvm",
         "consent-signaling-client",
         "cross-media-measurement-system",
+        "protobuf",
         "rules_kotlin_jvm",
         "virtual-people-common",
     ],
@@ -352,21 +349,22 @@ use_repo(
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
     configure_coverage_tool = True,
     # Allow containerized builds using rootless Docker.
     # See https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496
     ignore_root_user_error = True,
-    python_version = "3.11",
-    is_default = True,
+    python_version = PYTHON_VERSION,
 )
-use_repo(python, "python_3_11")
+use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"))
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
+    experimental_index_url = "https://pypi.org/simple",
     hub_name = "pip",
-    python_version = "3.11",
-    requirements_lock = "//:requirements.txt",
+    python_version = PYTHON_VERSION,
+    requirements_lock = "//:requirements_lock.txt",
 )
 use_repo(pip, "pip")
 
@@ -432,3 +430,20 @@ single_version_override(
     version = BORINGSSL_VERSION,
 )
 
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#361): Use version.
+archive_override(
+    module_name = "common-jvm",
+    strip_prefix = "common-jvm-fa356fb9f04090cd43e03d8cd103bf385de74a69",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-jvm/archive/fa356fb9f04090cd43e03d8cd103bf385de74a69.tar.gz",
+    ],
+)
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-cpp#45): Use version.
+archive_override(
+    module_name = "common-cpp",
+    strip_prefix = "common-cpp-a475581d62fe959db48992a2fa4b87608514071d",
+    urls = [
+        "https://github.com/world-federation-of-advertisers/common-cpp/archive/a475581d62fe959db48992a2fa4b87608514071d.tar.gz",
+    ],
+)
