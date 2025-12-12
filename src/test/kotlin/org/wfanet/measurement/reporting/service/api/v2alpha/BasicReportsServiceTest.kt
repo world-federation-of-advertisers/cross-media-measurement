@@ -2900,9 +2900,10 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
-          reportingInterval = basicReport.reportingInterval.copy {
-            effectiveReportStart = basicReport.reportingInterval.reportStart
-          }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -3024,9 +3025,10 @@ class BasicReportsServiceTest {
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
                 .toName()
           }
-          reportingInterval = basicReport.reportingInterval.copy {
-            effectiveReportStart = basicReport.reportingInterval.reportStart
-          }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
@@ -3147,9 +3149,10 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
-            reportingInterval = basicReport.reportingInterval.copy {
-              effectiveReportStart = basicReport.reportingInterval.reportStart
-            }
+            reportingInterval =
+              basicReport.reportingInterval.copy {
+                effectiveReportStart = basicReport.reportingInterval.reportStart
+              }
             effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               impressionQualificationFilter =
                 ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
