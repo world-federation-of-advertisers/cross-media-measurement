@@ -71,6 +71,18 @@ object DirectMeasurementResultFactory {
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+        // When impressionMaxFrequencyPerUser is -1, it means no frequency cap.
+        // In this case, DirectImpressionResultBuilder will use totalUncappedImpressions
+        // for the impression count via ImpressionComputations.
+        val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
+        val effectiveMaxFrequency =
+          if (useUncappedImpressions) {
+            // When no cap, use measurement spec value for histogram building
+            // but totalUncappedImpressions will be used for actual count
+            measurementSpec.impression.maximumFrequencyPerUser
+          } else {
+            impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser
+          }
         val impressionResultBuilder =
           DirectImpressionResultBuilder(
             directProtocolConfig,
@@ -79,9 +91,9 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser,
+            effectiveMaxFrequency,
             kAnonymityParams,
-            totalUncappedImpressions,
+            if (useUncappedImpressions) totalUncappedImpressions else 0L,
           )
         impressionResultBuilder.buildMeasurementResult()
       }
