@@ -825,7 +825,7 @@ class BasicReportsServiceTest {
             utcOffset = duration { seconds = 14400 }
           },
           emptyList(),
-          )
+        )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -906,7 +906,7 @@ class BasicReportsServiceTest {
           timeZone = timeZone { id = "America/Los_Angeles" }
         },
         emptyList(),
-        )
+      )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -987,7 +987,7 @@ class BasicReportsServiceTest {
           timeZone = timeZone { id = "America/Los_Angeles" }
         },
         emptyList(),
-        )
+      )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
     val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
