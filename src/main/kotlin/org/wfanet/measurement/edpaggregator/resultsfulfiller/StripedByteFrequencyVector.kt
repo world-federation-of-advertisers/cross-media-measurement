@@ -84,6 +84,10 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
    * saturation at the maximum value. It uses lock striping to maintain thread safety while
    * providing good concurrent performance. Also merges the total uncapped impressions counter.
    *
+   * Note: While individual AtomicLong operations are atomic, the merge operation as a whole is not
+   * atomic with respect to concurrent increments. However, this is acceptable since merges are
+   * typically performed at aggregation boundaries after concurrent processing has completed.
+   *
    * @param other The other frequency vector to merge into this one
    * @return This frequency vector after merging
    * @throws IllegalArgumentException if the vectors have different sizes
