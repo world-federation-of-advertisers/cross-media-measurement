@@ -1,7 +1,8 @@
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+load("@grpc//bazel:python_rules.bzl", "py_grpc_library")
+load("@pip//:requirements.bzl", "requirement")
 load("@rules_proto//proto:defs.bzl", "proto_descriptor_set")
-load("@rules_proto_grpc_python//:defs.bzl", "python_grpc_library")
-load("@rules_python//python:proto.bzl", "py_proto_library")
 load(
     "@wfa_rules_kotlin_jvm//kotlin:defs.bzl",
     "kt_jvm_grpc_proto_library",
@@ -427,9 +428,11 @@ proto_library(
 ]
 
 [
-    python_grpc_library(
+    py_grpc_library(
         name = "{prefix}_service_py_pb2_grpc".format(prefix = prefix),
-        protos = [":{prefix}_service_proto".format(prefix = prefix)],
+        srcs = [":{prefix}_service_proto".format(prefix = prefix)],
+        grpc_library = requirement("grpcio"),
+        deps = [":{prefix}_service_py_pb2".format(prefix = prefix)],
     )
     for prefix in SERVICE_LIBS
 ]
