@@ -23,7 +23,7 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Frequency vector sink that receives filtered events and builds frequency vectors.
  *
  * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
- * Thread-safe for concurrent access.
+ * Thread-safe for concurrent access. Also tracks total uncapped impressions for direct measurements.
  */
 class FrequencyVectorSink<T : Message>(
   private val filterProcessor: FilterProcessor<T>,
@@ -51,5 +51,15 @@ class FrequencyVectorSink<T : Message>(
   /** Returns the frequency vector. */
   fun getFrequencyVector(): StripedByteFrequencyVector {
     return frequencyVector
+  }
+
+  /**
+   * Returns the total count of impressions without any frequency capping applied.
+   *
+   * This is useful for direct measurement fulfillment when frequency_cap_per_user == -1, indicating
+   * no frequency caps should be applied.
+   */
+  fun getTotalUncappedImpressions(): Long {
+    return frequencyVector.getTotalUncappedImpressions()
   }
 }

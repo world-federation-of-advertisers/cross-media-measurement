@@ -43,6 +43,9 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
  * @param maxFrequency The max frequency per user in the result.
+ * @param kAnonymityParams Optional k-anonymity parameters.
+ * @param totalUncappedImpressions Total impression count without frequency capping. Used when no
+ *   frequency capping is needed.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -53,6 +56,7 @@ class DirectImpressionResultBuilder(
   private val maxPopulation: Int?,
   private val maxFrequency: Int,
   private val kAnonymityParams: KAnonymityParams?,
+  private val totalUncappedImpressions: Long,
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
@@ -104,6 +108,7 @@ class DirectImpressionResultBuilder(
       vidSamplingIntervalWidth = samplingRate,
       kAnonymityParams = kAnonymityParams,
       maxFrequency = maxFrequency.toLong(),
+      totalUncappedImpressions = totalUncappedImpressions,
     )
   }
 

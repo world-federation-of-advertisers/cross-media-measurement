@@ -42,6 +42,8 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.Frequ
  * @param dataProviderSigningKeyHandle cryptographic key for result authentication
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param kAnonymityParams optional k-anonymity thresholds; null disables k-anonymity
+ * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
+ *   capping and uses totalUncappedImpressions instead
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -60,8 +62,9 @@ class DefaultFulfillerSelector(
    * @param requisition requisition containing protocol configuration
    * @param measurementSpec measurement specification including DP parameters
    * @param requisitionSpec decrypted requisition details including nonce
-   * @param frequencyData frequency histogram as integer array
+   * @param frequencyDataBytes frequency histogram as byte array
    * @param populationSpec population definition for VID range validation
+   * @param totalUncappedImpressions total impression count without frequency capping
    * @return protocol-specific fulfiller ready for execution
    * @throws IllegalArgumentException if no supported protocol is found
    */
@@ -71,6 +74,7 @@ class DefaultFulfillerSelector(
     requisitionSpec: RequisitionSpec,
     frequencyDataBytes: ByteArray,
     populationSpec: PopulationSpec,
+    totalUncappedImpressions: Long,
   ): MeasurementFulfiller {
 
     val vec =
@@ -91,6 +95,7 @@ class DefaultFulfillerSelector(
         maxPopulation = null,
         frequencyData = vec.frequencyDataArray,
         kAnonymityParams = kAnonymityParams,
+        totalUncappedImpressions = totalUncappedImpressions,
       )
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
@@ -133,6 +138,7 @@ class DefaultFulfillerSelector(
     maxPopulation: Int?,
     frequencyData: IntArray,
     kAnonymityParams: KAnonymityParams?,
+    totalUncappedImpressions: Long,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
@@ -150,6 +156,7 @@ class DefaultFulfillerSelector(
         maxPopulation,
         kAnonymityParams = kAnonymityParams,
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        totalUncappedImpressions = totalUncappedImpressions,
       )
     return DirectMeasurementFulfiller(
       requisition.name,
