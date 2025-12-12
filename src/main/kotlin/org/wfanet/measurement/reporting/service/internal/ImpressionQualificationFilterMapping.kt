@@ -114,6 +114,10 @@ class ImpressionQualificationFilterMapping(
     impressionQualificationFilterSpec:
       ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
   ): Boolean {
+    if (impressionQualificationFilterSpec.filtersList.isEmpty()) {
+      return false
+    }
+
     for (eventFilter in impressionQualificationFilterSpec.filtersList) {
       for (eventTemplateField in eventFilter.termsList) {
         if (eventTemplateField.path.isEmpty()) {

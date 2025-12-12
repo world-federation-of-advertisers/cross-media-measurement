@@ -82,7 +82,7 @@ class ImpressionQualificationFilterMappingTest {
   }
 
   @Test
-  fun `processing config fails when spec is invalid`() {
+  fun `processing config fails when spec filter is invalid`() {
     val amiIqf = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
@@ -99,6 +99,31 @@ class ImpressionQualificationFilterMappingTest {
                   }
               }
           }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
+
+  @Test
+  fun `processing config fails when spec missing filters`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
       }
     }
 
