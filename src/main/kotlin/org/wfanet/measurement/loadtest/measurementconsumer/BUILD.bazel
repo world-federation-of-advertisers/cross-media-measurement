@@ -15,6 +15,7 @@ kt_jvm_library(
     name = "simulator",
     srcs = ["MeasurementConsumerSimulator.kt"],
     deps = [
+        "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -46,7 +47,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],

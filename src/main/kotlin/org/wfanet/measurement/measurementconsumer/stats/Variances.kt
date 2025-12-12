@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.measurementconsumer.stats
 
-import com.google.common.math.DoubleMath.fuzzyCompare
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.random.asJavaRandom
+import org.apache.commons.numbers.core.Precision
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.noiser.GaussianNoiser
 import org.wfanet.measurement.eventdataprovider.noiser.LaplaceNoiser
@@ -84,6 +84,7 @@ interface Variances {
 /** Default implementation of [Variances]. */
 object VariancesImpl : Variances {
   private const val TOLERANCE = 1E-6
+  private val EQUIVALENCE = Precision.doubleEquivalenceOfEpsilon(TOLERANCE)
 
   /**
    * Computes the variance of a reach measurement that is computed using the deterministic count
@@ -393,10 +394,10 @@ object VariancesImpl : Variances {
     return when (noiseMechanism) {
       NoiseMechanism.NONE -> 0.0
       NoiseMechanism.LAPLACE -> {
-        LaplaceNoiser(dpParams, Random.Default.asJavaRandom()).variance
+        LaplaceNoiser(dpParams, Random.asJavaRandom()).variance
       }
       NoiseMechanism.GAUSSIAN -> {
-        GaussianNoiser(dpParams, Random.Default.asJavaRandom()).variance
+        GaussianNoiser(dpParams, Random.asJavaRandom()).variance
       }
     }
   }
@@ -449,7 +450,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+        require(EQUIVALENCE.compare(suffixSum, 1.0) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -561,7 +562,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += frequencyParams.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+        require(EQUIVALENCE.compare(suffixSum, 1.0) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
@@ -666,7 +667,7 @@ object VariancesImpl : Variances {
     val kPlusRelativeFrequencyDistribution: Map<Int, Double> =
       (maximumFrequency downTo 1).associateWith { frequency ->
         suffixSum += params.relativeFrequencyDistribution.getOrDefault(frequency, 0.0)
-        require(fuzzyCompare(suffixSum, 1.0, TOLERANCE) <= 0) {
+        require(EQUIVALENCE.compare(suffixSum, 1.0) <= 0) {
           "kPlus relative frequency must not exceed 1, but got $suffixSum."
         }
         min(1.0, suffixSum)
