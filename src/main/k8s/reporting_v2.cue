@@ -195,6 +195,8 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
+						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
+						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
 						"--default-report-start-time-zone=America/Los_Angeles",
 						"--default-report-start-hour=5",

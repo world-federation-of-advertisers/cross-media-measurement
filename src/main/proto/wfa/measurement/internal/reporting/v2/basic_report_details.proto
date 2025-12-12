@@ -31,6 +31,10 @@ message BasicReportDetails {
   repeated ReportingImpressionQualificationFilter
       impression_qualification_filters = 2;
 
+  // The impression qualification filters for the BasicReport.
+  repeated ReportingImpressionQualificationFilter
+      effective_impression_qualification_filters = 5;
+
   // The interval of time that the BasicReport spans
   //
   // Both the start and the end of the interval are immutable.
