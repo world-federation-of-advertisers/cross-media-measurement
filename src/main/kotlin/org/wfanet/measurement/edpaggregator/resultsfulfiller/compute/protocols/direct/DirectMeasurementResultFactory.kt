@@ -72,13 +72,14 @@ object DirectMeasurementResultFactory {
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
         // When impressionMaxFrequencyPerUser is -1, it means no frequency cap.
-        // In this case, DirectImpressionResultBuilder will use totalUncappedImpressions
-        // for the impression count via ImpressionComputations.
+        // In this case, totalUncappedImpressions (> 0) will be passed to
+        // DirectImpressionResultBuilder, which uses it in ImpressionComputations
+        // to return the uncapped impression count instead of histogram-based computation.
         val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
         val effectiveMaxFrequency =
           if (useUncappedImpressions) {
             // When no cap, use measurement spec value for histogram building
-            // but totalUncappedImpressions will be used for actual count
+            // (needed for k-anonymity user count checks)
             measurementSpec.impression.maximumFrequencyPerUser
           } else {
             impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser
