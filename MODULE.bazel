@@ -37,10 +37,16 @@ bazel_dep(
     version = "0.4.1",
     repo_name = "wfa_rules_cue",
 )
+# DO_NOT_SUBMIT: use release version
 bazel_dep(
     name = "common-jvm",
     version = "0.131.0",
     repo_name = "wfa_common_jvm",
+)
+git_override(
+    module_name = "common-jvm",
+    commit = "673ecfaed229c02568aa3c5a70d299cdc2d72001",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 bazel_dep(
     name = "common-cpp",
