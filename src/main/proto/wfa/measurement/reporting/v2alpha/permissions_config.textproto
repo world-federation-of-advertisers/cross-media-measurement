@@ -47,16 +47,16 @@ permissions {
   }
 }
 permissions {
-  # Allow creation of primitive ReportingSets.
   key: "reporting.reportingSets.createPrimitive"
   value {
+    description: "Create a primitive ReportingSet resource"
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
 permissions {
-  # Allow creation of composite ReportingSets.
   key: "reporting.reportingSets.createComposite"
   value {
+    description: "Create a composite ReportingSet resource"
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
@@ -79,6 +79,14 @@ permissions {
   key: "reporting.metrics.create"
   value {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    description: "Create a Metric resource."
+  }
+}
+permissions {
+  key: "reporting.metrics.createWithDevModelLine"
+  value {
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    description: "When creating a Metric resource, use a ModelLine of type DEV."
   }
 }
 permissions {
@@ -163,6 +171,14 @@ permissions {
 permissions {
   key: "reporting.basicReports.create"
   value {
+    description: "Create a BasicReport resource"
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+  }
+}
+permissions {
+  key: "reporting.basicReports.createWithDevModelLine"
+  value {
+    description: "When creating a BasicReport resource, use a ModelLine of type DEV"
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
