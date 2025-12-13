@@ -46,9 +46,10 @@ git_override(
     commit = "ac07f9b1a9c64e65b9150c5a9d5ca29bda8c3be0",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#3311): undo version upgrade and rebase after PR is merged
 bazel_dep(
     name = "common-cpp",
-    version = "0.13.0",
+    version = "0.14.0",
     repo_name = "wfa_common_cpp",
 )
 bazel_dep(
