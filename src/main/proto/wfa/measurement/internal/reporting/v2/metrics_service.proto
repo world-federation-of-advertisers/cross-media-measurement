@@ -51,6 +51,8 @@ message BatchCreateMetricsRequest {
 }
 
 message BatchCreateMetricsResponse {
+  // Created `Metric` entities in the same order as
+  // `BatchCreateMetricsRequest.requests`.
   repeated Metric metrics = 1;
 }
 
