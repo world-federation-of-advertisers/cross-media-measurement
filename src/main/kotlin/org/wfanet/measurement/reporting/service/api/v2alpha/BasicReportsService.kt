@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.type.DateTime
 import com.google.type.copy
 import com.google.type.interval
 import io.grpc.Status
@@ -118,6 +119,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  private val defaultReportStartHour: DateTime? = null,
   private val baseImpressionQualificationFilters: List<ImpressionQualificationFilter>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -187,6 +189,7 @@ class BasicReportsService(
         request,
         campaignGroup,
         eventTemplateFieldsByPath,
+        defaultReportStartHour != null,
         baseImpressionQualificationFilters.isEmpty(),
       )
     } catch (e: ServiceException) {
@@ -217,6 +220,24 @@ class BasicReportsService(
     val measurementConsumerCredentials =
       MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
 
+    val effectiveReportStart =
+      if (defaultReportStartHour != null) {
+        request.basicReport.reportingInterval.reportStart.copy {
+          if (hours == 0) {
+            hours = defaultReportStartHour.hours
+          }
+          if (timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+            if (defaultReportStartHour.timeOffsetCase == DateTime.TimeOffsetCase.UTC_OFFSET) {
+              utcOffset = defaultReportStartHour.utcOffset
+            } else {
+              timeZone = defaultReportStartHour.timeZone
+            }
+          }
+        }
+      } else {
+        request.basicReport.reportingInterval.reportStart
+      }
+
     val validModelLines =
       kingdomModelLinesStub
         .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
@@ -224,9 +245,9 @@ class BasicReportsService(
           enumerateValidModelLinesRequest {
             parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
             timeInterval = interval {
-              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
+              startTime = effectiveReportStart.toTimestamp()
               endTime =
-                request.basicReport.reportingInterval.reportStart
+                effectiveReportStart
                   .copy {
                     day = request.basicReport.reportingInterval.reportEnd.day
                     month = request.basicReport.reportingInterval.reportEnd.month
@@ -365,6 +386,7 @@ class BasicReportsService(
                     .filterNot { it.key in basicReportImpressionQualificationFilterNames }
                     .map { it.value } + internalReportingImpressionQualificationFilters,
                 effectiveModelLine = modelLine,
+                effectiveReportStart = effectiveReportStart,
               )
             requestId = request.requestId
           }
@@ -413,6 +435,7 @@ class BasicReportsService(
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
         modelLine,
+        effectiveReportStart,
       )
 
     val createReportRequest = createReportRequest {
@@ -823,6 +846,7 @@ class BasicReportsService(
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    * @param modelLine The model line to use for the report.
+   * @param effectiveReportStart The report start to use for the report.
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -831,6 +855,7 @@ class BasicReportsService(
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
     modelLine: String,
+    effectiveReportStart: DateTime,
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
@@ -893,7 +918,7 @@ class BasicReportsService(
 
       reportingInterval =
         ReportKt.reportingInterval {
-          reportStart = basicReport.reportingInterval.reportStart
+          reportStart = effectiveReportStart
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }

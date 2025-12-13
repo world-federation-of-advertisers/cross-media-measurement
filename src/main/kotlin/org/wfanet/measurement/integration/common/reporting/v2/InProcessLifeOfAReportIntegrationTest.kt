@@ -2522,6 +2522,16 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           effectiveImpressionQualificationFilters +=
             retrievedPublicBasicReport.impressionQualificationFiltersList
           effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = dateTime {
+                year = 2021
+                month = 3
+                day = 14
+                hours = 17
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+            }
         }
       )
     assertThat(retrievedPublicBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
@@ -2872,6 +2882,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           campaignGroupDisplayName = createdPrimitiveReportingSet.displayName
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           state = BasicReport.State.SUCCEEDED

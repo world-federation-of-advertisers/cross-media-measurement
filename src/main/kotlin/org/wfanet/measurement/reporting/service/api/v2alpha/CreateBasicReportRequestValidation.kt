@@ -17,7 +17,11 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.duration
+import com.google.type.DateTime
+import com.google.type.copy
 import io.grpc.Status
+import java.time.DateTimeException
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.collections.Set
@@ -28,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
@@ -54,6 +59,7 @@ private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
  * @param campaignGroup
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for validating [EventTemplateField]
+ * @param hasDefaultReportStartHour whether default report start hour and timeOffset exists
  * @param requireImpressionQualificationFilters Whether impression_qualification_filters field is
  *   required or not
  * @throws [RequiredFieldNotSetException] when validation fails
@@ -63,6 +69,7 @@ fun validateCreateBasicReportRequest(
   request: CreateBasicReportRequest,
   campaignGroup: ReportingSet,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  hasDefaultReportStartHour: Boolean,
   requireImpressionQualificationFilters: Boolean,
 ) {
   if (request.basicReportId.isEmpty()) {
@@ -86,7 +93,7 @@ fun validateCreateBasicReportRequest(
   }
 
   if (request.basicReport.hasReportingInterval()) {
-    validateReportingInterval(request.basicReport.reportingInterval)
+    validateReportingInterval(request.basicReport.reportingInterval, hasDefaultReportStartHour)
   } else {
     throw RequiredFieldNotSetException("basic_report.reporting_interval")
   }
@@ -555,10 +562,14 @@ fun validateResultGroupMetricSpec(
  * Validates a [ReportingInterval]
  *
  * @param reportingInterval [ReportingInterval] to validate
+ * @param hasDefaultReportStartHour whether default report start hour and timeOffset exists
  * @throws [RequiredFieldNotSetException] when validation fails
  * @throws [InvalidFieldValueException] when validation fails
  */
-fun validateReportingInterval(reportingInterval: ReportingInterval) {
+fun validateReportingInterval(
+  reportingInterval: ReportingInterval,
+  hasDefaultReportStartHour: Boolean,
+) {
   if (!reportingInterval.hasReportStart()) {
     throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
   }
@@ -571,10 +582,39 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
     reportingInterval.reportStart.year == 0 ||
       reportingInterval.reportStart.month == 0 ||
       reportingInterval.reportStart.day == 0 ||
-      !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
+      reportingInterval.reportStart.minutes != 0 ||
+      reportingInterval.reportStart.seconds != 0 ||
+      reportingInterval.reportStart.nanos != 0
   ) {
     throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
-      "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
+      "$fieldName requires year, month, and day to all be set, and minutes, seconds, and nanos to all not be set"
+    }
+  }
+
+  if (!hasDefaultReportStartHour) {
+    if (
+      reportingInterval.reportStart.hours == 0 ||
+        !(reportingInterval.reportStart.hasTimeZone() ||
+          reportingInterval.reportStart.hasUtcOffset())
+    ) {
+      throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName
+        ->
+        "$fieldName requires hours to be set, as well as either time_zone or utc_offset, when there is no default"
+      }
+    }
+  }
+
+  try {
+    if (
+      reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+    ) {
+      reportingInterval.reportStart.copy { utcOffset = duration { seconds = 0 } }.toTimestamp()
+    } else {
+      reportingInterval.reportStart.toTimestamp()
+    }
+  } catch (_: DateTimeException) {
+    throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
+      "$fieldName is an invalid DateTime"
     }
   }
 
@@ -585,6 +625,33 @@ fun validateReportingInterval(reportingInterval: ReportingInterval) {
   ) {
     throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
       "$fieldName requires year, month, and day to be set"
+    }
+  }
+
+  try {
+    if (
+      reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+    ) {
+      reportingInterval.reportStart
+        .copy {
+          year = reportingInterval.reportEnd.year
+          month = reportingInterval.reportEnd.month
+          day = reportingInterval.reportEnd.day
+          utcOffset = duration { seconds = 0 }
+        }
+        .toTimestamp()
+    } else {
+      reportingInterval.reportStart
+        .copy {
+          year = reportingInterval.reportEnd.year
+          month = reportingInterval.reportEnd.month
+          day = reportingInterval.reportEnd.day
+        }
+        .toTimestamp()
+    }
+  } catch (_: DateTimeException) {
+    throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
+      "$fieldName is an invalid Date"
     }
   }
 }

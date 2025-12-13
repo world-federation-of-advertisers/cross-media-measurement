@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.type.DateTime
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -100,6 +101,7 @@ fun BasicReport.toInternal(
   internalEffectiveReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
   effectiveModelLine: String,
+  effectiveReportStart: DateTime,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -114,6 +116,7 @@ fun BasicReport.toInternal(
         internalEffectiveReportingImpressionQualificationFilters
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
+        this.effectiveReportStart = effectiveReportStart
         reportEnd = source.reportingInterval.reportEnd
       }
       for (resultGroupSpec in source.resultGroupSpecsList) {
@@ -392,6 +395,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
       reportStart = source.details.reportingInterval.reportStart
+      if (source.details.reportingInterval.hasEffectiveReportStart()) {
+        effectiveReportStart = source.details.reportingInterval.effectiveReportStart
+      } else {
+        effectiveReportStart = source.details.reportingInterval.reportStart
+      }
       reportEnd = source.details.reportingInterval.reportEnd
     }
     for (internalImpressionQualificationFilter in
