@@ -14,10 +14,13 @@
 
 import unittest
 
+from unittest.mock import MagicMock
+
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
+from noiseninja.solver import Solver
 
 from src.main.python.wfa.measurement.reporting.postprocessing.report.report import (
     EdpCombination,
@@ -3060,55 +3063,75 @@ class TestReport(unittest.TestCase):
   def test_small_correction_for_unnoised_edp_does_not_log_large_correction(
       self
   ):
-      report = Report(
-          metric_reports={
-              "ami": MetricReport(
-                  weekly_cumulative_reaches={
-                      frozenset({EDP_ONE}): [
-                          Measurement(48, 0, "measurement_02")
-                      ],
-                  },
-                  whole_campaign_measurements=build_measurement_set(
-                      reach={
-                          frozenset({EDP_ONE}): Measurement(48.01, 0, "measurement_04"),
-                      },
-                      k_reach={},
-                      impression={}),
-                  weekly_non_cumulative_measurements={},
-              )
-          },
-          metric_subsets_by_parent={},
-          cumulative_inconsistency_allowed_edp_combinations={},
-      )
+    spec = SetMeasurementsSpec()
+    spec.add_subset_relation(1, 2)
+    spec.add_measurement(1, Measurement(48, 0, "measurement_01"))
+    spec.add_measurement(2, Measurement(48, 0, "measurement_02"))
 
-      corrected, report_post_processor_result = report.get_corrected_report()
+    solver = Solver(spec)
 
-      expected = Report(
-          metric_reports={
-              "ami": MetricReport(
-                  weekly_cumulative_reaches={
-                      frozenset({EDP_ONE}): [
-                          Measurement(48.0033325, 0, "measurement_02")
-                      ],
-                  },
-                  whole_campaign_measurements=build_measurement_set(
-                      reach={
-                          frozenset({EDP_ONE}): Measurement(48.00666747, 0, "measurement_04"),
-                      },
-                      k_reach={},
-                      impression={}),
-                  weekly_non_cumulative_measurements={},
-              )
-          },
-          metric_subsets_by_parent={},
-          cumulative_inconsistency_allowed_edp_combinations={},
-      )
+    def side_effect():
+        return Solution(
+            x=[48.0033325, 48.00666747],
+            found=True,
+            problem=solver._problem()), ReportPostProcessorStatus(
+                status_code=StatusCode.SOLUTION_FOUND_WITH_OSQP)
 
-      self.assertEqual(report_post_processor_result.status.status_code,
-                       StatusCode.SOLUTION_FOUND_WITH_OSQP)
-      self._assertReportsAlmostEqual(expected, corrected, corrected.to_array())
-      self.assertEqual(len(report_post_processor_result.large_corrections), 0)
+    mock_solve = MagicMock(side_effect=side_effect)
+    solver._solve = mock_solve
+    
+    report = Report(
+        metric_reports={
+            "ami":
+            MetricReport(
+                weekly_cumulative_reaches={
+                    frozenset({EDP_ONE}):
+                    [Measurement(48, 0, "measurement_01")],
+                },
+                whole_campaign_measurements=build_measurement_set(
+                    reach={
+                        frozenset({EDP_ONE}):
+                        Measurement(48.01, 0, "measurement_02"),
+                    },
+                    k_reach={},
+                    impression={}),
+                weekly_non_cumulative_measurements={},
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
 
+    expected = Report(
+        metric_reports={
+            "ami":
+            MetricReport(
+                weekly_cumulative_reaches={
+                    frozenset({EDP_ONE}):
+                    [Measurement(48.0033325, 0, "measurement_02")],
+                },
+                whole_campaign_measurements=build_measurement_set(
+                    reach={
+                        frozenset({EDP_ONE}):
+                        Measurement(48.00666747, 0, "measurement_04"),
+                    },
+                    k_reach={},
+                    impression={}),
+                weekly_non_cumulative_measurements={},
+            )
+        },
+        metric_subsets_by_parent={},
+        cumulative_inconsistency_allowed_edp_combinations={},
+    )
+
+    corrected, report_post_processor_result = report.get_corrected_report()
+
+    self.assertEqual(report_post_processor_result.status.status_code,
+                     StatusCode.SOLUTION_FOUND_WITH_OSQP)
+    self._assertReportsAlmostEqual(expected, corrected,
+                                   corrected.to_array())
+    self.assertEqual(len(report_post_processor_result.large_corrections),
+                     0)
 
   def test_get_corrected_reach_only_report_single_metric_multiple_edps(self):
     report = Report(
