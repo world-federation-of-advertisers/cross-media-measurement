@@ -75,6 +75,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseP
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.StatusExceptionSubject.Companion.assertThat
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
@@ -2839,8 +2840,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -2882,8 +2884,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -2928,7 +2931,7 @@ class BasicReportsServiceTest {
           }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
       assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.CREATE)
     }
 
@@ -2963,8 +2966,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3006,8 +3010,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3053,8 +3058,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3097,8 +3103,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3140,8 +3147,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3171,8 +3179,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3203,8 +3212,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3215,7 +3225,7 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when campaignGroup not campaignGroup`() =
+  fun `createBasicReport throws FAILED_PRECONDITION when campaignGroup not campaignGroup`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -3236,24 +3246,25 @@ class BasicReportsServiceTest {
           externalReportingSetId = campaignGroupKey.reportingSetId
         }
       )
-
       val request = createBasicReportRequest {
         parent = measurementConsumerKey.toName()
         basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
         basicReportId = "a1234"
       }
+
       val exception =
         assertFailsWith<StatusRuntimeException> {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.campaign_group"
+            reason = Errors.Reason.CAMPAIGN_GROUP_INVALID.name
+            metadata[Errors.Metadata.REPORTING_SET.key] = request.basicReport.campaignGroup
           }
         )
     }
@@ -3294,8 +3305,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3373,8 +3385,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
@@ -3420,8 +3433,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3468,8 +3482,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
@@ -3517,8 +3532,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
@@ -3565,8 +3581,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3613,8 +3630,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3661,8 +3679,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3712,8 +3731,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
@@ -3761,8 +3781,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3809,8 +3830,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3857,8 +3879,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3904,8 +3927,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -3955,14 +3979,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.impression_qualification_filter"
+              "basic_report.impression_qualification_filters[0].impression_qualification_filter"
           }
         )
     }
@@ -4031,8 +4056,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -4083,14 +4109,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec"
+              "basic_report.impression_qualification_filters[0].custom.filter_spec"
           }
         )
     }
@@ -4155,14 +4182,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs"
           }
         )
     }
@@ -4210,14 +4238,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters"
           }
         )
     }
@@ -4268,14 +4297,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms"
           }
         )
     }
@@ -4330,14 +4360,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms[0].path"
           }
         )
     }
@@ -4390,14 +4421,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms[0].value"
           }
         )
     }
@@ -4440,14 +4472,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.selector"
+              "basic_report.impression_qualification_filters[0].selector"
           }
         )
     }
@@ -4488,8 +4521,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -4536,14 +4570,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.reporting_unit"
+              "basic_report.result_group_specs[0].reporting_unit"
           }
         )
     }
@@ -4585,14 +4620,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.reporting_unit.components"
+              "basic_report.result_group_specs[0].reporting_unit.components"
           }
         )
     }
@@ -4635,20 +4671,21 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.reporting_unit.components"
+              "basic_report.result_group_specs[0].reporting_unit.components[0]"
           }
         )
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when component not in campaign group`() =
+  fun `createBasicReport throws FAILED_PRECONDITION when component not in campaign group`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -4687,14 +4724,16 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.reporting_unit.components"
+            reason = Errors.Reason.DATA_PROVIDER_NOT_FOUND_FOR_CAMPAIGN_GROUP.name
+            metadata[Errors.Metadata.REPORTING_SET.key] =
+              "measurementConsumers/1234/reportingSets/1234"
+            metadata[Errors.Metadata.DATA_PROVIDER.key] = "dataProviders/4321"
           }
         )
     }
@@ -4735,14 +4774,15 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.dimension_spec"
+            "basic_report.result_group_specs[0].dimension_spec"
         }
       )
   }
@@ -4790,14 +4830,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+              "basic_report.result_group_specs[0].dimension_spec.grouping.event_template_fields"
           }
         )
     }
@@ -4845,15 +4886,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("exist")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("exist")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.height"
           }
         )
     }
@@ -4902,15 +4943,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("groupable")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("groupable")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.viewable"
           }
         )
     }
@@ -4958,14 +4999,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms"
+              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms"
           }
         )
     }
@@ -5022,14 +5064,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms"
+              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms"
           }
         )
     }
@@ -5081,14 +5124,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms[0].path"
           }
         )
     }
@@ -5141,15 +5185,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("exist")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.height"
           }
         )
     }
@@ -5202,15 +5245,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("filterable")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("filterable")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.viewable"
           }
         )
     }
@@ -5265,14 +5308,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.path"
+              "basic_report.result_group_specs[0].dimension_spec.filters[0].terms[0]"
           }
         )
     }
@@ -5322,14 +5366,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value"
+              "basic_report.result_group_specs[0].dimension_spec.filters[2].terms[0].value"
           }
         )
     }
@@ -5382,14 +5427,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.length"
           }
         )
     }
@@ -5442,14 +5487,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.length"
           }
         )
     }
@@ -5502,14 +5547,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.length"
           }
         )
     }
@@ -5562,14 +5607,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.length"
           }
         )
     }
@@ -5622,14 +5667,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.gender"
           }
         )
     }
@@ -5682,14 +5727,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.gender"
           }
         )
     }
@@ -5742,14 +5787,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.gender"
           }
         )
     }
@@ -5802,14 +5847,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.gender"
           }
         )
     }
@@ -5859,14 +5904,15 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+            "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms"
         }
       )
   }
@@ -5925,14 +5971,15 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
+            "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms"
         }
       )
   }
@@ -5988,15 +6035,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("exist")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("exist")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.height"
           }
         )
     }
@@ -6052,15 +6099,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("impression qualification")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("impression qualification")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "person.gender"
           }
         )
     }
@@ -6116,15 +6163,16 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.message).contains("media_type")
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("media_type")
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
+              "basic_report.impression_qualification_filters[0].custom.filter_specs[0].filters[0].terms[0].path"
           }
         )
     }
@@ -6180,14 +6228,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.string_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.viewable"
           }
         )
     }
@@ -6243,14 +6291,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.viewable"
           }
         )
     }
@@ -6306,14 +6354,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "banner_ad.viewable"
           }
         )
     }
@@ -6369,14 +6417,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.bool_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.viewed_fraction"
           }
         )
     }
@@ -6432,14 +6480,14 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
+            reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+            metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = "video_ad.viewed_fraction"
           }
         )
     }
@@ -6481,14 +6529,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec"
+              "basic_report.result_group_specs[0].result_group_metric_spec"
           }
         )
     }
@@ -6535,14 +6584,15 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.UNIMPLEMENTED)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.FIELD_UNIMPLEMENTED.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
+            "basic_report.result_group_specs[0].result_group_metric_spec.component_intersection"
         }
       )
   }
@@ -6583,14 +6633,15 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.result_group_specs.metric_frequency"
+            "basic_report.result_group_specs[0].metric_frequency"
         }
       )
   }
@@ -6641,14 +6692,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
+              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.non_cumulative"
           }
         )
     }
@@ -6699,14 +6751,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
+              "basic_report.result_group_specs[0].result_group_metric_spec.component.non_cumulative"
           }
         )
     }
@@ -6758,14 +6811,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative_unique"
+              "basic_report.result_group_specs[0].result_group_metric_spec.component.non_cumulative_unique"
           }
         )
     }
@@ -6820,14 +6874,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach"
           }
         )
     }
@@ -6882,14 +6937,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
           }
         )
     }
@@ -6940,14 +6996,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.stacked_incremental_reach"
           }
         )
     }
@@ -7002,14 +7059,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.component.non_cumulative.k_plus_reach"
           }
         )
     }
@@ -7064,14 +7122,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.component.cumulative.k_plus_reach"
           }
         )
     }
@@ -7118,8 +7177,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
@@ -8650,8 +8710,9 @@ class BasicReportsServiceTest {
     val request = getBasicReportRequest {}
     val exception = assertFailsWith<StatusRuntimeException> { service.getBasicReport(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -8666,8 +8727,9 @@ class BasicReportsServiceTest {
     val request = getBasicReportRequest { name = "/basicReports/def" }
     val exception = assertFailsWith<StatusRuntimeException> { service.getBasicReport(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -8685,8 +8747,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.getBasicReport(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -8707,7 +8770,7 @@ class BasicReportsServiceTest {
           }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
       assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.GET)
     }
 
@@ -9295,7 +9358,7 @@ class BasicReportsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.LIST)
   }
 
@@ -9304,8 +9367,9 @@ class BasicReportsServiceTest {
     val request = listBasicReportsRequest { pageSize = 5 }
     val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -9323,8 +9387,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -9342,8 +9407,9 @@ class BasicReportsServiceTest {
     }
     val exception = assertFailsWith<StatusRuntimeException> { service.listBasicReports(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -9365,8 +9431,9 @@ class BasicReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
@@ -9396,8 +9463,9 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
