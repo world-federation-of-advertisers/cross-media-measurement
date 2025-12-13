@@ -154,6 +154,12 @@ class BasicReportsService(
     val nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
   )
 
+  private data class ImpressionQualificationFilterLists(
+    val impressionQualificationFilterSpecsLists: List<List<ImpressionQualificationFilterSpec>>,
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter>,
+  )
+
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
@@ -254,93 +260,40 @@ class BasicReportsService(
         ""
       }
 
-    // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists:
-      MutableList<List<ImpressionQualificationFilterSpec>> =
-      mutableListOf()
+    val createReportRequestId = UUID.randomUUID().toString()
 
-    impressionQualificationFilterSpecsLists.addAll(
-      baseImpressionQualificationFilters.map { baseImpressionQualificationFilter ->
-        baseImpressionQualificationFilter.filterSpecsList.map {
-          it.toImpressionQualificationFilterSpec()
-        }
-      }
-    )
+    val impressionQualificationFilterLists =
+      buildImpressionQualificationFilterLists(request.basicReport)
 
-    val internalReportingImpressionQualificationFilters:
-      List<InternalReportingImpressionQualificationFilter> =
-      buildList {
-        for (impressionQualificationFilter in
-          request.basicReport.impressionQualificationFiltersList) {
-          if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
+    // This checks whether the custom ImpressionQualificationFilter, if any, has an
+    // ImpressionQualificationFilterSpec that is already in an ImpressionQualificationFilter.
+    impressionQualificationFilterLists.internalReportingImpressionQualificationFilters
+      .firstOrNull { it.externalImpressionQualificationFilterId.isEmpty() }
+      ?.let { customReportingImpressionQualificationFilter ->
+        for (customFilterSpec in customReportingImpressionQualificationFilter.filterSpecsList) {
+          for (internalReportingImpressionQualificationFilter in
+            impressionQualificationFilterLists.internalReportingImpressionQualificationFilters) {
             if (
-              baseInternalReportingQualificationFilterByImpressionQualificationFilterName.contains(
-                impressionQualificationFilter.impressionQualificationFilter
-              )
+              internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId
+                .isNotEmpty()
             ) {
-              add(
-                baseInternalReportingQualificationFilterByImpressionQualificationFilterName
-                  .getValue(impressionQualificationFilter.impressionQualificationFilter)
-              )
-              continue
-            }
-
-            val key =
-              ImpressionQualificationFilterKey.fromName(
-                impressionQualificationFilter.impressionQualificationFilter
-              )
-            try {
-              val internalImpressionQualificationFilter =
-                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
-                  getImpressionQualificationFilterRequest {
-                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
-                  }
-                )
-
-              add(
-                reportingImpressionQualificationFilter {
-                  externalImpressionQualificationFilterId =
-                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
-                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+              for (filterSpec in internalReportingImpressionQualificationFilter.filterSpecsList) {
+                if (
+                  filterSpec.mediaType == customFilterSpec.mediaType &&
+                    filterSpec.filtersList.toSet() == customFilterSpec.filtersList.toSet()
+                ) {
+                  throw InvalidFieldValueException(
+                      "basic_report.impression_qualification_filters.custom"
+                    ) { fieldPath ->
+                      "$fieldPath must not have any ImpressionQualificationFilterSpec that is already in a ImpressionQualificationFilter. $fieldPath shares an ImpressionQualificationFilterSpec with ${ImpressionQualificationFilterKey(internalReportingImpressionQualificationFilter.externalImpressionQualificationFilterId)}"
+                    }
+                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
                 }
-              )
-
-              impressionQualificationFilterSpecsLists.add(
-                internalImpressionQualificationFilter
-                  .toImpressionQualificationFilter()
-                  .filterSpecsList
-              )
-            } catch (e: StatusException) {
-              throw when (InternalErrors.getReason(e)) {
-                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-                  ImpressionQualificationFilterNotFoundException(
-                      impressionQualificationFilter.impressionQualificationFilter
-                    )
-                    .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-                InternalErrors.Reason.INVALID_FIELD_VALUE,
-                InternalErrors.Reason.METRIC_NOT_FOUND,
-                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
-                InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
-                InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
-                null -> Status.INTERNAL.withCause(e).asRuntimeException()
               }
             }
-          } else if (impressionQualificationFilter.hasCustom()) {
-            add(impressionQualificationFilter.toInternal())
-            impressionQualificationFilterSpecsLists.add(
-              impressionQualificationFilter.custom.filterSpecList
-            )
           }
         }
       }
-
-    val createReportRequestId = UUID.randomUUID().toString()
 
     val basicReportImpressionQualificationFilterNames: List<String> =
       request.basicReport.impressionQualificationFiltersList
@@ -358,12 +311,15 @@ class BasicReportsService(
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
-                  internalReportingImpressionQualificationFilters,
+                  impressionQualificationFilterLists
+                    .internalReportingImpressionQualificationFilters,
                 internalEffectiveReportingImpressionQualificationFilters =
                   baseInternalReportingQualificationFilterByImpressionQualificationFilterName
                     .entries
                     .filterNot { it.key in basicReportImpressionQualificationFilterNames }
-                    .map { it.value } + internalReportingImpressionQualificationFilters,
+                    .map { it.value } +
+                    impressionQualificationFilterLists
+                      .internalReportingImpressionQualificationFilters,
                 effectiveModelLine = modelLine,
               )
             requestId = request.requestId
@@ -399,7 +355,8 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecsLists,
+        impressionQualificationFilterSpecsLists =
+          impressionQualificationFilterLists.impressionQualificationFilterSpecsLists,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
@@ -745,6 +702,103 @@ class BasicReportsService(
     }
 
     return ReportingSetMaps(dataProviderPrimitiveReportingSetMap, reportingSetCompositeToNameMap)
+  }
+
+  /**
+   * Builds two different lists, one for creating a Report and another for creating the internal
+   * BasicReport.
+   */
+  private suspend fun buildImpressionQualificationFilterLists(
+    basicReport: BasicReport
+  ): ImpressionQualificationFilterLists {
+    val impressionQualificationFilterSpecsLists:
+      MutableList<List<ImpressionQualificationFilterSpec>> =
+      mutableListOf()
+
+    impressionQualificationFilterSpecsLists.addAll(
+      baseImpressionQualificationFilters.map { baseImpressionQualificationFilter ->
+        baseImpressionQualificationFilter.filterSpecsList.map {
+          it.toImpressionQualificationFilterSpec()
+        }
+      }
+    )
+
+    val internalReportingImpressionQualificationFilters:
+      List<InternalReportingImpressionQualificationFilter> =
+      buildList {
+        for (impressionQualificationFilter in basicReport.impressionQualificationFiltersList) {
+          if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
+            if (
+              baseInternalReportingQualificationFilterByImpressionQualificationFilterName.contains(
+                impressionQualificationFilter.impressionQualificationFilter
+              )
+            ) {
+              add(
+                baseInternalReportingQualificationFilterByImpressionQualificationFilterName
+                  .getValue(impressionQualificationFilter.impressionQualificationFilter)
+              )
+              continue
+            }
+
+            val key =
+              ImpressionQualificationFilterKey.fromName(
+                impressionQualificationFilter.impressionQualificationFilter
+              )
+            try {
+              val internalImpressionQualificationFilter =
+                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+                  getImpressionQualificationFilterRequest {
+                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
+                  }
+                )
+
+              add(
+                reportingImpressionQualificationFilter {
+                  externalImpressionQualificationFilterId =
+                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
+                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
+                }
+              )
+
+              impressionQualificationFilterSpecsLists.add(
+                internalImpressionQualificationFilter
+                  .toImpressionQualificationFilter()
+                  .filterSpecsList
+              )
+            } catch (e: StatusException) {
+              throw when (InternalErrors.getReason(e)) {
+                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
+                  ImpressionQualificationFilterNotFoundException(
+                      impressionQualificationFilter.impressionQualificationFilter
+                    )
+                    .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+                InternalErrors.Reason.INVALID_FIELD_VALUE,
+                InternalErrors.Reason.METRIC_NOT_FOUND,
+                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+                InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+                InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+                InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+                null -> Status.INTERNAL.withCause(e).asRuntimeException()
+              }
+            }
+          } else if (impressionQualificationFilter.hasCustom()) {
+            add(impressionQualificationFilter.toInternal())
+            impressionQualificationFilterSpecsLists.add(
+              impressionQualificationFilter.custom.filterSpecList
+            )
+          }
+        }
+      }
+
+    return ImpressionQualificationFilterLists(
+      impressionQualificationFilterSpecsLists,
+      internalReportingImpressionQualificationFilters,
+    )
   }
 
   /**
