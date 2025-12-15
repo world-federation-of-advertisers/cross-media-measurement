@@ -261,7 +261,7 @@ interface ReportProcessor {
       val foundIssues = mutableSetOf<ReportPostProcessorIssue>()
 
       for (reportSummary in reportSummaries) {
-        var result: ReportPostProcessorResult =
+        val result: ReportPostProcessorResult =
           try {
             processReportSummary(reportSummary, verbose)
           } catch (e: Exception) {

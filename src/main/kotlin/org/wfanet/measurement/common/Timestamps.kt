@@ -17,43 +17,50 @@
 package org.wfanet.measurement.common
 
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Durations
+import com.google.type.Date
 import com.google.type.DateTime
-import java.time.OffsetDateTime
+import com.google.type.dateTime
+import com.google.type.timeZone
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
+fun DateTime.toZonedDateTime(): ZonedDateTime {
+  val zoneId: ZoneId =
+    when (timeOffsetCase) {
+      DateTime.TimeOffsetCase.UTC_OFFSET -> ZoneOffset.ofTotalSeconds(utcOffset.seconds.toInt())
+      DateTime.TimeOffsetCase.TIME_ZONE -> ZoneId.of(timeZone.id)
+      DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET -> error("time_offset not set")
+    }
+  return ZonedDateTime.of(year, month, day, hours, minutes, seconds, nanos, zoneId)
+}
+
 fun DateTime.toTimestamp(): Timestamp {
+  return toZonedDateTime().toInstant().toProtoTime()
+}
+
+fun ZonedDateTime.toProtoDateTime(): DateTime {
   val source = this
-  return if (source.hasUtcOffset()) {
-    val offset = ZoneOffset.ofTotalSeconds(source.utcOffset.seconds.toInt())
-    val offsetDateTime =
-      OffsetDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        offset,
-      )
-    offsetDateTime.toInstant().toProtoTime()
-  } else if (source.hasTimeZone()) {
-    val id = ZoneId.of(source.timeZone.id)
-    val zonedDateTime =
-      ZonedDateTime.of(
-        source.year,
-        source.month,
-        source.day,
-        source.hours,
-        source.minutes,
-        source.seconds,
-        source.nanos,
-        id,
-      )
-    zonedDateTime.toInstant().toProtoTime()
-  } else {
-    throw IllegalArgumentException("utc_offset or time_zone required")
+  return dateTime {
+    year = source.year
+    month = source.monthValue
+    day = source.dayOfMonth
+    hours = source.hour
+    minutes = source.minute
+    seconds = source.second
+    nanos = source.nano
+
+    val zoneId: ZoneId = source.zone
+    if (zoneId is ZoneOffset) {
+      utcOffset = Durations.fromSeconds(zoneId.totalSeconds.toLong())
+    } else {
+      timeZone = timeZone { id = zoneId.id }
+    }
   }
+}
+
+fun Date.toLocalDate(): LocalDate {
+  return LocalDate.of(year, month, day)
 }

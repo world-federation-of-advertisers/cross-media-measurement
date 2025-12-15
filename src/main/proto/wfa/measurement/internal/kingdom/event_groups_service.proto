@@ -27,7 +27,13 @@ option java_multiple_files = true;
 service EventGroups {
   rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup);
 
+  rpc BatchCreateEventGroups(BatchCreateEventGroupsRequest)
+      returns (BatchCreateEventGroupsResponse);
+
   rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup);
+
+  rpc BatchUpdateEventGroup(BatchUpdateEventGroupsRequest)
+      returns (BatchUpdateEventGroupsResponse);
 
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
@@ -41,8 +47,27 @@ message CreateEventGroupRequest {
   string request_id = 2;
 }
 
+message BatchCreateEventGroupsRequest {
+  fixed64 external_data_provider_id = 1;
+  repeated CreateEventGroupRequest requests = 2;
+}
+
+message BatchCreateEventGroupsResponse {
+  repeated EventGroup event_groups = 1;
+}
+
 message UpdateEventGroupRequest {
   EventGroup event_group = 1;
+}
+
+message BatchUpdateEventGroupsRequest {
+  fixed64 external_data_provider_id = 1;
+
+  repeated UpdateEventGroupRequest requests = 2;
+}
+
+message BatchUpdateEventGroupsResponse {
+  repeated EventGroup event_groups = 1;
 }
 
 message GetEventGroupRequest {

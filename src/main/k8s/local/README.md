@@ -161,7 +161,8 @@ bazel build //src/main/k8s/local:cmms.tar \
   --define edp6_cert_name=dataProviders/QOgxPtsZVGk/certificates/QOgxPtsZVGk \
   --define aggregator_cert_name=duchies/aggregator/certificates/clMWAdsZVFM \
   --define worker1_cert_name=duchies/worker1/certificates/Lm30i9sZVDo \
-  --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M
+  --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M \
+  --define pdp_name=dataProviders/AOgxPtsZVGk
 ```
 
 Extract this archive to some directory (e.g. `/tmp/cmms`).
@@ -325,7 +326,8 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
   --define edp2_name=dataProviders/cV4YC9sZVKQ \
   --define edp3_name=dataProviders/DJweaNsZVJY \
   --define edp4_name=dataProviders/JxgZTyTmq3k \
-  --define edp5_name=dataProviders/f8NzvNsZVHk
+  --define edp5_name=dataProviders/f8NzvNsZVHk \
+  --define model_line_name=modelProviders/JxgZTyTmq3k/modelSuites/JxgZTyTmq3k/modelLines/JxgZTyTmq3k
 ```
 
 ## Debugging Tips

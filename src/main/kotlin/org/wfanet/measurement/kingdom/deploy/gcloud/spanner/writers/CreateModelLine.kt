@@ -96,9 +96,7 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
             ExternalId(holdbackModelLineResult.modelLine.externalModelSuiteId),
             ExternalId(holdbackModelLineResult.modelLine.externalModelLineId),
             holdbackModelLineResult.modelLine.type,
-          ) {
-            "Only ModelLine with type == HOLDBACK can be set as Holdback ModelLine."
-          }
+          )
         }
         set("HoldbackModelLineId" to holdbackModelLineResult.modelLineId)
       }

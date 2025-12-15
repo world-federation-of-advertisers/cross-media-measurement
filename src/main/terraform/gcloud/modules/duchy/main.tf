@@ -175,11 +175,11 @@ resource "google_compute_router_nat" "trustee_mill_nat" {
 
 module "trustee_mill" {
   count = var.trustee_config != null ? 1 : 0
-  
+
   source   = "../mig"
 
   depends_on = [module.secrets]
-  
+
   instance_template_name        = var.trustee_config.instance_template_name
   base_instance_name            = var.trustee_config.base_instance_name
   managed_instance_group_name   = var.trustee_config.managed_instance_group_name

@@ -444,7 +444,8 @@ private fun DuchyValue.availableForFulfillment(): Boolean {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
   return when (protocolCase) {
     DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2,
-    DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
+    DuchyValue.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
+    DuchyValue.ProtocolCase.TRUS_TEE -> true
     DuchyValue.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
       !honestMajorityShareShuffle.tinkPublicKey.isEmpty
     }
@@ -520,6 +521,9 @@ private fun DuchyValue.toDuchyEntryValue(
           } else {
             DuchyEntry.HonestMajorityShareShuffle.getDefaultInstance()
           }
+      }
+      DuchyValue.ProtocolCase.TRUS_TEE -> {
+        trusTee = DuchyEntry.TrusTee.getDefaultInstance()
       }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
     }

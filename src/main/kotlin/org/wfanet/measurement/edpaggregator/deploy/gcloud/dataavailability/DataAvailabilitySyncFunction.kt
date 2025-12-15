@@ -30,6 +30,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -48,6 +49,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+
+private data class ChannelKey(
+  val tls: TransportLayerSecurityParams,
+  val target: String,
+  val hostName: String?,
+)
+
+data class GrpcChannels(
+  val cmmsChannel: ManagedChannel,
+  val impressionMetadataChannel: ManagedChannel,
+)
 
 /**
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
@@ -95,19 +107,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
 
+    val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+
+    val cmmsPublicChannel = grpcChannels.cmmsChannel
+    val impressionMetadataStoragePublicChannel = grpcChannels.impressionMetadataChannel
+
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
-    val cmmsPublicChannel =
-      createPublicChannel(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
     val instrumentedCmmsChannel =
       ClientInterceptors.intercept(cmmsPublicChannel, grpcTelemetry.newClientInterceptor())
 
-    val impressionMetadataStoragePublicChannel =
-      createPublicChannel(
-        dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
-        impressionMetadataTarget,
-        impressionMetadataCertHost,
-      )
     val instrumentedImpMetadataChannel =
       ClientInterceptors.intercept(
         impressionMetadataStoragePublicChannel,
@@ -124,51 +133,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         dataProvidersClient,
         impressionMetadataServicesClient,
         dataAvailabilitySyncConfig.dataProvider,
-        MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+        globalThrottler,
+        impressionMetadataBatchSize = impressionMetadataBatchSize,
       )
 
     Tracing.withW3CTraceContext(request) {
       runBlocking(Context.current().asContextElement()) { dataAvailabilitySync.sync(doneBlobPath) }
     }
-  }
-
-  /**
-   * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
-   *
-   * This function loads the client certificate, private key, and trusted root certificates from the
-   * file paths defined in [connecionParams]. It then uses these credentials to build a secure
-   * channel to the given [target].
-   *
-   * Optionally, a [hostName] can be provided to override the default authority used for TLS host
-   * verification.
-   *
-   * The returned channel is configured with a shutdown timeout defined by
-   * [channelShutdownDuration].
-   *
-   * @param connecionParams the TLS parameters containing file paths for the client certificate,
-   *   private key, and certificate collection.
-   * @param target the server target (e.g., "host:port") to connect to.
-   * @param hostName an optional hostname override for TLS verification.
-   * @return a [ManagedChannel] secured with mutual TLS authentication.
-   * @throws IllegalArgumentException if any required certificate file path is missing or invalid.
-   */
-  // @TODO(@marcopremier): This function should be reused across Cloud Functions.
-  fun createPublicChannel(
-    connecionParams: TransportLayerSecurityParams,
-    target: String,
-    hostName: String?,
-  ): ManagedChannel {
-    val signingCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = checkNotNull(File(connecionParams.certFilePath)),
-        privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
-        trustedCertCollectionFile = checkNotNull(File(connecionParams.certCollectionFilePath)),
-      )
-    val publicChannel =
-      buildMutualTlsChannel(target, signingCerts, hostName)
-        .withShutdownTimeout(channelShutdownDuration)
-
-    return publicChannel
   }
 
   /**
@@ -221,5 +192,98 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
+
+    private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
+    private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
+    private val impressionMetadataBatchSize =
+      System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }
+        ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE
+
+    private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
+
+    /**
+     * Creates a gRPC [ManagedChannel] configured with mutual TLS authentication.
+     *
+     * This function loads the client certificate, private key, and trusted root certificates from
+     * the file paths defined in [connecionParams]. It then uses these credentials to build a secure
+     * channel to the given [target].
+     *
+     * Optionally, a [hostName] can be provided to override the default authority used for TLS host
+     * verification.
+     *
+     * The returned channel is configured with a shutdown timeout defined by
+     * [channelShutdownDuration].
+     *
+     * @param connecionParams the TLS parameters containing file paths for the client certificate,
+     *   private key, and certificate collection.
+     * @param target the server target (e.g., "host:port") to connect to.
+     * @param hostName an optional hostname override for TLS verification.
+     * @return a [ManagedChannel] secured with mutual TLS authentication.
+     * @throws IllegalArgumentException if any required certificate file path is missing or invalid.
+     */
+    // @TODO(@marcopremier): This function should be reused across Cloud Functions.
+    fun createPublicChannel(
+      connecionParams: TransportLayerSecurityParams,
+      target: String,
+      hostName: String?,
+    ): ManagedChannel {
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = checkNotNull(File(connecionParams.certFilePath)),
+          privateKeyFile = checkNotNull(File(connecionParams.privateKeyFilePath)),
+          trustedCertCollectionFile = checkNotNull(File(connecionParams.certCollectionFilePath)),
+        )
+      val publicChannel =
+        buildMutualTlsChannel(target, signingCerts, hostName)
+          .withShutdownTimeout(channelShutdownDuration)
+
+      return publicChannel
+    }
+
+    /**
+     * Retrieves gRPC channels for CMMS and ImpressionMetadata based on the TLS configuration in
+     * [dataAvailabilitySyncConfig].
+     *
+     * Channels are cached and keyed by their TLS parameters, target, and optional hostname
+     * override. A new channel is created only when no matching entry exists in the cache.
+     *
+     * @return A pair of [ManagedChannel] instances for (CMMS, ImpressionMetadata).
+     */
+    fun getOrCreateSharedChannels(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): GrpcChannels {
+      val cmmsChannelKey =
+        ChannelKey(dataAvailabilitySyncConfig.cmmsConnection, kingdomTarget, kingdomCertHost)
+      val impressionsChannelKey =
+        ChannelKey(
+          dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
+          impressionMetadataTarget,
+          impressionMetadataCertHost,
+        )
+
+      val cmmsChannel =
+        channelCache.computeIfAbsent(cmmsChannelKey) {
+          logger.info("Creating new CMMS channel for TLS params: $cmmsChannelKey")
+          createPublicChannel(
+            dataAvailabilitySyncConfig.cmmsConnection,
+            kingdomTarget,
+            kingdomCertHost,
+          )
+        }
+
+      val impressionChannel =
+        channelCache.computeIfAbsent(impressionsChannelKey) {
+          logger.info(
+            "Creating new ImpressionMetadata channel for TLS params: $impressionsChannelKey"
+          )
+          createPublicChannel(
+            dataAvailabilitySyncConfig.impressionMetadataStorageConnection,
+            impressionMetadataTarget,
+            impressionMetadataCertHost,
+          )
+        }
+
+      return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
+    }
   }
 }

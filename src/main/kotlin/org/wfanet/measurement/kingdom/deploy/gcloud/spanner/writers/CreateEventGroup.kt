@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -57,69 +58,15 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     if (request.requestId.isNotEmpty()) {
-      val existingEventGroup: EventGroup? = findExistingEventGroup(dataProviderId)
+      val existingEventGroup: EventGroup? =
+        EventGroupReader()
+          .readByCreateRequestId(transactionContext, dataProviderId, request.requestId)
+          ?.eventGroup
       if (existingEventGroup != null) {
         return existingEventGroup
       }
     }
-    return createNewEventGroup(dataProviderId, measurementConsumerId)
-  }
-
-  private fun TransactionScope.createNewEventGroup(
-    dataProviderId: InternalId,
-    measurementConsumerId: InternalId,
-  ): EventGroup {
-    val internalEventGroupId: InternalId = idGenerator.generateInternalId()
-    val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
-    transactionContext.bufferInsertMutation("EventGroups") {
-      set("EventGroupId" to internalEventGroupId)
-      set("ExternalEventGroupId" to externalEventGroupId)
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("DataProviderId" to dataProviderId)
-      if (request.requestId.isNotEmpty()) {
-        set("CreateRequestId" to request.requestId)
-      }
-      if (request.eventGroup.providedEventGroupId.isNotEmpty()) {
-        set("ProvidedEventGroupId" to request.eventGroup.providedEventGroupId)
-      }
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      if (request.eventGroup.dataAvailabilityInterval.hasStartTime()) {
-        set("DataAvailabilityStartTime")
-          .to(request.eventGroup.dataAvailabilityInterval.startTime.toGcloudTimestamp())
-      }
-      if (request.eventGroup.dataAvailabilityInterval.hasEndTime()) {
-        set("DataAvailabilityEndTime")
-          .to(request.eventGroup.dataAvailabilityInterval.endTime.toGcloudTimestamp())
-      }
-      if (request.eventGroup.hasDetails()) {
-        set("EventGroupDetails").to(request.eventGroup.details)
-      }
-      set("State").toInt64(EventGroup.State.ACTIVE)
-    }
-
-    for (mediaType in request.eventGroup.mediaTypesList) {
-      transactionContext.bufferInsertMutation("EventGroupMediaTypes") {
-        set("DataProviderId").to(dataProviderId)
-        set("EventGroupId").to(internalEventGroupId)
-        set("MediaType").to(mediaType)
-      }
-    }
-
-    return request.eventGroup.copy {
-      this.externalEventGroupId = externalEventGroupId.value
-      this.state = EventGroup.State.ACTIVE
-      clearCreateTime()
-      clearUpdateTime()
-    }
-  }
-
-  private suspend fun TransactionScope.findExistingEventGroup(
-    dataProviderId: InternalId
-  ): EventGroup? {
-    return EventGroupReader()
-      .readByCreateRequestId(transactionContext, dataProviderId, request.requestId)
-      ?.eventGroup
+    return createEventGroup(idGenerator, dataProviderId, measurementConsumerId, request)
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
@@ -135,5 +82,57 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         updateTime = commitTime
       }
     }
+  }
+}
+
+/** Buffers an insert mutation for the EventGroups table. */
+internal fun SpannerWriter.TransactionScope.createEventGroup(
+  idGenerator: IdGenerator,
+  dataProviderId: InternalId,
+  measurementConsumerId: InternalId,
+  request: CreateEventGroupRequest,
+): EventGroup {
+  val internalEventGroupId: InternalId = idGenerator.generateInternalId()
+  val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
+  transactionContext.bufferInsertMutation("EventGroups") {
+    set("EventGroupId" to internalEventGroupId)
+    set("ExternalEventGroupId" to externalEventGroupId)
+    set("MeasurementConsumerId" to measurementConsumerId)
+    set("DataProviderId" to dataProviderId)
+    if (request.requestId.isNotEmpty()) {
+      set("CreateRequestId" to request.requestId)
+    }
+    if (request.eventGroup.providedEventGroupId.isNotEmpty()) {
+      set("ProvidedEventGroupId" to request.eventGroup.providedEventGroupId)
+    }
+    set("CreateTime" to Value.COMMIT_TIMESTAMP)
+    set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    if (request.eventGroup.dataAvailabilityInterval.hasStartTime()) {
+      set("DataAvailabilityStartTime")
+        .to(request.eventGroup.dataAvailabilityInterval.startTime.toGcloudTimestamp())
+    }
+    if (request.eventGroup.dataAvailabilityInterval.hasEndTime()) {
+      set("DataAvailabilityEndTime")
+        .to(request.eventGroup.dataAvailabilityInterval.endTime.toGcloudTimestamp())
+    }
+    if (request.eventGroup.hasDetails()) {
+      set("EventGroupDetails").to(request.eventGroup.details)
+    }
+    set("State").toInt64(EventGroup.State.ACTIVE)
+  }
+
+  for (mediaType in request.eventGroup.mediaTypesList) {
+    transactionContext.bufferInsertMutation("EventGroupMediaTypes") {
+      set("DataProviderId").to(dataProviderId)
+      set("EventGroupId").to(internalEventGroupId)
+      set("MediaType").to(mediaType)
+    }
+  }
+
+  return request.eventGroup.copy {
+    this.externalEventGroupId = externalEventGroupId.value
+    this.state = EventGroup.State.ACTIVE
+    clearCreateTime()
+    clearUpdateTime()
   }
 }

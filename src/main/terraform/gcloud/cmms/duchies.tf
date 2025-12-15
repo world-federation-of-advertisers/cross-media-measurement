@@ -123,7 +123,7 @@ module "highmem_node_pools" {
   cluster         = each.value.cluster
   name            = "highmem"
   service_account = module.common.cluster_service_account
-  machine_type    = "c2-standard-4"
+  machine_type    = "c3d-standard-4"
   max_node_count  = 20
   spot            = true
 }

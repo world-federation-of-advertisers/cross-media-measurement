@@ -325,7 +325,7 @@ class InProcessEdpAggregatorComponents(
       }
       val eventGroups = buildEventGroups(measurementConsumerData)
       eventGroupSync =
-        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
+        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler, 500)
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }

@@ -1,0 +1,16 @@
+load("@rules_python//python:defs.bzl", "py_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+py_library(
+    name = "post_process_report_result_job",
+    srcs = ["post_process_report_result_job.py"],
+    imports = ["../"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_py_pb2",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
+    ],
+)

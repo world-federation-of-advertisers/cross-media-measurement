@@ -233,9 +233,18 @@ cue_dump(
     ],
 )
 
+cue_library(
+    name = "reporting_v2_cue",
+    srcs = ["reporting_v2.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:reporting_v2",
+    ],
+)
+
 cue_dump(
     name = "reporting_v2",
-    srcs = ["reporting_v2.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "db_secret_name": DB_SECRET_NAME,
@@ -244,12 +253,12 @@ cue_dump(
         "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
         "basic_reports_enabled": REPORTING_K8S_SETTINGS.basic_reports_enabled,
+        "pdp_name": TEST_K8S_SETTINGS.pdp_name,
     },
     tags = ["manual"],
     deps = [
         ":config_cue",
-        "//src/main/k8s:postgres",
-        "//src/main/k8s:reporting_v2",
+        ":reporting_v2_cue",
     ],
 )
 

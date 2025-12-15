@@ -305,8 +305,10 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:impression_qualification_filters_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:impression_qualification_filter_mapping",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filter_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
@@ -339,6 +341,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:authorization",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/service:impression_qualification_filters_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner:basic_reports_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/testing",
@@ -346,11 +349,12 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_reports_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_descriptor",
         "//src/main/proto/wfa/measurement/access/v1alpha:permissions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:impression_qualification_filter_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:impression_qualification_filters_service_kt_jvm_grpc_proto",
@@ -400,26 +404,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EventDescriptorTest",
-    srcs = ["EventDescriptorTest.kt"],
-    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.EventDescriptorTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_descriptor",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:bad_templates_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)
-
-kt_jvm_test(
     name = "BasicReportTransformationsTest",
     srcs = ["BasicReportTransformationsTest.kt"],
     test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportTransformationsTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_transformations",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:event_descriptor",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_kt_jvm_proto",

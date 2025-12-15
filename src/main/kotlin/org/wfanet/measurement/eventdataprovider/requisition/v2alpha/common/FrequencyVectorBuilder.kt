@@ -62,6 +62,7 @@ class FrequencyVectorBuilder(
   val measurementSpec: MeasurementSpec,
   val strict: Boolean = true,
   val kAnonymityParams: KAnonymityParams? = null,
+  overrideImpressionMaxFrequencyPerUser: Int?,
 ) {
 
   /** The maximum frequency allowed in the output frequency vector. */
@@ -87,8 +88,16 @@ class FrequencyVectorBuilder(
       }
     }
 
+    if (overrideImpressionMaxFrequencyPerUser != null) {
+      require(overrideImpressionMaxFrequencyPerUser >= 1) {
+        "overrideImpressionMaxFrequencyPerUser must be >= 1"
+      }
+    }
+
     maxFrequency =
-      if (measurementSpec.hasReachAndFrequency()) {
+      if (measurementSpec.hasImpression() && overrideImpressionMaxFrequencyPerUser != null) {
+        overrideImpressionMaxFrequencyPerUser
+      } else if (measurementSpec.hasReachAndFrequency()) {
         measurementSpec.reachAndFrequency.maximumFrequency
       } else if (measurementSpec.hasImpression()) {
         measurementSpec.impression.maximumFrequencyPerUser
@@ -170,8 +179,16 @@ class FrequencyVectorBuilder(
     populationSpec: PopulationSpec,
     measurementSpec: MeasurementSpec,
     frequencyVector: FrequencyVector,
+    overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
-  ) : this(populationSpec, measurementSpec, strict) {
+    kAnonymityParams: KAnonymityParams? = null,
+  ) : this(
+    populationSpec,
+    measurementSpec,
+    strict,
+    kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
+  ) {
     require(frequencyVector.dataCount == frequencyData.size) {
       "frequencyVector is of incompatible size: ${frequencyVector.dataCount} " +
         "expected: ${frequencyData.size}"
@@ -201,9 +218,16 @@ class FrequencyVectorBuilder(
     populationSpec: PopulationSpec,
     measurementSpec: MeasurementSpec,
     frequencyDataBytes: ByteArray,
+    overrideImpressionMaxFrequencyPerUser: Int?,
     strict: Boolean = true,
     kAnonymityParams: KAnonymityParams? = null,
-  ) : this(populationSpec, measurementSpec, strict, kAnonymityParams) {
+  ) : this(
+    populationSpec,
+    measurementSpec,
+    strict,
+    kAnonymityParams,
+    overrideImpressionMaxFrequencyPerUser,
+  ) {
     // Batch copy primary range
     var destIndex = 0
     for (sourceIndex in primaryRange) {
@@ -305,20 +329,37 @@ class FrequencyVectorBuilder(
   }
 
   companion object {
+
     /** Allow for DSL syntax when building a FrequencyVector. */
     fun build(
       populationSpec: PopulationSpec,
       measurementSpec: MeasurementSpec,
+      overrideImpressionMaxFrequencyPerUser: Int? = null,
       bind: FrequencyVectorBuilder.() -> Unit,
-    ): FrequencyVector = FrequencyVectorBuilder(populationSpec, measurementSpec).apply(bind).build()
+    ): FrequencyVector =
+      FrequencyVectorBuilder(
+          populationSpec,
+          measurementSpec,
+          overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        )
+        .apply(bind)
+        .build()
 
     /** Allow for DSL syntax when building a FrequencyVector. */
     fun build(
       populationSpec: PopulationSpec,
       measurementSpec: MeasurementSpec,
       frequencyVector: FrequencyVector,
+      overrideImpressionMaxFrequencyPerUser: Int? = null,
       bind: FrequencyVectorBuilder.() -> Unit,
     ): FrequencyVector =
-      FrequencyVectorBuilder(populationSpec, measurementSpec, frequencyVector).apply(bind).build()
+      FrequencyVectorBuilder(
+          populationSpec,
+          measurementSpec,
+          frequencyVector,
+          overrideImpressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
+        )
+        .apply(bind)
+        .build()
   }
 }

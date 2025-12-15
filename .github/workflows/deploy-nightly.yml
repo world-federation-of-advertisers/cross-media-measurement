@@ -16,7 +16,7 @@ name: Deploy nightly build
 
 on:
   schedule:
-    - cron: '19 6 * * 1,2,3,4,5'  # Sun-Thu night in America/Los_Angeles.
+    - cron: '19 6,21 * * *'  # Every night and 15 hours later in America/Los_Angeles.
   workflow_dispatch:
 
 permissions:
@@ -51,7 +51,7 @@ jobs:
         echo "Next computed tag is: ${next_tag}"
         echo "tag=${next_tag}" >> "$GITHUB_OUTPUT"
     - name: create-tag
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
       env:
         TAG: ${{ steps.compute-next-nightly-tag.outputs.tag }}
       with:
@@ -65,7 +65,7 @@ jobs:
           });
     # Use workflow dispatch via API so that the workflow gets the right ref.
     - name: create-deploy-dispatch
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
       env:
         TAG: ${{ steps.compute-next-nightly-tag.outputs.tag }}
       with:

@@ -85,16 +85,18 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_basicReportsEnabled: string
-	_secretName:          string
-	_mcConfigSecretName:  string
+	_basicReportsEnabled:        string
+	_secretName:                 string
+	_mcConfigSecretName:         string
+	_populationDataProviderName: string
 
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
+	_eventMessageTypeUrl: string
 	_eventDescriptorArgs: [
-		"--event-message-type-url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-message-type-url=\(_eventMessageTypeUrl)",
 		"--event-message-descriptor-set=/etc/\(#AppName)/config-files/event_message_descriptor_set.pb",
 	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -150,7 +152,7 @@ package k8s
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
 						"--disable-metrics-reuse=false",
 						_impressionQualificationFilterConfigFileFlag,
-			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs + _eventDescriptorArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
@@ -193,6 +195,9 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
+						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
+						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -285,6 +290,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -309,6 +315,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
