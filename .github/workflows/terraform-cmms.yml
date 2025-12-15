@@ -189,12 +189,12 @@ jobs:
         -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
-    - name: Remove broken autoscaler from state
-      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
-      run: |
-        terraform state rm -lock=false \
-          module.edp_aggregator.module.result_fulfiller_tee_app.google_compute_region_autoscaler.mig_autoscaler
-
+#    - name: Remove broken autoscaler from state
+#      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+#      run: |
+#        terraform state rm -lock=false \
+#          module.edp_aggregator.module.result_fulfiller_tee_app.google_compute_region_autoscaler.mig_autoscaler
+#
 
     - name: terraform plan
       env:
