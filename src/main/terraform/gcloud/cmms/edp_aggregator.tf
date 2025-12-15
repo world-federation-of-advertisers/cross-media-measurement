@@ -124,7 +124,7 @@ locals {
       managed_instance_group_name   = "results-fulfiller-mig-v2"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
-      min_replicas                  = 1
+      min_replicas                  = 0
       max_replicas                  = 10
       machine_type                  = "c4d-standard-32"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
