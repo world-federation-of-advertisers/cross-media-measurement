@@ -97,6 +97,8 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
+  internalEffectiveReportingImpressionQualificationFilters:
+    List<InternalReportingImpressionQualificationFilter>,
   effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
@@ -108,11 +110,8 @@ fun BasicReport.toInternal(
     details = internalBasicReportDetails {
       title = source.title
       impressionQualificationFilters += internalReportingImpressionQualificationFilters
-      for (reportingImpressionQualificationFilter in source.impressionQualificationFiltersList) {
-        if (reportingImpressionQualificationFilter.hasCustom()) {
-          impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
-        }
-      }
+      effectiveImpressionQualificationFilters +=
+        internalEffectiveReportingImpressionQualificationFilters
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
         reportEnd = source.reportingInterval.reportEnd
@@ -154,14 +153,23 @@ fun ReportingImpressionQualificationFilter.toInternal():
       }
       ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
         for (filterSpec in source.custom.filterSpecList) {
-          filterSpecs += internalImpressionQualificationFilterSpec {
-            mediaType = filterSpec.mediaType.toInternal()
-            filters += filterSpec.filtersList.map { it.toInternal() }
-          }
+          filterSpecs += filterSpec.toInternal()
         }
       }
       ReportingImpressionQualificationFilter.SelectorCase.SELECTOR_NOT_SET -> {}
     }
+  }
+}
+
+/**
+ * Converts the public [ImpressionQualificationFilterSpec] to the internal
+ * [InternalImpressionQualificationFilterSpec].
+ */
+fun ImpressionQualificationFilterSpec.toInternal(): InternalImpressionQualificationFilterSpec {
+  val source = this
+  return internalImpressionQualificationFilterSpec {
+    mediaType = source.mediaType.toInternal()
+    filters += source.filtersList.map { it.toInternal() }
   }
 }
 
@@ -389,6 +397,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
     for (internalImpressionQualificationFilter in
       source.details.impressionQualificationFiltersList) {
       impressionQualificationFilters +=
+        internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
+    }
+    for (internalImpressionQualificationFilter in
+      source.details.effectiveImpressionQualificationFiltersList) {
+      effectiveImpressionQualificationFilters +=
         internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
     }
     for (internalResultGroupSpec in source.details.resultGroupSpecsList) {

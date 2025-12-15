@@ -16,7 +16,7 @@ name: Deploy nightly build
 
 on:
   schedule:
-    - cron: '19 6 * * 1,2,3,4,5'  # Sun-Thu night in America/Los_Angeles.
+    - cron: '19 6,21 * * *'  # Every night and 15 hours later in America/Los_Angeles.
   workflow_dispatch:
 
 permissions:
