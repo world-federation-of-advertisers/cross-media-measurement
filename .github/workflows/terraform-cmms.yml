@@ -192,7 +192,7 @@ jobs:
     - name: Remove broken autoscaler from state
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: |
-        terraform state rm \
+        terraform state rm -lock=false \
           module.edp_aggregator.module.result_fulfiller_tee_app.google_compute_region_autoscaler.mig_autoscaler
 
 
