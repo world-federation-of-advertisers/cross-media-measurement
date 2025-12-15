@@ -63,6 +63,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.reset
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -178,6 +179,9 @@ class ResultsFulfillerTest {
     metricExporter = InMemoryMetricExporter.create()
     metricReader = PeriodicMetricReader.create(metricExporter)
     spanExporter = InMemorySpanExporter.create()
+    // Ensure exporters are cleared for test isolation
+    metricExporter.reset()
+    spanExporter.reset()
     openTelemetry =
       OpenTelemetrySdk.builder()
         .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
@@ -188,6 +192,21 @@ class ResultsFulfillerTest {
         )
         .buildAndRegisterGlobal()
     metrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
+
+    // Reset mocks to clear any stubbing from previous tests
+    reset(requisitionsServiceMock, requisitionMetadataServiceMock, impressionMetadataServiceMock)
+
+    // Re-apply default stubbing for requisitionsServiceMock
+    whenever(requisitionsServiceMock.fulfillDirectRequisition(any()))
+      .thenReturn(fulfillDirectRequisitionResponse {})
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    // Re-apply default stubbing for requisitionMetadataServiceMock
+    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
+    whenever(requisitionMetadataServiceMock.fulfillRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
   }
 
   @After
@@ -195,12 +214,19 @@ class ResultsFulfillerTest {
     if (this::openTelemetry.isInitialized) {
       openTelemetry.close()
     }
+    if (this::metricExporter.isInitialized) {
+      metricExporter.reset()
+    }
+    if (this::spanExporter.isInitialized) {
+      spanExporter.reset()
+    }
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
   }
 
   private fun collectMetrics(): List<MetricData> {
-    metricReader.forceFlush()
+    // Force flush the meter provider to ensure all metrics are exported
+    openTelemetry.sdkMeterProvider.forceFlush().join(10, java.util.concurrent.TimeUnit.SECONDS)
     return metricExporter.finishedMetricItems
   }
 
