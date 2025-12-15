@@ -127,6 +127,7 @@ import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.Report
@@ -252,6 +253,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
+          populationDataProviderName =
+            inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )
       }
 
@@ -409,6 +412,206 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
       .listMeasurements(listMeasurementsRequest { parent = measurementConsumerData.name })
       .measurementsList
+  }
+
+  @Test
+  fun `population metric for union has correct result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroups[0] to "person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+      )
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val compositeReportingSet = reportingSet {
+      displayName = "composite"
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.UNION
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[0].name
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[1].name
+                }
+            }
+        }
+    }
+
+    val createdCompositeReportingSet =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = compositeReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            metricId = "population"
+            metric = metric {
+              reportingSet = createdCompositeReportingSet.name
+              timeInterval = interval {
+                startTime = timestamp { seconds = 1615791600 }
+                endTime = timestamp { seconds = 1615964400 }
+              }
+              metricSpec = metricSpec {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
+              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              modelLine = inProcessCmmsComponents.modelLineResourceName
+            }
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val expectedResult =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group <= ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
+  }
+
+  @Test
+  fun `population metric for difference has correct result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroupEntries: List<Pair<EventGroup, String>> =
+      listOf(
+        eventGroups[0] to "person.age_group <= ${Person.AgeGroup.YEARS_35_TO_54_VALUE}",
+        eventGroups[1] to "person.age_group <= ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
+      )
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val compositeReportingSet = reportingSet {
+      displayName = "composite"
+      composite =
+        ReportingSetKt.composite {
+          expression =
+            ReportingSetKt.setExpression {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[0].name
+                }
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  reportingSet = createdPrimitiveReportingSets[1].name
+                }
+            }
+        }
+    }
+
+    val createdCompositeReportingSet =
+      publicReportingSetsClient
+        .withCallCredentials(credentials)
+        .createReportingSet(
+          createReportingSetRequest {
+            parent = measurementConsumerData.name
+            reportingSet = compositeReportingSet
+            reportingSetId = "def"
+          }
+        )
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            metricId = "population"
+            metric = metric {
+              reportingSet = createdCompositeReportingSet.name
+              timeInterval = interval {
+                startTime = timestamp { seconds = 1615791600 }
+                endTime = timestamp { seconds = 1615964400 }
+              }
+              metricSpec = metricSpec {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
+              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              modelLine = inProcessCmmsComponents.modelLineResourceName
+            }
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val expectedResult =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE}) && (person.age_group == ${Person.AgeGroup.YEARS_35_TO_54_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
+  }
+
+  @Test
+  fun `population metric with no reporting set filters has correct result`() = runBlocking {
+    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+    val eventGroups = listEventGroups()
+    val eventGroupEntries: List<Pair<EventGroup, String>> = listOf(eventGroups[0] to "")
+
+    val createdPrimitiveReportingSets: List<ReportingSet> =
+      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
+
+    val createdMetric =
+      publicMetricsClient
+        .withCallCredentials(credentials)
+        .createMetric(
+          createMetricRequest {
+            parent = measurementConsumerData.name
+            metricId = "population"
+            metric = metric {
+              reportingSet = createdPrimitiveReportingSets[0].name
+              timeInterval = interval {
+                startTime = timestamp { seconds = 1615791600 }
+                endTime = timestamp { seconds = 1615964400 }
+              }
+              metricSpec = metricSpec {
+                populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+              }
+              filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+              modelLine = inProcessCmmsComponents.modelLineResourceName
+            }
+          }
+        )
+
+    val retrievedMetric = pollForCompletedMetric(createdMetric.name)
+
+    assertThat(retrievedMetric.state).isEqualTo(Metric.State.SUCCEEDED)
+
+    val expectedResult =
+      MeasurementResults.computePopulation(
+        inProcessCmmsComponents.getPopulationData().populationSpec,
+        "(person.gender == ${Person.Gender.MALE_VALUE})",
+        TestEvent.getDescriptor(),
+      )
+    assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
 
   @Test
@@ -695,7 +898,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.age_group == ${Person.Gender.MALE_VALUE}",
+        eventGroup to "person.gender == ${Person.Gender.MALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -786,7 +989,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
 
     val equivalentFilter =
       "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-        "person.age_group == ${Person.Gender.FEMALE_VALUE}"
+        "person.gender == ${Person.Gender.FEMALE_VALUE}"
     val eventGroupSpecs: Iterable<EventQuery.EventGroupSpec> =
       listOf(buildEventGroupSpec(eventGroup, equivalentFilter, EVENT_RANGE.toInterval()))
     val expectedResult = calculateExpectedReachMeasurementResult(eventGroupSpecs)
@@ -812,7 +1015,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.age_group == ${Person.Gender.FEMALE_VALUE}",
+        eventGroup to "person.gender == ${Person.Gender.FEMALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -1069,7 +1272,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     val eventGroupEntries: List<Pair<EventGroup, String>> =
       listOf(
         eventGroup to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}",
-        eventGroup to "person.age_group == ${Person.Gender.MALE_VALUE}",
+        eventGroup to "person.gender == ${Person.Gender.MALE_VALUE}",
       )
     val createdPrimitiveReportingSets: List<ReportingSet> =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name)
@@ -2316,6 +2519,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         basicReport.copy {
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters +=
+            retrievedPublicBasicReport.impressionQualificationFiltersList
           effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
         }
       )
@@ -2685,6 +2890,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 }
               }
           }
+          effectiveImpressionQualificationFilters += impressionQualificationFilters
 
           resultGroups += resultGroup {
             title = "title"
@@ -2857,9 +3063,15 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionQualificationFilter {
           name = "impressionQualificationFilters/ami"
           displayName = "ami"
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+          filterSpecs += impressionQualificationFilterSpec {
+            mediaType = MediaType.DISPLAY
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "banner_ad.viewable"
+                value = EventTemplateFieldKt.fieldValue { boolValue = false }
+              }
+            }
+          }
         }
       )
   }
@@ -2894,17 +3106,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 mediaType = MediaType.DISPLAY
                 filters += eventFilter {
                   terms += eventTemplateField {
-                    path = "banner_ad.viewable_fraction_1_second"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
-                  }
-                }
-              }
-              filterSpecs += impressionQualificationFilterSpec {
-                mediaType = MediaType.VIDEO
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "video.viewable_fraction_1_second"
-                    value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
+                    path = "banner_ad.viewable"
+                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
                   }
                 }
               }

@@ -14,6 +14,7 @@
 
 package k8s
 
+_pdpName:                      string @tag("pdp_name")
 _reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
 _reportingSecretName:          string @tag("secret_name")
 _reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
@@ -61,9 +62,10 @@ objectSets: [
 ]
 
 reporting: #Reporting & {
-	_basicReportsEnabled: _reportingBasicReportsEnabled
-	_secretName:          _reportingSecretName
-	_mcConfigSecretName:  _reportingMcConfigSecretName
+	_populationDataProviderName: _pdpName
+	_basicReportsEnabled:        _reportingBasicReportsEnabled
+	_secretName:                 _reportingSecretName
+	_mcConfigSecretName:         _reportingMcConfigSecretName
 	_imageSuffixes: {
 		"update-reporting-postgres-schema":   "reporting/v2/gcloud-postgres-update-schema"
 		"postgres-internal-reporting-server": "reporting/v2/gcloud-internal-server"

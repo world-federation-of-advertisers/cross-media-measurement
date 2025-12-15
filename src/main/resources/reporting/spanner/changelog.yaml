@@ -51,3 +51,6 @@ databaseChangeLog:
 - include:
     file: add-model-line-boolean-to-basic-report.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-effective-impression-qualification-filters-field.sql
+    relativeToChangeLogFile: true

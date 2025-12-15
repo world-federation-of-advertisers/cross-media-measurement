@@ -59,6 +59,7 @@ import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EnumerateValidModelLinesResponse
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -115,6 +116,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter as internalEventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField as internalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
+import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilter as internalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilterSpec as internalImpressionQualificationFilterSpec
 import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
@@ -204,7 +206,6 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
-        TestEvent.getDescriptor(),
       )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
@@ -257,6 +258,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        emptyList(),
       )
   }
 
@@ -402,18 +404,16 @@ class BasicReportsServiceTest {
     val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
     assertThat(response)
-      .ignoringFields(
-        BasicReport.NAME_FIELD_NUMBER,
-        BasicReport.CREATE_TIME_FIELD_NUMBER,
-        BasicReport.CAMPAIGN_GROUP_DISPLAY_NAME_FIELD_NUMBER,
-        BasicReport.STATE_FIELD_NUMBER,
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
+        }
       )
-      .isEqualTo(basicReport)
-    assertThat(response.name)
-      .isEqualTo(BasicReportKey(measurementConsumerKey, request.basicReportId).toName())
     assertThat(response.createTime.seconds).isAtLeast(1)
-    assertThat(response.campaignGroupDisplayName).isEqualTo(campaignGroup.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
   }
 
   @Test
@@ -519,6 +519,24 @@ class BasicReportsServiceTest {
         .toList()
         .filter { it.externalReportingSetId != campaignGroupKey.reportingSetId }
 
+    val primitiveReportingSet1 =
+      createdReportingSets.first {
+        it.primitive.eventGroupKeysList.first() ==
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+            cmmsEventGroupId = "1235"
+          }
+      }
+
+    val primitiveReportingSet2 =
+      createdReportingSets.first {
+        it.primitive.eventGroupKeysList.last() ==
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId + "b"
+            cmmsEventGroupId = "1235"
+          }
+      }
+
     val createdMetricCalculationSpecs =
       internalMetricCalculationSpecsService
         .listMetricCalculationSpecs(
@@ -528,6 +546,19 @@ class BasicReportsServiceTest {
           }
         )
         .metricCalculationSpecsList
+
+    val nonCumulativeMetricCalculationSpec =
+      createdMetricCalculationSpecs.first { it.details.hasTrailingWindow() }
+
+    val cumulativeMetricCalculationSpec =
+      createdMetricCalculationSpecs.first {
+        it.details.hasMetricFrequencySpec() && !it.details.hasTrailingWindow()
+      }
+
+    val populationMetricCalculationSpec =
+      createdMetricCalculationSpecs.first {
+        !(it.details.hasMetricFrequencySpec() || it.details.hasTrailingWindow())
+      }
 
     val createReportRequest =
       argumentCaptor { verify(reportsServiceMock).createReport(capture()) }.firstValue
@@ -547,7 +578,7 @@ class BasicReportsServiceTest {
                 key =
                   ReportingSetKey(
                       measurementConsumerKey,
-                      createdReportingSets[0].externalReportingSetId,
+                      primitiveReportingSet1.externalReportingSetId,
                     )
                     .toName()
                 value =
@@ -555,13 +586,19 @@ class BasicReportsServiceTest {
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                          populationMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                          nonCumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
+                        )
+                        .toName()
+                    metricCalculationSpecs +=
+                      MetricCalculationSpecKey(
+                          measurementConsumerKey,
+                          cumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                   }
@@ -571,7 +608,7 @@ class BasicReportsServiceTest {
                 key =
                   ReportingSetKey(
                       measurementConsumerKey,
-                      createdReportingSets[1].externalReportingSetId,
+                      primitiveReportingSet2.externalReportingSetId,
                     )
                     .toName()
                 value =
@@ -579,13 +616,13 @@ class BasicReportsServiceTest {
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[0].externalMetricCalculationSpecId,
+                          nonCumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                     metricCalculationSpecs +=
                       MetricCalculationSpecKey(
                           measurementConsumerKey,
-                          createdMetricCalculationSpecs[1].externalMetricCalculationSpecId,
+                          cumulativeMetricCalculationSpec.externalMetricCalculationSpecId,
                         )
                         .toName()
                   }
@@ -1696,22 +1733,8 @@ class BasicReportsServiceTest {
         modelLine = specifiedModelLine.name
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           impressionQualificationFilter =
-            ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+            ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
               .toName()
-        }
-        impressionQualificationFilters += reportingImpressionQualificationFilter {
-          custom =
-            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.DISPLAY
-                filters += eventFilter {
-                  terms += eventTemplateField {
-                    path = "banner_ad.viewable"
-                    value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                  }
-                }
-              }
-            }
         }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
@@ -1794,7 +1817,7 @@ class BasicReportsServiceTest {
           .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
           .metricCalculationSpecsList
 
-      assertThat(updatedMetricCalculationSpecs).hasSize(4)
+      assertThat(updatedMetricCalculationSpecs).hasSize(6)
       assertThat(updatedMetricCalculationSpecs)
         .ignoringRepeatedFieldOrder()
         .ignoringFields(MetricCalculationSpec.EXTERNAL_METRIC_CALCULATION_SPEC_ID_FIELD_NUMBER)
@@ -1819,9 +1842,6 @@ class BasicReportsServiceTest {
                         dayOfWeek = DayOfWeek.MONDAY
                       }
                   }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
                 metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
@@ -1924,6 +1944,23 @@ class BasicReportsServiceTest {
                     predicates += "person.social_grade_group == 1"
                     predicates += "person.social_grade_group == 2"
                   }
+                metricSpecs += metricSpec {
+                  populationCount = MetricSpecKt.populationCountParams {}
+                }
+              }
+          },
+          internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = specifiedModelLine.name
+            details =
+              MetricCalculationSpecKt.details {
+                groupings +=
+                  MetricCalculationSpecKt.grouping {
+                    predicates += "person.social_grade_group == 0"
+                    predicates += "person.social_grade_group == 1"
+                    predicates += "person.social_grade_group == 2"
+                  }
                 filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
                 metricFrequencySpec =
                   MetricCalculationSpecKt.metricFrequencySpec {
@@ -1937,9 +1974,6 @@ class BasicReportsServiceTest {
                     count = 1
                     increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                   }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
                 metricSpecs += metricSpec {
                   reachAndFrequency =
                     MetricSpecKt.reachAndFrequencyParams {
@@ -2103,6 +2137,15 @@ class BasicReportsServiceTest {
                         METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
                     }
                 }
+              }
+          },
+          internalMetricCalculationSpec {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = specifiedModelLine.name
+            details =
+              MetricCalculationSpecKt.details {
+                filter = "(person.age_group == 1)"
                 metricSpecs += metricSpec {
                   populationCount = MetricSpecKt.populationCountParams {}
                 }
@@ -2187,9 +2230,6 @@ class BasicReportsServiceTest {
                         }
                     }
                 }
-                metricSpecs += metricSpec {
-                  populationCount = MetricSpecKt.populationCountParams {}
-                }
               }
           },
         )
@@ -2207,7 +2247,7 @@ class BasicReportsServiceTest {
           .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
           .metricCalculationSpecsList
 
-      assertThat(identicalMetricCalculationSpecs).hasSize(4)
+      assertThat(identicalMetricCalculationSpecs).hasSize(6)
       assertThat(updatedMetricCalculationSpecs)
         .ignoringRepeatedFieldOrder()
         .containsExactlyElementsIn(identicalMetricCalculationSpecs)
@@ -2414,6 +2454,358 @@ class BasicReportsServiceTest {
 
       assertThat(createdMetricCalculationSpecs.map { it.cmmsModelLine }.distinct())
         .containsExactly("")
+    }
+
+  @Test
+  fun `createBasicReport allows for IQFs to not be set`(): Unit = runBlocking {
+    service =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        listOf(INTERNAL_AMI_IQF),
+      )
+
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    val campaignGroup =
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+            impressionQualificationFilter =
+              ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+                .toName()
+          }
+        }
+      )
+    assertThat(response.createTime.seconds).isAtLeast(1)
+  }
+
+  @Test
+  fun `createBasicReport combines user-set and system-set IQFs`(): Unit = runBlocking {
+    service =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        listOf(INTERNAL_AMI_IQF),
+      )
+
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    val campaignGroup =
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        impressionQualificationFilter =
+          ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId).toName()
+      }
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+            impressionQualificationFilter =
+              ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+                .toName()
+          }
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+            impressionQualificationFilter =
+              ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
+                .toName()
+          }
+        }
+      )
+    assertThat(response.createTime.seconds).isAtLeast(1)
+  }
+
+  @Test
+  fun `createBasicReport combines user-set and system-set IQFs without duplicating`(): Unit =
+    runBlocking {
+      service =
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          listOf(INTERNAL_AMI_IQF, INTERNAL_MRC_IQF),
+        )
+
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      val campaignGroup =
+        internalReportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = internalReportingSet {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+              displayName = "displayName"
+              primitive =
+                ReportingSetKt.primitive {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                      cmmsEventGroupId = "1235"
+                    }
+                }
+            }
+            externalReportingSetId = campaignGroupKey.reportingSetId
+          }
+        )
+
+      val basicReport = basicReport {
+        title = "title"
+        this.campaignGroup = campaignGroupKey.toName()
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          impressionQualificationFilter =
+            ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
+              .toName()
+        }
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "title"
+          reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {
+            grouping =
+              DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+            filters += eventFilter {
+              terms += eventTemplateField {
+                path = "person.age_group"
+                value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+              }
+            }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(response)
+        .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+        .isEqualTo(
+          basicReport.copy {
+            name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+            campaignGroupDisplayName = campaignGroup.displayName
+            state = BasicReport.State.RUNNING
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+              impressionQualificationFilter =
+                ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
+                  .toName()
+            }
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+              impressionQualificationFilter =
+                ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
+                  .toName()
+            }
+          }
+        )
+      assertThat(response.createTime.seconds).isAtLeast(1)
     }
 
   @Test
@@ -7686,6 +8078,7 @@ class BasicReportsServiceTest {
                 }
               }
           }
+          effectiveImpressionQualificationFilters += impressionQualificationFilters
 
           resultGroups += resultGroup {
             title = "title"
@@ -9022,7 +9415,7 @@ class BasicReportsServiceTest {
     val postgresDatabaseProvider =
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
-    private val TEST_EVENT_DESCRIPTOR = EventDescriptor(TestEvent.getDescriptor())
+    private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
 
     private val SECRETS_DIR =
       getRuntimePath(
@@ -9076,6 +9469,32 @@ class BasicReportsServiceTest {
         }
     }
 
+    private val INTERNAL_AMI_IQF = internalImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      filterSpecs += internalImpressionQualificationFilterSpec {
+        mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "banner_ad.viewable"
+            value = InternalEventTemplateFieldKt.fieldValue { boolValue = false }
+          }
+        }
+      }
+    }
+
+    private val INTERNAL_MRC_IQF = internalImpressionQualificationFilter {
+      externalImpressionQualificationFilterId = "mrc"
+      filterSpecs += internalImpressionQualificationFilterSpec {
+        mediaType = InternalImpressionQualificationFilterSpec.MediaType.DISPLAY
+        filters += internalEventFilter {
+          terms += internalEventTemplateField {
+            path = "banner_ad.viewable"
+            value = InternalEventTemplateFieldKt.fieldValue { boolValue = true }
+          }
+        }
+      }
+    }
+
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
@@ -9087,7 +9506,7 @@ class BasicReportsServiceTest {
               terms +=
                 ImpressionQualificationFilterConfigKt.eventTemplateField {
                   path = "banner_ad.viewable"
-                  value = fieldValue { boolValue = true }
+                  value = fieldValue { boolValue = false }
                 }
             }
         }
@@ -9116,7 +9535,10 @@ class BasicReportsServiceTest {
     }
 
     private val IMPRESSION_QUALIFICATION_FILTER_MAPPING =
-      ImpressionQualificationFilterMapping(IMPRESSION_QUALIFICATION_FILTER_CONFIG)
+      ImpressionQualificationFilterMapping(
+        IMPRESSION_QUALIFICATION_FILTER_CONFIG,
+        TestEvent.getDescriptor(),
+      )
 
     private val BASIC_REPORT = basicReport {
       title = "title"
