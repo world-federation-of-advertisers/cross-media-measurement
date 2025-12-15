@@ -190,6 +190,7 @@ jobs:
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
     - name: Remove broken autoscaler from state
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: |
         terraform state rm \
           module.edp_aggregator.module.result_fulfiller_tee_app.google_compute_region_autoscaler.mig_autoscaler
