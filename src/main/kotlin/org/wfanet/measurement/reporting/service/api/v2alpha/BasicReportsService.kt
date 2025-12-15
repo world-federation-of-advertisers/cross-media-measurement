@@ -127,26 +127,6 @@ class BasicReportsService(
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
 
-  private val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
-    Map<String, InternalReportingImpressionQualificationFilter> =
-    buildMap {
-      for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
-        val key =
-          ImpressionQualificationFilterKey(
-            baseImpressionQualificationFilter.externalImpressionQualificationFilterId
-          )
-
-        put(
-          key.toName(),
-          reportingImpressionQualificationFilter {
-            externalImpressionQualificationFilterId =
-              baseImpressionQualificationFilter.externalImpressionQualificationFilterId
-            filterSpecs += baseImpressionQualificationFilter.filterSpecsList
-          },
-        )
-      }
-    }
-
   private data class ReportingSetMaps(
     // Map of DataProvider resource name to Primitive ReportingSet
     val primitiveReportingSetsByDataProvider: Map<String, ReportingSet>,
@@ -266,6 +246,26 @@ class BasicReportsService(
         }
       }
     )
+
+    val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
+      Map<String, InternalReportingImpressionQualificationFilter> =
+      buildMap {
+        for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
+          val key =
+            ImpressionQualificationFilterKey(
+              baseImpressionQualificationFilter.externalImpressionQualificationFilterId
+            )
+
+          put(
+            key.toName(),
+            reportingImpressionQualificationFilter {
+              externalImpressionQualificationFilterId =
+                baseImpressionQualificationFilter.externalImpressionQualificationFilterId
+              filterSpecs += baseImpressionQualificationFilter.filterSpecsList
+            },
+          )
+        }
+      }
 
     val internalReportingImpressionQualificationFilters:
       List<InternalReportingImpressionQualificationFilter> =
