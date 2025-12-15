@@ -189,6 +189,7 @@ cue_dump(
         "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
         "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
         "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
+        "internal_api_address_name": DUCHY_K8S_SETTINGS.internal_api_address_name,
         "trustee_mill_subnetwork_cidr_range": DUCHY_K8S_SETTINGS.trustee_mill_subnetwork_cidr_range,
     },
     tags = ["manual"],

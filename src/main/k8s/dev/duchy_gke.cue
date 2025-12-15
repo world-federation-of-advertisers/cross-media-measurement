@@ -180,8 +180,10 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
 		"internal-api-server": {
-			_ipAddressName: _internalApiAddressName
-			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
+			metadata: annotations: {
+				"cloud.google.com/load-balancer-type":          "Internal"
+				"networking.gke.io/load-balancer-ip-addresses": _internalApiAddressName
+			}
 			if _trusteeMillSubnetworkCidrRange != _|_ {
 				spec: {
 					type: "LoadBalancer"
