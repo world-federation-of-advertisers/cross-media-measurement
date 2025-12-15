@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "gamma",
+    actual = "@maven//:org_apache_commons_commons_numbers_gamma",
+)
