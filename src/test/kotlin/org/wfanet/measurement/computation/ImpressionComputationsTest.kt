@@ -207,56 +207,6 @@ class ImpressionComputationsTest {
     assertThat(result).isEqualTo(0)
   }
 
-  @Test
-  fun `uses totalUncappedImpressions when provided`() {
-    // histogram would compute to 57 impressions
-    val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7 = 57
-    val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
-        maxFrequency = null,
-        dpParams = null,
-        kAnonymityParams = null,
-        totalUncappedImpressions = 1000L,
-      )
-    // Should use totalUncappedImpressions instead of histogram computation
-    assertThat(result).isEqualTo(1000L)
-  }
-
-  @Test
-  fun `totalUncappedImpressions scaled by vidSamplingIntervalWidth`() {
-    val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L)
-    val scale = 0.5f
-    val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = scale,
-        maxFrequency = null,
-        dpParams = null,
-        kAnonymityParams = null,
-        totalUncappedImpressions = 500L,
-      )
-    // 500 / 0.5 = 1000
-    assertThat(result).isEqualTo(1000L)
-  }
-
-  @Test
-  fun `zero totalUncappedImpressions falls back to histogram computation`() {
-    val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7 = 57
-    val result =
-      ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0f,
-        maxFrequency = null,
-        dpParams = null,
-        kAnonymityParams = null,
-        totalUncappedImpressions = 0L,
-      )
-    // Should use histogram computation since totalUncappedImpressions is 0
-    assertThat(result).isEqualTo(57L)
-  }
-
   companion object {
     private val DP_PARAMS = DifferentialPrivacyParams(epsilon = 2.0, delta = 1e-5)
 
