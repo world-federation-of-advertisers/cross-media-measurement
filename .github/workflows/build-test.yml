@@ -24,10 +24,6 @@ on:
       - main
       - 'releases/**'
   workflow_dispatch:
-    inputs:
-      disable-cache-for-coverage:
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -114,56 +110,10 @@ jobs:
         id: run-tests
         run: bazel test //...
 
-      # TODO(bazelbuild/rules_kotlin#509): remove this step after the issue with inline functions is fixed
-      - name: Compute coverage exclusions to work around the issue with inline functions
-        id: compute-coverage-exclusions
-        run: |
-          set -euo pipefail
-
-          readarray -t kt_files_with_inline_fun < <(grep -rl --include '*.kt' "inline fun" src/main/kotlin/*)
-
-          files_as_labels=()
-          for f in "${kt_files_with_inline_fun[@]}"; do
-            pkg="${f%/*}"
-            name="${f##*/}"
-            files_as_labels+=("//${pkg}:${name}")
-          done
-
-          query="kind(rule, rdeps(//..., set(${files_as_labels[*]}), 1))"
-          exclusion_filter=$(bazel query --noimplicit_deps "${query}" --output label | sed 's/^/-/' | paste -sd,)
-          echo "exclusion_filter=${exclusion_filter}" >> "$GITHUB_OUTPUT"
-
-      - name: Run tests with coverage
-        id: run-coverage
-        env:
-          COVERAGE_EXCLUSIONS: ${{ steps.compute-coverage-exclusions.outputs.exclusion_filter }}
-          USE_CACHE: ${{ inputs.disable-cache-for-coverage && 'no' || 'yes' }}
-        run: >
-          bazel coverage
-          --cache_test_results=${USE_CACHE}
-          --experimental_split_coverage_postprocessing 
-          --experimental_fetch_all_coverage_outputs 
-          --instrumentation_filter="//src/main/kotlin/.*,//src/main/python/.*,//src/main/cc/.*,-@.*,-src/main/.*/testing.*,-src/main/.*/loadtest.*,${COVERAGE_EXCLUSIONS}"
-          //src/test/kotlin/... 
-          //src/test/python/... 
-          //src/test/cc/...
+      # TODO(world-federation-of-advertisers/cross-media-measurement#3329): Re-enable coverage.
 
       - name: Export bazel output path
         run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
-
-      - name: Upload coverage report as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: coverage-report
-          path: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
-
-      - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
-        with:
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: world-federation-of-advertisers/cross-media-measurement
-          files: ${{ env.BAZEL_OUTPUT_PATH }}/_coverage/_coverage_report.dat
 
       - name: Create cluster
         id: create-cluster
@@ -213,4 +163,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
-        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-coverage.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
