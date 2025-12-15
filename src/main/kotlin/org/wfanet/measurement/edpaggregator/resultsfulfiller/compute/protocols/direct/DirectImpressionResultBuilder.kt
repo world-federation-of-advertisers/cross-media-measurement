@@ -42,10 +42,10 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param samplingRate The sampling rate used to sample the events.
  * @param directNoiseMechanism The direct noise mechanism to use.
  * @param maxPopulation The max Population that can be returned.
- * @param maxFrequency The max frequency per user in the result.
+ * @param maxFrequencyFromSpec The max frequency per user from the measurement spec.
  * @param kAnonymityParams Optional k-anonymity parameters.
- * @param totalUncappedImpressions Total impression count without frequency capping. Used when no
- *   frequency capping is needed.
+ * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
+ * @param totalUncappedImpressions Total impression count without frequency capping.
  */
 class DirectImpressionResultBuilder(
   private val directProtocolConfig: ProtocolConfig.Direct,
@@ -54,8 +54,9 @@ class DirectImpressionResultBuilder(
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
-  private val maxFrequency: Int,
+  private val maxFrequencyFromSpec: Int,
   private val kAnonymityParams: KAnonymityParams?,
+  private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
 ) : MeasurementResultBuilder {
 
@@ -66,13 +67,23 @@ class DirectImpressionResultBuilder(
         "No valid methodologies for direct impression computation.",
       )
     }
-    val histogram: LongArray =
-      HistogramComputations.buildHistogram(
-        frequencyVector = frequencyData,
-        maxFrequency = maxFrequency,
-      )
 
-    val impressionValue = getImpressionValue(histogram)
+    // When impressionMaxFrequencyPerUser is -1, use uncapped impressions directly
+    val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
+    val effectiveMaxFrequency =
+      impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
+
+    val impressionValue =
+      if (useUncappedImpressions && totalUncappedImpressions > 0) {
+        (totalUncappedImpressions / samplingRate).toLong()
+      } else {
+        val histogram: LongArray =
+          HistogramComputations.buildHistogram(
+            frequencyVector = frequencyData,
+            maxFrequency = effectiveMaxFrequency,
+          )
+        getImpressionValue(histogram, effectiveMaxFrequency)
+      }
 
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
@@ -85,13 +96,13 @@ class DirectImpressionResultBuilder(
         value = impressionValue
         this.noiseMechanism = protocolConfigNoiseMechanism
         this.deterministicCount = deterministicCount {
-          customMaximumFrequencyPerUser = maxFrequency
+          customMaximumFrequencyPerUser = effectiveMaxFrequency
         }
       }
     }
   }
 
-  private fun getImpressionValue(histogram: LongArray): Long {
+  private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
     val dpParams =
       if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
         logger.info("Adding $directNoiseMechanism publisher noise to direct impression...")
@@ -108,7 +119,6 @@ class DirectImpressionResultBuilder(
       vidSamplingIntervalWidth = samplingRate,
       kAnonymityParams = kAnonymityParams,
       maxFrequency = maxFrequency.toLong(),
-      totalUncappedImpressions = totalUncappedImpressions,
     )
   }
 

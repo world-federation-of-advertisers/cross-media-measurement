@@ -26,13 +26,8 @@ object ImpressionComputations {
    * Computes the impression count from a histogram of frequencies, applying differential privacy
    * noise if parameters are provided.
    *
-   * The impression count is calculated as the number of non-zero entries in the `rawHistogram`. If
-   * differential privacy parameters (`dpParams`) are provided, Gaussian noise is added to the raw
-   * count to ensure privacy guarantees.
-   *
-   * When `totalUncappedImpressions` is provided (> 0), the uncapped count is used directly instead
-   * of computing from the histogram. This supports the case where frequency_cap_per_user == -1 (no
-   * frequency capping).
+   * The impression count is calculated as the weighted sum of histogram entries, where each
+   * frequency bucket contributes (frequency * count) to the total.
    *
    * @param rawHistogram A histogram represented as a [LongArray], where each element corresponds to
    *   the count of impressions at a given frequency.
@@ -43,9 +38,6 @@ object ImpressionComputations {
    * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
    *   raw impression count is scaled and returned.
    * @param kAnonymityParams Optional k-anonymity params.
-   * @param totalUncappedImpressions Total impression count without frequency capping. When provided
-   *   (> 0), this value is used directly for the impression count instead of computing from the
-   *   histogram. Used when frequency_cap_per_user == -1.
    * @return The (potentially noised) impression count as a [Long]. If noise results in a negative
    *   count, zero is returned instead.
    */
@@ -55,23 +47,16 @@ object ImpressionComputations {
     maxFrequency: Long?,
     dpParams: DifferentialPrivacyParams?,
     kAnonymityParams: KAnonymityParams?,
-    totalUncappedImpressions: Long = 0L,
   ): Long {
-    // When totalUncappedImpressions is provided (> 0), use it directly.
-    // This supports the frequency_cap_per_user == -1 case (no frequency capping).
     val rawImpressionCount =
-      if (totalUncappedImpressions > 0) {
-        totalUncappedImpressions
-      } else {
-        rawHistogram.withIndex().sumOf { (index, count) ->
-          val frequency =
-            if (maxFrequency == null) {
-              index + 1L
-            } else {
-              min(maxFrequency, index + 1L)
-            }
-          frequency * count
-        }
+      rawHistogram.withIndex().sumOf { (index, count) ->
+        val frequency =
+          if (maxFrequency == null) {
+            index + 1L
+          } else {
+            min(maxFrequency, index + 1L)
+          }
+        frequency * count
       }
     val scaledImpressionCount: Long =
       if (dpParams == null) {

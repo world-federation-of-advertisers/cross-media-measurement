@@ -37,10 +37,9 @@ object DirectMeasurementResultFactory {
    * @param frequencyData IntArray of VID indices.
    * @param maxPopulation Optional parameter of the max result that should be returned.
    * @param kAnonymityParams Optional k-anonymity parameters.
-   * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. When null,
-   *   totalUncappedImpressions is used for impression measurements.
-   * @param totalUncappedImpressions Total impression count without frequency capping. Used when
-   *   impressionMaxFrequencyPerUser is null (i.e., no frequency cap).
+   * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
+   *   frequency cap.
+   * @param totalUncappedImpressions Total impression count without frequency capping.
    * @return The measurement result.
    */
   suspend fun buildMeasurementResult(
@@ -71,19 +70,6 @@ object DirectMeasurementResultFactory {
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-        // When impressionMaxFrequencyPerUser is -1, it means no frequency cap.
-        // In this case, totalUncappedImpressions (> 0) will be passed to
-        // DirectImpressionResultBuilder, which uses it in ImpressionComputations
-        // to return the uncapped impression count instead of histogram-based computation.
-        val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
-        val effectiveMaxFrequency =
-          if (useUncappedImpressions) {
-            // When no cap, use measurement spec value for histogram building
-            // (needed for k-anonymity user count checks)
-            measurementSpec.impression.maximumFrequencyPerUser
-          } else {
-            impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser
-          }
         val impressionResultBuilder =
           DirectImpressionResultBuilder(
             directProtocolConfig,
@@ -92,9 +78,10 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            effectiveMaxFrequency,
+            measurementSpec.impression.maximumFrequencyPerUser,
             kAnonymityParams,
-            if (useUncappedImpressions) totalUncappedImpressions else 0L,
+            impressionMaxFrequencyPerUser,
+            totalUncappedImpressions,
           )
         impressionResultBuilder.buildMeasurementResult()
       }
