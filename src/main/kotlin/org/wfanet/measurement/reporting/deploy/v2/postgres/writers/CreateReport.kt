@@ -116,8 +116,13 @@ class CreateReport(
         .toList()
         .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
 
-    if (reportingSetIdsByExternalId.size < externalReportingSetIds.size) {
-      throw ReportingSetNotFoundException()
+    for (externalReportingSetId in externalReportingSetIds) {
+      if (!reportingSetIdsByExternalId.containsKey(externalReportingSetId)) {
+        throw ReportingSetNotFoundException(
+          report.cmmsMeasurementConsumerId,
+          externalReportingSetId,
+        )
+      }
     }
 
     val externalMetricCalculationSpecIds: Set<String> = buildSet {
