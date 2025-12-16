@@ -127,6 +127,7 @@ locals {
       min_replicas                  = 0
       max_replicas                  = 10
       machine_type                  = "c4d-standard-32"
+      java_tool_options             = "-Xmx96G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [
