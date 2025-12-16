@@ -68,34 +68,9 @@ class DirectImpressionResultBuilder(
       )
     }
 
-    // When impressionMaxFrequencyPerUser is -1, use uncapped impressions directly
-    val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
     val effectiveMaxFrequency =
       impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
-
-    val impressionValue =
-      if (useUncappedImpressions) {
-        // Apply k-anonymity checks
-        if (kAnonymityParams != null) {
-          val reachValue = frequencyData.sum()
-          if (totalUncappedImpressions < kAnonymityParams.minImpressions) {
-            0L
-          } else if (reachValue < kAnonymityParams.minUsers) {
-            0L
-          } else {
-            totalUncappedImpressions
-          }
-        } else {
-          totalUncappedImpressions
-        }
-      } else {
-        val histogram: LongArray =
-          HistogramComputations.buildHistogram(
-            frequencyVector = frequencyData,
-            maxFrequency = effectiveMaxFrequency,
-          )
-        getImpressionValue(histogram, effectiveMaxFrequency)
-      }
+    val impressionValue = computeImpressionCount(effectiveMaxFrequency)
 
     val protocolConfigNoiseMechanism =
       when (directNoiseMechanism) {
@@ -112,6 +87,50 @@ class DirectImpressionResultBuilder(
         }
       }
     }
+  }
+
+  /**
+   * Computes the impression count based on frequency data and capping configuration.
+   *
+   * When [impressionMaxFrequencyPerUser] is -1, uses uncapped impressions directly (with k-anonymity
+   * checks if configured). Otherwise, builds a histogram and computes the capped impression count.
+   *
+   * @param effectiveMaxFrequency The maximum frequency per user to use for capped computations.
+   * @return The computed impression count.
+   */
+  private fun computeImpressionCount(effectiveMaxFrequency: Int): Long {
+    // When impressionMaxFrequencyPerUser is -1, use uncapped impressions directly
+    val useUncappedImpressions = impressionMaxFrequencyPerUser == -1
+
+    return if (useUncappedImpressions) {
+      computeUncappedImpressionValue()
+    } else {
+      val histogram: LongArray =
+        HistogramComputations.buildHistogram(
+          frequencyVector = frequencyData,
+          maxFrequency = effectiveMaxFrequency,
+        )
+      getImpressionValue(histogram, effectiveMaxFrequency)
+    }
+  }
+
+  /**
+   * Computes the uncapped impression value, applying k-anonymity checks if configured.
+   *
+   * @return The uncapped impression count, or 0 if k-anonymity thresholds are not met.
+   */
+  private fun computeUncappedImpressionValue(): Long {
+    if (kAnonymityParams != null) {
+      val reachValue = frequencyData.count { it != 0 }
+      return if (totalUncappedImpressions < kAnonymityParams.minImpressions) {
+        0L
+      } else if (reachValue < kAnonymityParams.minUsers) {
+        0L
+      } else {
+        totalUncappedImpressions
+      }
+    }
+    return totalUncappedImpressions
   }
 
   private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
