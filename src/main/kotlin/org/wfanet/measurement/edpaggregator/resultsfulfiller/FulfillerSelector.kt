@@ -32,18 +32,18 @@ interface FulfillerSelector {
    * @param requisition The requisition to fulfill
    * @param measurementSpec The measurement specification
    * @param requisitionSpec The requisition specification
-   * @param frequencyDataBytes The frequency data as unsigned byte counts per VID
+   * @param frequencyVector The frequency vector containing per-VID frequency counts
    * @param populationSpec The population specification
-   * @param totalUncappedImpressions Total impression count without frequency capping applied. Used
-   *   for direct measurement fulfillment when frequency_cap_per_user == -1.
+   * @param shouldCapImpressions Whether to apply frequency capping to impressions. When false, uses
+   *   total uncapped impressions for direct measurement fulfillment.
    * @return The selected MeasurementFulfiller
    */
   suspend fun selectFulfiller(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyDataBytes: ByteArray,
+    frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
-    totalUncappedImpressions: Long,
+    shouldCapImpressions: Boolean,
   ): MeasurementFulfiller
 }
