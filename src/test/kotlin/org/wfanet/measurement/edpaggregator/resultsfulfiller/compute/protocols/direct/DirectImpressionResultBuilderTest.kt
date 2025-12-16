@@ -49,7 +49,7 @@ class DirectImpressionResultBuilderTest {
           maxFrequencyFromSpec = MAX_FREQUENCY,
           kAnonymityParams = null,
           impressionMaxFrequencyPerUser = null,
-          totalUncappedImpressions = 0L,
+          totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -78,7 +78,7 @@ class DirectImpressionResultBuilderTest {
           maxFrequencyFromSpec = MAX_FREQUENCY,
           kAnonymityParams = null,
           impressionMaxFrequencyPerUser = null,
-          totalUncappedImpressions = 0L,
+          totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult().impression.value

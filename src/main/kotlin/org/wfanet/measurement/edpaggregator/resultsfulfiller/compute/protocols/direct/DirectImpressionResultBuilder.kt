@@ -74,8 +74,20 @@ class DirectImpressionResultBuilder(
       impressionMaxFrequencyPerUser?.takeIf { it != -1 } ?: maxFrequencyFromSpec
 
     val impressionValue =
-      if (useUncappedImpressions && totalUncappedImpressions > 0) {
-        (totalUncappedImpressions / samplingRate).toLong()
+      if (useUncappedImpressions) {
+        // Apply k-anonymity checks
+        if (kAnonymityParams != null) {
+          val reachValue = frequencyData.sum()
+          if (totalUncappedImpressions < kAnonymityParams.minImpressions) {
+            0L
+          } else if (reachValue < kAnonymityParams.minUsers) {
+            0L
+          } else {
+            totalUncappedImpressions
+          }
+        } else {
+          totalUncappedImpressions
+        }
       } else {
         val histogram: LongArray =
           HistogramComputations.buildHistogram(
