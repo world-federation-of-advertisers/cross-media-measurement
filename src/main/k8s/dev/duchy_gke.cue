@@ -119,7 +119,7 @@ duchy: #SpannerDuchy & {
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
 	_trusteeMillSubnetworkRange:      _trusteeMillSubnetworkCidrRange
 	_blob_storage_flags:              _cloudStorageConfig.flags
-	_verbose_grpc_logging:            "true"
+	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
 
