@@ -102,7 +102,7 @@ class ReportSummaryV2Processor:
         return Report(
             metric_reports,
             metric_subsets_by_parent={"ami": children_metrics}
-            if children_metrics else {},
+            if "ami" in all_impression_filters and children_metrics else {},
             cumulative_inconsistency_allowed_edp_combinations={},
         )
 
