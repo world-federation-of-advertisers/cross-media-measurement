@@ -54,6 +54,8 @@ private const val MIN_FREQUENCY_EPSILON = 0.000001
 object TrusTeeStarter {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+  val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
+
   /** Create a TrusTEE Computation. */
   suspend fun createComputation(
     duchyId: String,

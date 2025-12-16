@@ -18,6 +18,9 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.StreamingAead
+  import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -220,9 +223,9 @@ class TrusTeeMill(
 
   private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): ByteArray {
     try {
-      val aead = dek.getPrimitive(Aead::class.java)
-
-      return aead.decrypt(data.toByteArray(), null)
+      val streamingAead = dek.getPrimitive(StreamingAead::class.java)
+      val decryptingStream = streamingAead.newDecryptingStream(data.newInput(), byteArrayOf())
+      return decryptingStream.readAllBytes()
     } catch (e: GeneralSecurityException) {
       throw PermanentErrorException(
         "Failed to decrypt requisition data due to a cryptographic error",
@@ -244,6 +247,11 @@ class TrusTeeMill(
   }
 
   companion object {
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"

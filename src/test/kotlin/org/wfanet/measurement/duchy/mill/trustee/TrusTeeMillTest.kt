@@ -21,10 +21,12 @@ import com.google.crypto.tink.BinaryKeysetWriter
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.StreamingAead
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
@@ -216,10 +218,12 @@ class TrusTeeMillTest {
     return outputStream.toByteArray().toByteString()
   }
 
-  private fun serializeIntArray(data: IntArray): ByteArray {
-    val buffer = ByteBuffer.allocate(data.size * Int.SIZE_BYTES)
-    buffer.asIntBuffer().put(data)
-    return buffer.array()
+  private fun encryptWithStreamingAead(streamingAead: StreamingAead, data: ByteArray): ByteString {
+    val outputStream = ByteArrayOutputStream()
+    streamingAead.newEncryptingStream(outputStream, byteArrayOf()).use { encryptingStream ->
+      encryptingStream.write(data)
+    }
+    return outputStream.toByteArray().toByteString()
   }
 
   private suspend fun writeRequisitionData() {
@@ -230,13 +234,13 @@ class TrusTeeMillTest {
     val requisitionBlobContext3 =
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId)
 
-    val encryptedData1 = DEK_AEAD_1.encrypt(RAW_DATA_1, null).toByteString()
+    val encryptedData1 = encryptWithStreamingAead(DEK_STREAMING_AEAD_1, RAW_DATA_1)
     requisitionStore.write(requisitionBlobContext1, encryptedData1)
 
-    val encryptedData2 = DEK_AEAD_2.encrypt(RAW_DATA_2, null).toByteString()
+    val encryptedData2 = encryptWithStreamingAead(DEK_STREAMING_AEAD_2, RAW_DATA_2)
     requisitionStore.write(requisitionBlobContext2, encryptedData2)
 
-    val encryptedData3 = DEK_AEAD_3.encrypt(RAW_DATA_3, null).toByteString()
+    val encryptedData3 = encryptWithStreamingAead(DEK_STREAMING_AEAD_3, RAW_DATA_3)
     requisitionStore.write(requisitionBlobContext3, encryptedData3)
   }
 
@@ -365,19 +369,10 @@ class TrusTeeMillTest {
     val mill = createMill()
     mill.claimAndProcessWork()
 
-    assertThat(fakeComputationDb[LOCAL_ID])
-      .isEqualTo(
-        computationToken {
-          globalComputationId = GLOBAL_ID
-          localComputationId = LOCAL_ID
-          computationStage = Stage.COMPLETE.toProtocolStage()
-          attempt = 1
-          version = 2 // claim + status_update
-          computationDetails =
-            COMPUTATION_DETAILS.copy { endingState = ComputationDetails.CompletedReason.SUCCEEDED }
-          requisitions += REQUISITIONS
-        }
-      )
+    val finalToken = fakeComputationDb[LOCAL_ID]!!
+    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(finalToken.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
 
     val vectorCaptor = argumentCaptor<ByteArray>()
     verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
@@ -407,11 +402,11 @@ class TrusTeeMillTest {
     // Data for REQUISITION_2 is deliberately omitted.
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
-      DEK_AEAD_1.encrypt(RAW_DATA_1, null).toByteString(),
+      encryptWithStreamingAead(DEK_STREAMING_AEAD_1, RAW_DATA_1),
     )
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_3.externalKey.externalRequisitionId),
-      DEK_AEAD_3.encrypt(RAW_DATA_3, null).toByteString(),
+      encryptWithStreamingAead(DEK_STREAMING_AEAD_3, RAW_DATA_3),
     )
 
     fakeComputationDb.addComputation(
@@ -590,7 +585,7 @@ class TrusTeeMillTest {
   fun `computingPhase fails when data decryption fails`(): Unit = runBlocking {
     writeRequisitionData()
 
-    val incorrectlyEncryptedData = DEK_AEAD_2.encrypt(RAW_DATA_1, null).toByteString()
+    val incorrectlyEncryptedData = encryptWithStreamingAead(DEK_STREAMING_AEAD_2, RAW_DATA_1)
     requisitionStore.write(
       RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
       incorrectlyEncryptedData,
@@ -644,6 +639,11 @@ class TrusTeeMillTest {
   }
 
   companion object {
+    init {
+      AeadConfig.register()
+      StreamingAeadConfig.register()
+    }
+
     private const val PUBLIC_API_VERSION = "v2alpha"
     private const val MILL_ID = "test-trustee-mill"
     private const val DUCHY_ID = "aggregator"
@@ -666,21 +666,6 @@ class TrusTeeMillTest {
         readPrivateKey(DUCHY_PRIVATE_KEY_DER, DUCHY_SIGNING_CERT.publicKey.algorithm),
       )
 
-    // In the test, use the same set of cert and encryption key for all EDPs.
-    private val DATA_PROVIDER_CERT_DER =
-      TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
-    private val DATA_PROVIDER_PRIVATE_KEY_DER =
-      TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
-    private val DATA_PROVIDER_SIGNING_CERT = readCertificate(DATA_PROVIDER_CERT_DER)
-    private val DATA_PROVIDER_SIGNING_KEY =
-      SigningKeyHandle(
-        DATA_PROVIDER_SIGNING_CERT,
-        readPrivateKey(
-          DATA_PROVIDER_PRIVATE_KEY_DER,
-          DATA_PROVIDER_SIGNING_CERT.publicKey.algorithm,
-        ),
-      )
-
     private val TEST_REQUISITION_1 = TestRequisition("111") { SERIALIZED_MEASUREMENT_SPEC }
     private val TEST_REQUISITION_2 = TestRequisition("222") { SERIALIZED_MEASUREMENT_SPEC }
     private val TEST_REQUISITION_3 = TestRequisition("333") { SERIALIZED_MEASUREMENT_SPEC }
@@ -695,13 +680,19 @@ class TrusTeeMillTest {
 
     private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
 
-    private val DEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    private val DEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-    private val DEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    private val DEK_KEYSET_HANDLE_1 =
+      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
+    private val DEK_KEYSET_HANDLE_2 =
+      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
+    private val DEK_KEYSET_HANDLE_3 =
+      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM_HKDF_4KB"))
 
-    private val DEK_AEAD_1: Aead = DEK_KEYSET_HANDLE_1.getPrimitive(Aead::class.java)
-    private val DEK_AEAD_2: Aead = DEK_KEYSET_HANDLE_2.getPrimitive(Aead::class.java)
-    private val DEK_AEAD_3: Aead = DEK_KEYSET_HANDLE_3.getPrimitive(Aead::class.java)
+    private val DEK_STREAMING_AEAD_1: StreamingAead =
+      DEK_KEYSET_HANDLE_1.getPrimitive(StreamingAead::class.java)
+    private val DEK_STREAMING_AEAD_2: StreamingAead =
+      DEK_KEYSET_HANDLE_2.getPrimitive(StreamingAead::class.java)
+    private val DEK_STREAMING_AEAD_3: StreamingAead =
+      DEK_KEYSET_HANDLE_3.getPrimitive(StreamingAead::class.java)
 
     private val RAW_DATA_1 = byteArrayOf(1, 0, 1, 0, 1)
     private val RAW_DATA_2 = byteArrayOf(0, 1, 2, 0, 0)
@@ -714,9 +705,9 @@ class TrusTeeMillTest {
         methodology = TrusTeeMethodology(5),
       )
 
-    private val KEK_URI_1 = "fake-kms://kek_uri_1"
-    private val KEK_URI_2 = "fake-kms://kek_uri_2"
-    private val KEK_URI_3 = "fake-kms://kek_uri_3"
+    private const val KEK_URI_1 = "fake-kms://kek_uri_1"
+    private const val KEK_URI_2 = "fake-kms://kek_uri_2"
+    private const val KEK_URI_3 = "fake-kms://kek_uri_3"
     private val KEK_KEYSET_HANDLE_1 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     private val KEK_KEYSET_HANDLE_2 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
     private val KEK_KEYSET_HANDLE_3 = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))

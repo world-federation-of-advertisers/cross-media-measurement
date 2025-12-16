@@ -436,7 +436,9 @@ class Herald(
         (token.computationDetails.hasReachOnlyLiquidLegionsV2() &&
           token.computationStage == ReachOnlyLiquidLegionsV2Starter.TERMINAL_STAGE) ||
         (token.computationDetails.hasHonestMajorityShareShuffle() &&
-          token.computationStage == HonestMajorityShareShuffleStarter.TERMINAL_STAGE)
+          token.computationStage == HonestMajorityShareShuffleStarter.TERMINAL_STAGE) ||
+        (token.computationDetails.hasTrusTee() &&
+          token.computationStage == TrusTeeStarter.TERMINAL_STAGE)
     ) {
       return
     }
@@ -452,7 +454,7 @@ class Herald(
           ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
             HonestMajorityShareShuffleStarter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.TRUS_TEE ->
-            HonestMajorityShareShuffleStarter.TERMINAL_STAGE
+            TrusTeeStarter.TERMINAL_STAGE
           ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET ->
             error { "Unknown or unsupported protocol." }
         }
