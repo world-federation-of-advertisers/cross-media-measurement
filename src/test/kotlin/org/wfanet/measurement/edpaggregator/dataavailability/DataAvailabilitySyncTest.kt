@@ -31,6 +31,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import kotlin.test.assertFailsWith
 import kotlin.test.fail
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -204,6 +205,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -230,6 +232,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -256,6 +259,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -283,6 +287,7 @@ class DataAvailabilitySyncTest {
 
       val dataAvailabilitySync =
         DataAvailabilitySync(
+          "edp/edpa_edp",
           storageClient,
           dataProvidersStub,
           impressionMetadataStub,
@@ -312,6 +317,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -339,6 +345,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -363,6 +370,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -387,6 +395,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -411,6 +420,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -435,6 +445,7 @@ class DataAvailabilitySyncTest {
     try {
       val dataAvailabilitySync =
         DataAvailabilitySync(
+          "edp/edpa_edp",
           storageClient,
           dataProvidersStub,
           impressionMetadataStub,
@@ -475,6 +486,7 @@ class DataAvailabilitySyncTest {
     try {
       val dataAvailabilitySync =
         DataAvailabilitySync(
+          "edp/edpa_edp",
           storageClient,
           dataProvidersStub,
           impressionMetadataStub,
@@ -529,6 +541,7 @@ class DataAvailabilitySyncTest {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
         dataProvidersStub,
         impressionMetadataStub,
@@ -566,6 +579,7 @@ class DataAvailabilitySyncTest {
       val recordingThrottler = RecordingThrottler()
       val dataAvailabilitySync =
         DataAvailabilitySync(
+          "edp/edpa_edp",
           storageClient,
           dataProvidersStub,
           impressionMetadataStub,
@@ -584,6 +598,83 @@ class DataAvailabilitySyncTest {
       // Two batches plus one call when updating availability intervals.
       assertThat(recordingThrottler.onReadyCalls).isEqualTo(3)
     }
+
+  @Test
+  fun `invalid path throws exception`() {
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      seedBlobDetails(
+        storageClient,
+        folderPrefix,
+        listOf(100L to 200L, 200L to 300L, 300L to 400L),
+        BlobEncoding.JSON,
+      )
+    }
+
+    val recordingThrottler = RecordingThrottler()
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/some-other-edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        recordingThrottler,
+        impressionMetadataBatchSize = 2,
+      )
+
+    assertFailsWith<IllegalArgumentException> {
+      runBlocking { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+    }
+  }
+
+  @Test
+  fun `supports different subfolders`() = runBlocking {
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    seedBlobDetails(
+      storageClient,
+      "edp/edpa_edp/model-line/some-model-line/timestamp/",
+      listOf(300L to 400L, 400L to 500L, 500L to 600L),
+      BlobEncoding.JSON,
+    )
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      )
+
+    dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val impressionMetadataRequests =
+      listOf(300L to 400L, 400L to 500L, 500L to 600L).mapIndexed { index, times ->
+        impressionMetadata {
+          blobUri =
+            "file:///my-bucket/edp/edpa_edp/model-line/some-model-line/timestamp/metadata-$index.json"
+          blobTypeUrl =
+            "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+          eventGroupReferenceId = "event${index+1}"
+          modelLine = "modelLine1"
+          this.interval = interval {
+            startTime = timestamp { seconds = times.first }
+            endTime = timestamp { seconds = times.second }
+          }
+        }
+      }
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
+    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
 
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
