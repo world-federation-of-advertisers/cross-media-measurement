@@ -18,8 +18,9 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_reportSchedulingCronSchedule:    string | *"30 6 * * *" // Daily at 6:30 AM
-	_basicReportsReportsCronSchedule: string | *"30 7 * * *" // Daily at 7:30 AM
+	_reportSchedulingCronSchedule:      string | *"30 6 * * *"     // Daily at 6:30 AM
+	_basicReportsReportsCronSchedule:   string | *"*/5 * * * *"    // Every 5 minutes.
+	_reportResultProcessorCronSchedule: string | *"6-59/5 * * * *" // Every 5 minutes starting at 6.
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -69,6 +70,7 @@ package k8s
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
+		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
@@ -276,6 +278,9 @@ package k8s
 		_container: {
 			image: _images[_name]
 		}
+		spec: {
+			concurrencyPolicy: "Forbid"
+		}
 	}
 	cronJobs: {
 		"report-scheduling": {
@@ -328,6 +333,16 @@ package k8s
 				schedule: _basicReportsReportsCronSchedule
 			}
 		}
+		"report-result-post-processor": {
+			_container: {
+				args: [
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+				] + _tlsArgs + _internalApiTarget.args
+			}
+			spec: {
+				schedule: _reportResultProcessorCronSchedule
+			}
+		}
 	}
 
 	networkPolicies: [Name=_]: #NetworkPolicy & {
@@ -341,6 +356,7 @@ package k8s
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
 				"basic-reports-reports-app",
+				"report-result-post-processor-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -379,6 +395,9 @@ package k8s
 			}
 		}
 		"basic-reports-reports": {
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
+		}
+		"report-result-post-processor": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 		}
 		"access-internal-api-server": {
