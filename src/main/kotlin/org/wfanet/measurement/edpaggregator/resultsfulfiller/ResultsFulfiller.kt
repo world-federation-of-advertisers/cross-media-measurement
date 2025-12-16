@@ -88,6 +88,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  * @param responsePageSize
+ * @param metrics Metrics recorder for telemetry. Defaults to using the global Instrumentation meter.
  */
 class ResultsFulfiller(
   private val dataProvider: String,
@@ -102,6 +103,7 @@ class ResultsFulfiller(
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
   private val responsePageSize: Int? = null,
+  private val metrics: ResultsFulfillerMetrics = ResultsFulfillerMetrics.create(),
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
@@ -178,7 +180,7 @@ class ResultsFulfiller(
     Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
       val span = Span.current()
       val frequencyVectorMap =
-        ResultsFulfillerMetrics.frequencyVectorDuration.measureSuspending {
+        metrics.frequencyVectorDuration.measureSuspending {
           orchestrator.run(
             eventSource = eventSource,
             vidIndexMap = vidIndexMap,
@@ -313,7 +315,7 @@ class ResultsFulfiller(
       val span = Span.current()
       try {
         val updateMetadataResult =
-          ResultsFulfillerMetrics.networkTasksDuration.measureSuspending {
+          metrics.networkTasksDuration.measureSuspending {
             signalRequisitionStartProcessing(requisitionMetadata)
           }
         span.addEvent(
@@ -340,7 +342,7 @@ class ResultsFulfiller(
             ?: fulfiller::class.java.simpleName
             ?: fulfiller::class.java.name
 
-        ResultsFulfillerMetrics.sendDuration.measureSuspending {
+        metrics.sendDuration.measureSuspending {
           withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
         }
         span.addEvent(
@@ -354,7 +356,7 @@ class ResultsFulfiller(
         )
 
         val fulfilledMetadata =
-          ResultsFulfillerMetrics.networkTasksDuration.measureSuspending {
+          metrics.networkTasksDuration.measureSuspending {
             signalRequisitionFulfilled(updateMetadataResult)
           }
         span.addEvent(
@@ -489,12 +491,12 @@ class ResultsFulfiller(
 
     val processingDurationSeconds =
       processingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
-    ResultsFulfillerMetrics.reportProcessingDuration.record(processingDurationSeconds)
+    metrics.reportProcessingDuration.record(processingDurationSeconds)
     val reportCompletionTime = Instant.now()
     val reportLatencySeconds =
       Duration.between(earliestCreateTime, reportCompletionTime).toNanos().toDouble() /
         NANOS_TO_SECONDS
-    ResultsFulfillerMetrics.reportFulfillmentLatency.record(reportLatencySeconds)
+    metrics.reportFulfillmentLatency.record(reportLatencySeconds)
     span.addEvent(
       EVENT_REPORT_PROCESSING_FINISHED,
       Attributes.builder()
@@ -513,15 +515,15 @@ class ResultsFulfiller(
   ) {
     val requisitionProcessingDurationSeconds =
       requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
-    ResultsFulfillerMetrics.requisitionProcessingDuration.record(
+    metrics.requisitionProcessingDuration.record(
       requisitionProcessingDurationSeconds
     )
     val requisitionLatency =
       Duration.between(requisitionMetadata.cmmsCreateTime.toInstant(), Instant.now())
-    ResultsFulfillerMetrics.requisitionFulfillmentLatency.record(
+    metrics.requisitionFulfillmentLatency.record(
       requisitionLatency.toNanos().toDouble() / NANOS_TO_SECONDS
     )
-    ResultsFulfillerMetrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusSuccess)
+    metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusSuccess)
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FINISHED,
       Attributes.builder()
@@ -561,7 +563,7 @@ class ResultsFulfiller(
         }
         .build(),
     )
-    ResultsFulfillerMetrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
+    metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
   companion object {

@@ -63,7 +63,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.reset
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -190,21 +189,6 @@ class ResultsFulfillerTest {
             .build()
         )
         .buildAndRegisterGlobal()
-
-    // Reset mocks to clear any stubbing from previous tests
-    reset(requisitionsServiceMock, requisitionMetadataServiceMock, impressionMetadataServiceMock)
-
-    // Re-apply default stubbing for requisitionsServiceMock
-    whenever(requisitionsServiceMock.fulfillDirectRequisition(any()))
-      .thenReturn(fulfillDirectRequisitionResponse {})
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
-
-    // Re-apply default stubbing for requisitionMetadataServiceMock
-    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
-      .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
-    whenever(requisitionMetadataServiceMock.fulfillRequisitionMetadata(any()))
-      .thenReturn(requisitionMetadata {})
   }
 
   @After
@@ -1770,6 +1754,8 @@ class ResultsFulfillerTest {
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
 
+    val testMetrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
+
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
@@ -1783,6 +1769,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = testMetrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
