@@ -96,7 +96,7 @@ class DataAvailabilitySync(
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   init {
-    require(!edpImpressionPath.isNullOrBlank()) { "edpImpressionPath cannot be null or blank" }
+    require(edpImpressionPath.isNotBlank()) { "edpImpressionPath cannot be blank" }
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(impressionMetadataBatchSize > 0) {
