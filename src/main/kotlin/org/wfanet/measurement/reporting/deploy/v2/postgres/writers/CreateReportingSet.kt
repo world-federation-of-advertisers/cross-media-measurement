@@ -112,7 +112,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         } else {
           ReportingSetReader(transactionContext)
             .readCampaignGroup(measurementConsumerId, externalCampaignGroupId)
-            ?: throw ReportingSetNotFoundException()
+            ?: throw ReportingSetNotFoundException(
+              cmmsMeasurementConsumerId,
+              externalCampaignGroupId,
+            )
         }
       } else {
         null
@@ -433,9 +436,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         leftHandSetExpressionId = null
-        leftHandReportingSetId =
-          reportingSetMap[setExpression.lhs.externalReportingSetId]
-            ?: throw ReportingSetNotFoundException()
+        leftHandReportingSetId = reportingSetMap.getValue(setExpression.lhs.externalReportingSetId)
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         leftHandSetExpressionId = null
@@ -459,9 +460,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         rightHandSetExpressionId = null
-        rightHandReportingSetId =
-          reportingSetMap[setExpression.rhs.externalReportingSetId]
-            ?: throw ReportingSetNotFoundException()
+        rightHandReportingSetId = reportingSetMap.getValue(setExpression.rhs.externalReportingSetId)
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         rightHandSetExpressionId = null
@@ -631,8 +630,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
     val primitiveReportingSetId =
-      reportingSetMap[primitiveReportingSetBasis.externalReportingSetId]
-        ?: throw ReportingSetNotFoundException()
+      reportingSetMap.getValue(primitiveReportingSetBasis.externalReportingSetId)
 
     val primitiveReportingSetBasesValues =
       PrimitiveReportingSetBasesValues(

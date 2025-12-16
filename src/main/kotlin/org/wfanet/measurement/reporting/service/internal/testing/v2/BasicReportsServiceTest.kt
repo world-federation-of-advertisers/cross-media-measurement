@@ -1310,11 +1310,11 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           basicReports += createdBasicReport
           basicReports += createdBasicReport2
           nextPageToken = listBasicReportsPageToken {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
             lastBasicReport =
               ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = createdBasicReport2.createTime
                 externalBasicReportId = createdBasicReport2.externalBasicReportId
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               }
           }
         }
@@ -1502,6 +1502,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                 ListBasicReportsPageTokenKt.previousPageEnd {
                   createTime = createdBasicReport.createTime
                   externalBasicReportId = createdBasicReport.externalBasicReportId
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 }
             }
           }
@@ -1562,6 +1563,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                 ListBasicReportsPageTokenKt.previousPageEnd {
                   createTime = createdBasicReport.createTime
                   externalBasicReportId = createdBasicReport.externalBasicReportId[0].toString()
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 }
             }
           }
@@ -1603,6 +1605,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                 ListBasicReportsPageTokenKt.previousPageEnd {
                   createTime = createdBasicReport.createTime
                   externalBasicReportId = createdBasicReport.externalBasicReportId
+                  cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
                 }
             }
           }
@@ -1613,23 +1616,62 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `listBasicReports throws INVALID_ARGUMENT when missing cmms_measurement_consumer_id`(): Unit =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.listBasicReports(listBasicReportsRequest {})
+  fun `listBasicReport returns results across measurement consumers`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    val measurementConsumer2 =
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID + 2 }
+      )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+    val reportingSet2 =
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          externalReportingSetId = "campaign-group-2"
+          reportingSet = reportingSet {
+            cmmsMeasurementConsumerId = measurementConsumer2.cmmsMeasurementConsumerId
+            externalCampaignGroupId = this@createReportingSetRequest.externalReportingSetId
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = "data-provider-1"
+                    cmmsEventGroupId = "event-group-1"
+                  }
+              }
+          }
         }
+      )
+    val basicReport =
+      service.insertBasicReport(insertBasicReportRequest { basicReport = BASIC_REPORT })
+    val basicReport2 =
+      service.insertBasicReport(
+        insertBasicReportRequest {
+          this.basicReport =
+            BASIC_REPORT.copy {
+              cmmsMeasurementConsumerId = measurementConsumer2.cmmsMeasurementConsumerId
+              externalCampaignGroupId = reportingSet2.externalReportingSetId
+            }
+        }
+      )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.cmms_measurement_consumer_id"
+    val results =
+      service
+        .listBasicReports(
+          listBasicReportsRequest {
+            filter = ListBasicReportsRequestKt.filter { state = basicReport.state }
           }
         )
-    }
+        .basicReportsList
+
+    assertThat(results).containsExactly(basicReport, basicReport2).inOrder()
+  }
 
   @Test
   fun `listBasicReports throws INVALID_ARGUMENT when page_size is negative`(): Unit = runBlocking {
