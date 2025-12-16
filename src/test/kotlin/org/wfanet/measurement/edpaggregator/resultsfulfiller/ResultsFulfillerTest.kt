@@ -845,29 +845,18 @@ class ResultsFulfillerTest {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()
       val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-      // Create 130 VIDs, each appearing 3 times (390 total impressions)
-      // When capped at max_frequency=10, we'd get 130*3=390 (since 3 < 10)
-      // When capped at max_frequency=2, we'd get 130*2=260
-      // When uncapped (-1), we should get the raw total: 390
+      // Create 130 VIDs, each appearing 150 times (19500 total impressions)
+      // This tests with data larger than MAX_BYTE_SIZE
+      // When uncapped (-1), we should get the raw total: 19500
       val impressions =
-        List(130) {
-          LABELED_IMPRESSION.copy {
-            vid = it.toLong() + 1
-            eventTime = TIME_RANGE.start.toProtoTime()
-          }
-        } +
-          List(130) {
-            LABELED_IMPRESSION.copy {
-              vid = it.toLong() + 1
-              eventTime = TIME_RANGE.start.toProtoTime()
-            }
-          } +
+        List(150) {
           List(130) {
             LABELED_IMPRESSION.copy {
               vid = it.toLong() + 1
               eventTime = TIME_RANGE.start.toProtoTime()
             }
           }
+        }.flatten()
 
       val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
 
@@ -953,9 +942,9 @@ class ResultsFulfillerTest {
       val result: Measurement.Result =
         decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-      // With uncapped impressions (-1), we expect the total impression count (390)
-      // not the capped value (260 if max_freq=2, or 390 if max_freq=10)
-      val expectedUncappedImpressions = 390L
+      // With uncapped impressions (-1), we expect the total impression count (19500)
+      // not the capped value (260 if max_freq=2, or 1300 if max_freq=10)
+      val expectedUncappedImpressions = 19500L
       val cappedAtTwo = computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 2)
 
       assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
@@ -980,19 +969,19 @@ class ResultsFulfillerTest {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()
       val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-      // Create 50 VIDs, each appearing 300 times (15000 total impressions)
+      // Create 130 VIDs, each appearing 150 times (19500 total impressions)
       // This tests frequencies above 255 (the max value for a byte)
-      // When capped at max_frequency=10, we'd get 50*10=500
-      // When uncapped (-1), we should get the raw total: 15000
+      // and with data larger than MAX_BYTE_SIZE
+      // When uncapped (-1), we should get the raw total: 19500
       val impressions =
-        (1..300).flatMap { _ ->
-          List(50) {
+        List(150) {
+          List(130) {
             LABELED_IMPRESSION.copy {
               vid = it.toLong() + 1
               eventTime = TIME_RANGE.start.toProtoTime()
             }
           }
-        }
+        }.flatten()
 
       val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
 
@@ -1078,19 +1067,19 @@ class ResultsFulfillerTest {
       val result: Measurement.Result =
         decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
-      // With uncapped impressions (-1), we expect the total impression count (15000)
+      // With uncapped impressions (-1), we expect the total impression count (19500)
       // This verifies that frequencies above 255 are handled correctly
-      val expectedUncappedImpressions = 15000L
+      val expectedUncappedImpressions = 19500L
       val cappedAtTen = computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 10)
 
       assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
       assertTrue(result.impression.hasDeterministicCount())
 
-      // The uncapped value should be used (15000, not 500)
+      // The uncapped value should be used (19500, not 1300)
       assertThat(result).impressionValue().isEqualTo(expectedUncappedImpressions)
       // Verify it's different from what we'd get with capping at 10
       assertThat(expectedUncappedImpressions).isNotEqualTo(cappedAtTen)
-      assertThat(cappedAtTen).isEqualTo(500L) // 50 VIDs * 10 max frequency
+      assertThat(cappedAtTen).isEqualTo(1300L) // 130 VIDs * 10 max frequency
       // The effective max frequency should be from the measurement spec
       assertThat(result.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(10)
 
