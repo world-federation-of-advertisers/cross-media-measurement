@@ -2,6 +2,15 @@
 
 We take the security of this project seriously and appreciate responsible disclosures.
 
+## Supported Versions
+
+We provide support exclusively for the [latest version](https://github.com/world-federation-of-advertisers/cross-media-measurement/releases/latest), as we follow a develop-at-HEAD policy. Security fixes are applied only to the current version and are not backported to older releases.
+
+## Vulnerability Tracking Policy
+
+We track and address only vulnerabilities rated HIGH or higher in the [NVD](https://nvd.nist.gov).
+For vulnerabilities affecting upstream dependencies, we rely entirely on upstream maintainers to provide fixes and do not independently patch or maintain forks of those dependencies.
+
 ## Reporting a Vulnerability
 
 If you believe you have found a security issue in this project, **please do not open a public issue or pull request**.
