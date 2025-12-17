@@ -295,6 +295,8 @@ kubectl port-forward prometheus-pod 31111:9090
 
 ## Running the Correctness Test
 
+*Note*: currently the assertions in this test fail when running it in a local environment because the [test expects a large population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/test/kotlin/org/wfanet/measurement/integration/k8s/SyntheticGeneratorCorrectnessTest.kt#L99) and the local EDP simulators are [configured to use a small population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/main/k8s/local/edp_simulators.cue#L44). For the test to pass, it needs to be switched to population small.
+
 Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
 
