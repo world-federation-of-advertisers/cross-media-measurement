@@ -175,8 +175,9 @@ class ResultsFulfillerApp(
         null
       }
 
-    require(fulfillerParams.impressionMaxFrequencyPerUser >= -1) {
-      "impressionMaxFrequencyPerUser must be >= -1, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
+    require(fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
+            fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE) {
+      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 
     val fulfillerSelector =
