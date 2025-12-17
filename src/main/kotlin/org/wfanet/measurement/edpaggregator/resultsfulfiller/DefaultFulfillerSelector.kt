@@ -64,7 +64,6 @@ class DefaultFulfillerSelector(
    * @param requisitionSpec decrypted requisition details including nonce
    * @param frequencyVector frequency vector containing per-VID frequency counts
    * @param populationSpec population definition for VID range validation
-   * @param shouldCapImpressions whether to apply frequency capping to impressions
    * @return protocol-specific fulfiller ready for execution
    * @throws IllegalArgumentException if no supported protocol is found
    */
@@ -74,11 +73,9 @@ class DefaultFulfillerSelector(
     requisitionSpec: RequisitionSpec,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
-    shouldCapImpressions: Boolean,
   ): MeasurementFulfiller {
 
     val frequencyDataBytes = frequencyVector.getByteArray()
-    val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
 
     val vec =
       FrequencyVectorBuilder(
@@ -91,6 +88,7 @@ class DefaultFulfillerSelector(
       )
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
+      val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
       buildDirectMeasurementFulfiller(
         requisition = requisition,
         measurementSpec = measurementSpec,
@@ -99,7 +97,6 @@ class DefaultFulfillerSelector(
         frequencyData = vec.frequencyDataArray,
         kAnonymityParams = kAnonymityParams,
         totalUncappedImpressions = totalUncappedImpressions,
-        shouldCapImpressions = shouldCapImpressions,
       )
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
@@ -143,7 +140,6 @@ class DefaultFulfillerSelector(
     frequencyData: IntArray,
     kAnonymityParams: KAnonymityParams?,
     totalUncappedImpressions: Long,
-    shouldCapImpressions: Boolean,
   ): DirectMeasurementFulfiller {
     val measurementEncryptionPublicKey: EncryptionPublicKey =
       measurementSpec.measurementPublicKey.unpack()
