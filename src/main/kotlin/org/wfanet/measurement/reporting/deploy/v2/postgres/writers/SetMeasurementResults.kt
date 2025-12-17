@@ -61,20 +61,13 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
         valuesStartIndex = 2,
         paramCount = 3,
         """
-        WITH MeasurementDetails AS MATERIALIZED (
-          SELECT
-            MeasurementDetails,
-            MeasurementDetailsJson,
-            CmmsMeasurementId
-          FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-          AS c(MeasurementDetails, MeasurementDetailsJson, CmmsMeasurementId)
-        )
         UPDATE Measurements AS m SET
-        MeasurementDetails = MeasurementDetails.MeasurementDetails,
-        MeasurementDetailsJson = MeasurementDetails.MeasurementDetailsJson,
+        MeasurementDetails = c.MeasurementDetails,
+        MeasurementDetailsJson = c.MeasurementDetailsJson,
         State = $1
-        FROM MeasurementDetails
-        WHERE MeasurementConsumerId = $2 AND m.CmmsMeasurementId = MeasurementDetails.CmmsMeasurementId
+        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        AS c(MeasurementDetails, MeasurementDetailsJson, CmmsMeasurementId)
+        WHERE MeasurementConsumerId = $2 AND m.CmmsMeasurementId = c.CmmsMeasurementId
         """,
       ) {
         bind("$1", Measurement.State.SUCCEEDED)
@@ -122,15 +115,10 @@ class SetMeasurementResults(private val request: BatchSetMeasurementResultsReque
           valuesStartIndex = 2,
           paramCount = 1,
           """
-        WITH MetricIds AS MATERIALIZED (
-          SELECT
-            MetricId
-          FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
-          AS c(MetricId)
-        )
         UPDATE Metrics AS m SET State = $1
-        FROM MetricIds
-        WHERE MeasurementConsumerId = $2 AND m.MetricId = MetricIds.MetricId
+        FROM (VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER})
+        AS c(MetricId)
+        WHERE MeasurementConsumerId = $2 AND m.MetricId = c.MetricId
         """,
         ) {
           bind("$1", Metric.State.SUCCEEDED)
