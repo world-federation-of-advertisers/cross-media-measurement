@@ -88,7 +88,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  * @param responsePageSize
- * @param metrics Metrics recorder for telemetry. Defaults to using the global Instrumentation meter.
+ * @param metrics Metrics recorder for telemetry. Defaults to using the global Instrumentation
+ *   meter.
  */
 class ResultsFulfiller(
   private val dataProvider: String,
@@ -513,9 +514,7 @@ class ResultsFulfiller(
   ) {
     val requisitionProcessingDurationSeconds =
       requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
-    metrics.requisitionProcessingDuration.record(
-      requisitionProcessingDurationSeconds
-    )
+    metrics.requisitionProcessingDuration.record(requisitionProcessingDurationSeconds)
     val requisitionLatency =
       Duration.between(requisitionMetadata.cmmsCreateTime.toInstant(), Instant.now())
     metrics.requisitionFulfillmentLatency.record(
