@@ -115,4 +115,57 @@ class ReportingApiServerFlags {
   )
   lateinit var populationDataProvider: String
     private set
+
+  class ReportStart {
+    class TimeOffset {
+      @CommandLine.Option(
+        names = ["--default-report-start-utc-offset"],
+        description = ["UTC offset in ISO-8601 format of PnDTnHnMn"],
+        required = false,
+      )
+      var utcOffset: Duration? = null
+        private set
+
+      @CommandLine.Option(
+        names = ["--default-report-start-time-zone"],
+        description = ["IANA Time zone"],
+        required = false,
+      )
+      var timeZone: String? = null
+        private set
+    }
+
+    @CommandLine.ArgGroup(exclusive = true, multiplicity = "1", heading = "UTC offset or time zone")
+    lateinit var timeOffset: TimeOffset
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--default-report-start-hour"],
+      description = ["hour"],
+      required = true,
+    )
+    var hour: Int by Delegates.notNull()
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "0..1",
+    heading = "Configuration for default report start",
+  )
+  var defaultReportStart: ReportStart? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--system-measurement-consumer"],
+    description =
+      [
+        "Resource name of the CMMS MeasurementConsumer for the Reporting system.",
+        "Defaults to an arbitrary MeasurementConsumer.",
+        "This is used for CMMS API calls where the MeasurementConsumer is not specified.",
+      ],
+    required = false,
+  )
+  var systemMeasurementConsumerName: String? = null
+    private set
 }

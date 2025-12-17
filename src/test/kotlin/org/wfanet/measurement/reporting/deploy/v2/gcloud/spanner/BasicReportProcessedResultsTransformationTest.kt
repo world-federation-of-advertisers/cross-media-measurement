@@ -254,9 +254,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -544,9 +544,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -620,9 +620,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -724,9 +724,9 @@ class BasicReportProcessedResultsTransformationTest {
               key =
                 ReportingSetResultKt.reportingWindow {
                   nonCumulativeStart = date {
-                    day = REPORTING_INTERVAL.reportStart.day + 1
-                    month = REPORTING_INTERVAL.reportStart.month
-                    year = REPORTING_INTERVAL.reportStart.year
+                    day = REPORTING_INTERVAL.effectiveReportStart.day + 1
+                    month = REPORTING_INTERVAL.effectiveReportStart.month
+                    year = REPORTING_INTERVAL.effectiveReportStart.year
                   }
                   end = REPORTING_INTERVAL.reportEnd
                 }
@@ -802,12 +802,12 @@ class BasicReportProcessedResultsTransformationTest {
                         }
                     }
                   nonCumulativeMetricStartTime =
-                    REPORTING_INTERVAL.reportStart
-                      .copy { day = REPORTING_INTERVAL.reportStart.day + 1 }
+                    REPORTING_INTERVAL.effectiveReportStart
+                      .copy { day = REPORTING_INTERVAL.effectiveReportStart.day + 1 }
                       .toTimestamp()
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -948,9 +948,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -1372,16 +1372,16 @@ class BasicReportProcessedResultsTransformationTest {
                         }
                     }
                   nonCumulativeMetricStartTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         day = REPORTING_INTERVAL.reportEnd.day - 7
                         month = REPORTING_INTERVAL.reportEnd.month
                         year = REPORTING_INTERVAL.reportEnd.year
                       }
                       .toTimestamp()
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -1828,16 +1828,16 @@ class BasicReportProcessedResultsTransformationTest {
                         }
                     }
                   nonCumulativeMetricStartTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         day = REPORTING_INTERVAL.reportEnd.day - 7
                         month = REPORTING_INTERVAL.reportEnd.month
                         year = REPORTING_INTERVAL.reportEnd.year
                       }
                       .toTimestamp()
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -2118,9 +2118,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -2187,9 +2187,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -2295,15 +2295,15 @@ class BasicReportProcessedResultsTransformationTest {
                 ReportingSetResultKt.reportingWindow {
                   nonCumulativeStart =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                   end =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day + 7
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day + 7
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                 }
               value =
@@ -2343,9 +2343,9 @@ class BasicReportProcessedResultsTransformationTest {
                 ReportingSetResultKt.reportingWindow {
                   nonCumulativeStart =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day + 7
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day + 7
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                   end = REPORTING_INTERVAL.reportEnd
                 }
@@ -2386,15 +2386,15 @@ class BasicReportProcessedResultsTransformationTest {
                 ReportingSetResultKt.reportingWindow {
                   nonCumulativeStart =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                   end =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day + 7
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day + 7
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                 }
               value =
@@ -2434,9 +2434,9 @@ class BasicReportProcessedResultsTransformationTest {
                 ReportingSetResultKt.reportingWindow {
                   nonCumulativeStart =
                     REPORTING_INTERVAL.reportEnd.copy {
-                      day = REPORTING_INTERVAL.reportStart.day + 7
-                      month = REPORTING_INTERVAL.reportStart.month
-                      year = REPORTING_INTERVAL.reportStart.year
+                      day = REPORTING_INTERVAL.effectiveReportStart.day + 7
+                      month = REPORTING_INTERVAL.effectiveReportStart.month
+                      year = REPORTING_INTERVAL.effectiveReportStart.year
                     }
                   end = REPORTING_INTERVAL.reportEnd
                 }
@@ -2503,11 +2503,12 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  nonCumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  nonCumulativeMetricStartTime =
+                    REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
-                      .copy { day = REPORTING_INTERVAL.reportStart.day + 7 }
+                    REPORTING_INTERVAL.effectiveReportStart
+                      .copy { day = REPORTING_INTERVAL.effectiveReportStart.day + 7 }
                       .toTimestamp()
                   metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                   dimensionSpecSummary =
@@ -2570,12 +2571,12 @@ class BasicReportProcessedResultsTransformationTest {
                         }
                     }
                   nonCumulativeMetricStartTime =
-                    REPORTING_INTERVAL.reportStart
-                      .copy { day = REPORTING_INTERVAL.reportStart.day + 7 }
+                    REPORTING_INTERVAL.effectiveReportStart
+                      .copy { day = REPORTING_INTERVAL.effectiveReportStart.day + 7 }
                       .toTimestamp()
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -2681,6 +2682,15 @@ class BasicReportProcessedResultsTransformationTest {
 
     private val REPORTING_INTERVAL = reportingInterval {
       reportStart = dateTime {
+        year = 2025
+        month = 1
+        day = 1
+        minutes = 5
+        seconds = 4
+        nanos = 3
+        timeZone = timeZone { id = "UTC" }
+      }
+      effectiveReportStart = dateTime {
         year = 2025
         month = 1
         day = 1

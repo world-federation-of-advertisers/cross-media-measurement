@@ -202,6 +202,10 @@ class ReportingUserSimulator(
           name = basicReportKey.toName()
           state = BasicReport.State.SUCCEEDED
           effectiveModelLine = retrievedCompletedBasicReport.effectiveModelLine
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
         }
       )
     assertThat(retrievedCompletedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)

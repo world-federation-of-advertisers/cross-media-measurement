@@ -57,3 +57,6 @@ databaseChangeLog:
 - include:
     file: add-default-to-model-line-boolean-in-basic-report.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-effective-report-start-field.sql
+    relativeToChangeLogFile: true

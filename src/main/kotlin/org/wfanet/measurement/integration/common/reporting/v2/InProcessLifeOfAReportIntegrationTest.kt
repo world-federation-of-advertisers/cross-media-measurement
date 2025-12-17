@@ -2675,6 +2675,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
             effectiveImpressionQualificationFilters +=
               retrievedBasicReport.impressionQualificationFiltersList
             effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+            reportingInterval = reportingInterval.copy {
+                effectiveReportStart = reportingInterval.reportStart
+              }
           }
         )
       assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)

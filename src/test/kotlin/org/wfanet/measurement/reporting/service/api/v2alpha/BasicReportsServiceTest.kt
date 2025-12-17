@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
@@ -260,6 +261,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         emptyList(),
       )
   }
@@ -303,6 +305,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -402,6 +405,10 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
           effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
         }
       )
@@ -451,6 +458,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -625,6 +633,7 @@ class BasicReportsServiceTest {
                   year = 2025
                   month = 7
                   day = 3
+                  hours = 5
                   timeZone = timeZone { id = "America/Los_Angeles" }
                 }
                 reportEnd = date {
@@ -706,6 +715,332 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport doesn't require hours and time_offset when default exists`(): Unit =
+    runBlocking {
+      service =
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          dateTime {
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          },
+          emptyList(),
+        )
+
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport =
+        BASIC_REPORT.copy {
+          this.campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            BASIC_REPORT.reportingInterval.copy {
+              reportStart =
+                BASIC_REPORT.reportingInterval.reportStart.copy {
+                  clearHours()
+                  clearTimeOffset()
+                }
+            }
+        }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val createdBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+        .isEqualTo(
+          BASIC_REPORT.reportingInterval.reportStart.copy {
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport returns basic report with default containing utc_offset`(): Unit =
+    runBlocking {
+      service =
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          dateTime {
+            hours = 5
+            utcOffset = duration { seconds = 14400 }
+          },
+          emptyList(),
+        )
+
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val basicReport =
+        BASIC_REPORT.copy {
+          this.campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            BASIC_REPORT.reportingInterval.copy {
+              reportStart =
+                BASIC_REPORT.reportingInterval.reportStart.copy {
+                  clearHours()
+                  clearTimeOffset()
+                }
+            }
+        }
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        this.basicReport = basicReport
+        basicReportId = "a1234"
+      }
+
+      val createdBasicReport =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+        .isEqualTo(
+          BASIC_REPORT.reportingInterval.reportStart.copy {
+            hours = 5
+            utcOffset = duration { seconds = 14400 }
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport hours overwrites default`(): Unit = runBlocking {
+    service =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        dateTime {
+          hours = 5
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        },
+        emptyList(),
+      )
+
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val basicReport =
+      BASIC_REPORT.copy {
+        this.campaignGroup = campaignGroupKey.toName()
+        reportingInterval =
+          BASIC_REPORT.reportingInterval.copy {
+            reportStart =
+              BASIC_REPORT.reportingInterval.reportStart.copy {
+                hours = 7
+                clearTimeOffset()
+              }
+          }
+      }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val createdBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+      .isEqualTo(
+        BASIC_REPORT.reportingInterval.reportStart.copy {
+          hours = 7
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport utc_offset overwrites default`(): Unit = runBlocking {
+    service =
+      BasicReportsService(
+        internalBasicReportsService,
+        internalImpressionQualificationFiltersService,
+        internalReportingSetsService,
+        internalMetricCalculationSpecsService,
+        reportsService,
+        modelLinesService,
+        TEST_EVENT_DESCRIPTOR,
+        METRIC_SPEC_CONFIG,
+        SecureRandom().asKotlinRandom(),
+        authorization,
+        MEASUREMENT_CONSUMER_CONFIGS,
+        dateTime {
+          hours = 5
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        },
+        emptyList(),
+      )
+
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "displayName"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "1235"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val basicReport =
+      BASIC_REPORT.copy {
+        this.campaignGroup = campaignGroupKey.toName()
+        reportingInterval =
+          BASIC_REPORT.reportingInterval.copy {
+            reportStart =
+              BASIC_REPORT.reportingInterval.reportStart.copy {
+                clearHours()
+                utcOffset = duration { seconds = 14400 }
+              }
+          }
+      }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val createdBasicReport =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
+      .isEqualTo(
+        BASIC_REPORT.reportingInterval.reportStart.copy {
+          hours = 5
+          utcOffset = duration { seconds = 14400 }
+        }
+      )
+  }
+
+  @Test
   fun `createBasicReport creates new primitive reportingsets only when needed`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -768,6 +1103,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -1125,6 +1461,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -1387,6 +1724,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -1605,6 +1943,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -1810,6 +2149,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -2380,6 +2720,7 @@ class BasicReportsServiceTest {
               year = 2025
               month = 7
               day = 3
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {
@@ -2412,8 +2753,8 @@ class BasicReportsServiceTest {
           enumerateValidModelLinesRequest {
             parent = "modelProviders/-/modelSuites/-"
             timeInterval = interval {
-              startTime = timestamp { seconds = 1751526000 }
-              endTime = timestamp { seconds = 1767600000 }
+              startTime = timestamp { seconds = 1751544000 }
+              endTime = timestamp { seconds = 1767618000 }
             }
             dataProviders += DATA_PROVIDER_KEY.toName()
           }
@@ -2480,6 +2821,7 @@ class BasicReportsServiceTest {
               year = 2025
               month = 7
               day = 3
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {
@@ -2512,8 +2854,8 @@ class BasicReportsServiceTest {
           enumerateValidModelLinesRequest {
             parent = "modelProviders/-/modelSuites/-"
             timeInterval = interval {
-              startTime = timestamp { seconds = 1751526000 }
-              endTime = timestamp { seconds = 1767600000 }
+              startTime = timestamp { seconds = 1751544000 }
+              endTime = timestamp { seconds = 1767618000 }
             }
             dataProviders += DATA_PROVIDER_KEY.toName()
           }
@@ -2552,6 +2894,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
@@ -2592,6 +2935,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -2637,6 +2981,10 @@ class BasicReportsServiceTest {
           name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -2662,6 +3010,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
+        null,
         listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
@@ -2706,6 +3055,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -2756,6 +3106,10 @@ class BasicReportsServiceTest {
               ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
                 .toName()
           }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
           effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             impressionQualificationFilter =
               ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
@@ -2782,6 +3136,7 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
+          null,
           listOf(
             INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
             INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
@@ -2830,6 +3185,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -2877,6 +3233,10 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
+            reportingInterval =
+              basicReport.reportingInterval.copy {
+                effectiveReportStart = basicReport.reportingInterval.reportStart
+              }
             effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               impressionQualificationFilter =
                 ImpressionQualificationFilterKey(AMI_IQF.externalImpressionQualificationFilterId)
@@ -3073,6 +3433,7 @@ class BasicReportsServiceTest {
               year = 2025
               month = 7
               day = 3
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {
@@ -3600,6 +3961,7 @@ class BasicReportsServiceTest {
               year = 2025
               month = 7
               day = 3
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {
@@ -3929,7 +4291,203 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reportStart time zone missing`() =
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart hours missing`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { clearHours() } }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart minutes set`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { minutes = 5 } }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart seconds set`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { seconds = 5 } }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart nanos set`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportStart = this.reportStart.copy { nanos = 5 } }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reportStart time offset missing`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -3958,7 +4516,114 @@ class BasicReportsServiceTest {
             campaignGroup = campaignGroupKey.toName()
             reportingInterval =
               this.reportingInterval.copy {
-                reportStart = this.reportStart.copy { clearTimeZone() }
+                reportStart = this.reportStart.copy { clearTimeOffset() }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.reporting_interval.report_start"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when report_start time_zone is invalid`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval =
+              this.reportingInterval.copy {
+                reportStart =
+                  this.reportStart.copy { timeZone = timeZone { id = "America/Atlantis" } }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.reporting_interval.report_start"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when report_start utc_offset is invalid`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval =
+              this.reportingInterval.copy {
+                reportStart = this.reportStart.copy { utcOffset = duration { seconds = 99999 } }
               }
           }
         basicReportId = "a1234"
@@ -4117,6 +4782,55 @@ class BasicReportsServiceTest {
       }
 
     assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when reportEnd day negative`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          reportingInterval =
+            this.reportingInterval.copy { reportEnd = this.reportEnd.copy { day = -5 } }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .errorInfo()
       .isEqualTo(
@@ -7523,6 +8237,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
@@ -7671,6 +8386,7 @@ class BasicReportsServiceTest {
             year = 2025
             month = 7
             day = 3
+            hours = 5
             timeZone = timeZone { id = "America/Los_Angeles" }
           }
           reportEnd = date {
@@ -7715,7 +8431,6 @@ class BasicReportsServiceTest {
           service.createBasicReport(createBasicReportRequest)
         }
 
-      assertThat(createdBasicReport.modelLine).isEqualTo(basicReport.modelLine)
       assertThat(createdBasicReport.effectiveModelLine).isEqualTo(createdBasicReport.modelLine)
 
       val response =
@@ -8372,6 +9087,7 @@ class BasicReportsServiceTest {
           campaignGroupDisplayName = INTERNAL_CAMPAIGN_GROUP.displayName
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           state = BasicReport.State.SUCCEEDED
@@ -9130,6 +9846,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport.createTime
@@ -9392,6 +10109,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport1.createTime
@@ -9505,6 +10223,7 @@ class BasicReportsServiceTest {
             title = "title"
             reportingInterval = reportingInterval {
               reportStart = dateTime { day = 3 }
+              effectiveReportStart = dateTime { day = 3 }
               reportEnd = date { day = 5 }
             }
             createTime = internalBasicReport1.createTime
@@ -9617,6 +10336,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime { day = 3 }
+            effectiveReportStart = dateTime { day = 3 }
             reportEnd = date { day = 5 }
           }
           createTime = internalBasicReport2.createTime
@@ -9865,6 +10585,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {

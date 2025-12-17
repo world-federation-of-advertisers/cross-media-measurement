@@ -82,7 +82,7 @@ object BasicReportProcessedResultsTransformation {
       }
 
     val reportStartTimestamp: Timestamp =
-      basicReport.details.reportingInterval.reportStart.toTimestamp()
+      basicReport.details.reportingInterval.effectiveReportStart.toTimestamp()
 
     return buildList {
       for (resultGroupSpec in basicReport.details.resultGroupSpecsList) {
@@ -129,7 +129,7 @@ object BasicReportProcessedResultsTransformation {
           title = resultGroupSpec.title
           results +=
             buildResults(
-              reportStart = basicReport.details.reportingInterval.reportStart,
+              reportStart = basicReport.details.reportingInterval.effectiveReportStart,
               resultGroupSpec = resultGroupSpec,
               reportStartTimestamp = reportStartTimestamp,
               reportingUnitSummary = reportingUnitSummary,
