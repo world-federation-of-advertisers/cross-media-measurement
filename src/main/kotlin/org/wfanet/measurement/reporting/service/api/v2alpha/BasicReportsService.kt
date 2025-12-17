@@ -213,8 +213,7 @@ class BasicReportsService(
       baseInternalImpressionQualificationFilterKeys.map { it.toName() }
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
-      (baseInternalImpressionQualificationFilterKeys +
-          requestImpressionQualificationFilterKeys)
+      (baseInternalImpressionQualificationFilterKeys + requestImpressionQualificationFilterKeys)
         .associateBy { it.toName() }
     val effectiveReportingImpressionQualificationFilters:
       List<ReportingImpressionQualificationFilter> =
