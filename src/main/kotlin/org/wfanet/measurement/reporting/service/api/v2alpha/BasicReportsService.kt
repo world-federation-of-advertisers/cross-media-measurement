@@ -33,6 +33,7 @@ import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredenti
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
@@ -84,6 +85,7 @@ import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidExc
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
@@ -98,6 +100,7 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
@@ -187,54 +190,28 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    authorization.check(request.parent, Permission.CREATE)
-
     val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
-
-    val measurementConsumerConfig =
-      measurementConsumerConfigs.configsMap[request.parent]
-        ?: throw Status.INTERNAL.withDescription("Config not found for $request.parent")
-          .asRuntimeException()
-
-    val measurementConsumerCredentials =
-      MeasurementConsumerCredentials.fromConfig(parentKey, measurementConsumerConfig)
-
-    val validModelLines =
-      kingdomModelLinesStub
-        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
-        .enumerateValidModelLines(
-          enumerateValidModelLinesRequest {
-            parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
-            timeInterval = interval {
-              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
-              endTime =
-                request.basicReport.reportingInterval.reportStart
-                  .copy {
-                    day = request.basicReport.reportingInterval.reportEnd.day
-                    month = request.basicReport.reportingInterval.reportEnd.month
-                    year = request.basicReport.reportingInterval.reportEnd.year
-                  }
-                  .toTimestamp()
-            }
-            dataProviders += reportingSetMaps.primitiveReportingSetsByDataProvider.keys
-          }
+    val effectiveModelLine: ModelLine? =
+      try {
+        getEffectiveModelLine(
+          request.basicReport.modelLine,
+          request.basicReport.reportingInterval,
+          reportingSetMaps.primitiveReportingSetsByDataProvider.keys,
+          parentKey,
         )
-        .modelLinesList
-
-    val modelLine =
-      if (request.basicReport.modelLine.isNotEmpty()) {
-        if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
-          throw InvalidFieldValueException("basic_report.model_line") { fieldName ->
-              "$fieldName is not active for the specified reporting interval and data providers"
-            }
-            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-        }
-        request.basicReport.modelLine
-      } else if (validModelLines.isNotEmpty()) {
-        validModelLines.first().name
-      } else {
-        ""
+      } catch (e: ModelLineNotActiveException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
+
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+
+      if (effectiveModelLine?.type == ModelLine.Type.DEV) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
+      }
+    }
+
+    authorization.check(request.parent, requiredPermissionIds)
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
       (baseInternalImpressionQualificationFilterByKey.keys +
@@ -291,7 +268,7 @@ class BasicReportsService(
                   request.basicReport.impressionQualificationFiltersList.map { it.toInternal() },
                 internalEffectiveReportingImpressionQualificationFilters =
                   effectiveReportingImpressionQualificationFilters.map { it.toInternal() },
-                effectiveModelLine = modelLine,
+                effectiveModelLine = effectiveModelLine?.name.orEmpty(),
               )
             requestId = request.requestId
           }
@@ -339,7 +316,7 @@ class BasicReportsService(
         campaignGroupKey,
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
-        modelLine,
+        effectiveModelLine?.name.orEmpty(),
       )
 
     val createReportRequest = createReportRequest {
@@ -398,6 +375,65 @@ class BasicReportsService(
         InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
         null -> Exception("Error retrieving internal ImpressionQualificationFilter", e)
       }
+    }
+  }
+
+  /**
+   * Returns the effective [ModelLine], or `null` if there is none.
+   *
+   * @param requestModelLine resource name of the [ModelLine] from a request, which may be empty
+   * @throws ModelLineNotActiveException if [requestModelLine] is not active
+   */
+  private suspend fun getEffectiveModelLine(
+    requestModelLine: String,
+    reportingInterval: ReportingInterval,
+    dataProviderNames: Iterable<String>,
+    measurementConsumerKey: MeasurementConsumerKey,
+  ): ModelLine? {
+    val measurementConsumerName = measurementConsumerKey.toName()
+    val measurementConsumerConfig =
+      checkNotNull(measurementConsumerConfigs.configsMap[measurementConsumerName]) {
+        "Config not found for $measurementConsumerName"
+      }
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
+    val validModelLines: List<ModelLine> =
+      try {
+          kingdomModelLinesStub
+            .withAuthenticationKey(
+              measurementConsumerCredentials.callCredentials.apiAuthenticationKey
+            )
+            .enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
+                parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
+                timeInterval = interval {
+                  startTime = reportingInterval.reportStart.toTimestamp()
+                  endTime =
+                    reportingInterval.reportStart
+                      .copy {
+                        day = reportingInterval.reportEnd.day
+                        month = reportingInterval.reportEnd.month
+                        year = reportingInterval.reportEnd.year
+                      }
+                      .toTimestamp()
+                }
+                dataProviders += dataProviderNames
+              }
+            )
+        } catch (e: StatusException) {
+          throw Exception("Error enumerating valid ModelLines", e)
+        }
+        .modelLinesList
+
+    return if (requestModelLine.isEmpty()) {
+      if (validModelLines.isEmpty()) {
+        null
+      } else {
+        validModelLines.first()
+      }
+    } else {
+      validModelLines.find { it.name == requestModelLine }
+        ?: throw ModelLineNotActiveException(requestModelLine)
     }
   }
 
@@ -906,6 +942,7 @@ class BasicReportsService(
   object Permission {
     private const val TYPE = "reporting.basicReports"
     const val CREATE = "$TYPE.create"
+    const val CREATE_WITH_DEV_MODEL_LINE = "$TYPE.createWithDevModelLine"
     const val GET = "$TYPE.get"
     const val LIST = "$TYPE.list"
   }
