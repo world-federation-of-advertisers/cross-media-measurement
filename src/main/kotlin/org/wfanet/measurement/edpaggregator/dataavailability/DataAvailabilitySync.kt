@@ -96,7 +96,6 @@ class DataAvailabilitySync(
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   init {
-    require(edpImpressionPath.isNotBlank()) { "edpImpressionPath cannot be blank" }
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(impressionMetadataBatchSize > 0) {
@@ -123,8 +122,10 @@ class DataAvailabilitySync(
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-      require(validImpressionPathRegex.matches(folderPrefix)) {
-        "Folder prefix $folderPrefix does not match expected pattern $validImpressionPathRegex"
+      if (edpImpressionPath.isNotBlank()) {
+        require(validImpressionPathRegex.matches(folderPrefix)) {
+          "Folder prefix $folderPrefix does not match expected pattern $validImpressionPathRegex"
+        }
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")

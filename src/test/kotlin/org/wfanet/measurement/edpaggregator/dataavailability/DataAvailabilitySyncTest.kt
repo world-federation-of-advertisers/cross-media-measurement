@@ -676,6 +676,54 @@ class DataAvailabilitySyncTest {
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
+  @Test
+  fun `works with blank edp impression path`() = runBlocking {
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+
+    seedBlobDetails(
+            storageClient,
+            "edp/edpa_edp/model-line/some-model-line/timestamp/",
+            listOf(300L to 400L, 400L to 500L, 500L to 600L),
+            BlobEncoding.JSON,
+    )
+
+    val dataAvailabilitySync =
+            DataAvailabilitySync(
+                    "",
+                    storageClient,
+                    dataProvidersStub,
+                    impressionMetadataStub,
+                    "dataProviders/dataProvider123",
+                    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+                    impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+            )
+
+    dataAvailabilitySync.sync("$bucket/edp/edpa_edp/model-line/some-model-line/timestamp/done")
+    verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val impressionMetadataRequests =
+            listOf(300L to 400L, 400L to 500L, 500L to 600L).mapIndexed { index, times ->
+              impressionMetadata {
+                blobUri =
+                        "file:///my-bucket/edp/edpa_edp/model-line/some-model-line/timestamp/metadata-$index.json"
+                blobTypeUrl =
+                        "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+                eventGroupReferenceId = "event${index+1}"
+                modelLine = "modelLine1"
+                this.interval = interval {
+                  startTime = timestamp { seconds = times.first }
+                  endTime = timestamp { seconds = times.second }
+                }
+              }
+            }
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    val createdItems = batchCaptor.firstValue.requestsList.map { it.impressionMetadata }
+    assertThat(createdItems).isEqualTo(impressionMetadataRequests)
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+  }
+
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
