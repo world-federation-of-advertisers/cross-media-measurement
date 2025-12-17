@@ -123,7 +123,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  baseImpressionQualificationFilters: Iterable<InternalImpressionQualificationFilter>,
+  private val baseImpressionQualificationFilterIds: Iterable<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -131,14 +131,6 @@ class BasicReportsService(
 
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
-
-  private val baseInternalImpressionQualificationFilterByKey:
-    Map<ImpressionQualificationFilterKey, InternalImpressionQualificationFilter> =
-    baseImpressionQualificationFilters.associateBy {
-      ImpressionQualificationFilterKey(it.externalImpressionQualificationFilterId)
-    }
-  private val baseImpressionQualificationFilterNames =
-    baseInternalImpressionQualificationFilterByKey.keys.map { it.toName() }
 
   private data class ReportingSetMaps(
     // Map of DataProvider resource name to Primitive ReportingSet
@@ -212,6 +204,15 @@ class BasicReportsService(
     }
 
     authorization.check(request.parent, requiredPermissionIds)
+
+    val baseInternalImpressionQualificationFilterByKey:
+      Map<ImpressionQualificationFilterKey, InternalImpressionQualificationFilter> =
+      baseImpressionQualificationFilterIds.map {
+        ImpressionQualificationFilterKey(it)
+      }.associateWith { getInternalImpressionQualificationFilter(it) }
+
+    val baseImpressionQualificationFilterNames =
+      baseInternalImpressionQualificationFilterByKey.keys.map { it.toName() }
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
       (baseInternalImpressionQualificationFilterByKey.keys +
@@ -347,11 +348,6 @@ class BasicReportsService(
   private suspend fun getInternalImpressionQualificationFilter(
     key: ImpressionQualificationFilterKey
   ): InternalImpressionQualificationFilter {
-    val baseInternalIqf = baseInternalImpressionQualificationFilterByKey[key]
-    if (baseInternalIqf != null) {
-      return baseInternalIqf
-    }
-
     return try {
       internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
         getImpressionQualificationFilterRequest {
