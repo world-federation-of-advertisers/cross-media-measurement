@@ -74,7 +74,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "1Gi"
+		memory: "2Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
