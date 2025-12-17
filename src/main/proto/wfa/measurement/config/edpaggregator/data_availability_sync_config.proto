@@ -41,4 +41,8 @@ message DataAvailabilitySyncConfig {
   // How the DataAvailabilitySync connects to the ImpressionMetadataStorage
   // Public API
   TransportLayerSecurityParams impression_metadata_storage_connection = 4;
+
+  // Path where an edp uploads their impressions. Optional. Will be required in
+  // a future release.
+  string edp_impression_path = 5;
 }

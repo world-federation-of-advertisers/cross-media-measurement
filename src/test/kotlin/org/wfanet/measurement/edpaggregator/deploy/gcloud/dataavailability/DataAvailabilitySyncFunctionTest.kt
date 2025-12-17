@@ -321,6 +321,7 @@ class DataAvailabilitySyncFunctionTest {
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = "edp/edp_name"
     }
 
   private fun parseTraceparentTraceId(header: String?): String? {
