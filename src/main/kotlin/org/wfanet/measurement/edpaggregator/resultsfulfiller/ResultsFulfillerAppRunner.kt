@@ -48,7 +48,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.EventDataProviderConfigs
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.measured
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics.Companion.measured
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
@@ -67,6 +67,7 @@ import picocli.CommandLine
 @CommandLine.Command(name = "results_fulfiller_app_runner")
 class ResultsFulfillerAppRunner : Runnable {
   private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
+  private val metrics by lazy { ResultsFulfillerMetrics.create() }
 
   @CommandLine.Option(
     names = ["--edpa-tls-cert-secret-id"],
@@ -423,7 +424,7 @@ class ResultsFulfillerAppRunner : Runnable {
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
       val vidIndexMap =
-        ResultsFulfillerMetrics.vidIndexBuildDuration.measured {
+        metrics.vidIndexBuildDuration.measured {
           ParallelInMemoryVidIndexMap.build(populationSpec)
         }
       it.modelLine to
