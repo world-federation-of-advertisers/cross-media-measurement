@@ -4294,8 +4294,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.impression_qualification_filters"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters"
         }
       )
   }
