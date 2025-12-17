@@ -575,15 +575,13 @@ object CreateBasicReportRequestValidation {
       }
     }
 
-
     if (!hasDefaultReportStartHour) {
       if (
         reportingInterval.reportStart.hours == 0 ||
           !(reportingInterval.reportStart.hasTimeZone() ||
             reportingInterval.reportStart.hasUtcOffset())
       ) {
-        throw InvalidFieldValueException("$fieldPath.report_start") { fieldName
-          ->
+        throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
           "$fieldName requires hours to be set, as well as either time_zone or utc_offset, when there is no default"
         }
       }
