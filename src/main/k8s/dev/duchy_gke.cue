@@ -52,7 +52,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
-		memory: "5Gi"
+		memory: "2.5Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -63,7 +63,7 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
-		memory: "8Gi"
+		memory: "6Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -74,17 +74,17 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "2Gi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#FulfillmentMaxHeapSize:             "940M"
+#FulfillmentMaxHeapSize:             "640M"
 #ControlServiceResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "200m"
-		memory: "1Gi"
+		memory: "512Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
