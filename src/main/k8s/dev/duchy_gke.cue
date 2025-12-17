@@ -42,13 +42,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HeraldResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "25m"
-		memory: "512Mi"
+		memory: "1Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#HeraldMaxHeapSize:            "400M"
+#HeraldMaxHeapSize:            "768M"
 #Llv2MillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "3"
@@ -63,13 +63,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #HmssMillResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "2"
-		memory: "6Gi"
+		memory: "8Gi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
 	}
 }
-#HmssMillMaxHeapSize:             "5G"
+#HmssMillMaxHeapSize:             "5.5G"
 #HmssMillMaxConcurrency:          5
 #FulfillmentResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
