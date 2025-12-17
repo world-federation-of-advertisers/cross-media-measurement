@@ -30,7 +30,7 @@ module "default_node_pools" {
   cluster         = each.value.cluster
   name            = "default"
   service_account = module.common.cluster_service_account
-  machine_type    = "e2-standard-2"
+  machine_type    = "e2-standard-4"
   max_node_count  = 3
 }
 
