@@ -169,6 +169,7 @@ class ResultsFulfillerTest {
   private lateinit var metricExporter: InMemoryMetricExporter
   private lateinit var metricReader: MetricReader
   private lateinit var spanExporter: InMemorySpanExporter
+  private lateinit var metrics: ResultsFulfillerMetrics
 
   @Before
   fun initTelemetry() {
@@ -186,6 +187,7 @@ class ResultsFulfillerTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    metrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
   }
 
   @After
@@ -383,6 +385,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -523,6 +526,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -645,6 +649,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -778,6 +783,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -892,6 +898,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -989,6 +996,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1088,6 +1096,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1185,6 +1194,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
     assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
 
@@ -1279,6 +1289,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -1394,6 +1405,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -1507,6 +1519,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1667,6 +1680,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
