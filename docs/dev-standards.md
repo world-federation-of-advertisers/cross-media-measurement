@@ -153,6 +153,7 @@ Before adding other reviewers, please:
 *   Check for typos
 *   Check for style guide violations (see the next subsection)
 *   Make sure there’s sufficient documentation
+*   Ensure that any temporary change that should not be merged is clearly marked with a DO_NOT_SUBMIT comment. This tag is detected by an automated check and will block the PR from being merged.
 
 ### Code Style
 
