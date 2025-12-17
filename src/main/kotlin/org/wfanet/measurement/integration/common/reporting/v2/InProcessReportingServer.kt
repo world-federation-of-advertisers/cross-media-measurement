@@ -314,6 +314,7 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
                 authorization,
                 measurementConsumerConfigs,
+                null,
                 emptyList(),
               )
               .withTrustedPrincipalAuthentication(),

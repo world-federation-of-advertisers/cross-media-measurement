@@ -18,7 +18,11 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
+import com.google.protobuf.duration
 import com.google.protobuf.util.JsonFormat
+import com.google.type.DateTime
+import com.google.type.dateTime
+import com.google.type.timeZone
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
@@ -27,6 +31,7 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
+import java.util.TimeZone
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -119,18 +124,6 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
     @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
-    @CommandLine.Option(
-      names = ["--system-measurement-consumer"],
-      description =
-        [
-          "Resource name of the CMMS MeasurementConsumer for the Reporting system.",
-          "Defaults to an arbitrary MeasurementConsumer.",
-          "This is used for CMMS API calls where the MeasurementConsumer is not specified.",
-        ],
-      required = false,
-      defaultValue = CommandLine.Option.NULL_VALUE,
-    )
-    systemMeasurementConsumerName: String?,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -180,10 +173,12 @@ private object V2AlphaPublicApiServer {
         MeasurementConsumerConfigs.getDefaultInstance(),
       )
     val systemMeasurementConsumerConfig: MeasurementConsumerConfig =
-      if (systemMeasurementConsumerName == null) {
+      if (reportingApiServerFlags.systemMeasurementConsumerName == null) {
         measurementConsumerConfigs.configsMap.values.first()
       } else {
-        measurementConsumerConfigs.configsMap.getValue(systemMeasurementConsumerName)
+        measurementConsumerConfigs.configsMap.getValue(
+          reportingApiServerFlags.systemMeasurementConsumerName
+        )
       }
 
     val internalMeasurementConsumersBlockingStub =
@@ -333,6 +328,37 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
+    val defaultReportStart = reportingApiServerFlags.defaultReportStart
+
+    val defaultReportStartHour: DateTime? =
+      if (defaultReportStart != null) {
+        dateTime {
+          if (defaultReportStart.hour <= 0) {
+            throw IllegalArgumentException("--default-report-start-hour must be positive")
+          }
+          hours = defaultReportStart.hour
+          val defaultTimeZoneFlag = defaultReportStart.timeOffset.timeZone
+          if (defaultTimeZoneFlag != null) {
+            if (!TimeZone.getAvailableIDs().toSet().contains(defaultTimeZoneFlag)) {
+              throw IllegalArgumentException("--default-report-start-time-zone is invalid")
+            }
+            timeZone = timeZone { id = defaultTimeZoneFlag }
+          } else {
+            val defaultUtcOffsetFlag = defaultReportStart.timeOffset.utcOffset
+            if (defaultUtcOffsetFlag != null) {
+              if (
+                defaultUtcOffsetFlag.seconds < -18 * 60 * 60 || defaultUtcOffsetFlag.seconds > 18
+              ) {
+                throw IllegalArgumentException("--default-report-start-utc-offset is invalid")
+              }
+              utcOffset = duration { seconds = defaultUtcOffsetFlag.seconds }
+            }
+          }
+        }
+      } else {
+        null
+      }
+
     val services: List<ServerServiceDefinition> =
       listOf(
         DataProvidersService(
@@ -404,6 +430,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
+            defaultReportStartHour,
             baseImpressionQualificationFilters,
             serviceDispatcher,
           )
