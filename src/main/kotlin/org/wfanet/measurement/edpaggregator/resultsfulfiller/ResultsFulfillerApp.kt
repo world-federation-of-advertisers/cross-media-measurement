@@ -177,8 +177,10 @@ class ResultsFulfillerApp(
         null
       }
 
-    require(fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
-            fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE) {
+    require(
+      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
+        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
+    ) {
       "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
     }
 

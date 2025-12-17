@@ -849,13 +849,14 @@ class ResultsFulfillerTest {
       // When uncapped (-1), we should get the raw total: 19500
       val impressions =
         List(150) {
-          List(130) {
-            LABELED_IMPRESSION.copy {
-              vid = it.toLong() + 1
-              eventTime = TIME_RANGE.start.toProtoTime()
+            List(130) {
+              LABELED_IMPRESSION.copy {
+                vid = it.toLong() + 1
+                eventTime = TIME_RANGE.start.toProtoTime()
+              }
             }
           }
-        }.flatten()
+          .flatten()
 
       val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
 

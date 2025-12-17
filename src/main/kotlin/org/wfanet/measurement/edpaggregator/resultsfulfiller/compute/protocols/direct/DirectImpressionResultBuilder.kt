@@ -92,8 +92,9 @@ class DirectImpressionResultBuilder(
   /**
    * Computes the impression count based on frequency data and capping configuration.
    *
-   * When [impressionMaxFrequencyPerUser] is -1, uses uncapped impressions directly (with k-anonymity
-   * checks if configured). Otherwise, builds a histogram and computes the capped impression count.
+   * When [impressionMaxFrequencyPerUser] is -1, uses uncapped impressions directly (with
+   * k-anonymity checks if configured). Otherwise, builds a histogram and computes the capped
+   * impression count.
    *
    * @param effectiveMaxFrequency The maximum frequency per user to use for capped computations.
    * @return The computed impression count.

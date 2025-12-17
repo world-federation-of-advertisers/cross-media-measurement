@@ -23,7 +23,8 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * Frequency vector sink that receives filtered events and builds frequency vectors.
  *
  * Each sink corresponds to a specific filter specification and maintains its own frequency vector.
- * Thread-safe for concurrent access. Also tracks total uncapped impressions for direct measurements.
+ * Thread-safe for concurrent access. Also tracks total uncapped impressions for direct
+ * measurements.
  */
 class FrequencyVectorSink<T : Message>(
   private val filterProcessor: FilterProcessor<T>,
