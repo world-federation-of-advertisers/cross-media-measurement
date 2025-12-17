@@ -334,7 +334,6 @@ class ResultsFulfiller(
             requisitionSpec,
             frequencyVector,
             populationSpec,
-            shouldCapImpressions = true,
           )
         val fulfillerType =
           fulfiller::class.simpleName

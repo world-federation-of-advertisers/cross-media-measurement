@@ -40,13 +40,11 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisitionSpec: RequisitionSpec,
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
-    shouldCapImpressions: Boolean,
   ): MeasurementFulfiller {
     return NoOpMeasurementFulfiller(
       requisition,
       frequencyVector.getByteArray(),
       frequencyVector.getTotalUncappedImpressions(),
-      shouldCapImpressions,
     )
   }
 
@@ -62,7 +60,6 @@ class NoOpFulfillerSelector : FulfillerSelector {
     private val requisition: Requisition,
     private val frequencyDataBytes: ByteArray,
     private val totalUncappedImpressions: Long,
-    private val shouldCapImpressions: Boolean,
   ) : MeasurementFulfiller {
 
     override suspend fun fulfillRequisition() {
@@ -87,7 +84,6 @@ class NoOpFulfillerSelector : FulfillerSelector {
         |  Measurement type: ${requisition.measurementSpec.message.typeUrl}
         |  State: ${requisition.state}
         |  Data provider certificate: ${requisition.dataProviderCertificate}
-        |  Should cap impressions: $shouldCapImpressions
         |  Frequency data analysis:
         |    - Array size: ${frequencyDataBytes.size}
         |    - Non-zero entries: $nonZeroFrequencies
