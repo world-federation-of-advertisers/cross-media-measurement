@@ -31,6 +31,9 @@ message PermissionsConfig {
     // resource type `example.com/Shelf` to grant reading all books on the
     // shelf.
     repeated string protected_resource_types = 1;
+
+    // Optional description of what the Permission allows the Principal to do.
+    string description = 2;
   }
 
   // Map of permission resource ID to `Permission`.
