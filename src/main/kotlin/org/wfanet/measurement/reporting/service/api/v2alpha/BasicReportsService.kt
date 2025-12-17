@@ -207,9 +207,9 @@ class BasicReportsService(
 
     val baseInternalImpressionQualificationFilterByKey:
       Map<ImpressionQualificationFilterKey, InternalImpressionQualificationFilter> =
-      baseImpressionQualificationFilterIds.map {
-        ImpressionQualificationFilterKey(it)
-      }.associateWith { getInternalImpressionQualificationFilter(it) }
+      baseImpressionQualificationFilterIds
+        .map { ImpressionQualificationFilterKey(it) }
+        .associateWith { getInternalImpressionQualificationFilter(it) }
 
     val baseImpressionQualificationFilterNames =
       baseInternalImpressionQualificationFilterByKey.keys.map { it.toName() }
