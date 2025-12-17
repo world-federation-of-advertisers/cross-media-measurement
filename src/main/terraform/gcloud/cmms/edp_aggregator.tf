@@ -124,7 +124,7 @@ locals {
       managed_instance_group_name   = "results-fulfiller-mig-v2"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
-      min_replicas                  = 0
+      min_replicas                  = 1
       max_replicas                  = 10
       machine_type                  = "c4d-standard-32"
       java_tool_options             = "-Xmx96G"
