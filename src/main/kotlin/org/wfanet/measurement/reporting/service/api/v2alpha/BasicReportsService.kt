@@ -205,14 +205,14 @@ class BasicReportsService(
 
     authorization.check(request.parent, requiredPermissionIds)
 
-    val baseInternalImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
+    val baseImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
       baseExternalImpressionQualificationFilterIds.map { ImpressionQualificationFilterKey(it) }
 
     val baseImpressionQualificationFilterNames =
-      baseInternalImpressionQualificationFilterKeys.map { it.toName() }
+      baseImpressionQualificationFilterKeys.map { it.toName() }
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
-      (baseInternalImpressionQualificationFilterKeys + requestImpressionQualificationFilterKeys)
+      (baseImpressionQualificationFilterKeys + requestImpressionQualificationFilterKeys)
         .associateBy { it.toName() }
     val effectiveReportingImpressionQualificationFilters:
       List<ReportingImpressionQualificationFilter> =
