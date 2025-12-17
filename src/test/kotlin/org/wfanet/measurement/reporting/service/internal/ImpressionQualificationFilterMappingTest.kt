@@ -82,7 +82,229 @@ class ImpressionQualificationFilterMappingTest {
   }
 
   @Test
-  fun `processing config fails when spec is invalid`() {
+  fun `processing config fails when missing external id`() {
+    val amiIqf = impressionQualificationFilter {
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message)
+      .contains("Invalid external impression qualification filter resource ID")
+  }
+
+  @Test
+  fun `processing config fails when external id invalid`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ABC"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message)
+      .contains("Invalid external impression qualification filter resource ID")
+  }
+
+  @Test
+  fun `processing config fails when there are duplicate external IDs`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val amiIqf2 = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 2
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+      impressionQualificationFilters += amiIqf2
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message)
+      .contains("There are duplicate external ids of impressionQualificationFilters")
+  }
+
+  @Test
+  fun `processing config fails when missing id`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Impression qualification filter ID must be positive")
+  }
+
+  @Test
+  fun `processing config fails when there are duplicate IDs`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val mrcIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "mrc"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+      impressionQualificationFilters += mrcIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message)
+      .contains("There are duplicate internal ids of impressionQualificationFilters")
+  }
+
+  @Test
+  fun `processing config fails when spec filter value is invalid`() {
     val amiIqf = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
@@ -100,6 +322,186 @@ class ImpressionQualificationFilterMappingTest {
               }
           }
       }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
+
+  @Test
+  fun `processing config fails when spec filter field is not IQF field`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "person.age_group"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    enumValue = "YEARS_18_TO_34"
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
+
+  @Test
+  fun `processing config fails when spec filter field doesn't exist`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "person.age_group_non"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    enumValue = "YEARS_18_TO_34"
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
+
+  @Test
+  fun `processing config fails when spec media type missing`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Invalid impression qualification filter spec")
+  }
+
+  @Test
+  fun `processing config fails when spec media type duplicated`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters +=
+          ImpressionQualificationFilterConfigKt.eventFilter {
+            terms +=
+              ImpressionQualificationFilterConfigKt.eventTemplateField {
+                path = "banner_ad.viewable"
+                value =
+                  ImpressionQualificationFilterConfigKt.EventTemplateFieldKt.fieldValue {
+                    boolValue = false
+                  }
+              }
+          }
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          TestEvent.getDescriptor(),
+        )
+      }
+
+    assertThat(exception.message).contains("Duplicate MediaType")
+  }
+
+  @Test
+  fun `processing config fails when spec missing filters`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
     }
 
     val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
