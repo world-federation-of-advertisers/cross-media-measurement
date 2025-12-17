@@ -48,7 +48,7 @@ jobs:
         workflow_file="${workflow_file%%@*}"
 
         readarray -d '' -t changed_files < <(
-          git diff -z --diff-filter=AMRC --name-only "${BASE_REV}" HEAD -- ":(exclude,top)${workflow_file}"
+          git diff -z --diff-filter=AMRC --name-only "${BASE_REV}" HEAD -- ":(exclude,top)${workflow_file}" ":(exclude,top)docs/dev-standards.md"
         )
 
         echo "Checking for DO_NOT_SUBMIT comments in ${#changed_files[@]} files"
