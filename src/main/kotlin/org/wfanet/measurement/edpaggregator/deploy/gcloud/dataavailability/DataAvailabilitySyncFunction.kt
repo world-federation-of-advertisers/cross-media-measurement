@@ -129,6 +129,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
+        dataAvailabilitySyncConfig.edpImpressionPath,
         storageClient,
         dataProvidersClient,
         impressionMetadataServicesClient,
