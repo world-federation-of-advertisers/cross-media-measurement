@@ -123,6 +123,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  // Contains ExternalImpressionQualificationFilterIds
   private val baseImpressionQualificationFilterIds: Iterable<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -205,17 +206,14 @@ class BasicReportsService(
 
     authorization.check(request.parent, requiredPermissionIds)
 
-    val baseInternalImpressionQualificationFilterByKey:
-      Map<ImpressionQualificationFilterKey, InternalImpressionQualificationFilter> =
-      baseImpressionQualificationFilterIds
-        .map { ImpressionQualificationFilterKey(it) }
-        .associateWith { getInternalImpressionQualificationFilter(it) }
+    val baseInternalImpressionQualificationFilterKeys: List<ImpressionQualificationFilterKey> =
+      baseImpressionQualificationFilterIds.map { ImpressionQualificationFilterKey(it) }
 
     val baseImpressionQualificationFilterNames =
-      baseInternalImpressionQualificationFilterByKey.keys.map { it.toName() }
+      baseInternalImpressionQualificationFilterKeys.map { it.toName() }
 
     val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
-      (baseInternalImpressionQualificationFilterByKey.keys +
+      (baseInternalImpressionQualificationFilterKeys +
           requestImpressionQualificationFilterKeys)
         .associateBy { it.toName() }
     val effectiveReportingImpressionQualificationFilters:
