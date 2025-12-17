@@ -63,7 +63,7 @@ locals {
     terraform_service_account          = var.terraform_service_account
 
     app_flags = [
-      "--gcp-project-id", data.google_client_config.default.project,
+      "--google-project-id", data.google_client_config.default.project,
       "--tls-cert-secret-id", local.aggregator_tls_cert.secret_id,
       "--tls-key-secret-id", local.aggregator_tls_key.secret_id,
       "--cert-collection-secret-id", local.aggregator_cert_collection.secret_id,
