@@ -20,30 +20,14 @@ import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
-abstract class MillFlags {
-  @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
-    private set
-
-  @CommandLine.Option(
-    names = ["--mill-id"],
-    description = ["ID of this Mill instance. Defaults to HOSTNAME."],
-  )
-  var millId: String = System.getenv("HOSTNAME")
-    private set
-
+class ClaimedComputationFlags {
   @CommandLine.Option(
     names = ["--claimed-computation-id"],
     description = ["Global Computation ID of the claimed work item"],
-    required = false,
+    required = true,
   )
   lateinit var claimedGlobalComputationId: String
     private set
@@ -51,7 +35,7 @@ abstract class MillFlags {
   @set:CommandLine.Option(
     names = ["--claimed-computation-version"],
     description = ["Token version of the the claimed work item"],
-    required = false,
+    required = true,
   )
   var claimedComputationVersion by Delegates.notNull<Long>()
     private set
@@ -59,9 +43,22 @@ abstract class MillFlags {
   @CommandLine.Option(
     names = ["--claimed-computation-type"],
     description = ["Computation type (protocol) of the claimed work item"],
-    required = false,
+    required = true,
   )
   lateinit var claimedComputationType: ComputationType
+    private set
+}
+
+abstract class MillFlags {
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
+    private set
+
+  @CommandLine.Option(
+    names = ["--mill-id"],
+    description = ["ID of this Mill instance. Defaults to HOSTNAME."],
+  )
+  var millId: String = System.getenv("HOSTNAME")
     private set
 
   @CommandLine.Option(
