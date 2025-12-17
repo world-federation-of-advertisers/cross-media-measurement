@@ -373,6 +373,7 @@ class ResultsFulfillerAppRunner : Runnable {
         getImpressionsStorageConfig = getImpressionsStorageConfig,
         getRequisitionsStorageConfig = getImpressionsStorageConfig,
         modelLineInfoMap = modelLinesMap,
+        metrics = metrics,
       )
 
     runBlockingWithTelemetry { resultsFulfillerApp.run() }
@@ -424,9 +425,7 @@ class ResultsFulfillerAppRunner : Runnable {
         descriptors.firstOrNull { it.fullName == typeName }
           ?: error("Descriptor not found for type: $typeName")
       val vidIndexMap =
-        metrics.vidIndexBuildDuration.measured {
-          ParallelInMemoryVidIndexMap.build(populationSpec)
-        }
+        metrics.vidIndexBuildDuration.measured { ParallelInMemoryVidIndexMap.build(populationSpec) }
       it.modelLine to
         ModelLineInfo(
           populationSpec = populationSpec,
