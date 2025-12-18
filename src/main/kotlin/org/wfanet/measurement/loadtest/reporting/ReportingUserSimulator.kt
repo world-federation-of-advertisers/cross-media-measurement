@@ -190,20 +190,6 @@ class ReportingUserSimulator(
           day = 15
         }
       }
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        custom =
-          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                }
-              }
-            }
-          }
-      }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
         reportingUnit = reportingUnit { components += eventGroup.cmmsDataProvider }
