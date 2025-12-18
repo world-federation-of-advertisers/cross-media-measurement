@@ -26,16 +26,15 @@ object ImpressionComputations {
    * Computes the impression count from a histogram of frequencies, applying differential privacy
    * noise if parameters are provided.
    *
-   * The impression count is calculated as the number of non-zero entries in the `rawHistogram`. If
-   * differential privacy parameters (`dpParams`) are provided, Gaussian noise is added to the raw
-   * count to ensure privacy guarantees.
+   * The impression count is calculated as the weighted sum of histogram entries, where each
+   * frequency bucket contributes (frequency * count) to the total.
    *
    * @param rawHistogram A histogram represented as a [LongArray], where each element corresponds to
    *   the count of impressions at a given frequency.
    * @param vidSamplingIntervalWidth The width of the sampling interval for VIDs, used to scale the
    *   impression count.
    * @param maxFrequency The maximum impression frequency per user. Used for both impression
-   *   calculations as well as the lInfiniteSensitivy, if noise is applied.
+   *   calculations as well as the lInfiniteSensitivity, if noise is applied.
    * @param dpParams Optional differential privacy parameters. If `null`, no noise is added and the
    *   raw impression count is scaled and returned.
    * @param kAnonymityParams Optional k-anonymity params.
