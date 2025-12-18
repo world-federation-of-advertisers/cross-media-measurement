@@ -99,8 +99,13 @@ class CreateReportSchedule(private val request: CreateReportScheduleRequest) :
         .toList()
         .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
 
-    if (reportingSetMap.size < externalReportingSetIds.size) {
-      throw ReportingSetNotFoundException()
+    for (externalReportingSetId in externalReportingSetIds) {
+      if (!reportingSetMap.containsKey(externalReportingSetId)) {
+        throw ReportingSetNotFoundException(
+          reportSchedule.cmmsMeasurementConsumerId,
+          externalReportingSetId,
+        )
+      }
     }
 
     val externalMetricCalculationSpecIds: Set<String> = buildSet {
