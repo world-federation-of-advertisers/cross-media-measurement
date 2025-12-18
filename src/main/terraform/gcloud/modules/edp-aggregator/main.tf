@@ -316,6 +316,7 @@ module "result_fulfiller_tee_app" {
   min_replicas                  = var.requisition_fulfiller_config.worker.min_replicas
   max_replicas                  = var.requisition_fulfiller_config.worker.max_replicas
   machine_type                  = var.requisition_fulfiller_config.worker.machine_type
+  java_tool_options             = var.requisition_fulfiller_config.worker.java_tool_options
   docker_image                  = var.requisition_fulfiller_config.worker.docker_image
   mig_distribution_policy_zones = var.requisition_fulfiller_config.worker.mig_distribution_policy_zones
   terraform_service_account     = var.terraform_service_account
@@ -325,7 +326,8 @@ module "result_fulfiller_tee_app" {
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
-  edpa_tee_signed_image_repo    = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
+  tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
+  otel_service_name             = "edpa.results_fulfiller"
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {

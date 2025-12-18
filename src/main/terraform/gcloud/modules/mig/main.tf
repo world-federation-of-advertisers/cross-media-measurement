@@ -18,21 +18,18 @@ locals {
 
   metadata_map = merge(
     {
-      "tee-signed-image-repos"                        = var.edpa_tee_signed_image_repo
+      "tee-signed-image-repos"                        = var.tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
-      "tee-cmd"                                       = jsonencode(var.tee_cmd),
-      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
-      "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
-      "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
-      "tee-env-OTEL_LOGS_EXPORTER"                    = "logging",
-      "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
-      "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
-      "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+      "tee-cmd"                                       = jsonencode(var.tee_cmd)
+
+      "google-logging-enabled"                        = "true"
+      "google-monitoring-enabled"                     = "true"
+      "tee-container-log-redirect"                    = "true"
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
     },
-    var.java_tool_options == "" ? {} : {
+    var.java_tool_options == null ? {} : {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
     }
   )
@@ -51,6 +48,8 @@ resource "google_service_account_iam_member" "allow_terraform_to_use_mig_sa" {
 }
 
 resource "google_pubsub_subscription_iam_member" "mig_subscriber" {
+  count = var.subscription_id != null ? 1 : 0
+
   subscription  = var.subscription_id
   role          = "roles/pubsub.subscriber"
   member        = "serviceAccount:${google_service_account.mig_service_account.email}"
@@ -132,13 +131,8 @@ resource "google_compute_instance_template" "confidential_vm_template" {
     subnetwork = var.subnetwork_name
   }
 
-  metadata = merge(
-    {
-        "google-logging-enabled"    = "true"
-        "google-monitoring-enabled" = "true"
-    },
-    local.metadata_map
-  )
+  metadata = local.metadata_map
+
   service_account {
     email = google_service_account.mig_service_account.email
     scopes = [
@@ -149,14 +143,20 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 }
 
 resource "google_compute_region_instance_group_manager" "mig" {
-  name               = var.managed_instance_group_name
-  base_instance_name = var.base_instance_name
+  name                    = var.managed_instance_group_name
+  base_instance_name      = var.base_instance_name
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
   distribution_policy_zones = var.mig_distribution_policy_zones
   lifecycle {
     create_before_destroy = true
+  }
+  update_policy {
+    type                  = "PROACTIVE"
+    minimal_action        = "REPLACE"
+    max_surge_fixed       = 1
+    max_unavailable_fixed = 0
   }
 }
 
@@ -168,10 +168,13 @@ resource "google_compute_region_autoscaler" "mig_autoscaler" {
     max_replicas = var.max_replicas
     min_replicas = var.min_replicas
 
-    metric {
-      name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"
-      filter                     = "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"${var.subscription_id}\""
-      single_instance_assignment = var.single_instance_assignment
+    dynamic "metric" {
+      for_each = var.single_instance_assignment != null ? [1] : []
+      content {
+        name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"
+        filter                     = "resource.type = pubsub_subscription AND resource.labels.subscription_id = \"${var.subscription_id}\""
+        single_instance_assignment = var.single_instance_assignment
+      }
     }
   }
 }
