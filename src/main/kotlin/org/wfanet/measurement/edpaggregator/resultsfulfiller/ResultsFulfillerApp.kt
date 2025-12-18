@@ -177,6 +177,13 @@ class ResultsFulfillerApp(
         null
       }
 
+    require(
+      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
+        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
+    ) {
+      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
+    }
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -185,8 +192,13 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         kAnonymityParams = kAnonymityParams,
+        // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
         overrideImpressionMaxFrequencyPerUser =
-          fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 },
+          if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {
+            -1
+          } else {
+            fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
+          },
       )
 
     ResultsFulfiller(

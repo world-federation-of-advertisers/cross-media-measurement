@@ -89,13 +89,19 @@ class FrequencyVectorBuilder(
     }
 
     if (overrideImpressionMaxFrequencyPerUser != null) {
-      require(overrideImpressionMaxFrequencyPerUser >= 1) {
-        "overrideImpressionMaxFrequencyPerUser must be >= 1"
+      require(
+        overrideImpressionMaxFrequencyPerUser >= 1 || overrideImpressionMaxFrequencyPerUser == -1
+      ) {
+        "overrideImpressionMaxFrequencyPerUser must be >= 1 or -1 (uncapped)"
       }
     }
 
     maxFrequency =
-      if (measurementSpec.hasImpression() && overrideImpressionMaxFrequencyPerUser != null) {
+      if (
+        measurementSpec.hasImpression() &&
+          overrideImpressionMaxFrequencyPerUser != null &&
+          overrideImpressionMaxFrequencyPerUser != -1
+      ) {
         overrideImpressionMaxFrequencyPerUser
       } else if (measurementSpec.hasReachAndFrequency()) {
         measurementSpec.reachAndFrequency.maximumFrequency
