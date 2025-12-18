@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/edp_aggregator"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-edp-aggregator-services:
