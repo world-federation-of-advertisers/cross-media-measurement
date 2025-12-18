@@ -20,26 +20,10 @@ import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import picocli.CommandLine
 
-abstract class MillFlags {
-  @CommandLine.Mixin
-  lateinit var tlsFlags: TlsFlags
-    private set
-
-  @CommandLine.Mixin
-  lateinit var duchyInfoFlags: DuchyInfoFlags
-    private set
-
-  @CommandLine.Option(
-    names = ["--mill-id"],
-    description = ["ID of this Mill instance. Defaults to HOSTNAME."],
-  )
-  var millId: String = System.getenv("HOSTNAME")
-    private set
-
+class ClaimedComputationFlags {
   @CommandLine.Option(
     names = ["--claimed-computation-id"],
     description = ["Global Computation ID of the claimed work item"],
@@ -63,13 +47,26 @@ abstract class MillFlags {
   )
   lateinit var claimedComputationType: ComputationType
     private set
+}
+
+abstract class MillFlags {
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
+    private set
+
+  @CommandLine.Option(
+    names = ["--mill-id"],
+    description = ["ID of this Mill instance. Defaults to HOSTNAME."],
+  )
+  var millId: String = System.getenv("HOSTNAME")
+    private set
 
   @CommandLine.Option(
     names = ["--duchy-computation-control-target"],
     description = ["Key-value pair of Duchy ID to ComputationControl service target."],
-    required = true,
+    required = false,
   )
-  lateinit var computationControlServiceTargets: Map<String, String>
+  var computationControlServiceTargets: Map<String, String> = emptyMap()
     private set
 
   @CommandLine.Option(
