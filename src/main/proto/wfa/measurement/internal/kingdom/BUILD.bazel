@@ -25,6 +25,7 @@ LIBS = [
     "duchy_measurement_log_entry",
     "duchy_protocol_config",
     "error_code",
+    "event_group_activity",
     "event_group_metadata_descriptor",
     "event_group",
     "event_template",
@@ -79,6 +80,7 @@ SERVICES = [
     "computation_participants",
     "data_providers",
     "event_group_metadata_descriptors",
+    "event_group_activities",
     "event_groups",
     "exchanges",
     "exchange_step_attempts",
@@ -322,6 +324,28 @@ proto_library(
         ":event_group_details_proto",
         ":media_type_proto",
         "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "event_group_activity_proto",
+    srcs = ["event_group_activity.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "event_group_activities_service_proto",
+    srcs = ["event_group_activities_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_activity_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:empty_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
