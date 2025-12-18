@@ -43,7 +43,7 @@ module "simulators_spot_node_pool" {
 }
 
 module "simulators" {
-  source = "../modules/simulators"
+  source = "../modules/simulator"
   for_each = toset(var.edp_simulator_names)
 
   simulator_name                  = each.key

@@ -37,8 +37,6 @@ _worker1PublicApiTarget: string @tag("worker1_public_api_target")
 _worker2Id:              string @tag("worker2_id")
 _worker2PublicApiTarget: string @tag("worker2_public_api_target")
 
-#SimulatorServiceAccount: "simulator"
-
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
@@ -115,7 +113,7 @@ edp_simulators: {
 				}
 				spec: template: spec: #SpotVmPodSpec & #ServiceAccountPodSpec & {
 					_mounts: "config-files": #ConfigMapMount
-					serviceAccountName: #SimulatorServiceAccount
+					serviceAccountName: "\(edp.displayName)-simulator"
 				}
 			}
 		}
@@ -126,8 +124,11 @@ serviceAccounts: [Name=string]: #ServiceAccount & {
 	metadata: name: Name
 }
 serviceAccounts: {
-	"\(#SimulatorServiceAccount)": #WorkloadIdentityServiceAccount & {
-		_iamServiceAccountName: "simulator"
+	for edp in _edpConfigs {
+		let saName = "\(edp.displayName)-simulator"
+		"\(saName)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: saName
+		}
 	}
 }
 
