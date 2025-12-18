@@ -1,0 +1,514 @@
+{
+    "displayName": "EDPA - Results Fulfiller",
+    "dashboardFilters": [
+      {
+        "filterType": "RESOURCE_LABEL",
+        "labelKey": "project_id",
+        "templateVariable": "project"
+      }
+    ],
+    "mosaicLayout": {
+      "columns": 48,
+      "tiles": [
+        {
+          "height": 4,
+          "width": 48,
+          "widget": {
+            "title": "SLO Overview",
+            "sectionHeader": {
+              "dividerBelow": true,
+              "subtitle": "Key health indicators for Results Fulfiller"
+            }
+          }
+        },
+        {
+          "yPos": 4,
+          "height": 12,
+          "width": 12,
+          "widget": {
+            "title": "Success Rate (24h)",
+            "scorecard": {
+              "gaugeView": {
+                "lowerBound": 0,
+                "upperBound": 100
+              },
+              "thresholds": [
+                {"color": "RED", "direction": "BELOW", "value": 95},
+                {"color": "YELLOW", "direction": "BELOW", "value": 99}
+              ],
+              "timeSeriesQuery": {
+                "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\",status=\"success\"}[24h])) /
+  sum(increase(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\"}[24h])) * 100"
+              }
+            }
+          }
+        },
+        {
+          "yPos": 4,
+          "xPos": 12,
+          "height": 12,
+          "width": 12,
+          "widget": {
+            "title": "Report Fulfillment p95 (min)",
+            "scorecard": {
+              "gaugeView": {
+                "lowerBound": 0,
+                "upperBound": 60
+              },
+              "thresholds": [
+                {"color": "RED", "direction": "ABOVE", "value": 45},
+                {"color": "YELLOW", "direction": "ABOVE", "value": 30}
+              ],
+              "timeSeriesQuery": {
+                "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_report_fulfillment_latency_bucket{monitored_resource=\"gce_instance\"}[1h])) by (le)) / 60"
+              }
+            }
+          }
+        },
+        {
+          "yPos": 4,
+          "xPos": 24,
+          "height": 12,
+          "width": 12,
+          "widget": {
+            "title": "Reports Processed (1h)",
+            "scorecard": {
+              "sparkChartView": {
+                "sparkChartType": "SPARK_LINE"
+              },
+              "timeSeriesQuery": {
+                "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\"}[1h]))"
+              }
+            }
+          }
+        },
+        {
+          "yPos": 4,
+          "xPos": 36,
+          "height": 12,
+          "width": 12,
+          "widget": {
+            "title": "Queue Backlog",
+            "scorecard": {
+              "sparkChartView": {
+                "sparkChartType": "SPARK_LINE"
+              },
+              "thresholds": [
+                {"color": "RED", "direction": "ABOVE", "value": 1000},
+                {"color": "YELLOW", "direction": "ABOVE", "value": 100}
+              ],
+              "timeSeriesQuery": {
+                "prometheusQuery": "sum(pubsub_googleapis_com:subscription_num_undelivered_messages{subscription_id=~\".*results-fulfiller.*\"})"
+              }
+            }
+          }
+        },
+        {
+          "yPos": 16,
+          "height": 4,
+          "width": 48,
+          "widget": {
+            "title": "Latency Analysis",
+            "sectionHeader": {
+              "dividerBelow": true,
+              "subtitle": "End-to-end and per-stage timing"
+            }
+          }
+        },
+        {
+          "yPos": 20,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Report Fulfillment Latency",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "legendTemplate": "p50",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:edpa_results_fulfiller_report_fulfillment_latency_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "p95",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_report_fulfillment_latency_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "p99",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.99, sum(rate(workload_googleapis_com:edpa_results_fulfiller_report_fulfillment_latency_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 20,
+          "xPos": 24,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Requisition Processing Latency",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "legendTemplate": "p50",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:edpa_results_fulfiller_requisition_processing_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "p95",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_requisition_processing_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 36,
+          "height": 4,
+          "width": 48,
+          "widget": {
+            "title": "Pipeline Stage Breakdown",
+            "sectionHeader": {
+              "dividerBelow": true,
+              "subtitle": "Identify bottlenecks in processing stages"
+            }
+          }
+        },
+        {
+          "yPos": 40,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "Frequency Vector Duration (p95)",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_frequency_vector_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 40,
+          "xPos": 16,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "VID Index Build Duration (p95)",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_vid_index_build_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 40,
+          "xPos": 32,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "Network Tasks Duration (p95)",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_network_tasks_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 56,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Send Duration by Protocol (p95)",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_send_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le, protocol))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 56,
+          "xPos": 24,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Stage Duration Comparison (p95)",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "legendTemplate": "frequency_vector",
+                  "plotType": "STACKED_AREA",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_frequency_vector_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "vid_index",
+                  "plotType": "STACKED_AREA",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_vid_index_build_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "network",
+                  "plotType": "STACKED_AREA",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_network_tasks_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                },
+                {
+                  "legendTemplate": "send",
+                  "plotType": "STACKED_AREA",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_results_fulfiller_send_duration_bucket{monitored_resource=\"gce_instance\"}[5m])) by (le))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 72,
+          "height": 4,
+          "width": 48,
+          "widget": {
+            "title": "Throughput & Errors",
+            "sectionHeader": {
+              "dividerBelow": true,
+              "subtitle": "Processing volume and failure tracking"
+            }
+          }
+        },
+        {
+          "yPos": 76,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Requisitions Processed",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "legendTemplate": "success",
+                  "plotType": "STACKED_BAR",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\",status=\"success\"}[5m]))"
+                  }
+                },
+                {
+                  "legendTemplate": "failure",
+                  "plotType": "STACKED_BAR",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\",status=\"failure\"}[5m]))"
+                  }
+                }
+              ],
+              "yAxis": {"label": "count", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 76,
+          "xPos": 24,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "Error Rate Over Time",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "sum(rate(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\",status=\"failure\"}[5m])) /
+  sum(rate(workload_googleapis_com:edpa_results_fulfiller_requisitions_processed_total{monitored_resource=\"gce_instance\"}[5m])) * 100"
+                  }
+                }
+              ],
+              "thresholds": [
+                {"value": 1, "label": "warning"},
+                {"value": 5, "label": "critical"}
+              ],
+              "yAxis": {"label": "percent", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 92,
+          "height": 4,
+          "width": 48,
+          "widget": {
+            "title": "Infrastructure",
+            "sectionHeader": {
+              "dividerBelow": true,
+              "subtitle": "JVM and compute resources"
+            }
+          }
+        },
+        {
+          "yPos": 96,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "JVM Heap Memory",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "legendTemplate": "used",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_used{monitored_resource=\"gce_instance\",area=\"heap\", service_name=\"edpa.results_fulfiller\"})"
+                  }
+                },
+                {
+                  "legendTemplate": "max",
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_max{monitored_resource=\"gce_instance\",area=\"heap\", service_name=\"edpa.results_fulfiller\"})"
+                  }
+                }
+              ],
+              "yAxis": {"label": "bytes", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 96,
+          "xPos": 16,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "GC Duration",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "rate(workload_googleapis_com:jvm_gc_duration_sum{monitored_resource=\"gce_instance\",service_name=\"edpa.results_fulfiller\"}[5m])"
+                  }
+                }
+              ],
+              "yAxis": {"label": "seconds", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 96,
+          "xPos": 32,
+          "height": 16,
+          "width": 16,
+          "widget": {
+            "title": "Active Threads",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "avg(workload_googleapis_com:jvm_threads_count{monitored_resource=\"gce_instance\",service_name=\"edpa.results_fulfiller\"})"
+                  }
+                }
+              ],
+              "yAxis": {"label": "count", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 112,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "VM CPU Utilization",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "avg(compute_googleapis_com:instance_cpu_utilization{instance_name=~\".*results-fulfiller.*\"})"
+                  }
+                }
+              ],
+              "thresholds": [
+                {"value": 0.7, "label": "warning"},
+                {"value": 0.9, "label": "critical"}
+              ],
+              "yAxis": {"label": "ratio", "scale": "LINEAR"}
+            }
+          }
+        },
+        {
+          "yPos": 112,
+          "xPos": 24,
+          "height": 16,
+          "width": 24,
+          "widget": {
+            "title": "MIG Instance Count",
+            "xyChart": {
+              "chartOptions": {"mode": "COLOR"},
+              "dataSets": [
+                {
+                  "plotType": "LINE",
+                  "timeSeriesQuery": {
+                    "prometheusQuery": "sum(compute_googleapis_com:instance_group_size{instance_group_name=~\".*results-fulfiller.*\"})"
+                  }
+                }
+              ],
+              "yAxis": {"label": "instances", "scale": "LINEAR"}
+            }
+          }
+        }
+      ]
+    }
+  }

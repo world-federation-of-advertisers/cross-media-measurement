@@ -1,0 +1,526 @@
+{
+  "displayName": "EDPA - Secure Computation API",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "project_id",
+      "templateVariable": "project"
+    },
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "cluster_name",
+      "templateVariable": "cluster"
+    }
+  ],
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "SLO Overview",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "API availability and performance"
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "API Success Rate (24h)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 100
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "BELOW", "value": 99},
+              {"color": "YELLOW", "direction": "BELOW", "value": 99.9}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[24h])) / sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[24h])) * 100"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 12,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "API Latency p95 (ms)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 500
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 500},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 200}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_server_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[1h])) by (le)) * 1000"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 24,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Request Rate (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(rate(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[1h])) * 60"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 36,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Pod Count",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "count(up{job=~\".*secure-computation.*api.*\"})"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Server RPC Performance",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Incoming API requests"
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "RPC Latency by Method (p95)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_server_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[5m])) by (le, rpc_method)) * 1000"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 500, "label": "SLO: 500ms"}
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "RPC Latency Percentiles (All Methods)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:rpc_server_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[5m])) by (le)) * 1000"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_server_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[5m])) by (le)) * 1000"
+                }
+              },
+              {
+                "legendTemplate": "p99",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99, sum(rate(workload_googleapis_com:rpc_server_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code=\"0\"}[5m])) by (le)) * 1000"
+                }
+              }
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 36,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Request Rate by Method",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_AREA",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[5m])) by (rpc_method) * 60"
+                }
+              }
+            ],
+            "yAxis": {"label": "requests/min", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 36,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Error Rate by Method",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code!=\"0\"}[5m])) by (rpc_method) / sum(rate(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[5m])) by (rpc_method) * 100"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 1, "label": "warning"}
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 52,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Error Analysis",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "RPC failures and status codes"
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Errors by Status Code",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code!=\"0\"}[5m])) by (rpc_grpc_status_code)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Errors by Method",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_server_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code!=\"0\"}[5m])) by (rpc_method)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 72,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Client RPC Performance",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Outbound calls to internal API and other services"
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Client RPC Latency by Service (p95)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_client_duration_bucket{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[5m])) by (le, rpc_service)) * 1000"
+                }
+              }
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Client RPC Error Rate by Service",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",rpc_grpc_status_code!=\"0\"}[5m])) by (rpc_service) / sum(rate(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[5m])) by (rpc_service) * 100"
+                }
+              }
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "JVM & Pod Resources",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Memory, GC, and Kubernetes resources"
+          }
+        }
+      },
+      {
+        "yPos": 96,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "JVM Heap Memory",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "used",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_used{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",area=\"heap\"})"
+                }
+              },
+              {
+                "legendTemplate": "max",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_max{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\",area=\"heap\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 96,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "GC Duration",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "rate(workload_googleapis_com:jvm_gc_duration_sum{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"}[5m])"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 96,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Active Threads",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_threads_count{monitored_resource=\"k8s_container\",container_name=~\".*secure-computation.*api.*\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Pod CPU Usage",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(container_cpu_usage_seconds_total{container=~\".*secure-computation.*api.*\"}[5m])) by (pod)"
+                }
+              }
+            ],
+            "yAxis": {"label": "cores", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Pod Memory Usage",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(container_memory_working_set_bytes{container=~\".*secure-computation.*api.*\"}) by (pod)"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Pod Restarts",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(kube_pod_container_status_restarts_total{container=~\".*secure-computation.*api.*\"}[5m])) by (pod)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 128,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Network & Storage",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Network traffic and storage I/O"
+          }
+        }
+      },
+      {
+        "yPos": 132,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Network Receive Rate",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(container_network_receive_bytes_total{pod=~\".*secure-computation.*api.*\"}[5m])) by (pod)"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes/sec", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 132,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Network Transmit Rate",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(container_network_transmit_bytes_total{pod=~\".*secure-computation.*api.*\"}[5m])) by (pod)"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes/sec", "scale": "LINEAR"}
+          }
+        }
+      }
+    ]
+  }
+}

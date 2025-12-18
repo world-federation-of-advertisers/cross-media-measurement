@@ -1,0 +1,554 @@
+{
+  "displayName": "EDPA - Requisition Fetcher",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "project_id",
+      "templateVariable": "project"
+    }
+  ],
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "SLO Overview",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Key health indicators for Requisition Fetcher"
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Fetch Latency p95 (sec)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 60
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 45},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 30}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_requisition_fetcher_fetch_latency_bucket{monitored_resource=\"cloud_function\"}[1h])) by (le))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 12,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Requisitions Fetched (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_requisitions_fetched_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 24,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Storage Writes (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_storage_writes_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 36,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Storage Failures (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 1},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 0}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_storage_fails_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Latency Analysis",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Fetch operation timing"
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Fetch Latency Percentiles",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:edpa_requisition_fetcher_fetch_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_requisition_fetcher_fetch_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p99",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99, sum(rate(workload_googleapis_com:edpa_requisition_fetcher_fetch_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Fetch Latency by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_requisition_fetcher_fetch_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le, data_provider_name))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 36,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Throughput & Storage",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Fetch volume and GCS write operations"
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Requisitions Fetched Over Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_requisitions_fetched_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Storage Operations",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "writes",
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_storage_writes_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              },
+              {
+                "legendTemplate": "failures",
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_storage_fails_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Requisitions Fetched by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_AREA",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_requisition_fetcher_requisitions_fetched_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Storage Failure Rate",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:edpa_requisition_fetcher_storage_fails_total{monitored_resource=\"cloud_function\"}[5m])) / (sum(rate(workload_googleapis_com:edpa_requisition_fetcher_storage_writes_total{monitored_resource=\"cloud_function\"}[5m])) + sum(rate(workload_googleapis_com:edpa_requisition_fetcher_storage_fails_total{monitored_resource=\"cloud_function\"}[5m]))) * 100"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 1, "label": "warning"}
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 72,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Cloud Scheduler & Function",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Scheduled execution and function performance"
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Scheduler Job Executions",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(cloudscheduler_googleapis_com:job_run_count{job_name=~\".*requisition-fetcher.*\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "executions/sec", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Scheduler Job Delays",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(cloudscheduler_googleapis_com:job_attempt_delayed{job_name=~\".*requisition-fetcher.*\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Count",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(cloudfunctions_googleapis_com:function_execution_count{function_name=~\".*requisition-fetcher.*\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "executions/sec", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*requisition-fetcher.*\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*requisition-fetcher.*\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Memory Usage",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(cloudfunctions_googleapis_com:function_user_memory_bytes{function_name=~\".*requisition-fetcher.*\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Errors",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(cloudfunctions_googleapis_com:function_execution_count{function_name=~\".*requisition-fetcher.*\",status!=\"ok\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 108,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "JVM Metrics",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Memory and garbage collection"
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "JVM Heap Memory",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "used",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_used{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.requisition_fetcher\"})"
+                }
+              },
+              {
+                "legendTemplate": "max",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_max{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.requisition_fetcher\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "GC Duration",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "rate(workload_googleapis_com:jvm_gc_duration_sum{monitored_resource=\"cloud_function\",service_name=\"edpa.requisition_fetcher\"}[5m])"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Active Threads",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_threads_count{monitored_resource=\"cloud_function\",service_name=\"edpa.requisition_fetcher\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 128,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Kingdom gRPC Calls",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Downstream Kingdom API performance"
+          }
+        }
+      },
+      {
+        "yPos": 132,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Kingdom RPC Latency by Method (p95)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_client_duration_bucket{monitored_resource=\"cloud_function\",service_name=\"edpa.requisition_fetcher\"}[5m])) by (le, rpc_method))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 132,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Kingdom RPC Status Codes",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"cloud_function\",service_name=\"edpa.requisition_fetcher\"}[5m])) by (rpc_grpc_status_code)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      }
+    ]
+  }
+}

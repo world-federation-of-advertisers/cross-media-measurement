@@ -1,0 +1,489 @@
+{
+  "displayName": "EDPA - Event Group Sync",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "project_id",
+      "templateVariable": "project"
+    }
+  ],
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "SLO Overview",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Key health indicators for Event Group Sync"
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Success Rate (24h)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 100
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "BELOW", "value": 95},
+              {"color": "YELLOW", "direction": "BELOW", "value": 99}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_success_total{monitored_resource=\"cloud_function\"}[24h])) / sum(increase(workload_googleapis_com:edpa_event_group_sync_attempts_total{monitored_resource=\"cloud_function\"}[24h])) * 100"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 12,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Sync Latency p95 (min)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 20
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 15},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 10}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_event_group_sync_latency_bucket{monitored_resource=\"cloud_function\"}[1h])) by (le)) / 60"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 24,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Sync Attempts (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_attempts_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 36,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Failures (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 10},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 1}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_failure_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Latency Analysis",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Sync operation timing"
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Latency Percentiles",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:edpa_event_group_sync_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_event_group_sync_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p99",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99, sum(rate(workload_googleapis_com:edpa_event_group_sync_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 1200, "label": "SLO: 20min"}
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Latency by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_event_group_sync_latency_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le, data_provider_name))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 36,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Throughput & Errors",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Sync volume and failure tracking"
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Results",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "success",
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_success_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              },
+              {
+                "legendTemplate": "failure",
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_failure_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Error Rate Over Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:edpa_event_group_sync_failure_total{monitored_resource=\"cloud_function\"}[5m])) / sum(rate(workload_googleapis_com:edpa_event_group_sync_attempts_total{monitored_resource=\"cloud_function\"}[5m])) * 100"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 1, "label": "warning"},
+              {"value": 5, "label": "critical"}
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Success Rate by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:edpa_event_group_sync_success_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name) / sum(rate(workload_googleapis_com:edpa_event_group_sync_attempts_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name) * 100"
+                }
+              }
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Volume by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_AREA",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_event_group_sync_attempts_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 72,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Cloud Function Infrastructure",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Function execution and resource usage"
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Count",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(cloudfunctions_googleapis_com:function_execution_count{function_name=~\".*event-group-sync.*\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "executions/sec", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*event-group-sync.*\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*event-group-sync.*\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Memory Usage",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(cloudfunctions_googleapis_com:function_user_memory_bytes{function_name=~\".*event-group-sync.*\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "JVM Heap Memory",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "used",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_used{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.event_group_sync\"})"
+                }
+              },
+              {
+                "legendTemplate": "max",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_max{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.event_group_sync\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "GC Duration",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "rate(workload_googleapis_com:jvm_gc_duration_sum{monitored_resource=\"cloud_function\",service_name=\"edpa.event_group_sync\"}[5m])"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Active Threads",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_threads_count{monitored_resource=\"cloud_function\",service_name=\"edpa.event_group_sync\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 108,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Kingdom gRPC Calls",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Downstream API performance"
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Kingdom RPC Latency (p95)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_client_duration_bucket{monitored_resource=\"cloud_function\",service_name=\"edpa.event_group_sync\"}[5m])) by (le, rpc_method))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Kingdom RPC Error Rate",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"cloud_function\",service_name=\"edpa.event_group_sync\",rpc_grpc_status_code!=\"0\"}[5m])) by (rpc_method) / sum(rate(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"cloud_function\",service_name=\"edpa.event_group_sync\"}[5m])) by (rpc_method) * 100"
+                }
+              }
+            ],
+            "yAxis": {"label": "percent", "scale": "LINEAR"}
+          }
+        }
+      }
+    ]
+  }
+}

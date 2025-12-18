@@ -1,0 +1,481 @@
+{
+  "displayName": "EDPA - Data Availability Sync",
+  "dashboardFilters": [
+    {
+      "filterType": "RESOURCE_LABEL",
+      "labelKey": "project_id",
+      "templateVariable": "project"
+    }
+  ],
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "SLO Overview",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Key health indicators for Data Availability Sync"
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Sync Duration p95 (min)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 60
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 45},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 30}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_data_availability_sync_duration_bucket{monitored_resource=\"cloud_function\"}[1h])) by (le)) / 60"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 12,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "Records Synced (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_data_availability_records_synced_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 24,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "CMMS RPC Errors (1h)",
+          "scorecard": {
+            "sparkChartView": {
+              "sparkChartType": "SPARK_LINE"
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 120},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 60}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_data_availability_cmms_rpc_errors_total{monitored_resource=\"cloud_function\"}[1h]))"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 4,
+        "xPos": 36,
+        "height": 12,
+        "width": 12,
+        "widget": {
+          "title": "RPC Error Rate (5min)",
+          "scorecard": {
+            "gaugeView": {
+              "lowerBound": 0,
+              "upperBound": 10
+            },
+            "thresholds": [
+              {"color": "RED", "direction": "ABOVE", "value": 5},
+              {"color": "YELLOW", "direction": "ABOVE", "value": 2}
+            ],
+            "timeSeriesQuery": {
+              "prometheusQuery": "rate(workload_googleapis_com:edpa_data_availability_cmms_rpc_errors_total{monitored_resource=\"cloud_function\"}[5m]) * 60"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Latency Analysis",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Sync operation timing (blob created → Kingdom updated)"
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Duration Percentiles",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(workload_googleapis_com:edpa_data_availability_sync_duration_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_data_availability_sync_duration_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p99",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99, sum(rate(workload_googleapis_com:edpa_data_availability_sync_duration_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 3600, "label": "SLO: 1hr"}
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 20,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Sync Duration by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:edpa_data_availability_sync_duration_bucket{monitored_resource=\"cloud_function\"}[5m])) by (le, data_provider_name))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 36,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Throughput & Errors",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Sync volume and error tracking"
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Records Synced Over Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_data_availability_records_synced_total{monitored_resource=\"cloud_function\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 40,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "CMMS RPC Errors Over Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "rate(workload_googleapis_com:edpa_data_availability_cmms_rpc_errors_total{monitored_resource=\"cloud_function\"}[5m]) * 60"
+                }
+              }
+            ],
+            "thresholds": [
+              {"value": 2, "label": "warning"},
+              {"value": 5, "label": "critical"}
+            ],
+            "yAxis": {"label": "errors/min", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "Records Synced by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_AREA",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_data_availability_records_synced_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 56,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "RPC Errors by Data Provider",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:edpa_data_availability_cmms_rpc_errors_total{monitored_resource=\"cloud_function\"}[5m])) by (data_provider_name)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 72,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "Cloud Function Infrastructure",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Function execution and resource usage"
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Count",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(cloudfunctions_googleapis_com:function_execution_count{function_name=~\".*data-availability-sync.*\"}[5m]))"
+                }
+              }
+            ],
+            "yAxis": {"label": "executions/sec", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Execution Time",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.50, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*data-availability-sync.*\"}[5m])) by (le))"
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(cloudfunctions_googleapis_com:function_execution_times_bucket{function_name=~\".*data-availability-sync.*\"}[5m])) by (le))"
+                }
+              }
+            ],
+            "yAxis": {"label": "milliseconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 76,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Function Memory Usage",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(cloudfunctions_googleapis_com:function_user_memory_bytes{function_name=~\".*data-availability-sync.*\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "JVM Heap Memory",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "legendTemplate": "used",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_used{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.data_availability_sync\"})"
+                }
+              },
+              {
+                "legendTemplate": "max",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_memory_max{monitored_resource=\"cloud_function\",area=\"heap\",service_name=\"edpa.data_availability_sync\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "bytes", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 16,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "GC Duration",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "rate(workload_googleapis_com:jvm_gc_duration_sum{monitored_resource=\"cloud_function\",service_name=\"edpa.data_availability_sync\"}[5m])"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 92,
+        "xPos": 32,
+        "height": 16,
+        "width": 16,
+        "widget": {
+          "title": "Active Threads",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "avg(workload_googleapis_com:jvm_threads_count{monitored_resource=\"cloud_function\",service_name=\"edpa.data_availability_sync\"})"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 108,
+        "height": 4,
+        "width": 48,
+        "widget": {
+          "title": "CMMS gRPC Calls",
+          "sectionHeader": {
+            "dividerBelow": true,
+            "subtitle": "Downstream Kingdom/CMMS API performance"
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "CMMS RPC Latency by Method (p95)",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum(rate(workload_googleapis_com:rpc_client_duration_bucket{monitored_resource=\"cloud_function\",service_name=\"edpa.data_availability_sync\"}[5m])) by (le, rpc_method))"
+                }
+              }
+            ],
+            "yAxis": {"label": "seconds", "scale": "LINEAR"}
+          }
+        }
+      },
+      {
+        "yPos": 112,
+        "xPos": 24,
+        "height": 16,
+        "width": 24,
+        "widget": {
+          "title": "CMMS RPC Status Codes",
+          "xyChart": {
+            "chartOptions": {"mode": "COLOR"},
+            "dataSets": [
+              {
+                "plotType": "STACKED_BAR",
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(workload_googleapis_com:rpc_client_duration_count{monitored_resource=\"cloud_function\",service_name=\"edpa.data_availability_sync\"}[5m])) by (rpc_grpc_status_code)"
+                }
+              }
+            ],
+            "yAxis": {"label": "count", "scale": "LINEAR"}
+          }
+        }
+      }
+    ]
+  }
+}
