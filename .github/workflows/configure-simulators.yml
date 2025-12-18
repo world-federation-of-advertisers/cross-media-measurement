@@ -167,7 +167,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-edp-sims
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}
