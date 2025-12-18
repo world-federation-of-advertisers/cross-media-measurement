@@ -44,4 +44,9 @@ module "simulators_spot_node_pool" {
 
 module "simulators" {
   source = "../modules/simulators"
+  for_each = toset(var.edp_simulator_names)
+
+  simulator_name                  = each.key
+  key_ring_location               = local.key_ring_location
+  tee_image_signature_fingerprint = var.trusted_image_signing_fingerprint
 }
