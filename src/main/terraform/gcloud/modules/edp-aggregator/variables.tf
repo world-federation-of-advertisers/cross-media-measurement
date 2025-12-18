@@ -29,6 +29,7 @@ variable "requisition_fulfiller_config" {
       min_replicas                  = number
       max_replicas                  = number
       machine_type                  = string
+      java_tool_options             = optional(string)
       docker_image                  = string
       mig_distribution_policy_zones = list(string)
       app_flags                     = list(string)
