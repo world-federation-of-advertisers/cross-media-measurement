@@ -404,7 +404,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
-            baseImpressionQualificationFilters,
+            baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),

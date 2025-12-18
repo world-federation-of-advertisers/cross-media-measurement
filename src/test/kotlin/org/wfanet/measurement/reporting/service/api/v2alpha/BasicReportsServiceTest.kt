@@ -2472,7 +2472,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
-        listOf(INTERNAL_AMI_IQF),
+        listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2582,7 +2582,7 @@ class BasicReportsServiceTest {
         SecureRandom().asKotlinRandom(),
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
-        listOf(INTERNAL_AMI_IQF),
+        listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2702,7 +2702,10 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
-          listOf(INTERNAL_AMI_IQF, INTERNAL_MRC_IQF),
+          listOf(
+            INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
+            INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
+          ),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
