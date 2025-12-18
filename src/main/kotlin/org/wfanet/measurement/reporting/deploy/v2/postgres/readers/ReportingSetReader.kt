@@ -149,6 +149,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
    * @throws [ReportingSetNotFoundException] if any ReportingSet not found.
    */
   fun batchGetReportingSets(request: BatchGetReportingSetsRequest): Flow<Result> {
+    require(request.cmmsMeasurementConsumerId.isNotEmpty())
     val sql =
       StringBuilder(
         """
@@ -186,9 +187,13 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return flow {
       val reportingSetInfoMap = buildResultMap(statement)
 
-      for (reportingSetId in request.externalReportingSetIdsList) {
+      for (externalReportingSetId in request.externalReportingSetIdsList) {
         val reportingSetInfo =
-          reportingSetInfoMap[reportingSetId] ?: throw ReportingSetNotFoundException()
+          reportingSetInfoMap[externalReportingSetId]
+            ?: throw ReportingSetNotFoundException(
+              request.cmmsMeasurementConsumerId,
+              externalReportingSetId,
+            )
 
         val reportingSet = reportingSetInfo.buildReportingSet()
 

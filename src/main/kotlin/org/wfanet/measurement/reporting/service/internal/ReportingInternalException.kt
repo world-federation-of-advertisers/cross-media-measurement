@@ -109,10 +109,18 @@ class MeasurementNotFoundException(provideDescription: () -> String = { "Measure
 }
 
 class ReportingSetNotFoundException(
-  provideDescription: () -> String = { "Reporting Set not found" }
-) : ReportingInternalException(ErrorCode.REPORTING_SET_NOT_FOUND, provideDescription) {
+  val cmmsMeasurementConsumerId: String,
+  val externalReportingSetId: String,
+  buildMessage: () -> String = {
+    "ReportingSet with external key ($cmmsMeasurementConsumerId, $externalReportingSetId) not found"
+  },
+) : ReportingInternalException(ErrorCode.REPORTING_SET_NOT_FOUND, buildMessage()) {
   override val context
-    get() = emptyMap<String, String>()
+    get() =
+      mapOf(
+        "cmmsMeasurementConsumerId" to cmmsMeasurementConsumerId,
+        "externalReportingSetId" to externalReportingSetId,
+      )
 }
 
 class MeasurementCalculationTimeIntervalNotFoundException(
