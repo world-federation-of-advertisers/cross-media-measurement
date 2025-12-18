@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/edp_aggregator"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-edp-aggregator-services:
@@ -138,7 +139,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-edpa
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

@@ -33,6 +33,7 @@ import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredenti
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as KingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
@@ -46,7 +47,7 @@ import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.ErrorCode
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as ImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -58,7 +59,6 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -74,18 +74,20 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as i
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
-import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
-import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.api.CampaignGroupInvalidException
+import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
+import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
+import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
+import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
-import org.wfanet.measurement.reporting.service.api.ServiceException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -97,12 +99,15 @@ import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
+import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 class BasicReportsService(
@@ -118,7 +123,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  private val baseImpressionQualificationFilters: List<ImpressionQualificationFilter>,
+  baseImpressionQualificationFilters: Iterable<InternalImpressionQualificationFilter>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   private sealed class ReportingSetMapKey {
@@ -127,25 +132,13 @@ class BasicReportsService(
     data class Primitive(val cmmsEventGroups: Set<String>) : ReportingSetMapKey()
   }
 
-  private val baseInternalReportingQualificationFilterByImpressionQualificationFilterName:
-    Map<String, InternalReportingImpressionQualificationFilter> =
-    buildMap {
-      for (baseImpressionQualificationFilter in baseImpressionQualificationFilters) {
-        val key =
-          ImpressionQualificationFilterKey(
-            baseImpressionQualificationFilter.externalImpressionQualificationFilterId
-          )
-
-        put(
-          key.toName(),
-          reportingImpressionQualificationFilter {
-            externalImpressionQualificationFilterId =
-              baseImpressionQualificationFilter.externalImpressionQualificationFilterId
-            filterSpecs += baseImpressionQualificationFilter.filterSpecsList
-          },
-        )
-      }
+  private val baseInternalImpressionQualificationFilterByKey:
+    Map<ImpressionQualificationFilterKey, InternalImpressionQualificationFilter> =
+    baseImpressionQualificationFilters.associateBy {
+      ImpressionQualificationFilterKey(it.externalImpressionQualificationFilterId)
     }
+  private val baseImpressionQualificationFilterNames =
+    baseInternalImpressionQualificationFilterByKey.keys.map { it.toName() }
 
   private data class ReportingSetMaps(
     // Map of DataProvider resource name to Primitive ReportingSet
@@ -155,197 +148,111 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    if (request.parent.isEmpty()) {
-      throw RequiredFieldNotSetException("parent")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
-    val measurementConsumerKey =
-      MeasurementConsumerKey.fromName(request.parent)
-        ?: throw InvalidFieldValueException("parent")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    authorization.check(listOf(request.parent, measurementConsumerKey.toName()), Permission.CREATE)
+    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
 
     if (request.basicReport.campaignGroup.isEmpty()) {
       throw RequiredFieldNotSetException("basic_report.campaign_group")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
     val campaignGroupKey =
       ReportingSetKey.fromName(request.basicReport.campaignGroup)
-        ?: throw InvalidFieldValueException("basic_report.campaign_group")
+        ?: throw InvalidFieldValueException("basic_report.campaign_group") { fieldPath ->
+            "$fieldPath is not a valid ReportingSet resource name"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val campaignGroup: ReportingSet =
+      try {
+        getReportingSet(campaignGroupKey)
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+    if (campaignGroup.campaignGroup != campaignGroup.name) {
+      throw CampaignGroupInvalidException(request.basicReport.campaignGroup)
+        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
 
-    // Required for creating Report
-    val campaignGroup: ReportingSet = getReportingSet(request.basicReport.campaignGroup)
+    val (parentKey: MeasurementConsumerKey, requestImpressionQualificationFilterKeys) =
+      try {
+        CreateBasicReportRequestValidation.validateRequest(
+          request,
+          campaignGroup,
+          eventTemplateFieldsByPath,
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: FieldUnimplementedException) {
+        throw e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
+      } catch (e: DataProviderNotFoundForCampaignGroupException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: EventTemplateFieldInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
-    val eventTemplateFieldsByPath = eventMessageDescriptor?.eventTemplateFieldsByPath ?: emptyMap()
+    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
+    val effectiveModelLine: ModelLine? =
+      try {
+        getEffectiveModelLine(
+          request.basicReport.modelLine,
+          request.basicReport.reportingInterval,
+          reportingSetMaps.primitiveReportingSetsByDataProvider.keys,
+          parentKey,
+        )
+      } catch (e: ModelLineNotActiveException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
 
-    try {
-      validateCreateBasicReportRequest(
-        request,
-        campaignGroup,
-        eventTemplateFieldsByPath,
-        baseImpressionQualificationFilters.isEmpty(),
-      )
-    } catch (e: ServiceException) {
-      throw when (e.reason) {
-        Errors.Reason.REQUIRED_FIELD_NOT_SET,
-        Errors.Reason.INVALID_FIELD_VALUE ->
-          e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        Errors.Reason.FIELD_UNIMPLEMENTED -> e.asStatusRuntimeException(Status.Code.UNIMPLEMENTED)
-        Errors.Reason.BASIC_REPORT_NOT_FOUND,
-        Errors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-        Errors.Reason.REPORTING_SET_NOT_FOUND,
-        Errors.Reason.METRIC_NOT_FOUND,
-        Errors.Reason.CAMPAIGN_GROUP_INVALID,
-        Errors.Reason.INVALID_METRIC_STATE_TRANSITION,
-        Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE,
-        Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-          e.asStatusRuntimeException(Status.Code.INTERNAL) // Shouldn't be reached
+    val requiredPermissionIds = buildSet {
+      add(Permission.CREATE)
+
+      if (effectiveModelLine?.type == ModelLine.Type.DEV) {
+        add(Permission.CREATE_WITH_DEV_MODEL_LINE)
       }
     }
 
-    val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
+    authorization.check(request.parent, requiredPermissionIds)
 
-    val measurementConsumerConfig =
-      measurementConsumerConfigs.configsMap[request.parent]
-        ?: throw Status.INTERNAL.withDescription("Config not found for $request.parent")
-          .asRuntimeException()
-
-    val measurementConsumerCredentials =
-      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
-
-    val validModelLines =
-      kingdomModelLinesStub
-        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
-        .enumerateValidModelLines(
-          enumerateValidModelLinesRequest {
-            parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
-            timeInterval = interval {
-              startTime = request.basicReport.reportingInterval.reportStart.toTimestamp()
-              endTime =
-                request.basicReport.reportingInterval.reportStart
-                  .copy {
-                    day = request.basicReport.reportingInterval.reportEnd.day
-                    month = request.basicReport.reportingInterval.reportEnd.month
-                    year = request.basicReport.reportingInterval.reportEnd.year
-                  }
-                  .toTimestamp()
-            }
-            dataProviders += reportingSetMaps.primitiveReportingSetsByDataProvider.keys
-          }
-        )
-        .modelLinesList
-
-    val modelLine =
-      if (request.basicReport.modelLine.isNotEmpty()) {
-        if (request.basicReport.modelLine !in validModelLines.map { it.name }) {
-          throw InvalidFieldValueException("basic_report.model_line") { fieldName ->
-              "$fieldName is not active for the specified reporting interval and data providers"
-            }
-            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    val impressionQualificationFilterKeyByName: Map<String, ImpressionQualificationFilterKey> =
+      (baseInternalImpressionQualificationFilterByKey.keys +
+          requestImpressionQualificationFilterKeys)
+        .associateBy { it.toName() }
+    val effectiveReportingImpressionQualificationFilters:
+      List<ReportingImpressionQualificationFilter> =
+      baseImpressionQualificationFilterNames.map {
+        reportingImpressionQualificationFilter { impressionQualificationFilter = it }
+      } +
+        request.basicReport.impressionQualificationFiltersList.filter {
+          it.impressionQualificationFilter !in baseImpressionQualificationFilterNames
         }
-        request.basicReport.modelLine
-      } else if (validModelLines.isNotEmpty()) {
-        validModelLines.first().name
-      } else {
-        ""
-      }
-
+    if (effectiveReportingImpressionQualificationFilters.isEmpty()) {
+      throw RequiredFieldNotSetException("basic_report.impression_qualification_filters") {
+          fieldPath ->
+          "$fieldPath must be set when there are no base ImpressionQualificationFilters configured"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecsLists:
-      MutableList<List<ImpressionQualificationFilterSpec>> =
-      mutableListOf()
-
-    impressionQualificationFilterSpecsLists.addAll(
-      baseImpressionQualificationFilters.map { baseImpressionQualificationFilter ->
-        baseImpressionQualificationFilter.filterSpecsList.map {
-          it.toImpressionQualificationFilterSpec()
-        }
-      }
-    )
-
-    val internalReportingImpressionQualificationFilters:
-      List<InternalReportingImpressionQualificationFilter> =
-      buildList {
-        for (impressionQualificationFilter in
-          request.basicReport.impressionQualificationFiltersList) {
-          if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
-            if (
-              baseInternalReportingQualificationFilterByImpressionQualificationFilterName.contains(
-                impressionQualificationFilter.impressionQualificationFilter
-              )
-            ) {
-              add(
-                baseInternalReportingQualificationFilterByImpressionQualificationFilterName
-                  .getValue(impressionQualificationFilter.impressionQualificationFilter)
-              )
-              continue
-            }
-
-            val key =
-              ImpressionQualificationFilterKey.fromName(
-                impressionQualificationFilter.impressionQualificationFilter
-              )
+    val impressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
+      effectiveReportingImpressionQualificationFilters.map {
+        if (it.hasImpressionQualificationFilter()) {
+          val impressionQualificationFilterKey =
+            impressionQualificationFilterKeyByName.getValue(it.impressionQualificationFilter)
+          val internalImpressionQualificationFilter: InternalImpressionQualificationFilter =
             try {
-              val internalImpressionQualificationFilter =
-                internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
-                  getImpressionQualificationFilterRequest {
-                    externalImpressionQualificationFilterId = key!!.impressionQualificationFilterId
-                  }
-                )
-
-              add(
-                reportingImpressionQualificationFilter {
-                  externalImpressionQualificationFilterId =
-                    internalImpressionQualificationFilter.externalImpressionQualificationFilterId
-                  filterSpecs += internalImpressionQualificationFilter.filterSpecsList
-                }
-              )
-
-              impressionQualificationFilterSpecsLists.add(
-                internalImpressionQualificationFilter
-                  .toImpressionQualificationFilter()
-                  .filterSpecsList
-              )
-            } catch (e: StatusException) {
-              throw when (InternalErrors.getReason(e)) {
-                InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
-                  ImpressionQualificationFilterNotFoundException(
-                      impressionQualificationFilter.impressionQualificationFilter
-                    )
-                    .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-                InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
-                InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
-                InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-                InternalErrors.Reason.INVALID_FIELD_VALUE,
-                InternalErrors.Reason.METRIC_NOT_FOUND,
-                InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
-                InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
-                InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
-                InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
-                InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
-                null -> Status.INTERNAL.withCause(e).asRuntimeException()
-              }
+              getInternalImpressionQualificationFilter(impressionQualificationFilterKey)
+            } catch (e: ImpressionQualificationFilterNotFoundException) {
+              throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
             }
-          } else if (impressionQualificationFilter.hasCustom()) {
-            add(impressionQualificationFilter.toInternal())
-            impressionQualificationFilterSpecsLists.add(
-              impressionQualificationFilter.custom.filterSpecList
-            )
+          internalImpressionQualificationFilter.filterSpecsList.map { internalFilterSpec ->
+            internalFilterSpec.toImpressionQualificationFilterSpec()
           }
+        } else {
+          it.custom.filterSpecList
         }
       }
 
     val createReportRequestId = UUID.randomUUID().toString()
-
-    val basicReportImpressionQualificationFilterNames: List<String> =
-      request.basicReport.impressionQualificationFiltersList
-        .filter { it.hasImpressionQualificationFilter() }
-        .map { it.impressionQualificationFilter }
 
     val createdInternalBasicReport =
       try {
@@ -353,18 +260,15 @@ class BasicReportsService(
           createBasicReportRequest {
             basicReport =
               request.basicReport.toInternal(
-                cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
                 internalReportingImpressionQualificationFilters =
-                  internalReportingImpressionQualificationFilters,
+                  request.basicReport.impressionQualificationFiltersList.map { it.toInternal() },
                 internalEffectiveReportingImpressionQualificationFilters =
-                  baseInternalReportingQualificationFilterByImpressionQualificationFilterName
-                    .entries
-                    .filterNot { it.key in basicReportImpressionQualificationFilterNames }
-                    .map { it.value } + internalReportingImpressionQualificationFilters,
-                effectiveModelLine = modelLine,
+                  effectiveReportingImpressionQualificationFilters.map { it.toInternal() },
+                effectiveModelLine = effectiveModelLine?.name.orEmpty(),
               )
             requestId = request.requestId
           }
@@ -374,7 +278,7 @@ class BasicReportsService(
           InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS ->
             BasicReportAlreadyExistsException(
                 BasicReportKey(
-                    cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+                    cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
                     basicReportId = request.basicReportId,
                   )
                   .toName()
@@ -399,7 +303,7 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecsLists,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecLists,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
@@ -412,7 +316,7 @@ class BasicReportsService(
         campaignGroupKey,
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
-        modelLine,
+        effectiveModelLine?.name.orEmpty(),
       )
 
     val createReportRequest = createReportRequest {
@@ -426,13 +330,111 @@ class BasicReportsService(
 
     internalBasicReportsStub.setExternalReportId(
       setExternalReportIdRequest {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        cmmsMeasurementConsumerId = parentKey.measurementConsumerId
         externalBasicReportId = request.basicReportId
         externalReportId = createReportRequest.reportId
       }
     )
 
     return createdInternalBasicReport.toBasicReport()
+  }
+
+  /**
+   * Gets an [InternalImpressionQualificationFilter].
+   *
+   * @throws ImpressionQualificationFilterNotFoundException
+   */
+  private suspend fun getInternalImpressionQualificationFilter(
+    key: ImpressionQualificationFilterKey
+  ): InternalImpressionQualificationFilter {
+    val baseInternalIqf = baseInternalImpressionQualificationFilterByKey[key]
+    if (baseInternalIqf != null) {
+      return baseInternalIqf
+    }
+
+    return try {
+      internalImpressionQualificationFiltersStub.getImpressionQualificationFilter(
+        getImpressionQualificationFilterRequest {
+          externalImpressionQualificationFilterId = key.impressionQualificationFilterId
+        }
+      )
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND ->
+          ImpressionQualificationFilterNotFoundException(key.toName())
+        InternalErrors.Reason.BASIC_REPORT_NOT_FOUND,
+        InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.METRIC_NOT_FOUND,
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+        InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+        InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+        InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+        null -> Exception("Error retrieving internal ImpressionQualificationFilter", e)
+      }
+    }
+  }
+
+  /**
+   * Returns the effective [ModelLine], or `null` if there is none.
+   *
+   * @param requestModelLine resource name of the [ModelLine] from a request, which may be empty
+   * @throws ModelLineNotActiveException if [requestModelLine] is not active
+   */
+  private suspend fun getEffectiveModelLine(
+    requestModelLine: String,
+    reportingInterval: ReportingInterval,
+    dataProviderNames: Iterable<String>,
+    measurementConsumerKey: MeasurementConsumerKey,
+  ): ModelLine? {
+    val measurementConsumerName = measurementConsumerKey.toName()
+    val measurementConsumerConfig =
+      checkNotNull(measurementConsumerConfigs.configsMap[measurementConsumerName]) {
+        "Config not found for $measurementConsumerName"
+      }
+    val measurementConsumerCredentials =
+      MeasurementConsumerCredentials.fromConfig(measurementConsumerKey, measurementConsumerConfig)
+    val validModelLines: List<ModelLine> =
+      try {
+          kingdomModelLinesStub
+            .withAuthenticationKey(
+              measurementConsumerCredentials.callCredentials.apiAuthenticationKey
+            )
+            .enumerateValidModelLines(
+              enumerateValidModelLinesRequest {
+                parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
+                timeInterval = interval {
+                  startTime = reportingInterval.reportStart.toTimestamp()
+                  endTime =
+                    reportingInterval.reportStart
+                      .copy {
+                        day = reportingInterval.reportEnd.day
+                        month = reportingInterval.reportEnd.month
+                        year = reportingInterval.reportEnd.year
+                      }
+                      .toTimestamp()
+                }
+                dataProviders += dataProviderNames
+              }
+            )
+        } catch (e: StatusException) {
+          throw Exception("Error enumerating valid ModelLines", e)
+        }
+        .modelLinesList
+
+    return if (requestModelLine.isEmpty()) {
+      if (validModelLines.isEmpty()) {
+        null
+      } else {
+        validModelLines.first()
+      }
+    } else {
+      validModelLines.find { it.name == requestModelLine }
+        ?: throw ModelLineNotActiveException(requestModelLine)
+    }
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
@@ -534,15 +536,18 @@ class BasicReportsService(
     }
   }
 
-  /** Get a single [ReportingSet] */
-  private suspend fun getReportingSet(name: String): ReportingSet {
-    val reportingSetKey = ReportingSetKey.fromName(name)!!
+  /**
+   * Gets a single [ReportingSet].
+   *
+   * @throws ReportingSetNotFoundException
+   */
+  private suspend fun getReportingSet(key: ReportingSetKey): ReportingSet {
     return try {
       internalReportingSetsStub
         .batchGetReportingSets(
           batchGetReportingSetsRequest {
-            cmmsMeasurementConsumerId = reportingSetKey.cmmsMeasurementConsumerId
-            externalReportingSetIds += reportingSetKey.reportingSetId
+            cmmsMeasurementConsumerId = key.cmmsMeasurementConsumerId
+            externalReportingSetIds += key.reportingSetId
           }
         )
         .reportingSetsList
@@ -550,9 +555,7 @@ class BasicReportsService(
         .toReportingSet()
     } catch (e: StatusException) {
       throw when (ReportingInternalException.getErrorCode(e)) {
-        ErrorCode.REPORTING_SET_NOT_FOUND ->
-          throw ReportingSetNotFoundException(name)
-            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        ErrorCode.REPORTING_SET_NOT_FOUND -> ReportingSetNotFoundException(key.toName())
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.REPORTING_SET_ALREADY_EXISTS,
         ErrorCode.CAMPAIGN_GROUP_INVALID,
@@ -573,7 +576,7 @@ class BasicReportsService(
         ErrorCode.METRIC_CALCULATION_SPEC_NOT_FOUND,
         ErrorCode.METRIC_CALCULATION_SPEC_ALREADY_EXISTS,
         ErrorCode.UNRECOGNIZED,
-        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        null -> Exception("Internal error retrieving ReportingSet", e)
       }
     }
   }
@@ -939,6 +942,7 @@ class BasicReportsService(
   object Permission {
     private const val TYPE = "reporting.basicReports"
     const val CREATE = "$TYPE.create"
+    const val CREATE_WITH_DEV_MODEL_LINE = "$TYPE.createWithDevModelLine"
     const val GET = "$TYPE.get"
     const val LIST = "$TYPE.list"
   }

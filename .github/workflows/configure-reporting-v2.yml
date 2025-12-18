@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/reporting_v2"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-reporting-v2:
@@ -214,7 +215,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-reporting
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}
