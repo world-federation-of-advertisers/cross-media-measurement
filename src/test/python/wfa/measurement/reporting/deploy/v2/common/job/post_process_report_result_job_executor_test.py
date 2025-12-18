@@ -26,19 +26,20 @@ from job import post_process_report_result_job
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
     @flagsaver.flagsaver(
-        internal_reporting_target="internal_reporting_target",
+        internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
         internal_api_cert_host="cert_host",
     )
     @mock.patch("os.path.exists", return_value=True)
-    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
-                )
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
     @mock.patch(
-        "job.post_process_report_result_job_executor._get_secure_credentials")
+        "job.post_process_report_result_job_executor._get_secure_credentials"
+    )
     @mock.patch(
-        "job.post_process_report_result_job_executor._create_secure_channel")
+        "job.post_process_report_result_job_executor._create_secure_channel"
+    )
     def test_post_process_report_result_with_internal_api_cert_host_success(
         self,
         mock_create_channel,
@@ -68,26 +69,26 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                                                      "root_ca_cert")
         expected_options = [("grpc.ssl_target_name_override", "cert_host")]
         mock_create_channel.assert_called_once_with(
-            "internal_reporting_target",
-            mock_credentials,
-            options=expected_options)
+            "internal_api_target", mock_credentials, expected_options
+        )
 
         mock_job_class.assert_called_once_with(mock_channel_instance)
         mock_job_instance.execute.assert_called_once()
 
     @flagsaver.flagsaver(
-        internal_reporting_target="internal_reporting_target",
+        internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
     )
     @mock.patch("os.path.exists", return_value=True)
-    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob"
-                )
+    @mock.patch("job.post_process_report_result_job.PostProcessReportResultJob")
     @mock.patch(
-        "job.post_process_report_result_job_executor._get_secure_credentials")
+        "job.post_process_report_result_job_executor._get_secure_credentials"
+    )
     @mock.patch(
-        "job.post_process_report_result_job_executor._create_secure_channel")
+        "job.post_process_report_result_job_executor._create_secure_channel"
+    )
     def test_post_process_report_result_job_executor_no_internal_api_cert_host_success(
             self, mock_create_channel, mock_get_credentials, mock_job_class,
             mock_exists):
@@ -112,19 +113,19 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                                                      "client_cert",
                                                      "root_ca_cert")
         mock_create_channel.assert_called_once_with(
-            "internal_reporting_target", mock_credentials, options=[])
+            "internal_api_target", mock_credentials, []
+        )
         mock_job_class.assert_called_once_with(mock_channel_instance)
         mock_job_instance.execute.assert_called_once()
 
     @parameterized.named_parameters(
-        ("missing_internal_reporting_target_flag",
-         "internal_reporting_target"),
+        ("missing_internal_api_target_flag", "internal_api_target"),
         ("missing_tls_cert_file_flag", "tls_cert_file"),
         ("missing_tls_key_file_flag", "tls_key_file"),
         ("missing_cert_collection_file_flag", "cert_collection_file"),
     )
     @flagsaver.flagsaver(
-        internal_reporting_target="internal_reporting_target",
+        internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
@@ -142,7 +143,7 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         ("missing_cert_collection", "cert_collection_file", "root_ca_cert"),
     )
     @flagsaver.flagsaver(
-        internal_reporting_target="internal_reporting_target",
+        internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
         tls_key_file="client_key",
         cert_collection_file="root_ca_cert",
