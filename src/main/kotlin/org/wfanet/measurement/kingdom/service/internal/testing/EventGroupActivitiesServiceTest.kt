@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivity
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
@@ -71,6 +72,10 @@ private val DETAILS = eventGroupDetails {
 @RunWith(JUnit4::class)
 abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutineImplBase> {
 
+  private val testClock: Clock = Clock.systemUTC()
+  private val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
+  private val population = Population(testClock, idGenerator)
+
   data class Services<T>(
     val accountsService: AccountsCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
@@ -79,57 +84,38 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   )
 
-  private val testClock: Clock = Clock.systemUTC()
-  protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
-  private val population = Population(testClock, idGenerator)
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
-  protected lateinit var accountsService: AccountsCoroutineImplBase
-    private set
+  private lateinit var accountsService: AccountsCoroutineImplBase
 
-  protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
-    private set
+  private lateinit var dataProvidersService: DataProvidersCoroutineImplBase
 
   private lateinit var eventGroupActivitiesService: T
 
-  protected lateinit var eventGroupsService: EventGroupsCoroutineImplBase
-    private set
+  private lateinit var eventGroupsService: EventGroupsCoroutineImplBase
 
-  protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
-    private set
+  private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
 
-  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+  private lateinit var dataProvider: DataProvider
+
+  private lateinit var eventGroup: EventGroup
 
   @Before
-  fun initServices() {
+  fun init() = runBlocking {
     val services = newServices(idGenerator)
     accountsService = services.accountsService
     dataProvidersService = services.dataProvidersService
     eventGroupActivitiesService = services.eventGroupActivitiesService
     eventGroupsService = services.eventGroupsService
     measurementConsumersService = services.measurementConsumersService
+
+    dataProvider = population.createDataProvider(dataProvidersService)
+    eventGroup = createEventGroup(dataProvider)
   }
 
   @Test
   fun `batchUpdateEventGroupActivities returns created EventGroupActivities when allow_missing is set to true`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         externalEventGroupId = eventGroup.externalEventGroupId
@@ -199,24 +185,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities returns updated existing EventGroupActivities`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val createRequest = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         externalEventGroupId = eventGroup.externalEventGroupId
@@ -300,24 +268,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent external data provider id is not set`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         // missing external data provider id
         externalEventGroupId = eventGroup.externalEventGroupId
@@ -346,24 +296,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent external event group id is not set`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         // missing parent external event group id
@@ -392,24 +324,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent and child has different external event group id`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         externalEventGroupId = eventGroup.externalEventGroupId
@@ -439,24 +353,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when activity date is not set`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         externalEventGroupId = eventGroup.externalEventGroupId
@@ -481,24 +377,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws NOT_FOUND for non existent DataProvider`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
-      val eventGroup =
-        eventGroupsService.createEventGroup(
-          createEventGroupRequest {
-            this.eventGroup = eventGroup {
-              externalDataProviderId = dataProvider.externalDataProviderId
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-              mediaTypes += MediaType.VIDEO
-              dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
-              details = DETAILS
-            }
-          }
-        )
-
       val request = batchUpdateEventGroupActivitiesRequest {
         // non-existent DataProvider
         externalDataProviderId = 1L
@@ -528,10 +406,6 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
   @Test
   fun `batchUpdateEventGroupActivities throws NOT_FOUND for non existent EventGroup`() =
     runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
-
       val request = batchUpdateEventGroupActivitiesRequest {
         externalDataProviderId = dataProvider.externalDataProviderId
         externalEventGroupId = 1L
@@ -556,4 +430,22 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception).hasMessageThat().contains("EventGroup not found")
     }
+
+  private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    return eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        this.eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+          mediaTypes += MediaType.VIDEO
+          dataAvailabilityInterval = interval { startTime = testClock.instant().toProtoTime() }
+          details = DETAILS
+        }
+      }
+    )
+  }
 }
