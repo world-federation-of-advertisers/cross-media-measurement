@@ -35,6 +35,57 @@ from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
 
 class TestPostProcessReportSummaryV2(unittest.TestCase):
 
+    def test_report_summary_with_a_single_reach_is_processed_correctly(self):
+        report_summary_textproto = """
+          cmms_measurement_consumer_id: "NsQ4CS3K1to"
+          external_report_result_id: 1896307399873472987
+          groupings {
+            path: "person.social_grade_group"
+            value { enum_value: "C2_D_E" }
+          }
+          event_filters {
+            terms {
+              path: "person.age_group"
+              value { enum_value: "YEARS_18_TO_34" }
+            }
+          }
+          population: 5733810
+          report_summary_set_results {
+            external_reporting_set_result_id: 7237497766817761156
+            impression_filter: "custom"
+            set_operation: "union"
+            data_providers: "abc123"
+            metric_frequency_spec { weekly: MONDAY }
+            non_cumulative_results {
+              key {
+                non_cumulative_start { year: 2021 month: 3 day: 14 }
+                end { year: 2021 month: 3 day: 15 }
+              }
+              reach {
+                value: 116000
+                standard_deviation: 137750.79990420336
+                metric: "reach_7237497766817761156_non_cumulative_2021_03_15"
+              }
+            }
+          }
+        """
+
+        report_summary = text_format.Parse(
+            report_summary_textproto,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(report_summary).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(
+            result.updated_measurements["reach_7237497766817761156_non_cumulative_2021_03_15"],
+            116000,
+        )
+
     def test_report_summary_v2_is_parsed_correctly(self):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
