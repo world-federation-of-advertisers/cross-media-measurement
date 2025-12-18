@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
+import com.google.common.truth.extensions.proto.ProtoTruth
 import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.file.Path
@@ -23,7 +24,6 @@ import java.nio.file.Paths
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
-import com.google.common.truth.extensions.proto.ProtoTruth
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

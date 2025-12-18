@@ -33,15 +33,14 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionAuditLog
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionAuditLog
 
 /**
  * Structured JSON logger for Results Fulfiller audit events.
  *
- * Writes entries directly to Cloud Logging using JsonPayload. Each entry is a
- * RequisitionAuditLog protobuf message converted to JSON with the schema:
+ * Writes entries directly to Cloud Logging using JsonPayload. Each entry is a RequisitionAuditLog
+ * protobuf message converted to JSON with the schema:
  * - grouped_requisition_id: string
  * - data_provider: string
  * - timestamp: ISO8601
@@ -54,8 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.requisitionAuditLog
  * - measurement_spec: MeasurementSpec proto (as JSON)
  */
 object ResultsFulfillerStructuredLogger {
-  private val logger: Logger =
-    Logger.getLogger(ResultsFulfillerStructuredLogger::class.java.name)
+  private val logger: Logger = Logger.getLogger(ResultsFulfillerStructuredLogger::class.java.name)
 
   private val logging: Logging by lazy { LoggingOptions.getDefaultInstance().service }
   private val typeRegistry: TypeRegistry by lazy {
@@ -91,17 +89,16 @@ object ResultsFulfillerStructuredLogger {
   ) {
     try {
       val now = clockOverride()
-      val timestamp = Timestamp.newBuilder()
-        .setSeconds(now.epochSecond)
-        .setNanos(now.nano)
-        .build()
+      val timestamp = Timestamp.newBuilder().setSeconds(now.epochSecond).setNanos(now.nano).build()
 
       // Extract event group reference IDs from the grouped requisitions
-      val eventGroupReferenceIds = groupedRequisitions.eventGroupMapList
-        .map { it.details.eventGroupReferenceId }
-        .filter { it.isNotEmpty() }
+      val eventGroupReferenceIds =
+        groupedRequisitions.eventGroupMapList
+          .map { it.details.eventGroupReferenceId }
+          .filter { it.isNotEmpty() }
 
-      // Extract CEL expression and collection interval from the first event group in requisition spec
+      // Extract CEL expression and collection interval from the first event group in requisition
+      // spec
       val firstEventGroup = requisitionSpec.events.eventGroupsList.firstOrNull()
       val celExpression = firstEventGroup?.value?.filter?.expression ?: ""
       val collectionInterval = firstEventGroup?.value?.collectionInterval
@@ -119,7 +116,8 @@ object ResultsFulfillerStructuredLogger {
           this.collectionInterval = collectionInterval
         }
         this.eventGroupReferenceIds.addAll(eventGroupReferenceIds)
-        this.measurementSpec = requisition.measurementSpec.message.unpack(MeasurementSpec::class.java)
+        this.measurementSpec =
+          requisition.measurementSpec.message.unpack(MeasurementSpec::class.java)
         this.blobUris.addAll(blobUris)
         if (measurementResult != null) {
           this.measurementResult = measurementResult
@@ -127,10 +125,11 @@ object ResultsFulfillerStructuredLogger {
       }
 
       // Convert the proto to JSON string using standard protobuf JSON conversion
-      val jsonString = JsonFormat.printer()
-        .includingDefaultValueFields()
-        .usingTypeRegistry(typeRegistry)
-        .print(auditLog)
+      val jsonString =
+        JsonFormat.printer()
+          .includingDefaultValueFields()
+          .usingTypeRegistry(typeRegistry)
+          .print(auditLog)
 
       // Parse the JSON string into a Map for Cloud Logging
       val payloadMap = parseJsonToMap(jsonString)

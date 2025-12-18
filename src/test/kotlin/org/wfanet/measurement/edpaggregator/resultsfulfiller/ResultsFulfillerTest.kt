@@ -65,8 +65,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -505,8 +505,7 @@ class ResultsFulfillerTest {
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
     val fakeLogging: Logging = mock()
-    val fulfillerParams =
-      ResultsFulfillerParams.newBuilder().setDataProvider(EDP_NAME).build()
+    val fulfillerParams = ResultsFulfillerParams.newBuilder().setDataProvider(EDP_NAME).build()
 
     val resultsFulfiller =
       ResultsFulfiller(
@@ -543,8 +542,7 @@ class ResultsFulfillerTest {
     val eventGroupRefIds = json["eventGroupReferenceIds"] as List<String>
     assertThat(eventGroupRefIds).contains(EVENT_GROUP_NAME)
 
-    @Suppress("UNCHECKED_CAST")
-    val blobUris = json["blobUris"] as List<String>
+    @Suppress("UNCHECKED_CAST") val blobUris = json["blobUris"] as List<String>
     assertThat(blobUris).contains(IMPRESSIONS_FILE_URI)
   }
 

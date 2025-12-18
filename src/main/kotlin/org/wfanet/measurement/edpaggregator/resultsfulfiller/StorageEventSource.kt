@@ -110,8 +110,8 @@ class StorageEventSource(
 ) : EventSource<Message> {
 
   /**
-   * Cached impression data sources created during event reader initialization.
-   * This list is populated when [generateEventBatches] is first called.
+   * Cached impression data sources created during event reader initialization. This list is
+   * populated when [generateEventBatches] is first called.
    */
   private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
 
@@ -199,8 +199,8 @@ class StorageEventSource(
   }
 
   /**
-   * Returns the list of all impression data sources used by this event source.
-   * This list is populated after [generateEventBatches] is called.
+   * Returns the list of all impression data sources used by this event source. This list is
+   * populated after [generateEventBatches] is called.
    *
    * @return List of [ImpressionDataSource] objects, or empty list if not yet initialized.
    */

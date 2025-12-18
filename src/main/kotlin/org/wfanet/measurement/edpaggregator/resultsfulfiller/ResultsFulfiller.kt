@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.Logging
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
@@ -27,7 +28,6 @@ import io.opentelemetry.api.trace.Span
 import java.security.GeneralSecurityException
 import java.time.Duration
 import java.time.Instant
-import com.google.cloud.logging.Logging
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
@@ -383,10 +383,8 @@ class ResultsFulfiller(
         )
 
         // Filter blob URIs for this requisition based on event groups
-        val requisitionBlobUris = filterBlobUrisForRequisition(
-          eventSource = eventSource,
-          requisitionSpec = requisitionSpec,
-        )
+        val requisitionBlobUris =
+          filterBlobUrisForRequisition(eventSource = eventSource, requisitionSpec = requisitionSpec)
 
         ResultsFulfillerStructuredLogger.logRequisitionAudit(
           groupId = groupedRequisitions.groupId,
@@ -491,8 +489,8 @@ class ResultsFulfiller(
   /**
    * Filters blob URIs for a specific requisition based on event groups.
    *
-   * This method extracts the blob URIs from the cached impression data sources that
-   * are relevant to the given requisition, based on:
+   * This method extracts the blob URIs from the cached impression data sources that are relevant to
+   * the given requisition, based on:
    * - The event groups specified in the requisition spec
    * - The collection intervals for those event groups
    *
@@ -510,9 +508,10 @@ class ResultsFulfiller(
     val requisitionEventGroups = requisitionSpec.events.eventGroupsList.map { it.key }
 
     // Map event group names to their reference IDs using the grouped requisitions
-    val eventGroupToRefId = groupedRequisitions.eventGroupMapList.associate {
-      it.eventGroup to it.details.eventGroupReferenceId
-    }
+    val eventGroupToRefId =
+      groupedRequisitions.eventGroupMapList.associate {
+        it.eventGroup to it.details.eventGroupReferenceId
+      }
 
     // Get the reference IDs for the requisition's event groups
     val requisitionRefIds = requisitionEventGroups.mapNotNull { eventGroupToRefId[it] }.toSet()

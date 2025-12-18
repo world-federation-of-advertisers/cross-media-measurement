@@ -69,7 +69,8 @@ message RequisitionAuditLog {
   wfa.measurement.api.v2alpha.MeasurementSpec measurement_spec = 10;
 
   // The blob URIs for the input event data used to fulfill this requisition.
-  // These are the URIs of the actual data sources that were read to compute the result.
+  // These are the URIs of the actual data sources that were read to compute
+  // the result.
   repeated string blob_uris = 11;
 
   // The measurement result computed for this requisition.
