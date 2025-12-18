@@ -191,21 +191,6 @@ class ResultsFulfillerTest {
         )
         .buildAndRegisterGlobal()
     metrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
-
-    // Reset mocks to clear any stubbing from previous tests
-    reset(requisitionsServiceMock, requisitionMetadataServiceMock, impressionMetadataServiceMock)
-
-    // Re-apply default stubbing for requisitionsServiceMock
-    whenever(requisitionsServiceMock.fulfillDirectRequisition(any()))
-      .thenReturn(fulfillDirectRequisitionResponse {})
-    whenever(requisitionsServiceMock.getRequisition(any()))
-      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
-
-    // Re-apply default stubbing for requisitionMetadataServiceMock
-    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
-      .thenReturn(requisitionMetadata { cmmsRequisition = REQUISITION_NAME })
-    whenever(requisitionMetadataServiceMock.fulfillRequisitionMetadata(any()))
-      .thenReturn(requisitionMetadata {})
   }
 
   @After
@@ -930,6 +915,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
