@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/reporting_v2"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-reporting-v2:
