@@ -916,7 +916,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.message).contains("Reporting Set")
+      assertThat(exception.message).contains("ReportingSet")
     }
 
   @Test
@@ -967,7 +967,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.message).contains("Reporting Set")
+      assertThat(exception.message).contains("ReportingSet")
     }
 
   @Test
@@ -1312,6 +1312,8 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           errorInfo {
             domain = ReportingInternalException.DOMAIN
             reason = ErrorCode.REPORTING_SET_NOT_FOUND.name
+            metadata["cmmsMeasurementConsumerId"] = CMMS_MEASUREMENT_CONSUMER_ID
+            metadata["externalReportingSetId"] = "bogus"
           }
         )
     }
