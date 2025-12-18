@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/secure_computation"
+  KUBECTL_APPLYSET: true
 
 jobs:
   update-secure-computation-control-plane:
@@ -134,7 +135,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-secure-comp
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

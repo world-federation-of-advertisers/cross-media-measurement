@@ -38,9 +38,6 @@ py_binary(
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
         requirement("absl-py"),
-        requirement("openpyxl"),
-        requirement("pandas"),
-        requirement("protobuf"),
     ],
 )
 

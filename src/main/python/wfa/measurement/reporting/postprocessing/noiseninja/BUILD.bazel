@@ -9,9 +9,7 @@ py_library(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_post_processor_result_py_pb2",
         requirement("absl-py"),
-        requirement("highspy"),
         requirement("numpy"),
-        requirement("osqp"),
         requirement("qpsolvers"),
     ],
 )

@@ -124,9 +124,10 @@ locals {
       managed_instance_group_name   = "results-fulfiller-mig-v2"
       mig_service_account_name      = "results-fulfiller-sa"
       single_instance_assignment    = 1
-      min_replicas                  = 1
+      min_replicas                  = 0
       max_replicas                  = 10
-      machine_type                  = "n2d-standard-2"
+      machine_type                  = "c4d-standard-32"
+      java_tool_options             = "-Xmx96G"
       docker_image                  = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller:${var.image_tag}"
       mig_distribution_policy_zones = ["us-central1-a"]
       app_flags                     = [

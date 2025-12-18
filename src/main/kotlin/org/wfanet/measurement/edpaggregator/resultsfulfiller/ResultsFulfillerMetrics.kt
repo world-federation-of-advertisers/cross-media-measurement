@@ -20,6 +20,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
 
@@ -28,15 +29,10 @@ import org.wfanet.measurement.common.Instrumentation
  *
  * Metrics are emitted using the shared EDPA telemetry module and tagged with resource attributes
  * configured during SDK initialization (service name, environment, data provider).
+ *
+ * @param meter The OpenTelemetry meter to use for creating metrics instruments.
  */
-object ResultsFulfillerMetrics {
-  private val meter = Instrumentation.meter
-
-  private val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
-
-  val statusSuccess: Attributes = Attributes.of(statusKey, "success")
-  val statusFailure: Attributes = Attributes.of(statusKey, "failure")
-
+class ResultsFulfillerMetrics(meter: Meter) {
   val requisitionFulfillmentLatency: DoubleHistogram =
     meter
       .histogramBuilder("edpa.results_fulfiller.requisition_fulfillment_latency")
@@ -99,18 +95,28 @@ object ResultsFulfillerMetrics {
       .setUnit("s")
       .build()
 
-  /**
-   * Measures the execution time of a block and records it to the histogram.
-   *
-   * @param block The code block to measure
-   * @return The result of the block execution
-   */
-  inline fun <T> DoubleHistogram.measured(block: () -> T): T {
-    val timer = TimeSource.Monotonic.markNow()
-    return try {
-      block()
-    } finally {
-      this.record(timer.elapsedNow().inWholeNanoseconds / 1_000_000_000.0)
+  companion object {
+    private val statusKey = AttributeKey.stringKey("edpa.results_fulfiller.status")
+
+    val statusSuccess: Attributes = Attributes.of(statusKey, "success")
+    val statusFailure: Attributes = Attributes.of(statusKey, "failure")
+
+    /** Creates a ResultsFulfillerMetrics instance using the default Instrumentation meter. */
+    fun create(): ResultsFulfillerMetrics = ResultsFulfillerMetrics(Instrumentation.meter)
+
+    /**
+     * Measures the execution time of a block and records it to the histogram.
+     *
+     * @param block The code block to measure
+     * @return The result of the block execution
+     */
+    inline fun <T> DoubleHistogram.measured(block: () -> T): T {
+      val timer = TimeSource.Monotonic.markNow()
+      return try {
+        block()
+      } finally {
+        this.record(timer.elapsedNow().inWholeNanoseconds / 1_000_000_000.0)
+      }
     }
   }
 }
