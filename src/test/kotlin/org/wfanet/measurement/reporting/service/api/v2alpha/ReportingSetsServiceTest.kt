@@ -730,17 +730,23 @@ class ReportingSetsServiceTest {
   @Test
   fun `createReportingSet throws FAILED_PRECONDITION when child reporting cannot be found during creation`() =
     runBlocking {
+      val cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_KEYS.first().toName()
       permissionsServiceMock.stub {
         onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
           checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
       }
       whenever(internalReportingSetsMock.createReportingSet(any()))
         .thenThrow(
-          ReportingSetNotFoundException().asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          ReportingSetNotFoundException(cmmsMeasurementConsumerId, "absent")
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         )
+
       val request = createReportingSetRequest {
-        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
-        reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+        parent = cmmsMeasurementConsumerId
+        reportingSet =
+          ROOT_COMPOSITE_REPORTING_SET.copy {
+            name = "$cmmsMeasurementConsumerId/reportingSets/absent"
+          }
         reportingSetId = "reporting-set-id"
       }
       val exception =

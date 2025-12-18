@@ -87,6 +87,11 @@ class SpannerBasicReportsService(
   private val groupingDimensions =
     GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
 
+  private data class ReportingSetExternalKey(
+    val cmmsMeasurementConsumerId: String,
+    val externalReportingSetId: String,
+  )
+
   private sealed class ReportingSetKey {
     data class Composite(val setExpression: ReportingSet.SetExpression) : ReportingSetKey()
 
@@ -143,11 +148,6 @@ class SpannerBasicReportsService(
   override suspend fun listBasicReports(
     request: ListBasicReportsRequest
   ): ListBasicReportsResponse {
-    if (request.filter.cmmsMeasurementConsumerId.isEmpty()) {
-      throw RequiredFieldNotSetException("filter.cmms_measurement_consumer_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
     val pageSize =
       if (request.pageSize > 0) {
         if (request.pageSize > MAX_PAGE_SIZE) {
@@ -164,39 +164,62 @@ class SpannerBasicReportsService(
 
     val pageToken: ListBasicReportsPageToken? =
       if (request.hasPageToken()) {
-        request.pageToken
+        request.pageToken.also {
+          // Handle "expired" tokens in old format.
+          if (it.lastBasicReport.cmmsMeasurementConsumerId.isEmpty()) {
+            throw RequiredFieldNotSetException(
+                "page_token.last_basic_report.cmms_measurement_consumer_id"
+              )
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+        }
       } else {
         null
       }
 
     return listBasicReportsResponse {
       spannerClient.readOnlyTransaction().use { txn ->
-        val basicReportResults =
+        val basicReportResults: List<BasicReportResult> =
           txn
             .readBasicReports(filter = request.filter, limit = pageSize + 1, pageToken = pageToken)
             .toList()
 
-        val reportingSetByExternalId: Map<String, ReportingSet> = buildMap {
-          putAll(
-            getReportingSets(
-                request.filter.cmmsMeasurementConsumerId,
-                basicReportResults.map { it.basicReport.externalCampaignGroupId }.distinct(),
+        val externalCampaignGroupIdsByCmmsMeasurementConsumerId: Map<String, List<String>> =
+          basicReportResults.groupBy({ it.basicReport.cmmsMeasurementConsumerId }) {
+            it.basicReport.externalCampaignGroupId
+          }
+        val campaignGroupByExternalKey: Map<ReportingSetExternalKey, ReportingSet> = buildMap {
+          for ((cmmsMeasurementConsumerId, externalCampaignGroupIds) in
+            externalCampaignGroupIdsByCmmsMeasurementConsumerId) {
+            val campaignGroups: List<ReportingSet> =
+              getReportingSets(cmmsMeasurementConsumerId, externalCampaignGroupIds.distinct()).map {
+                it.reportingSet
+              }
+            for (campaignGroup in campaignGroups) {
+              put(
+                ReportingSetExternalKey(
+                  cmmsMeasurementConsumerId,
+                  campaignGroup.externalReportingSetId,
+                ),
+                campaignGroup,
               )
-              .map { it.reportingSet }
-              .associateBy { it.externalReportingSetId }
-          )
+            }
+          }
         }
 
-        val reportingSetsByExternalCampaignGroupId: MutableMap<String, List<ReportingSet>> =
+        val reportingSetsByCampaignGroupExternalKey:
+          MutableMap<ReportingSetExternalKey, List<ReportingSet>> =
           mutableMapOf()
 
         basicReports +=
           basicReportResults.subList(0, minOf(basicReportResults.size, pageSize)).map {
             basicReportResult ->
-            val campaignGroup =
-              reportingSetByExternalId.getValue(
-                basicReportResult.basicReport.externalCampaignGroupId
+            val campaignGroupExternalKey =
+              ReportingSetExternalKey(
+                basicReportResult.basicReport.cmmsMeasurementConsumerId,
+                basicReportResult.basicReport.externalCampaignGroupId,
               )
+            val campaignGroup = campaignGroupByExternalKey.getValue(campaignGroupExternalKey)
 
             if (basicReportResult.basicReport.state != BasicReport.State.SUCCEEDED) {
               basicReportResult.basicReport.copy {
@@ -204,9 +227,7 @@ class SpannerBasicReportsService(
               }
             } else {
               val campaignGroupReportingSets: List<ReportingSet> =
-                reportingSetsByExternalCampaignGroupId.getOrPut(
-                  basicReportResult.basicReport.externalCampaignGroupId
-                ) {
+                reportingSetsByCampaignGroupExternalKey.getOrPut(campaignGroupExternalKey) {
                   listReportingSetsByCampaignGroup(
                       basicReportResult.basicReport.cmmsMeasurementConsumerId,
                       basicReportResult.basicReport.externalCampaignGroupId,
@@ -229,16 +250,11 @@ class SpannerBasicReportsService(
           val lastBasicReportResult = basicReportResults[basicReportResults.lastIndex - 1]
 
           nextPageToken = listBasicReportsPageToken {
-            cmmsMeasurementConsumerId = request.filter.cmmsMeasurementConsumerId
-            if (request.filter.hasCreateTimeAfter()) {
-              filter =
-                ListBasicReportsPageTokenKt.filter {
-                  createTimeAfter = request.filter.createTimeAfter
-                }
-            }
             lastBasicReport =
               ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = lastBasicReportResult.basicReport.createTime
+                this.cmmsMeasurementConsumerId =
+                  lastBasicReportResult.basicReport.cmmsMeasurementConsumerId
                 externalBasicReportId = lastBasicReportResult.basicReport.externalBasicReportId
               }
           }

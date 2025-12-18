@@ -50,7 +50,6 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilter as InternalImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFiltersGrpcKt.ImpressionQualificationFiltersCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest as InternalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt as InternalListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
@@ -69,7 +68,6 @@ import org.wfanet.measurement.internal.reporting.v2.createMetricCalculationSpecR
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getImpressionQualificationFilterRequest
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest as internalListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
@@ -589,63 +587,41 @@ class BasicReportsService(
 
     val cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
 
-    return if (source.pageToken.isNotBlank()) {
-      val decodedPageToken =
+    val pageSize =
+      if (source.pageSize in 1..MAX_PAGE_SIZE) {
+        source.pageSize
+      } else if (source.pageSize > MAX_PAGE_SIZE) {
+        MAX_PAGE_SIZE
+      } else {
+        DEFAULT_PAGE_SIZE
+      }
+
+    val decodedPageToken =
+      if (source.pageToken.isNotEmpty()) {
         try {
           ListBasicReportsPageToken.parseFrom(source.pageToken.base64UrlDecode())
-        } catch (_: InvalidProtocolBufferException) {
-          throw InvalidFieldValueException("page_token")
+        } catch (e: InvalidProtocolBufferException) {
+          throw InvalidFieldValueException("page_token", e)
         }
-
-      if (!decodedPageToken.filter.createTimeAfter.equals(source.filter.createTimeAfter)) {
-        throw ArgumentChangedInRequestForNextPageException("filter.create_time_after")
+        // TODO(@SanjayVas): Check if filter changed since previous page or delegate the check to
+        // the internal API. The former requires putting filter information into the public API's
+        // page token, and the latter requires putting filter information into the internal API's
+        // page token.
+      } else {
+        null
       }
 
-      val finalPageSize =
-        if (source.pageSize in 1..MAX_PAGE_SIZE) {
-          source.pageSize
-        } else if (source.pageSize > MAX_PAGE_SIZE) {
-          MAX_PAGE_SIZE
-        } else {
-          DEFAULT_PAGE_SIZE
-        }
-
-      internalListBasicReportsRequest {
-        this.filter =
-          InternalListBasicReportsRequestKt.filter {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            createTimeAfter = decodedPageToken.filter.createTimeAfter
+    return internalListBasicReportsRequest {
+      filter =
+        InternalListBasicReportsRequestKt.filter {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          if (source.filter.hasCreateTimeAfter()) {
+            createTimeAfter = source.filter.createTimeAfter
           }
-        pageSize = finalPageSize
-        pageToken = listBasicReportsPageToken {
-          filter =
-            ListBasicReportsPageTokenKt.filter {
-              createTimeAfter = decodedPageToken.filter.createTimeAfter
-            }
-          lastBasicReport =
-            ListBasicReportsPageTokenKt.previousPageEnd {
-              createTime = decodedPageToken.lastBasicReport.createTime
-              externalBasicReportId = decodedPageToken.lastBasicReport.externalBasicReportId
-            }
         }
-      }
-    } else {
-      val finalPageSize =
-        if (source.pageSize in 1..MAX_PAGE_SIZE) {
-          source.pageSize
-        } else if (source.pageSize > MAX_PAGE_SIZE) {
-          MAX_PAGE_SIZE
-        } else DEFAULT_PAGE_SIZE
-
-      internalListBasicReportsRequest {
-        this.filter =
-          InternalListBasicReportsRequestKt.filter {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            if (source.filter.hasCreateTimeAfter()) {
-              createTimeAfter = source.filter.createTimeAfter
-            }
-          }
-        pageSize = finalPageSize
+      this.pageSize = pageSize
+      if (decodedPageToken != null) {
+        pageToken = decodedPageToken
       }
     }
   }

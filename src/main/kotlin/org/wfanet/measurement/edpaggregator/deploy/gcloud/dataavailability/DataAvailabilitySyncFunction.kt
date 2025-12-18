@@ -92,54 +92,61 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   override fun service(request: HttpRequest, response: HttpResponse) {
-    logger.fine("Starting DataAvailabilitySyncFunction")
-    val requestBody: BufferedReader = request.getReader()
-    val dataAvailabilitySyncConfig =
-      DataAvailabilitySyncConfig.newBuilder()
-        .apply { JsonFormat.parser().merge(requestBody, this) }
-        .build()
+    try {
+      logger.fine("Starting DataAvailabilitySyncFunction")
+      val requestBody: BufferedReader = request.getReader()
+      val dataAvailabilitySyncConfig =
+        DataAvailabilitySyncConfig.newBuilder()
+          .apply { JsonFormat.parser().merge(requestBody, this) }
+          .build()
 
-    // Read the path as request header
-    val doneBlobPath =
-      request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow {
-        IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
+      // Read the path as request header
+      val doneBlobPath =
+        request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow {
+          IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
+        }
+
+      val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
+
+      val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+
+      val cmmsPublicChannel = grpcChannels.cmmsChannel
+      val impressionMetadataStoragePublicChannel = grpcChannels.impressionMetadataChannel
+
+      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+
+      val instrumentedCmmsChannel =
+        ClientInterceptors.intercept(cmmsPublicChannel, grpcTelemetry.newClientInterceptor())
+
+      val instrumentedImpMetadataChannel =
+        ClientInterceptors.intercept(
+          impressionMetadataStoragePublicChannel,
+          grpcTelemetry.newClientInterceptor(),
+        )
+
+      val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
+      val impressionMetadataServicesClient =
+        ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          dataAvailabilitySyncConfig.edpImpressionPath,
+          storageClient,
+          dataProvidersClient,
+          impressionMetadataServicesClient,
+          dataAvailabilitySyncConfig.dataProvider,
+          globalThrottler,
+          impressionMetadataBatchSize = impressionMetadataBatchSize,
+        )
+
+      Tracing.withW3CTraceContext(request) {
+        runBlocking(Context.current().asContextElement()) {
+          dataAvailabilitySync.sync(doneBlobPath)
+        }
       }
-
-    val storageClient: StorageClient = createStorageClient(dataAvailabilitySyncConfig)
-
-    val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
-
-    val cmmsPublicChannel = grpcChannels.cmmsChannel
-    val impressionMetadataStoragePublicChannel = grpcChannels.impressionMetadataChannel
-
-    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-
-    val instrumentedCmmsChannel =
-      ClientInterceptors.intercept(cmmsPublicChannel, grpcTelemetry.newClientInterceptor())
-
-    val instrumentedImpMetadataChannel =
-      ClientInterceptors.intercept(
-        impressionMetadataStoragePublicChannel,
-        grpcTelemetry.newClientInterceptor(),
-      )
-
-    val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
-    val impressionMetadataServicesClient =
-      ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
-
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        dataAvailabilitySyncConfig.edpImpressionPath,
-        storageClient,
-        dataProvidersClient,
-        impressionMetadataServicesClient,
-        dataAvailabilitySyncConfig.dataProvider,
-        globalThrottler,
-        impressionMetadataBatchSize = impressionMetadataBatchSize,
-      )
-
-    Tracing.withW3CTraceContext(request) {
-      runBlocking(Context.current().asContextElement()) { dataAvailabilitySync.sync(doneBlobPath) }
+    } finally {
+      // Critical for Cloud Functions: flush metrics before function freezes
+      EdpaTelemetry.flush()
     }
   }
 
