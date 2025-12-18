@@ -9282,11 +9282,11 @@ class BasicReportsServiceTest {
     assertThat(listBasicReportsResponse.nextPageToken)
       .isEqualTo(
         listBasicReportsPageToken {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
             lastBasicReport =
               ListBasicReportsPageTokenKt.previousPageEnd {
                 createTime = internalBasicReport1.createTime
                 externalBasicReportId = internalBasicReport1.externalBasicReportId
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               }
           }
           .toByteString()
@@ -9354,14 +9354,11 @@ class BasicReportsServiceTest {
                 ListBasicReportsRequestKt.filter { createTimeAfter = timestamp { seconds = 1 } }
               pageToken =
                 listBasicReportsPageToken {
-                    filter =
-                      ListBasicReportsPageTokenKt.filter {
-                        createTimeAfter = timestamp { seconds = 1 }
-                      }
                     lastBasicReport =
                       ListBasicReportsPageTokenKt.previousPageEnd {
                         createTime = timestamp { seconds = 5 }
                         externalBasicReportId = "1234"
+                        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                       }
                   }
                   .toByteString()
@@ -9398,13 +9395,11 @@ class BasicReportsServiceTest {
       assertThat(listBasicReportsResponse.nextPageToken)
         .isEqualTo(
           listBasicReportsPageToken {
-              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-              filter =
-                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
               lastBasicReport =
                 ListBasicReportsPageTokenKt.previousPageEnd {
                   createTime = internalBasicReport1.createTime
                   externalBasicReportId = internalBasicReport1.externalBasicReportId
+                  this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                 }
             }
             .toByteString()
@@ -9609,38 +9604,6 @@ class BasicReportsServiceTest {
         }
       )
   }
-
-  @Test
-  fun `listBasicReports throws INVALID_ARGUMENT when request doesn't match page token`() =
-    runBlocking {
-      val request = listBasicReportsRequest {
-        parent = "measurementConsumers/abc"
-        pageSize = 5
-        filter = ListBasicReportsRequestKt.filter { createTimeAfter = timestamp { seconds = 2 } }
-        pageToken =
-          listBasicReportsPageToken {
-              filter =
-                ListBasicReportsPageTokenKt.filter { createTimeAfter = timestamp { seconds = 1 } }
-            }
-            .toByteString()
-            .base64UrlEncode()
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listBasicReports(request) }
-        }
-
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .errorInfo()
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.ARGUMENT_CHANGED_IN_REQUEST_FOR_NEXT_PAGE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "filter.create_time_after"
-          }
-        )
-    }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

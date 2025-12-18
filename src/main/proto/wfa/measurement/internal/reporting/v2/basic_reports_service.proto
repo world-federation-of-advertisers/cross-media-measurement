@@ -56,7 +56,10 @@ service BasicReports {
   // * `BASIC_REPORT_NOT_FOUND`
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport);
 
-  // Ordered by `create_time` ascending, `external_basic_report_id` ascending.
+  // Lists `BasicReport` entities.
+  //
+  // Ordered by `create_time` ascending, `external_basic_report_id` ascending,
+  // `cmms_measurement_consumer_id` ascending.
   rpc ListBasicReports(ListBasicReportsRequest)
       returns (ListBasicReportsResponse);
 
@@ -91,17 +94,16 @@ message GetBasicReportRequest {
   string external_basic_report_id = 2;
 }
 
+// Page token for ListBasicReports method.
+//
+// This must be treated as opaque by API callers.
 message ListBasicReportsPageToken {
-  string cmms_measurement_consumer_id = 1;
-
-  message Filter {
-    google.protobuf.Timestamp create_time_after = 1;
-  }
-  Filter filter = 2;
+  reserved 1, 2;
 
   message PreviousPageEnd {
     google.protobuf.Timestamp create_time = 1;
     string external_basic_report_id = 2;
+    string cmms_measurement_consumer_id = 3;
   }
   PreviousPageEnd last_basic_report = 3;
 }
@@ -112,8 +114,6 @@ message ListBasicReportsRequest {
     string cmms_measurement_consumer_id = 1;
 
     // Any `BasicReport` created after this time, exclusive, will be included.
-    //
-    // Ignored if `page_token` is set.
     google.protobuf.Timestamp create_time_after = 2;
 
     BasicReport.State state = 3;
