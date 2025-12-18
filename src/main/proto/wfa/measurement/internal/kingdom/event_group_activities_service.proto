@@ -25,8 +25,14 @@ option java_multiple_files = true;
 
 // Internal service for persistence of EventGroupActivity entities.
 service EventGroupActivities {
+  rpc DeleteEventGroupActivity(DeleteEventGroupActivityRequest)
+      returns (google.protobuf.Empty);
+
   rpc BatchUpdateEventGroupActivities(BatchUpdateEventGroupActivitiesRequest)
       returns (BatchUpdateEventGroupActivitiesResponse);
+
+  rpc BatchDeleteEventGroupActivities(BatchDeleteEventGroupActivitiesRequest)
+      returns (google.protobuf.Empty);
 }
 
 message UpdateEventGroupActivityRequest {
@@ -47,4 +53,17 @@ message BatchUpdateEventGroupActivitiesRequest {
 
 message BatchUpdateEventGroupActivitiesResponse {
   repeated EventGroupActivity event_group_activities = 1;
+}
+
+message DeleteEventGroupActivityRequest {
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 1;
+  // External ID of the EventGroupActivity. Required.
+  google.type.Date external_event_group_activity_id = 2;
+}
+
+message BatchDeleteEventGroupActivitiesRequest {
+  // The request message specifying the EventGroupActivity to permanently
+  // delete. A maximum of 1000 EventGroupActivity can be deleted in a batch.
+  repeated DeleteEventGroupActivityRequest requests = 1;
 }
