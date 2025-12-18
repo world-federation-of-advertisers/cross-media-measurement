@@ -20,7 +20,7 @@ locals {
     {
       "tee-signed-image-repos"                        = var.tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
-      "tee-cmd"                                       = jsonencode(var.tee_cmd),
+      "tee-cmd"                                       = jsonencode(var.tee_cmd)
 
       "google-logging-enabled"                        = "true"
       "google-monitoring-enabled"                     = "true"
