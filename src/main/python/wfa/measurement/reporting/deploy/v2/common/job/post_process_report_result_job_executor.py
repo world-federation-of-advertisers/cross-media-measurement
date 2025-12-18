@@ -22,35 +22,42 @@ from absl import logging
 
 from job import post_process_report_result_job
 
-_INTERNAL_REPORTING_TARGET = flags.DEFINE_string(
-    "internal_reporting_target",
+_INTERNAL_API_TARGET = flags.DEFINE_string(
+    "internal_api_target",
     None,
     "The target for the internal reporting API.",
     required=True,
 )
-
+flags.DEFINE_alias("internal-api-target", "internal_api_target")
+_INTERNAL_API_CERT_HOST = flags.DEFINE_string(
+    "internal_api_cert_host",
+    None,
+    "Expected hostname (DNS-ID) in the internal reporting API server's TLS"
+    " certificate. This overrides derivation of the TLS DNS-ID from"
+    " internal_api_target.",
+    required=False,
+)
+flags.DEFINE_alias("internal-api-cert-host", "internal_api_cert_host")
 _TLS_CERT_FILE = flags.DEFINE_string(
     "tls_cert_file",
     None,
     "The path to the TLS certificate file, used to identify this client.",
     required=True,
 )
+flags.DEFINE_alias("tls-cert-file", "tls_cert_file")
 _TLS_KEY_FILE = flags.DEFINE_string(
     "tls_key_file",
     None,
     "The path to the TLS private key file for this client's cert.",
     required=True,
 )
+flags.DEFINE_alias("tls-key-file", "tls_key_file")
 _CERT_COLLECTION_FILE = flags.DEFINE_string(
     "cert_collection_file",
     None,
     "The path to the certificate collection file for validating the server's cert.",
     required=True)
-_INTERNAL_API_CERT_HOST = flags.DEFINE_string(
-    "internal_api_cert_host",
-    None,
-    "Expected hostname (DNS-ID) in the internal reporting API server's TLS certificate. This overrides derivation of the TLS DNS-ID from internal_reporting_target.",
-    required=False)
+flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
 
 
 def _get_secure_credentials(
@@ -102,9 +109,9 @@ def main(argv):
     # Parses flags.
     flags.FLAGS(argv)
 
-    internal_reporting_target = _INTERNAL_REPORTING_TARGET.value
-    if not internal_reporting_target:
-        raise ValueError("internal_reporting_target must be non-empty.")
+    internal_api_target = _INTERNAL_API_TARGET.value
+    if not internal_api_target:
+        raise ValueError("internal_api_target must be non-empty.")
 
     tls_cert_file = _TLS_CERT_FILE.value
     if not os.path.exists(tls_cert_file):
@@ -130,8 +137,10 @@ def main(argv):
 
     try:
         with _create_secure_channel(
-                internal_reporting_target, credentials,
-                options=channel_options) as internal_reporting_channel:
+            internal_api_target,
+            credentials,
+            channel_options,
+        ) as internal_reporting_channel:
             logging.info("Create PostProcessReportResultJob.")
             job = post_process_report_result_job.PostProcessReportResultJob(
                 internal_reporting_channel)
