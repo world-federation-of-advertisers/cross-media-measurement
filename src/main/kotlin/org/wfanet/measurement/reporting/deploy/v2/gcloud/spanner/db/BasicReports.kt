@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
@@ -114,66 +115,60 @@ fun AsyncDatabaseClient.ReadContext.readBasicReports(
   limit: Int? = null,
   pageToken: ListBasicReportsPageToken? = null,
 ): Flow<BasicReportResult> {
-  require(filter.cmmsMeasurementConsumerId.isNotEmpty())
-  val sql = buildString {
-    appendLine(BasicReportsInternal.BASE_SQL)
-    appendLine(
-      """
-      WHERE
-        BasicReportsIndexShardId >= 0
-        AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
-      """
-        .trimIndent()
-    )
-
-    if (pageToken != null) {
-      appendLine(
-        """
-        AND (BasicReports.CreateTime > @createTime
-          OR (BasicReports.CreateTime = @createTime
-            AND ExternalBasicReportId > @externalBasicReportId))
-        """
-          .trimIndent()
-      )
-    } else if (filter.hasCreateTimeAfter()) {
-      appendLine(
-        """
-        AND BasicReports.CreateTime > @createTime
-        """
-          .trimIndent()
-      )
-    }
-
-    if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
-      appendLine("AND State = @state")
-    }
-    if (filter.externalReportResultId != 0L) {
-      appendLine("AND ExternalReportResultId = @externalReportResultId")
-    }
-
-    appendLine("ORDER BY CreateTime, ExternalBasicReportId")
-    if (limit != null) {
-      appendLine("LIMIT @limit")
-    }
-  }
   val query =
-    statement(sql) {
-      bind("cmmsMeasurementConsumerId").to(filter.cmmsMeasurementConsumerId)
-      if (pageToken != null) {
-        bind("createTime").to(pageToken.lastBasicReport.createTime.toGcloudTimestamp())
-        bind("externalBasicReportId").to(pageToken.lastBasicReport.externalBasicReportId)
-      } else if (filter.hasCreateTimeAfter()) {
-        bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
+    statement(BasicReportsInternal.BASE_SQL) {
+      val conjuncts = buildList {
+        if (filter.cmmsMeasurementConsumerId.isNotEmpty()) {
+          add(
+            "BasicReportsIndexShardId >= 0 " +
+              "AND CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId"
+          )
+          bind("cmmsMeasurementConsumerId").to(filter.cmmsMeasurementConsumerId)
+        }
+        if (filter.externalReportResultId != 0L) {
+          add("ExternalReportResultId = @externalReportResultId")
+          bind("externalReportResultId").to(filter.externalReportResultId)
+        }
+        if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
+          add("State = @state")
+          bind("state").toInt64(filter.state)
+        }
+        if (filter.hasCreateTimeAfter()) {
+          add("BasicReports.CreateTime > @createTime")
+          bind("createTime").to(filter.createTimeAfter.toGcloudTimestamp())
+        }
+        if (pageToken != null) {
+          add(
+            """
+            (
+              BasicReports.CreateTime > @createTime_page
+              OR (
+                BasicReports.CreateTime = @createTime_page
+                AND (
+                  ExternalBasicReportId > @externalBasicReportId_page
+                  OR (
+                    ExternalBasicReportId = @externalBasicReportId_page
+                    AND CmmsMeasurementConsumerId > @cmmsMeasurementConsumerId_page
+                  )
+                )
+              )
+            )
+            """
+              .trimIndent()
+          )
+          bind("createTime_page").to(pageToken.lastBasicReport.createTime.toGcloudTimestamp())
+          bind("externalBasicReportId_page").to(pageToken.lastBasicReport.externalBasicReportId)
+          bind("cmmsMeasurementConsumerId_page")
+            .to(pageToken.lastBasicReport.cmmsMeasurementConsumerId)
+        }
+      }
+      if (conjuncts.isNotEmpty()) {
+        appendClause("WHERE ${conjuncts.joinToString(" AND ")}")
       }
 
-      if (filter.state != BasicReport.State.STATE_UNSPECIFIED) {
-        bind("state").toInt64(filter.state)
-      }
-      if (filter.externalReportResultId != 0L) {
-        bind("externalReportResultId").to(filter.externalReportResultId)
-      }
-
+      appendClause("ORDER BY CreateTime, ExternalBasicReportId, CmmsMeasurementConsumerId")
       if (limit != null) {
+        appendClause("LIMIT @limit")
         bind("limit").to(limit.toLong())
       }
     }
