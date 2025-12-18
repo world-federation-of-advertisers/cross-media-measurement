@@ -182,7 +182,7 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
     ),
     struct(
-        name = "duchy_trus_tee_mill_job_image",
+        name = "duchy_trus_tee_mill_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/trustee:gcs_trus_tee_mill_daemon_image",
         repository = _PREFIX + "/duchy/trus-tee-mill",
     ),
