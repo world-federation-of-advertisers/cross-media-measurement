@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import com.google.cloud.logging.Logging
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Message
 import com.google.protobuf.kotlin.unpack
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -60,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataReque
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
@@ -102,6 +105,9 @@ class ResultsFulfiller(
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
   private val responsePageSize: Int? = null,
+  private val resultsFulfillerParams: ResultsFulfillerParams,
+  private val requisitionsBlobUri: String,
+  private val loggingOverride: Logging? = null,
 ) {
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
@@ -209,6 +215,7 @@ class ResultsFulfiller(
               frequencyVector = frequencyVector,
               populationSpec = populationSpec,
               requisitionsMetadata = requisitionMetadataByName,
+              eventSource = eventSource,
             )
             emit(Unit)
           }
@@ -271,6 +278,7 @@ class ResultsFulfiller(
    * @param requisition The `Requisition` to fulfill.
    * @param frequencyVector Pre-computed per-VID frequency vector for this requisition.
    * @param populationSpec Population specification associated with the model line.
+   * @param eventSource The event source containing cached impression data sources.
    * @throws Exception If the requisition spec cannot be decrypted or fulfillment fails.
    */
   private suspend fun fulfillSingleRequisition(
@@ -278,6 +286,7 @@ class ResultsFulfiller(
     frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
+    eventSource: StorageEventSource,
   ) {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
@@ -339,9 +348,10 @@ class ResultsFulfiller(
             ?: fulfiller::class.java.simpleName
             ?: fulfiller::class.java.name
 
-        ResultsFulfillerMetrics.sendDuration.measureSuspending {
-          withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
-        }
+        val measurementResult: Measurement.Result? =
+          ResultsFulfillerMetrics.sendDuration.measureSuspending {
+            withContext(Dispatchers.IO) { fulfiller.fulfillRequisition() }
+          }
         span.addEvent(
           EVENT_REQUISITION_FULFILLMENT_SENT,
           Attributes.builder()
@@ -370,6 +380,24 @@ class ResultsFulfiller(
           span = span,
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
+        )
+
+        // Filter blob URIs for this requisition based on event groups
+        val requisitionBlobUris =
+          filterBlobUrisForRequisition(eventSource = eventSource, requisitionSpec = requisitionSpec)
+
+        ResultsFulfillerStructuredLogger.logRequisitionAudit(
+          groupId = groupedRequisitions.groupId,
+          dataProvider = dataProvider,
+          groupedRequisitions = groupedRequisitions,
+          resultsFulfillerParams = resultsFulfillerParams,
+          requisitionsBlobUri = requisitionsBlobUri,
+          requisition = requisition,
+          requisitionSpec = requisitionSpec,
+          measurementResult = measurementResult,
+          blobUris = requisitionBlobUris,
+          loggingOverride = loggingOverride,
+          throwOnFailure = loggingOverride != null,
         )
       } catch (t: Throwable) {
         recordRequisitionFailure(
@@ -456,6 +484,44 @@ class ResultsFulfiller(
     return requisitionMetadataStub.markWithdrawnRequisitionMetadata(
       markWithdrawnRequisitionMetadataRequest
     )
+  }
+
+  /**
+   * Filters blob URIs for a specific requisition based on event groups.
+   *
+   * This method extracts the blob URIs from the cached impression data sources that are relevant to
+   * the given requisition, based on:
+   * - The event groups specified in the requisition spec
+   * - The collection intervals for those event groups
+   *
+   * @param eventSource The storage event source containing cached impression data sources.
+   * @param requisitionSpec The decrypted requisition spec containing event group filters.
+   * @return List of blob URIs that were used to fulfill this requisition.
+   */
+  private fun filterBlobUrisForRequisition(
+    eventSource: StorageEventSource,
+    requisitionSpec: RequisitionSpec,
+  ): List<String> {
+    val impressionDataSources = eventSource.getImpressionDataSources()
+
+    // Get the event groups from the requisition spec
+    val requisitionEventGroups = requisitionSpec.events.eventGroupsList.map { it.key }
+
+    // Map event group names to their reference IDs using the grouped requisitions
+    val eventGroupToRefId =
+      groupedRequisitions.eventGroupMapList.associate {
+        it.eventGroup to it.details.eventGroupReferenceId
+      }
+
+    // Get the reference IDs for the requisition's event groups
+    val requisitionRefIds = requisitionEventGroups.mapNotNull { eventGroupToRefId[it] }.toSet()
+
+    // Filter impression data sources by event group reference ID
+    // and collect their blob URIs
+    return impressionDataSources
+      .filter { source -> source.eventGroupReferenceId in requisitionRefIds }
+      .map { source -> source.blobDetails.blobUri }
+      .distinct()
   }
 
   private suspend fun <T> DoubleHistogram.measureSuspending(block: suspend () -> T): T {

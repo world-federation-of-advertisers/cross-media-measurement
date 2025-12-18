@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.testing
 
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -56,7 +57,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
     private val frequencyDataBytes: ByteArray,
   ) : MeasurementFulfiller {
 
-    override suspend fun fulfillRequisition() {
+    override suspend fun fulfillRequisition(): Measurement.Result? {
       logger.info("[NOOP_FULFILLER] Starting fulfillRequisition() for: ${requisition.name}")
 
       val startTime = System.currentTimeMillis()
@@ -94,6 +95,8 @@ class NoOpFulfillerSelector : FulfillerSelector {
       kotlinx.coroutines.delay(10)
 
       logger.info("[NOOP_FULFILLER] Mock fulfillment completed for: ${requisition.name}")
+
+      return null
     }
 
     companion object {

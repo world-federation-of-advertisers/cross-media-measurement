@@ -1,0 +1,79 @@
+// Copyright 2025 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// (-- api-linter: all=disabled
+//     aip.dev/not-precedent: This file needs to be updated to comply with AIPs.
+//     --)
+//  TODO(world-federation-of-advertisers/cross-media-measurement#2777): Update
+//  to comply AIPs.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/api/v2alpha/measurement.proto";
+import "wfa/measurement/api/v2alpha/requisition.proto";
+import "wfa/measurement/api/v2alpha/requisition_spec.proto";
+import "wfa/measurement/api/v2alpha/measurement_spec.proto";
+import "wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RequisitionAuditLogProto";
+
+// Audit log envelope for a single requisition fulfillment event.
+// This message is converted to JSON using standard protobuf-to-JSON conversion
+// for Cloud Logging.
+message RequisitionAuditLog {
+  // The grouped requisition ID that this requisition belongs to.
+  string grouped_requisition_id = 1;
+
+  // The data provider resource name.
+  string data_provider = 2;
+
+  // The timestamp when this audit log entry was created.
+  google.protobuf.Timestamp timestamp = 3;
+
+  // The requisition being fulfilled.
+  wfa.measurement.api.v2alpha.Requisition requisition = 4;
+
+  // The decrypted requisition spec.
+  wfa.measurement.api.v2alpha.RequisitionSpec requisition_spec = 5;
+
+  // The results fulfiller parameters used for fulfillment.
+  ResultsFulfillerParams results_fulfiller_params = 6;
+
+  // The CEL expression used for filtering, if any.
+  string cel_expression = 7;
+
+  // The collection interval for this requisition.
+  google.type.Interval collection_interval = 8;
+
+  // The event group reference IDs associated with this requisition.
+  repeated string event_group_reference_ids = 9;
+
+  // The measurement specification for this requisition.
+  wfa.measurement.api.v2alpha.MeasurementSpec measurement_spec = 10;
+
+  // The blob URIs for the input event data used to fulfill this requisition.
+  // These are the URIs of the actual data sources that were read to compute
+  // the result.
+  repeated string blob_uris = 11;
+
+  // The measurement result computed for this requisition.
+  // This field is optional and will only be present for direct measurements.
+  wfa.measurement.api.v2alpha.Measurement.Result measurement_result = 12;
+}
