@@ -23,7 +23,7 @@ locals {
       "tee-cmd"                                       = jsonencode(var.tee_cmd),
 
       "google-logging-enabled"                        = "true"
-      "google-monitoring-enabled"                     = "true"
+      "google-monitoring-enabled"                     = "true"                = "logging",
       "tee-container-log-redirect"                    = "true"
     },
     var.config_storage_bucket == null ? {} : {

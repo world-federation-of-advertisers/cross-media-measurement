@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-kingdom:
@@ -144,7 +145,7 @@ jobs:
 
       - name: kubectl apply
         if: ${{ inputs.apply }}
-        run: kubectl apply -k "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom"
+        run: kubectl apply -k "$KUSTOMIZATION_PATH/src/main/k8s/dev/kingdom" --namespace=default --prune --applyset=configmaps/kubectl-kingdom
 
       - name: Wait for rollout
         if: ${{ inputs.apply }}
