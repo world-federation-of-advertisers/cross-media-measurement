@@ -82,6 +82,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGroupe
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -205,6 +206,7 @@ class InProcessEdpAggregatorComponents(
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
+      metrics = ResultsFulfillerMetrics.create(),
     )
   }
 

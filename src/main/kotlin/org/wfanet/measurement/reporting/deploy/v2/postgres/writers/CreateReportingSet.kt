@@ -112,7 +112,10 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         } else {
           ReportingSetReader(transactionContext)
             .readCampaignGroup(measurementConsumerId, externalCampaignGroupId)
-            ?: throw ReportingSetNotFoundException()
+            ?: throw ReportingSetNotFoundException(
+              cmmsMeasurementConsumerId,
+              externalCampaignGroupId,
+            )
         }
       } else {
         null
@@ -165,15 +168,17 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
         )
       }
       ReportingSet.ValueCase.COMPOSITE -> {
-        val externalReportingSetIds: Set<String> =
-          createExternalReportingSetIdsSet(request.reportingSet)
-
-        // Map of external ReportingSet ID to internal ReportingSet ID.
-        val reportingSetMap = mutableMapOf<String, InternalId>()
-
-        ReportingSetReader(transactionContext)
-          .readIds(measurementConsumerId, externalReportingSetIds)
-          .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
+        val externalReportingSetIds: Set<String> = getExternalReportingSetIds(request.reportingSet)
+        val reportingSetIdByExternalId = buildMap {
+          ReportingSetReader(transactionContext)
+            .readIds(measurementConsumerId, externalReportingSetIds)
+            .collect { put(it.externalReportingSetId, it.reportingSetId) }
+        }
+        for (externalReportingSetId in externalReportingSetIds) {
+          if (!reportingSetIdByExternalId.containsKey(externalReportingSetId)) {
+            throw ReportingSetNotFoundException(cmmsMeasurementConsumerId, externalReportingSetId)
+          }
+        }
 
         val setExpressionId = idGenerator.generateInternalId()
         val setExpressionsValuesList: List<SetExpressionsValues> = buildList {
@@ -183,7 +188,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
             measurementConsumerId = measurementConsumerId,
             reportingSetId = reportingSetId,
             request.reportingSet.composite,
-            reportingSetMap,
+            reportingSetIdByExternalId,
           )
         }
 
@@ -238,7 +243,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
           measurementConsumerId,
           reportingSetId,
           request.reportingSet.weightedSubsetUnionsList,
-          reportingSetMap,
+          reportingSetIdByExternalId,
         )
       }
       ReportingSet.ValueCase.VALUE_NOT_SET -> {
@@ -363,13 +368,17 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     }
   }
 
-  private fun createExternalReportingSetIdsSet(reportingSet: ReportingSet): Set<String> {
-    val externalReportingIds = mutableSetOf<String>()
-    externalReportingIds.addAll(reportingSet.composite.getExternalReportingSetIds())
-    reportingSet.weightedSubsetUnionsList.forEach {
-      externalReportingIds.addAll(it.getExternalReportingSetIds())
+  /**
+   * Returns the [Set] of external ReportingSet IDs referenced by the specified composite
+   * [ReportingSet].
+   */
+  private fun getExternalReportingSetIds(reportingSet: ReportingSet): Set<String> {
+    require(reportingSet.hasComposite())
+
+    return buildSet {
+      addAll(reportingSet.composite.getExternalReportingSetIds())
+      reportingSet.weightedSubsetUnionsList.forEach { addAll(it.getExternalReportingSetIds()) }
     }
-    return externalReportingIds
   }
 
   private fun SetExpression.getExternalReportingSetIds(): Set<String> {
@@ -433,9 +442,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         leftHandSetExpressionId = null
-        leftHandReportingSetId =
-          reportingSetMap[setExpression.lhs.externalReportingSetId]
-            ?: throw ReportingSetNotFoundException()
+        leftHandReportingSetId = reportingSetMap.getValue(setExpression.lhs.externalReportingSetId)
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         leftHandSetExpressionId = null
@@ -459,9 +466,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         rightHandSetExpressionId = null
-        rightHandReportingSetId =
-          reportingSetMap[setExpression.rhs.externalReportingSetId]
-            ?: throw ReportingSetNotFoundException()
+        rightHandReportingSetId = reportingSetMap.getValue(setExpression.rhs.externalReportingSetId)
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         rightHandSetExpressionId = null
@@ -631,8 +636,7 @@ class CreateReportingSet(private val request: CreateReportingSetRequest) :
     val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
     val primitiveReportingSetId =
-      reportingSetMap[primitiveReportingSetBasis.externalReportingSetId]
-        ?: throw ReportingSetNotFoundException()
+      reportingSetMap.getValue(primitiveReportingSetBasis.externalReportingSetId)
 
     val primitiveReportingSetBasesValues =
       PrimitiveReportingSetBasesValues(

@@ -27,7 +27,7 @@ variable "base_instance_name" {
 variable "single_instance_assignment" {
   description = "The amount of undelivered messages a single instance can handle. Used by the autoscaler to determine the number of instances needed based on the total number of undelivered messages."
   type        = number
-  nullable    = false
+  default     = null
 }
 
 variable "mig_service_account_name" {
@@ -53,7 +53,7 @@ variable "secrets_to_access" {
 variable "subscription_id" {
   description = "The ID of the Pub/Sub subscription to which the service account will be granted access."
   type        = string
-  nullable    = false
+  default     = null
 }
 
 variable "managed_instance_group_name" {
@@ -106,6 +106,7 @@ variable "disk_image_family" {
 variable "config_storage_bucket" {
   description = "Configuration storage bucket."
   type        = string
+  default     = null
 }
 
 variable "subnetwork_name" {
@@ -114,13 +115,19 @@ variable "subnetwork_name" {
   nullable    = false
 }
 
-variable "edpa_tee_signed_image_repo" {
+variable "tee_signed_image_repo" {
   description = "Trusted container image repository for Confidential Space attestation."
   type        = string
 }
 
 variable "java_tool_options" {
-  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable."
+  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable (e.g., '-Xmx96G' for heap size based on machine type)."
   type        = string
-  default     = ""
+  default     = null
+}
+
+variable "otel_service_name" {
+  description = "OpenTelemetry service name"
+  type        = string
+  nullable    = false
 }

@@ -363,6 +363,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -482,6 +483,7 @@ class ResultsFulfillerAppTest {
           getStorageConfig(tmpPath),
           getStorageConfig(tmpPath),
           mapOf("some-model-line" to MODEL_LINE_INFO),
+          metrics = ResultsFulfillerMetrics.create(),
         )
       assertFailsWith<IllegalArgumentException> { app.runWork(Any.pack(workItemParams)) }
     }
@@ -615,6 +617,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -742,6 +745,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -860,6 +864,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1010,6 +1015,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1153,6 +1159,7 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         mapOf("some-model-line" to MODEL_LINE_INFO),
+        metrics = ResultsFulfillerMetrics.create(),
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
