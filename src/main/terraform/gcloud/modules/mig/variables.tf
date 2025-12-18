@@ -126,8 +126,8 @@ variable "java_tool_options" {
   default     = null
 }
 
-variable "otel_service_name" {
-  description = "OpenTelemetry service name"
-  type        = string
-  nullable    = false
+variable "extra_metadata" {
+  description = "Extra metadata for the instance template."
+  type        = map(string)
+  default     = {}
 }
