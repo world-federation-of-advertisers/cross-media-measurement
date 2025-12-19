@@ -1035,10 +1035,7 @@ class BasicReportsServiceTest {
         resultGroupMetricSpec = resultGroupMetricSpec {
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                }
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
             }
         }
       }
@@ -1078,7 +1075,11 @@ class BasicReportsServiceTest {
         .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
         .metricCalculationSpecsList
 
-    assertThat(createdMetricCalculationSpecs.first().details.filter.isNotEmpty() || createdMetricCalculationSpecs.last().details.filter.isNotEmpty()).isTrue()
+    assertThat(
+        createdMetricCalculationSpecs.first().details.filter.isNotEmpty() ||
+          createdMetricCalculationSpecs.last().details.filter.isNotEmpty()
+      )
+      .isTrue()
   }
 
   @Test

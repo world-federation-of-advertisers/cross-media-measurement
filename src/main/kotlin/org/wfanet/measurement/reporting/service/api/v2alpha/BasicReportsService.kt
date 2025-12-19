@@ -231,7 +231,8 @@ class BasicReportsService(
     }
 
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecListsWithoutCustom: List<List<ImpressionQualificationFilterSpec>> =
+    val impressionQualificationFilterSpecListsWithoutCustom:
+      List<List<ImpressionQualificationFilterSpec>> =
       buildList {
         addAll(
           effectiveReportingImpressionQualificationFilters
@@ -252,29 +253,31 @@ class BasicReportsService(
         )
       }
 
-    val customImpressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
+    val customImpressionQualificationFilterSpecLists:
+      List<List<ImpressionQualificationFilterSpec>> =
       buildList {
         addAll(
-        effectiveReportingImpressionQualificationFilters
-          .filter { it.hasCustom() }
-          .map { customIqf ->
-            val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
-              normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
+          effectiveReportingImpressionQualificationFilters
+            .filter { it.hasCustom() }
+            .map { customIqf ->
+              val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
+                normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
-            impressionQualificationFilterSpecListsWithoutCustom.forEach { existingIqfSpecs ->
-              val normalizedExistingIqfSpecs =
-                normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
+              impressionQualificationFilterSpecListsWithoutCustom.forEach { existingIqfSpecs ->
+                val normalizedExistingIqfSpecs =
+                  normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
 
-              if (normalizedCustomSpecs == normalizedExistingIqfSpecs) {
-                throw InvalidFieldValueException("basic_report.impression_qualification_filters") {
-                    fieldPath ->
-                    "$fieldPath contains a custom ReportingImpressionQualificationFilter that matches an existing one"
-                  }
-                  .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                if (normalizedCustomSpecs == normalizedExistingIqfSpecs) {
+                  throw InvalidFieldValueException(
+                      "basic_report.impression_qualification_filters"
+                    ) { fieldPath ->
+                      "$fieldPath contains a custom ReportingImpressionQualificationFilter that matches an existing one"
+                    }
+                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+                }
               }
+              customIqf.custom.filterSpecList
             }
-            customIqf.custom.filterSpecList
-          }
         )
       }
 
@@ -329,7 +332,9 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecListsWithoutCustom + customImpressionQualificationFilterSpecLists,
+        impressionQualificationFilterSpecsLists =
+          impressionQualificationFilterSpecListsWithoutCustom +
+            customImpressionQualificationFilterSpecLists,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
