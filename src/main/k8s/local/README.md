@@ -295,7 +295,16 @@ kubectl port-forward prometheus-pod 31111:9090
 
 ## Running the Correctness Test
 
-*Note*: currently the assertions in this test fail when running it in a local environment because the [test expects a large population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/test/kotlin/org/wfanet/measurement/integration/k8s/SyntheticGeneratorCorrectnessTest.kt#L99) and the local EDP simulators are [configured to use a small population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/main/k8s/local/edp_simulators.cue#L44). For the test to pass, it needs to be switched to population small.
+*Note*: currently the assertions in this test fail when running it in a local
+environment because the [test expects a large population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/test/kotlin/org/wfanet/measurement/integration/k8s/SyntheticGeneratorCorrectnessTest.kt#L99)
+and the local EDP simulators are [configured to use a small population](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/main/k8s/local/edp_simulators.cue#L44).
+For the test to pass, it needs to be switched to a small population, meaning the
+variables `syntheticPopulationSpec` and `syntheticEventGroupSpecs` in
+`SyntheticGeneratorCorrectnessTest` must be set to small populations, as is done in [EmptyClusterCorrectnessTest](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/v0.5.29/src/test/kotlin/org/wfanet/measurement/integration/k8s/EmptyClusterCorrectnessTest.kt#L234).
+The local EDP simulators use a small population as single machines tend not to
+have enough memory to handle large populations. If they have enough RAM and are
+willing to wait longer for the test to run, they can technically swap the simulators
+to use the large pop instead of swapping the test to use the small one.
 
 Once you have a running CMMS with EDP simulators, you can run the correctness
 test against it.
