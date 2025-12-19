@@ -480,7 +480,7 @@ class MetricReport:
         edp
         for edp in self._weekly_non_cumulative_measurements.keys()
         if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
-          self._weekly_non_cumulative_measurements[edp][0].k_reach is not None
+          self._weekly_non_cumulative_measurements[edp][0].k_reach
     }
 
   def get_weekly_non_cumulative_impression_edp_combinations(self) -> set[EdpCombination]:
