@@ -508,24 +508,24 @@ object CreateBasicReportRequestValidation {
     }
 
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.reportingUnit.cumulative,
-      metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
-      "$fieldPath.reporting_unit.cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.reportingUnit.cumulative,
+      isWeeklyCumulative = metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
+      fieldPath = "$fieldPath.reporting_unit.cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.reportingUnit.nonCumulative,
-      false,
-      "$fieldPath.reporting_unit.non_cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.reportingUnit.nonCumulative,
+      isWeeklyCumulative = false,
+      fieldPath = "$fieldPath.reporting_unit.non_cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.component.nonCumulative,
-      false,
-      "$fieldPath.component.non_cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.component.nonCumulative,
+      isWeeklyCumulative = false,
+      fieldPath = "$fieldPath.component.non_cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.component.cumulative,
-      metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
-      "$fieldPath.component.cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.component.cumulative,
+      isWeeklyCumulative = metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
+      fieldPath = "$fieldPath.component.cumulative",
     )
 
     if (

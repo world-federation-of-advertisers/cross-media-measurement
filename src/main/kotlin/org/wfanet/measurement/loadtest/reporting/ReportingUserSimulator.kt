@@ -223,14 +223,17 @@ class ReportingUserSimulator(
               nonCumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
+                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  averageFrequency = true
-                  impressions = true
+                  percentReach = true
                 }
               stackedIncrementalReach = false
             }
@@ -239,14 +242,17 @@ class ReportingUserSimulator(
               nonCumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
+                  percentReach = true
+                  kPlusReach = 5
+                  percentKPlusReach = true
                   averageFrequency = true
                   impressions = true
+                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  averageFrequency = true
-                  impressions = true
+                  percentReach = true
                 }
               nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
@@ -464,9 +470,7 @@ class ReportingUserSimulator(
       when (retrievedReport.state) {
         Report.State.SUCCEEDED,
         Report.State.FAILED -> return retrievedReport
-        Report.State.RUNNING,
-        Report.State.UNRECOGNIZED,
-        Report.State.STATE_UNSPECIFIED -> {
+        Report.State.RUNNING -> {
           val resultPollingDelay =
             backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
           logger.info {
@@ -475,6 +479,8 @@ class ReportingUserSimulator(
           delay(resultPollingDelay)
           attempt++
         }
+        Report.State.UNRECOGNIZED,
+        Report.State.STATE_UNSPECIFIED -> throw Exception("Unknown Report state")
       }
     }
   }
@@ -516,9 +522,7 @@ class ReportingUserSimulator(
         BasicReport.State.SUCCEEDED,
         BasicReport.State.FAILED,
         BasicReport.State.INVALID -> return retrievedBasicReport
-        BasicReport.State.RUNNING,
-        BasicReport.State.UNRECOGNIZED,
-        BasicReport.State.STATE_UNSPECIFIED -> {
+        BasicReport.State.RUNNING -> {
           val resultPollingDelay =
             backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
           logger.info {
@@ -527,6 +531,8 @@ class ReportingUserSimulator(
           delay(resultPollingDelay)
           attempt++
         }
+        BasicReport.State.UNRECOGNIZED,
+        BasicReport.State.STATE_UNSPECIFIED -> throw Exception("Unknown BasicReport state")
       }
     }
   }
