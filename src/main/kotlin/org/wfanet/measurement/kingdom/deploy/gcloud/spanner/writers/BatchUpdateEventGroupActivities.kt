@@ -53,17 +53,18 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
       EventGroupActivityReader()
         .batchReadByExternalIds(
           transactionContext,
+          dataProviderId,
           externalEventGroupId,
           request.requestsList.map { it.eventGroupActivity.date },
         )
 
-    val updatedActivities = mutableListOf<EventGroupActivity>()
+    val upsertedActivities = mutableListOf<EventGroupActivity>()
     for (child in request.requestsList) {
       val result: EventGroupActivityReader.Result? = activities[child.eventGroupActivity.date]
       if (result != null) {
-        updatedActivities.add(updateEventGroupActivity(child.eventGroupActivity, result))
+        upsertedActivities.add(updateEventGroupActivity(child.eventGroupActivity, result))
       } else if (child.allowMissing) {
-        updatedActivities.add(
+        upsertedActivities.add(
           createEventGroupActivity(idGenerator, dataProviderId, eventGroupId, child)
         )
       } else {
@@ -75,7 +76,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
       }
     }
 
-    return updatedActivities
+    return upsertedActivities
   }
 
   override fun ResultScope<List<EventGroupActivity>>.buildResult():
@@ -107,6 +108,7 @@ private fun SpannerWriter.TransactionScope.updateEventGroupActivity(
   return result.eventGroupActivity
 }
 
+/** Buffers an insert mutation for the EventGroupActivities table. */
 private fun SpannerWriter.TransactionScope.createEventGroupActivity(
   idGenerator: IdGenerator,
   dataProviderId: InternalId,

@@ -45,6 +45,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
 
   suspend fun batchReadByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
     externalEventGroupId: ExternalId,
     activityDates: Collection<Date>,
   ): Map<Date, Result> {
@@ -52,11 +53,13 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
       fillStatementBuilder {
           appendClause(
             """
-            WHERE EventGroups.ExternalEventGroupId = @${Params.EXTERNAL_EVENT_GROUP_ID}
+            WHERE EventGroups.DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND EventGroups.ExternalEventGroupId = @${Params.EXTERNAL_EVENT_GROUP_ID}
             AND   EventGroupActivities.ActivityDate IN UNNEST(@${Params.ACTIVITY_DATES})
           """
               .trimIndent()
           )
+          bind(Params.DATA_PROVIDER_ID to dataProviderId)
           bind(Params.EXTERNAL_EVENT_GROUP_ID to externalEventGroupId)
           bind(Params.ACTIVITY_DATES).toDateArray(activityDates.map { it.toCloudDate() })
         }
@@ -98,6 +101,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         .trimIndent()
 
     private object Params {
+      const val DATA_PROVIDER_ID = "dataProviderId"
       const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
       const val ACTIVITY_DATES = "externalEventGroupActivityIds"
     }
