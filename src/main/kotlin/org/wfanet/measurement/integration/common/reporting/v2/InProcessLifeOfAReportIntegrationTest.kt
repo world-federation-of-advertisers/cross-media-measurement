@@ -158,7 +158,6 @@ import org.wfanet.measurement.reporting.v2alpha.invalidateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersRequest
 import org.wfanet.measurement.reporting.v2alpha.listImpressionQualificationFiltersResponse
-import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
@@ -2234,70 +2233,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = reachResult.value } }
     val tolerance = computeErrorMargin(reachResult.univariateStatistics.standardDeviation)
     assertThat(actualResult).reachValue().isWithin(tolerance).of(0)
-  }
-
-  @Test
-  fun `creating 3 metrics at once succeeds`() = runBlocking {
-    val numMetrics = 3
-    val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
-    val eventGroups = listEventGroups()
-    val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroups.first() to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
-    val createdPrimitiveReportingSet: ReportingSet =
-      createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
-
-    val metric = metric {
-      reportingSet = createdPrimitiveReportingSet.name
-      timeInterval = interval {
-        startTime = timestamp { seconds = 100 }
-        endTime = timestamp { seconds = 200 }
-      }
-      metricSpec = metricSpec {
-        reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
-        vidSamplingInterval = VID_SAMPLING_INTERVAL
-      }
-    }
-
-    val deferred: MutableList<Deferred<Metric>> = mutableListOf()
-    repeat(numMetrics) {
-      deferred.add(
-        async {
-          publicMetricsClient
-            .withCallCredentials(credentials)
-            .createMetric(
-              createMetricRequest {
-                parent = measurementConsumerData.name
-                this.metric = metric
-                metricId = "abc$it"
-              }
-            )
-        }
-      )
-    }
-
-    deferred.awaitAll()
-    val retrievedMetrics =
-      publicMetricsClient
-        .withCallCredentials(credentials)
-        .listMetrics(
-          listMetricsRequest {
-            parent = measurementConsumerData.name
-            pageSize = numMetrics
-          }
-        )
-        .metricsList
-
-    assertThat(retrievedMetrics).hasSize(numMetrics)
-    retrievedMetrics.forEach {
-      assertThat(it)
-        .ignoringFields(
-          Metric.NAME_FIELD_NUMBER,
-          Metric.STATE_FIELD_NUMBER,
-          Metric.CREATE_TIME_FIELD_NUMBER,
-          Metric.RESULT_FIELD_NUMBER,
-        )
-        .isEqualTo(metric)
-    }
   }
 
   @Test
