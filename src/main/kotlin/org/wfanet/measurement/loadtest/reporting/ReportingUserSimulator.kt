@@ -224,11 +224,6 @@ class ReportingUserSimulator(
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -243,19 +238,12 @@ class ReportingUserSimulator(
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
                 }
-              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
-              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
             }
         }
       }
