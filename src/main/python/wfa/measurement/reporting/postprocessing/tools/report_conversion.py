@@ -558,7 +558,7 @@ def _get_population(results_for_group: Sequence[ReportingSetResult]) -> int:
             raise ValueError(
                 "Inconsistent population sizes found within the same result group."
             )
-    if population:
+    if population is not None:
         return population
     else:
         raise ValueError("Population not found.")

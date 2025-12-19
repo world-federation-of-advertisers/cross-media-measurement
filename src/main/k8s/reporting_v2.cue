@@ -19,7 +19,7 @@ package k8s
 	_verboseGrpcClientLogging: bool | *false
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
-	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	_reportResultProcessorCronSchedule: string | *"*/2 * * * *" // Every 2 minutes.
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"

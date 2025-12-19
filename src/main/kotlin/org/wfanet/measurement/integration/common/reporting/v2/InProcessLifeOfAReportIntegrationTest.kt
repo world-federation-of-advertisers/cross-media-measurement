@@ -2314,9 +2314,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   }
 
   @Test
-  fun `getBasicReport returns SUCCEEDED basic report when basic report is completed`() =
+  fun `getBasicReport returns SUCCEEDED multi edp basic report when basic report is completed`() =
     runBlocking {
       val eventGroups = getHmssEventGroups()
+      check(eventGroups.size > 1)
 
       val createBasicReportRequest =
         buildCreateBasicReportRequest(eventGroups).copy {
@@ -2631,6 +2632,256 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               reportingUnitValuesCheck &&
                 componentValuesCheck &&
                 result.metricSet.populationSize > 0
+            }
+        )
+      }
+    }
+
+  @Test
+  fun `getBasicReport returns SUCCEEDED single edp basic report when basic report is completed`() =
+    runBlocking {
+      val eventGroups = getHmssEventGroups().subList(0, 1)
+
+      val createBasicReportRequest =
+        buildCreateBasicReportRequest(eventGroups).copy {
+          basicReport =
+            basicReport.copy {
+              resultGroupSpecs.clear()
+              resultGroupSpecs += resultGroupSpec {
+                title = "title"
+                reportingUnit = reportingUnit {
+                  components += eventGroups.map { it.cmmsDataProvider }
+                }
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                dimensionSpec = dimensionSpec {
+                  grouping =
+                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "person.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                    }
+                  }
+                }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  populationSize = true
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      nonCumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          reach = true
+                          percentReach = true
+                          kPlusReach = 5
+                          percentKPlusReach = true
+                          averageFrequency = true
+                          impressions = true
+                          grps = true
+                        }
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          reach = true
+                          percentReach = true
+                        }
+                      nonCumulativeUnique =
+                        ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                      cumulativeUnique =
+                        ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+                    }
+                }
+              }
+
+              resultGroupSpecs += resultGroupSpec {
+                title = "title"
+                reportingUnit = reportingUnit {
+                  components += eventGroups.map { it.cmmsDataProvider }
+                }
+                metricFrequency = metricFrequencySpec { total = true }
+                dimensionSpec = dimensionSpec {
+                  grouping =
+                    DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "person.age_group"
+                      value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                    }
+                  }
+                }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  populationSize = true
+                  component =
+                    ResultGroupMetricSpecKt.componentMetricSetSpec {
+                      cumulative =
+                        ResultGroupMetricSpecKt.basicMetricSetSpec {
+                          reach = true
+                          percentReach = true
+                          averageFrequency = true
+                          kPlusReach = 5
+                          percentKPlusReach = true
+                          impressions = true
+                          grps = true
+                        }
+                    }
+                }
+              }
+            }
+        }
+
+      val createdBasicReport =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(createBasicReportRequest)
+
+      val retrievedBasicReport =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(retrievedBasicReport)
+        .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+        .isEqualTo(
+          createBasicReportRequest.basicReport.copy {
+            name = createdBasicReport.name
+            state = BasicReport.State.RUNNING
+            effectiveImpressionQualificationFilters +=
+              retrievedBasicReport.impressionQualificationFiltersList
+            effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
+          }
+        )
+      assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
+
+      executeBasicReportsReportsJob(createdBasicReport.name)
+      executeReportProcessorJob()
+
+      val retrievedCompletedBasicReport =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
+
+      assertThat(retrievedCompletedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+
+      // Check that non cumulative results are set. Dependent on current test data.
+      retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
+        assertNotNull(
+          resultGroup.resultsList
+            .filter {
+              it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
+            }
+            .firstOrNull { result ->
+              var componentReach = 0
+              var componentPercentReach = 0.0f
+              var componentAverageFrequency = 0.0f
+              var componentKPlusReachExists = false
+              var componentPercentKPlusReachExists = false
+              var componentImpressions = 0
+              var componentGrps = 0.0f
+              var componentUniqueReach = 0
+
+              result.metricSet.componentsList.forEach { component ->
+                val metricSet = component.value.nonCumulative
+
+                componentReach = max(componentReach, metricSet.reach)
+                componentPercentReach = max(componentPercentReach, metricSet.percentReach)
+                componentAverageFrequency =
+                  max(componentAverageFrequency, metricSet.averageFrequency)
+                componentKPlusReachExists =
+                  componentKPlusReachExists ||
+                    metricSet.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
+                componentPercentKPlusReachExists =
+                  componentPercentKPlusReachExists ||
+                    metricSet.percentKPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
+                componentImpressions = max(componentImpressions, metricSet.impressions)
+                componentGrps = max(componentGrps, metricSet.grps)
+                componentUniqueReach =
+                  max(componentUniqueReach, component.value.nonCumulativeUnique.reach)
+              }
+
+              val componentValuesCheck =
+                componentReach > 0 &&
+                  componentPercentReach > 0 &&
+                  componentKPlusReachExists &&
+                  componentPercentKPlusReachExists &&
+                  componentAverageFrequency > 0 &&
+                  componentImpressions > 0 &&
+                  componentGrps > 0 &&
+                  componentUniqueReach > 0
+
+              componentValuesCheck && result.metricSet.populationSize > 0
+            }
+        )
+      }
+
+      // Check that cumulative results are set. Dependent on current test data.
+      retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
+        assertNotNull(
+          resultGroup.resultsList
+            .filter {
+              it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
+            }
+            .firstOrNull { result ->
+              var componentReach = 0
+              var componentPercentReach = 0.0f
+              var componentUniqueReach = 0
+
+              result.metricSet.componentsList.forEach { component ->
+                val metricSet = component.value.cumulative
+
+                componentReach = max(componentReach, metricSet.reach)
+                componentPercentReach = max(componentPercentReach, metricSet.percentReach)
+                componentUniqueReach =
+                  max(componentUniqueReach, component.value.cumulativeUnique.reach)
+              }
+
+              val componentValuesCheck =
+                componentReach > 0 && componentPercentReach > 0 && componentUniqueReach > 0
+
+              componentValuesCheck && result.metricSet.populationSize > 0
+            }
+        )
+      }
+
+      // Check that total results are set. Dependent on current test data.
+      retrievedBasicReport.resultGroupsList.forEach { resultGroup ->
+        assertNotNull(
+          resultGroup.resultsList
+            .filter {
+              it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+            }
+            .firstOrNull { result ->
+              var componentReach = 0
+              var componentPercentReach = 0.0f
+              var componentAverageFrequency = 0.0f
+              var componentKPlusReachExists = false
+              var componentPercentKPlusReachExists = false
+              var componentImpressions = 0
+              var componentGrps = 0.0f
+
+              result.metricSet.componentsList.forEach { component ->
+                val metricSet = component.value.cumulative
+
+                componentReach = max(componentReach, metricSet.reach)
+                componentPercentReach = max(componentPercentReach, metricSet.percentReach)
+                componentAverageFrequency =
+                  max(componentAverageFrequency, metricSet.averageFrequency)
+                componentKPlusReachExists =
+                  componentKPlusReachExists ||
+                    metricSet.kPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
+                componentPercentKPlusReachExists =
+                  componentPercentKPlusReachExists ||
+                    metricSet.percentKPlusReachList.zipWithNext { a, b -> b <= a }.all { it }
+                componentImpressions = max(componentImpressions, metricSet.impressions)
+                componentGrps = max(componentGrps, metricSet.grps)
+              }
+
+              val componentValuesCheck =
+                componentReach > 0 &&
+                  componentPercentReach > 0 &&
+                  componentKPlusReachExists &&
+                  componentPercentKPlusReachExists &&
+                  componentAverageFrequency > 0 &&
+                  componentImpressions > 0 &&
+                  componentGrps > 0
+
+              componentValuesCheck && result.metricSet.populationSize > 0
             }
         )
       }
