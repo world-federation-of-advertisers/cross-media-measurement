@@ -966,6 +966,114 @@ class BasicReportsServiceTest {
     }
 
   @Test
+  fun `createBasicReport returns basic report when only custom IQF exists`(): Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    val campaignGroup =
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = "person.age_group"
+              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+            }
+          }
+        }
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
+        }
+      )
+    assertThat(response.createTime.seconds).isAtLeast(1)
+  }
+
+  @Test
   fun `createBasicReport creates new composite reportingsets only when needed`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)

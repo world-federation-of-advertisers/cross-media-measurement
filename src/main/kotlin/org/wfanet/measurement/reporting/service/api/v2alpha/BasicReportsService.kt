@@ -229,8 +229,9 @@ class BasicReportsService(
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+
     // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
+    val impressionQualificationFilterSpecListsWithoutCustom: List<List<ImpressionQualificationFilterSpec>> =
       buildList {
         addAll(
           effectiveReportingImpressionQualificationFilters
@@ -249,14 +250,18 @@ class BasicReportsService(
               }
             }
         )
+      }
 
+    val customImpressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
+      buildList {
+        addAll(
         effectiveReportingImpressionQualificationFilters
           .filter { it.hasCustom() }
-          .forEach { customIqf ->
+          .map { customIqf ->
             val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
               normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
-            this.forEach { existingIqfSpecs ->
+            impressionQualificationFilterSpecListsWithoutCustom.forEach { existingIqfSpecs ->
               val normalizedExistingIqfSpecs =
                 normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
 
@@ -268,7 +273,9 @@ class BasicReportsService(
                   .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
               }
             }
+            customIqf.custom.filterSpecList
           }
+        )
       }
 
     val createReportRequestId = UUID.randomUUID().toString()
@@ -322,7 +329,7 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecLists,
+        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecListsWithoutCustom + customImpressionQualificationFilterSpecLists,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
