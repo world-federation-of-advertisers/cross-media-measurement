@@ -160,6 +160,7 @@ class ReportingUserSimulator(
     logger.info("Creating Basic Report...")
 
     val eventGroup = getEventGroup()
+    println("eventGroup used: $eventGroup")
     val campaignGroup = createPrimitiveReportingSet(eventGroup, runId, isCampaignGroup = true)
 
     val basicReportKey =
@@ -187,20 +188,6 @@ class ReportingUserSimulator(
           month = 3
           day = 15
         }
-      }
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        custom =
-          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                }
-              }
-            }
-          }
       }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
