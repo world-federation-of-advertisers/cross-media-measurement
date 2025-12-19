@@ -262,10 +262,12 @@ fun EventFilter.toInternal(): InternalEventFilter {
 fun DimensionSpec.toInternal(): InternalDimensionSpec {
   val source = this
   return internalDimensionSpec {
-    grouping =
-      InternalDimensionSpecKt.grouping {
-        eventTemplateFields += source.grouping.eventTemplateFieldsList
-      }
+    if (source.hasGrouping()) {
+      grouping =
+        InternalDimensionSpecKt.grouping {
+          eventTemplateFields += source.grouping.eventTemplateFieldsList
+        }
+    }
     filters += source.filtersList.map { it.toInternal() }
   }
 }
@@ -484,8 +486,10 @@ fun InternalReportingUnit.toReportingUnit(): ReportingUnit {
 fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
   val source = this
   return dimensionSpec {
-    grouping =
-      DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+    if (source.hasGrouping()) {
+      grouping =
+        DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+    }
     filters += source.filtersList.map { it.toEventFilter() }
   }
 }

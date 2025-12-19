@@ -142,6 +142,7 @@ import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
@@ -1030,17 +1031,8 @@ class BasicReportsServiceTest {
         title = "title"
         reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-        dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
-          filters += eventFilter {
-            terms += eventTemplateField {
-              path = "person.age_group"
-              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-            }
-          }
-        }
+        dimensionSpec = DimensionSpec.getDefaultInstance()
         resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
               nonCumulative =
@@ -1071,6 +1063,22 @@ class BasicReportsServiceTest {
         }
       )
     assertThat(response.createTime.seconds).isAtLeast(1)
+
+    val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
+      cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      filter =
+        ListMetricCalculationSpecsRequestKt.filter {
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+        }
+      limit = 50
+    }
+
+    val createdMetricCalculationSpecs =
+      internalMetricCalculationSpecsService
+        .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+        .metricCalculationSpecsList
+
+    assertThat(createdMetricCalculationSpecs.first().details.filter.isNotEmpty() || createdMetricCalculationSpecs.last().details.filter.isNotEmpty()).isTrue()
   }
 
   @Test
