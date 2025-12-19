@@ -413,7 +413,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .measurementsList
   }
 
-  // @Test
+  @Test
   fun `population metric for union has correct result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -491,7 +491,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
 
-  // @Test
+  @Test
   fun `population metric for difference has correct result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -569,7 +569,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
 
-  // @Test
+  @Test
   fun `population metric with no reporting set filters has correct result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -613,7 +613,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
 
-  // @Test
+  @Test
   fun `reporting set is created and then retrieved`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -642,7 +642,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(createdPrimitiveReportingSet).isEqualTo(retrievedPrimitiveReportingSet)
   }
 
-  // @Test
+  @Test
   fun `report with LLv2 union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups: List<EventGroup> = listEventGroups()
@@ -769,7 +769,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .isTrue()
   }
 
-  // @Test
+  @Test
   fun `report with HMSS union reach across 2 edps has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups: List<EventGroup> = listEventGroups()
@@ -889,7 +889,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .isTrue()
   }
 
-  // @Test
+  @Test
   fun `report with unique reach has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1006,7 +1006,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
-  // @Test
+  @Test
   fun `report with intersection reach has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1111,7 +1111,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
-  // @Test
+  @Test
   fun `report with 2 reporting metric entries has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1188,7 +1188,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `report across two time intervals has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1263,7 +1263,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `report with invalidated Metric has state FAILED`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1375,7 +1375,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(failedReport.state).isEqualTo(Report.State.FAILED)
   }
 
-  // @Test
+  @Test
   fun `report with reporting interval has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1466,7 +1466,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `report with reporting interval doesn't create metric beyond report_end`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1573,7 +1573,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       )
   }
 
-  // @Test
+  @Test
   fun `report with group by has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1660,7 +1660,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `creating 3 reports at once succeeds`() = runBlocking {
     val numReports = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -1746,7 +1746,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `reach metric result has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1792,7 +1792,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
-  // @Test
+  @Test
   fun `reach metric with single edp params result has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1849,7 +1849,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
-  // @Test
+  @Test
   fun `reach-and-frequency metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -1924,7 +1924,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .of(expectedResult.frequency.relativeFrequencyDistributionMap)
   }
 
-  // @Test
+  @Test
   fun `reach-and-frequency metric with no data has a result of 0`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2005,7 +2005,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .of(mapWithAllZeroFrequency)
   }
 
-  // @Test
+  @Test
   fun `impression count metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2061,7 +2061,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .of(expectedResult.impression.value)
   }
 
-  // @Test
+  @Test
   fun `impression count metric with no data has a result of 0`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2107,7 +2107,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).impressionValue().isWithin(tolerance).of(0)
   }
 
-  // @Test
+  @Test
   fun `watch duration metric has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2143,7 +2143,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     // TODO(@tristanvuong2021): Calculate watch duration using synthetic spec.
   }
 
-  // @Test
+  @Test
   fun `reach metric with filter has the expected result`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2192,7 +2192,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(expectedResult.reach.value)
   }
 
-  // @Test
+  @Test
   fun `reach metric with no data has a result of 0`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2236,7 +2236,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     assertThat(actualResult).reachValue().isWithin(tolerance).of(0)
   }
 
-  // @Test
+  @Test
   fun `creating 3 metrics at once succeeds`() = runBlocking {
     val numMetrics = 3
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
@@ -2300,7 +2300,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     }
   }
 
-  // @Test
+  @Test
   fun `retrieving data provider succeeds`() = runBlocking {
     val eventGroups = listEventGroups()
     val dataProviderName = eventGroups.first().cmmsDataProvider
@@ -2636,7 +2636,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       }
     }
 
-  // @Test
+  @Test
   fun `getBasicReport returns basic report when model line system specified`() = runBlocking {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
@@ -2757,7 +2757,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       .isEqualTo(inProcessCmmsComponents.modelLineResourceName)
   }
 
-  // @Test
+  @Test
   fun `getImpressionQualificationFilter retrives ImpressionQualificationFilter`() = runBlocking {
     val impressionQualificationFilter =
       publicImpressionQualificationFiltersClient
@@ -2784,7 +2784,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       )
   }
 
-  // @Test
+  @Test
   fun `listImpressionQualificationFilters with page size and page token retrives ImpressionQualificationFilter`() =
     runBlocking {
       val internalPageToken = listImpressionQualificationFiltersPageToken {
