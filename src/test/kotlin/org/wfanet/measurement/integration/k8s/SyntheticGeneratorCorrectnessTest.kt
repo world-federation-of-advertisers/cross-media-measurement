@@ -328,6 +328,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
+            ttl = Duration.ofMinutes(60),
           )
           .token
       }

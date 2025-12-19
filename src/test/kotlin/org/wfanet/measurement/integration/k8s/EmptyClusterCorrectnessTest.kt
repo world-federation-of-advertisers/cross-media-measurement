@@ -495,6 +495,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
+            ttl = Duration.ofMinutes(60),
           )
           .token
       }
