@@ -157,7 +157,7 @@ class ReportingUserSimulator(
     logger.info("Report creation succeeded")
   }
 
-  suspend fun testBasicReportCreationAndRetrieval(runId: String) {
+  suspend fun testBasicReport(runId: String) {
     logger.info("Creating Basic Report...")
 
     val eventGroup = getEventGroup()
