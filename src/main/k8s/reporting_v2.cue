@@ -197,7 +197,6 @@ package k8s
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
-						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
