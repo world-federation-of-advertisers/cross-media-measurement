@@ -54,11 +54,9 @@ class SpannerEventGroupActivitiesService(
       if (childExternalEventGroupId != 0L && childExternalEventGroupId != externalEventGroupId) {
         throw InvalidFieldValueException(
             "requests.$index.event_group_activity.external_event_group_id"
-          ) {
-          fieldPath ->
-          "Value of $fieldPath does not match parent request"
-
-        }
+          ) { fieldPath ->
+            "Value of $fieldPath does not match parent request"
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
