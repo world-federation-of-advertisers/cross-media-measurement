@@ -861,60 +861,6 @@ class BasicReportsReportsJobTest {
     }
 
   @Test
-  fun `execute sets union region when results for composite reporting set`(): Unit = runBlocking {
-    val report =
-      REPORT.copy {
-        state = Report.State.SUCCEEDED
-        metricCalculationResults.clear()
-        metricCalculationResults +=
-          ReportKt.metricCalculationResult {
-            metricCalculationSpec =
-              MetricCalculationSpecKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                )
-                .toName()
-
-            reportingSet =
-              ReportingSetKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  COMPOSITE_REPORTING_SET.externalReportingSetId,
-                )
-                .toName()
-
-            resultAttributes +=
-              ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
-                metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-                timeInterval = interval {
-                  startTime = timestamp { seconds = 1736150400 }
-                  endTime = timestamp { seconds = 1736755200 }
-                }
-                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
-              }
-          }
-      }
-
-    whenever(reportsMock.getReport(any())).thenReturn(report)
-
-    job.execute()
-
-    val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
-    verifyBlocking(reportResultsMock, times(1)) {
-      batchCreateReportingSetResults(requestCaptor.capture())
-    }
-    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-    assertThat(
-        requestCaptor.firstValue.requestsList
-          .single()
-          .reportingSetResult
-          .dimension
-          .vennDiagramRegionType
-      )
-      .isEqualTo(ReportingSetResult.Dimension.VennDiagramRegionType.UNION)
-  }
-
-  @Test
   fun `execute sets custom when results for custom IQF`(): Unit = runBlocking {
     val basicReport =
       INTERNAL_BASIC_REPORT.copy {

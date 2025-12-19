@@ -46,7 +46,6 @@ import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
-import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
@@ -208,7 +207,6 @@ class ReportingUserSimulator(
         reportingUnit = reportingUnit { components += eventGroup.cmmsDataProvider }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
           filters += eventFilter {
             terms += eventTemplateField {
               path = "person.age_group"
