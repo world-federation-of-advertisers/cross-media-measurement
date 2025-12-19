@@ -155,9 +155,7 @@ class InProcessReportingServer(
     InternalImpressionQualificationFiltersCoroutineStub(internalApiChannel)
   }
 
-  val internalReportResultsClient by lazy {
-    ReportResultsCoroutineStub(internalApiChannel)
-  }
+  val internalReportResultsClient by lazy { ReportResultsCoroutineStub(internalApiChannel) }
 
   lateinit var _internalReportingServer: CommonServer
 
@@ -165,15 +163,18 @@ class InProcessReportingServer(
   private val internalReportingServerRule = TestRule { base, _ ->
     object : Statement() {
       override fun evaluate() {
-        _internalReportingServer = CommonServer.fromParameters(
-          verboseGrpcLogging = true,
-          certs = SIGNING_CERTS,
-          clientAuth = ClientAuth.OPTIONAL,
-          nameForLogging = INTERNAL_REPORTING_SERVER_NAME,
-          services = internalReportingServerServices.toList().map {
-            it.withVerboseLogging(verboseGrpcLogging)
-          }
-        ).start()
+        _internalReportingServer =
+          CommonServer.fromParameters(
+              verboseGrpcLogging = true,
+              certs = SIGNING_CERTS,
+              clientAuth = ClientAuth.OPTIONAL,
+              nameForLogging = INTERNAL_REPORTING_SERVER_NAME,
+              services =
+                internalReportingServerServices.toList().map {
+                  it.withVerboseLogging(verboseGrpcLogging)
+                },
+            )
+            .start()
         base.evaluate()
       }
     }
@@ -306,7 +307,7 @@ class InProcessReportingServer(
                 authorization,
                 encryptionKeyPairStore,
                 SecureRandom().asKotlinRandom(),
-              SECRETS_DIR,
+                SECRETS_DIR,
                 trustedCertificates,
                 defaultVidModelLine = defaultModelLineName,
                 measurementConsumerModelLines = emptyMap(),
@@ -367,13 +368,14 @@ class InProcessReportingServer(
         try {
           publicApiServer = createPublicApiTestServerRule()
           chainRulesSequentially(
-            internalReportingServerRule,
-            accessServicesFactory,
-            access,
-            celEnvCacheProvider,
-            publicApiServer,
-          )
-            .apply(base, description).evaluate()
+              internalReportingServerRule,
+              accessServicesFactory,
+              access,
+              celEnvCacheProvider,
+              publicApiServer,
+            )
+            .apply(base, description)
+            .evaluate()
         } finally {
           internalApiChannel.shutdown()
           internalReportingServer.shutdown()
@@ -387,15 +389,20 @@ class InProcessReportingServer(
 
     private val SECRETS_DIR: File =
       getRuntimePath(
-        Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
-      )!!
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
         .toFile()
 
     private val ALL_ROOT_CERTS_FILE: File = SECRETS_DIR.resolve("all_root_certs.pem")
     private val REPORTING_TLS_CERT_FILE: File = SECRETS_DIR.resolve("reporting_tls.pem")
     private val REPORTING_TLS_KEY_FILE: File = SECRETS_DIR.resolve("reporting_tls.key")
 
-    private val SIGNING_CERTS = SigningCerts.fromPemFiles(REPORTING_TLS_CERT_FILE, REPORTING_TLS_KEY_FILE, ALL_ROOT_CERTS_FILE)
+    private val SIGNING_CERTS =
+      SigningCerts.fromPemFiles(
+        REPORTING_TLS_CERT_FILE,
+        REPORTING_TLS_KEY_FILE,
+        ALL_ROOT_CERTS_FILE,
+      )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 

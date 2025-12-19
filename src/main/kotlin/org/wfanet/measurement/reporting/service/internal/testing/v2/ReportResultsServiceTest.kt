@@ -445,7 +445,8 @@ abstract class ReportResultsServiceTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = "primitive-1"
-                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    vennDiagramRegionType =
+                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
                     externalImpressionQualificationFilterId =
                       AMI_IQF.externalImpressionQualificationFilterId
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
@@ -560,7 +561,8 @@ abstract class ReportResultsServiceTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = "primitive-1"
-                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    vennDiagramRegionType =
+                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
                     externalImpressionQualificationFilterId =
                       AMI_IQF.externalImpressionQualificationFilterId
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
@@ -625,9 +627,7 @@ abstract class ReportResultsServiceTest {
       .containsExactly(
         reportingSetResults[0].copy {
           dimension =
-            dimension.copy {
-              grouping = ReportingSetResult.Dimension.Grouping.getDefaultInstance()
-            }
+            dimension.copy { grouping = ReportingSetResult.Dimension.Grouping.getDefaultInstance() }
           reportingWindowResults[0] =
             reportingWindowResults[0].copy {
               value =

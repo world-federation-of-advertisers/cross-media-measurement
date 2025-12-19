@@ -1736,10 +1736,7 @@ class BasicReportsServiceTest {
             populationSize = false
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
@@ -7103,9 +7100,7 @@ class BasicReportsServiceTest {
                 resultGroupMetricSpec = resultGroupMetricSpec {
                   reportingUnit =
                     ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                      cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec {
-                        impressions = true
-                      }
+                      cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
                     }
                 }
               }
@@ -7227,10 +7222,7 @@ class BasicReportsServiceTest {
                 resultGroupMetricSpec = resultGroupMetricSpec {
                   component =
                     ResultGroupMetricSpecKt.componentMetricSetSpec {
-                      cumulative =
-                        ResultGroupMetricSpecKt.basicMetricSetSpec {
-                          impressions = true
-                        }
+                      cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
                     }
                 }
               }

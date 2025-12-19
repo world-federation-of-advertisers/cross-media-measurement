@@ -51,7 +51,6 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineImplBase
@@ -1267,8 +1266,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                       metricEndTime = timestamp { seconds = 1752649200 }
                       metricFrequencySpec =
                         basicReport.details.resultGroupSpecsList.first().metricFrequency
-                      dimensionSpecSummary =
-                        ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {}
+                      dimensionSpecSummary = ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {}
                       filter = basicReport.details.impressionQualificationFiltersList.first()
                     }
                   metricSet =

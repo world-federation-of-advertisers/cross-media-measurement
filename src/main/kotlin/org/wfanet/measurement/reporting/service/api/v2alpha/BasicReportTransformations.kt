@@ -225,7 +225,8 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   return eventTemplateFieldsList.map { field ->
     val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
-    val predicatesList = fieldInfoEnumType.values.filter { it.number > 0 }.map { "$field == ${it.number}" }
+    val predicatesList =
+      fieldInfoEnumType.values.filter { it.number > 0 }.map { "$field == ${it.number}" }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
   }
 }

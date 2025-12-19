@@ -502,9 +502,11 @@ class ReportingUserSimulator(
               throw Exception("Error retrieving Basic Report", e)
             }
 
-            BasicReport.newBuilder()
-              .also { JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it) }
-              .build()
+          BasicReport.newBuilder()
+            .also {
+              JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it)
+            }
+            .build()
         } catch (e: StatusException) {
           throw Exception("Error getting BasicReport", e)
         }

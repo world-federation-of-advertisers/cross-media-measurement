@@ -569,8 +569,7 @@ class BasicReportsReportsJobTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                    vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.UNION
+                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -680,8 +679,7 @@ class BasicReportsReportsJobTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                    vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.UNION
+                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -1585,16 +1583,16 @@ class BasicReportsReportsJobTest {
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
               MetricCalculationSpecKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                TOTAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  TOTAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
                 .toName()
 
             reportingSet =
               ReportingSetKey(
-                CMMS_MEASUREMENT_CONSUMER_ID,
-                COMPOSITE_REPORTING_SET.externalReportingSetId,
-              )
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  COMPOSITE_REPORTING_SET.externalReportingSetId,
+                )
                 .toName()
 
             resultAttributes +=
@@ -1770,7 +1768,13 @@ class BasicReportsReportsJobTest {
       batchCreateReportingSetResults(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(2)
-    val totalReportingSetResult = requestCaptor.firstValue.requestsList.first { it.reportingSetResult.dimension.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }.reportingSetResult
+    val totalReportingSetResult =
+      requestCaptor.firstValue.requestsList
+        .first {
+          it.reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
+            MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .reportingSetResult
 
     assertThat(totalReportingSetResult.populationSize).isEqualTo(1000)
     assertThat(totalReportingSetResult.reportingWindowResultsList).hasSize(1)
@@ -1809,7 +1813,13 @@ class BasicReportsReportsJobTest {
         }
       )
 
-    val weeklyReportingSetResult = requestCaptor.firstValue.requestsList.first { it.reportingSetResult.dimension.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY }.reportingSetResult
+    val weeklyReportingSetResult =
+      requestCaptor.firstValue.requestsList
+        .first {
+          it.reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
+            MetricFrequencySpec.SelectorCase.WEEKLY
+        }
+        .reportingSetResult
     assertThat(weeklyReportingSetResult.populationSize).isEqualTo(1000)
     assertThat(weeklyReportingSetResult.reportingWindowResultsList).hasSize(1)
     assertThat(weeklyReportingSetResult.reportingWindowResultsList[0])

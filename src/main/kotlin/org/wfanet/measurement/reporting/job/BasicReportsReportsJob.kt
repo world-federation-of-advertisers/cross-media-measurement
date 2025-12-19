@@ -383,7 +383,11 @@ class BasicReportsReportsJob(
           val metricCalculationSpecInfo: MetricCalculationSpecInfo =
             metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
 
-          if (metricCalculationResult.resultAttributesList.all { it.metricResult.hasPopulationCount() }) {
+          if (
+            metricCalculationResult.resultAttributesList.all {
+              it.metricResult.hasPopulationCount()
+            }
+          ) {
             metricCalculationResult.resultAttributesList.forEach {
               populationCountByPopulationResultKey[
                 PopulationResultKey(
@@ -403,9 +407,7 @@ class BasicReportsReportsJob(
                       metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
                   )
                 ) {
-                  ReportingSetResultInfo(
-                    reportingWindowResultInfoByEndDate = mutableMapOf(),
-                  )
+                  ReportingSetResultInfo(reportingWindowResultInfoByEndDate = mutableMapOf())
                 }
 
               val startDate: Date? =
@@ -715,7 +717,7 @@ class BasicReportsReportsJob(
   )
 
   private data class ReportingSetResultInfo(
-    val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>,
+    val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>
   )
 
   private data class ReportingWindowResultInfo(

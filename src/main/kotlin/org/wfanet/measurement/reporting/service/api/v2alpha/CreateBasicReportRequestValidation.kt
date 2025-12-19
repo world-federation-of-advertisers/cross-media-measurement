@@ -704,8 +704,13 @@ object CreateBasicReportRequestValidation {
     fieldPath: String,
   ) {
     if (isWeeklyCumulative) {
-      if (basicMetricSetSpec.impressions || basicMetricSetSpec.grps || basicMetricSetSpec.averageFrequency ||
-        basicMetricSetSpec.kPlusReach > 0 || basicMetricSetSpec.percentKPlusReach) {
+      if (
+        basicMetricSetSpec.impressions ||
+          basicMetricSetSpec.grps ||
+          basicMetricSetSpec.averageFrequency ||
+          basicMetricSetSpec.kPlusReach > 0 ||
+          basicMetricSetSpec.percentKPlusReach
+      ) {
         throw FieldUnimplementedException(fieldPath) { fieldName ->
           "$fieldName only supports reach and percent_reach when metric_frequency weekly"
         }
