@@ -367,12 +367,18 @@ class PostProcessReportResult:
             processed_window_entry.value.cumulative_results,
         )
 
-        self._populate_basic_metric_set(
-            window_data,
-            'non_cumulative',
-            population,
-            processed_window_entry.value.non_cumulative_results,
-        )
+        no_non_cumulative_values = True
+        for key, val in window_data.items():
+            if key.startswith('non_cumulative'):
+                no_non_cumulative_values = False
+
+        if not no_non_cumulative_values:
+            self._populate_basic_metric_set(
+                window_data,
+                'non_cumulative',
+                population,
+                processed_window_entry.value.non_cumulative_results,
+            )
 
     def _populate_basic_metric_set(
         self,
@@ -434,11 +440,11 @@ def compute_basic_metric_set(
 
     basic_metric_set = BasicMetricSet()
 
-    if reach is not None:
+    if reach:
         basic_metric_set.reach = reach
         basic_metric_set.percent_reach = reach / population * 100
 
-    if impressions is not None:
+    if impressions:
         basic_metric_set.impressions = impressions
         basic_metric_set.grps = impressions / population * 100
         if basic_metric_set.reach > 0:

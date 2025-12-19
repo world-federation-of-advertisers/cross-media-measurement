@@ -465,7 +465,7 @@ object BasicReportProcessedResultsTransformation {
               nonCumulativeWindowStartDate =
                 if (
                   reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
-                    MetricFrequencySpec.SelectorCase.WEEKLY
+                    MetricFrequencySpec.SelectorCase.WEEKLY && reportingWindowEntry.key.nonCumulativeStart != Date.getDefaultInstance()
                 ) {
                   reportingWindowEntry.key.nonCumulativeStart
                 } else {

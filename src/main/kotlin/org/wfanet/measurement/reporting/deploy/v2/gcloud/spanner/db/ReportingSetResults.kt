@@ -240,7 +240,9 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
             populationSize = row.getLong("PopulationSize").toInt()
             metricFrequencySpecFingerprint = row.getLong("MetricFrequencySpecFingerprint")
             groupingDimensionFingerprint = row.getLong("GroupingDimensionFingerprint")
-            filterFingerprint = row.getLong("FilterFingerprint")
+            if (!row.isNull("FilterFingerprint")) {
+              filterFingerprint = row.getLong("FilterFingerprint")
+            }
             dimension =
               ReportingSetResultKt.dimension {
                 externalReportingSetId = row.getString("ExternalReportingSetId")
@@ -273,9 +275,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
                     MetricFrequencySpec.getDefaultInstance(),
                   )
                 grouping =
-                  groupingDimensions.groupingByFingerprint.getValue(
-                    row.getLong("GroupingDimensionFingerprint")
-                  )
+                  groupingDimensions.groupingByFingerprint.getValue(groupingDimensionFingerprint)
                 eventFilters +=
                   row.getProtoMessageList("EventFilters", EventFilter.getDefaultInstance())
               }

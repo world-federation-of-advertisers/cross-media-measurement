@@ -66,7 +66,6 @@ import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
-import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -293,6 +292,11 @@ class ReportingUserSimulator(
 
     logger.info("Basic Report created")
 
+    val createdBasicReport =
+      BasicReport.newBuilder()
+        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
+        .build()
+
     val getBasicReportUrl =
       HttpUrl.Builder()
         .scheme("https")
@@ -308,30 +312,9 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $accessToken")
         .build()
 
-    val retrievedBasicReportJson: String =
-      try {
-        val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
+    val retrievedCompletedBasicReport = pollForCompletedBasicReport(getBasicReportRequest)
 
-        val responseBody = response.body!!.string()
-        if (!response.isSuccessful) {
-          throw Exception(
-            "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
-          )
-        }
-
-        responseBody
-      } catch (e: StatusException) {
-        throw Exception("Error retrieving Basic Report", e)
-      }
-
-    logger.info("Basic Report retrieval succeeded")
-
-    val retrievedBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it) }
-        .build()
-
-    assertThat(retrievedBasicReport)
+    assertThat(retrievedCompletedBasicReport)
       .ignoringFields(
         BasicReport.CREATE_TIME_FIELD_NUMBER,
         BasicReport.EFFECTIVE_IMPRESSION_QUALIFICATION_FILTERS_FIELD_NUMBER,
@@ -339,17 +322,12 @@ class ReportingUserSimulator(
       .isEqualTo(
         basicReport.copy {
           name = basicReportKey.toName()
-          state = BasicReport.State.RUNNING
-          effectiveModelLine = retrievedBasicReport.effectiveModelLine
+          state = BasicReport.State.SUCCEEDED
+          effectiveModelLine = retrievedCompletedBasicReport.effectiveModelLine
         }
       )
 
-    val createdBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
-        .build()
-
-    assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
+    assertThat(retrievedCompletedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
   }
 
   private suspend fun getEventGroup(): EventGroup {
@@ -493,6 +471,56 @@ class ReportingUserSimulator(
             backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
           logger.info {
             "Report not completed yet. Waiting for ${resultPollingDelay.seconds} seconds."
+          }
+          delay(resultPollingDelay)
+          attempt++
+        }
+      }
+    }
+  }
+
+  private suspend fun pollForCompletedBasicReport(getBasicReportRequest: Request): BasicReport {
+    val backoff =
+      ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
+    var attempt = 1
+    while (true) {
+      val retrievedBasicReport =
+        try {
+          val retrievedBasicReportJson: String =
+            try {
+              val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
+
+              val responseBody = response.body!!.string()
+              if (!response.isSuccessful) {
+                throw Exception(
+                  "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
+                )
+              }
+
+              responseBody
+            } catch (e: StatusException) {
+              throw Exception("Error retrieving Basic Report", e)
+            }
+
+            BasicReport.newBuilder()
+              .also { JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it) }
+              .build()
+        } catch (e: StatusException) {
+          throw Exception("Error getting BasicReport", e)
+        }
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (retrievedBasicReport.state) {
+        BasicReport.State.SUCCEEDED,
+        BasicReport.State.FAILED,
+        BasicReport.State.INVALID -> return retrievedBasicReport
+        BasicReport.State.RUNNING,
+        BasicReport.State.UNRECOGNIZED,
+        BasicReport.State.STATE_UNSPECIFIED -> {
+          val resultPollingDelay =
+            backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
+          logger.info {
+            "BasicReport not completed yet. Waiting for ${resultPollingDelay.seconds} seconds."
           }
           delay(resultPollingDelay)
           attempt++

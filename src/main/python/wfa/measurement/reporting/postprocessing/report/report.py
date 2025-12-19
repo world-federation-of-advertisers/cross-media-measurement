@@ -312,13 +312,13 @@ class MetricReport:
     frequencies = set()
     for edp_combination in whole_campaign_measurements.keys():
       k_reach_measurements = whole_campaign_measurements[edp_combination].k_reach
-      if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+      if k_reach_measurements and len(k_reach_measurements) > 0:
         frequencies.add(len(k_reach_measurements))
 
     for edp_combination in weekly_non_cumulative_measurements.keys():
       for period in range(0, self._num_periods):
         k_reach_measurements = weekly_non_cumulative_measurements[edp_combination][period].k_reach
-        if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+        if k_reach_measurements and len(k_reach_measurements) > 0:
           frequencies.add(len(k_reach_measurements))
 
     if len(frequencies) > 1:
@@ -472,7 +472,7 @@ class MetricReport:
         edp
         for edp in self._weekly_non_cumulative_measurements.keys()
         if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
-          self._weekly_non_cumulative_measurements[edp][0].reach is not None
+          self._weekly_non_cumulative_measurements[edp][0].reach
     }
 
   def get_weekly_non_cumulative_k_reach_edp_combinations(self) -> set[EdpCombination]:
@@ -488,21 +488,21 @@ class MetricReport:
         edp
         for edp in self._weekly_non_cumulative_measurements.keys()
         if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
-          self._weekly_non_cumulative_measurements[edp][0].impression is not None
+          self._weekly_non_cumulative_measurements[edp][0].impression
     }
 
   def get_whole_campaign_reach_edp_combinations(self) -> set[EdpCombination]:
     return {
         edp
         for edp, measurement_set in self._whole_campaign_measurements.items()
-        if measurement_set.reach is not None
+        if measurement_set.reach
     }
     
   def get_whole_campaign_impression_edp_combinations(self) -> set[EdpCombination]:
     return {
         edp
         for edp, measurement_set in self._whole_campaign_measurements.items()
-        if measurement_set.impression is not None
+        if measurement_set.impression
     }
 
   def get_whole_campaign_k_reach_edp_combinations(self) -> set[EdpCombination]:
@@ -2110,7 +2110,7 @@ class Report:
        A list of zero variance EDPs.
     """
     zero_variance_edp_combinations: list[EdpCombination] = []
-    if self._metric_reports.keys() is None:
+    if self._metric_reports.keys() is None or not self._metric_reports.keys():
       raise ValueError("The report does not contain any measurements.")
 
     edp_combinations = self._metric_reports[

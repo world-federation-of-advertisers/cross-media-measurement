@@ -197,7 +197,6 @@ private fun run(
       measurementConsumerConfigs,
       InternalBasicReportsCoroutineStub(channel),
       ReportsCoroutineStub(inProcessReportsChannel),
-      InternalReportingSetsCoroutineStub(channel),
       InternalMetricCalculationSpecsCoroutineStub(channel),
       ReportResultsCoroutineStub(channel),
       eventMessageFlags.eventDescriptor,

@@ -25,7 +25,6 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -61,13 +60,12 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
@@ -116,18 +114,6 @@ class BasicReportsReportsJobTest {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
   }
 
-  private val reportingSetsMock: ReportingSetsCoroutineImplBase = mockService {
-    onBlocking { streamReportingSets(any()) }
-      .thenReturn(
-        flowOf(
-          CAMPAIGN_GROUP,
-          PRIMITIVE_REPORTING_SET,
-          PRIMITIVE_REPORTING_SET_2,
-          COMPOSITE_REPORTING_SET,
-        )
-      )
-  }
-
   private val metricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase = mockService {
     onBlocking { listMetricCalculationSpecs(any()) }
       .thenReturn(
@@ -155,7 +141,6 @@ class BasicReportsReportsJobTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(basicReportsMock)
     addService(reportsMock)
-    addService(reportingSetsMock)
     addService(metricCalculationSpecsMock)
     addService(reportResultsMock)
   }
@@ -169,7 +154,6 @@ class BasicReportsReportsJobTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),
-        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
@@ -310,23 +294,6 @@ class BasicReportsReportsJobTest {
                     populationCount = MetricResultKt.populationCountResult { value = 1000L }
                   }
                 }
-            }
-
-          metricCalculationResults +=
-            ReportKt.metricCalculationResult {
-              metricCalculationSpec =
-                MetricCalculationSpecKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                  )
-                  .toName()
-
-              reportingSet =
-                ReportingSetKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                  )
-                  .toName()
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
@@ -603,7 +570,7 @@ class BasicReportsReportsJobTest {
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
                     vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                      ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -714,7 +681,7 @@ class BasicReportsReportsJobTest {
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
                     vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                      ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -893,61 +860,6 @@ class BasicReportsReportsJobTest {
         batchCreateReportingSetResults(requestCaptor.capture())
       }
       assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(2)
-    }
-
-  @Test
-  fun `execute sets primitive region when results for primitive reporting set`(): Unit =
-    runBlocking {
-      val report =
-        REPORT.copy {
-          state = Report.State.SUCCEEDED
-          metricCalculationResults.clear()
-          metricCalculationResults +=
-            ReportKt.metricCalculationResult {
-              metricCalculationSpec =
-                MetricCalculationSpecKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                  )
-                  .toName()
-
-              reportingSet =
-                ReportingSetKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                  )
-                  .toName()
-
-              resultAttributes +=
-                ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
-                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-                  timeInterval = interval {
-                    startTime = timestamp { seconds = 1736150400 }
-                    endTime = timestamp { seconds = 1736755200 }
-                  }
-                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
-                }
-            }
-        }
-
-      whenever(reportsMock.getReport(any())).thenReturn(report)
-
-      job.execute()
-
-      val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
-      verifyBlocking(reportResultsMock, times(1)) {
-        batchCreateReportingSetResults(requestCaptor.capture())
-      }
-      assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-      assertThat(
-          requestCaptor.firstValue.requestsList
-            .single()
-            .reportingSetResult
-            .dimension
-            .vennDiagramRegionType
-        )
-        .isEqualTo(ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE)
     }
 
   @Test
@@ -1673,6 +1585,40 @@ class BasicReportsReportsJobTest {
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
               MetricCalculationSpecKey(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                TOTAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+              )
+                .toName()
+
+            reportingSet =
+              ReportingSetKey(
+                CMMS_MEASUREMENT_CONSUMER_ID,
+                COMPOSITE_REPORTING_SET.externalReportingSetId,
+              )
+                .toName()
+
+            resultAttributes +=
+              ReportKt.MetricCalculationResultKt.resultAttribute {
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
+                metricSpec = metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 1736150400 }
+                  endTime = timestamp { seconds = 1736755200 }
+                }
+                metricResult = metricResult {
+                  impressionCount =
+                    MetricResultKt.impressionCountResult {
+                      value = 5L
+                      univariateStatistics = univariateStatistics { standardDeviation = 1.0 }
+                    }
+                }
+              }
+          }
+
+        metricCalculationResults +=
+          ReportKt.metricCalculationResult {
+            metricCalculationSpec =
+              MetricCalculationSpecKey(
                   CMMS_MEASUREMENT_CONSUMER_ID,
                   CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
                 )
@@ -1823,11 +1769,50 @@ class BasicReportsReportsJobTest {
     verifyBlocking(reportResultsMock, times(1)) {
       batchCreateReportingSetResults(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-    val reportingSetResultEntry = requestCaptor.firstValue.requestsList.single().reportingSetResult
-    assertThat(reportingSetResultEntry.populationSize).isEqualTo(1000)
-    assertThat(reportingSetResultEntry.reportingWindowResultsList).hasSize(1)
-    assertThat(reportingSetResultEntry.reportingWindowResultsList[0])
+    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(2)
+    val totalReportingSetResult = requestCaptor.firstValue.requestsList.first { it.reportingSetResult.dimension.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL }.reportingSetResult
+
+    assertThat(totalReportingSetResult.populationSize).isEqualTo(1000)
+    assertThat(totalReportingSetResult.reportingWindowResultsList).hasSize(1)
+    assertThat(totalReportingSetResult.reportingWindowResultsList[0])
+      .isEqualTo(
+        ReportingSetResultKt.reportingWindowEntry {
+          key =
+            ReportingSetResultKt.reportingWindow {
+              end = date {
+                year = 2025
+                month = 1
+                day = 13
+              }
+            }
+          value =
+            ReportingSetResultKt.reportingWindowResult {
+              unprocessedReportResultValues =
+                ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                  cumulativeResults =
+                    ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+                      .noisyMetricSet {
+                        impressionCount =
+                          ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+                            .NoisyMetricSetKt
+                            .impressionCountResult {
+                              value = 5
+                              univariateStatistics =
+                                ReportingSetResultKt.ReportingWindowResultKt
+                                  .NoisyReportResultValuesKt
+                                  .NoisyMetricSetKt
+                                  .univariateStatistics { standardDeviation = 1.0 }
+                            }
+                      }
+                }
+            }
+        }
+      )
+
+    val weeklyReportingSetResult = requestCaptor.firstValue.requestsList.first { it.reportingSetResult.dimension.metricFrequencySpec.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY }.reportingSetResult
+    assertThat(weeklyReportingSetResult.populationSize).isEqualTo(1000)
+    assertThat(weeklyReportingSetResult.reportingWindowResultsList).hasSize(1)
+    assertThat(weeklyReportingSetResult.reportingWindowResultsList[0])
       .isEqualTo(
         ReportingSetResultKt.reportingWindowEntry {
           key =
@@ -2346,7 +2331,6 @@ class BasicReportsReportsJobTest {
         measurementConsumerConfigs,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),
-        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,

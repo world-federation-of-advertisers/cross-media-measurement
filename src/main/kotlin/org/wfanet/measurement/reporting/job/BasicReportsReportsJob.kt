@@ -50,8 +50,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportRe
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Dimension.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
@@ -62,7 +60,6 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
-import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -75,7 +72,6 @@ import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.UnivariateStatistics
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
@@ -84,7 +80,6 @@ class BasicReportsReportsJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val internalBasicReportsStub: InternalBasicReportsCoroutineStub,
   private val reportsStub: ReportsCoroutineStub,
-  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMetricCalculationSpecsStub: InternalMetricCalculationSpecsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val eventMessageDescriptor: EventMessageDescriptor?,
@@ -254,14 +249,14 @@ class BasicReportsReportsJob(
           dimension =
             ReportingSetResultKt.dimension {
               externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId
-              vennDiagramRegionType = reportingSetResultInfoEntry.value.vennDiagramRegionType
+              vennDiagramRegionType = VennDiagramRegionType.UNION
               if (filterInfo.externalImpressionQualificationFilterId != null) {
                 externalImpressionQualificationFilterId =
                   filterInfo.externalImpressionQualificationFilterId
               } else {
                 custom = true
               }
-              metricFrequencySpec = reportingSetResultInfoEntry.value.metricFrequencySpec
+              metricFrequencySpec = reportingSetResultInfoEntry.key.metricFrequencySpec
               grouping =
                 ReportingSetResultKt.DimensionKt.grouping {
                   for (predicate in reportingSetResultInfoEntry.key.groupingPredicates) {
@@ -376,12 +371,6 @@ class BasicReportsReportsJob(
         externalCampaignGroupId = externalCampaignGroupId,
       )
 
-    val vennDiagramRegionTypeByName: Map<String, VennDiagramRegionType> =
-      buildVennDiagramRegionTypeByNameMap(
-        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-        externalCampaignGroupId = externalCampaignGroupId,
-      )
-
     val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Int> = mutableMapOf()
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
@@ -394,19 +383,14 @@ class BasicReportsReportsJob(
           val metricCalculationSpecInfo: MetricCalculationSpecInfo =
             metricCalculationSpecInfoByName.getValue(metricCalculationResult.metricCalculationSpec)
 
-          val vennDiagramRegionType: VennDiagramRegionType =
-            vennDiagramRegionTypeByName.getValue(metricCalculationResult.reportingSet)
-
-          val firstResultAttribute = metricCalculationResult.resultAttributesList.first()
-          if (
-            metricCalculationResult.resultAttributesList.size == 1 &&
-              firstResultAttribute.metricResult.hasPopulationCount()
-          ) {
-            populationCountByPopulationResultKey[
-              PopulationResultKey(
-                filter = firstResultAttribute.filter,
-                groupingPredicates = firstResultAttribute.groupingPredicatesList.toSet(),
-              )] = firstResultAttribute.metricResult.populationCount.value.toInt()
+          if (metricCalculationResult.resultAttributesList.all { it.metricResult.hasPopulationCount() }) {
+            metricCalculationResult.resultAttributesList.forEach {
+              populationCountByPopulationResultKey[
+                PopulationResultKey(
+                  filter = it.filter,
+                  groupingPredicates = it.groupingPredicatesList.toSet(),
+                )] = it.metricResult.populationCount.value.toInt()
+            }
           } else {
             for (resultAttribute in metricCalculationResult.resultAttributesList) {
               val reportingSetResultInfo: ReportingSetResultInfo =
@@ -415,12 +399,11 @@ class BasicReportsReportsJob(
                     externalReportingSetId = externalReportingSetId,
                     filter = resultAttribute.filter,
                     groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
+                    metricFrequencySpec =
+                      metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
                   )
                 ) {
                   ReportingSetResultInfo(
-                    vennDiagramRegionType = vennDiagramRegionType,
-                    metricFrequencySpec =
-                      metricCalculationSpecInfo.metricFrequencySpec.toMetricFrequencySpec(),
                     reportingWindowResultInfoByEndDate = mutableMapOf(),
                   )
                 }
@@ -651,44 +634,6 @@ class BasicReportsReportsJob(
     }
   }
 
-  /**
-   * Builds Map of [ReportingSet] name to [VennDiagramRegionType].
-   *
-   * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
-   * @param externalCampaignGroupId ExternalCampaignGroupId from [BasicReport]
-   * @return Map of [ReportingSet] name to [VennDiagramRegionType]
-   */
-  private suspend fun buildVennDiagramRegionTypeByNameMap(
-    cmmsMeasurementConsumerId: String,
-    externalCampaignGroupId: String,
-  ): Map<String, VennDiagramRegionType> {
-    return buildMap {
-      internalReportingSetsStub
-        .streamReportingSets(
-          streamReportingSetsRequest {
-            filter =
-              StreamReportingSetsRequestKt.filter {
-                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                this.externalCampaignGroupId = externalCampaignGroupId
-              }
-            limit = Int.MAX_VALUE
-          }
-        )
-        .collect {
-          val vennDiagramRegionType =
-            if (it.hasPrimitive()) {
-              VennDiagramRegionType.PRIMITIVE
-            } else {
-              VennDiagramRegionType.UNION
-            }
-          put(
-            ReportingSetKey(it.cmmsMeasurementConsumerId, it.externalReportingSetId).toName(),
-            vennDiagramRegionType,
-          )
-        }
-    }
-  }
-
   private fun Timestamp.toDate(zoneId: ZoneId): Date {
     val localDate = this.toInstant().atZone(zoneId)
 
@@ -766,11 +711,10 @@ class BasicReportsReportsJob(
     val externalReportingSetId: String,
     val filter: String,
     val groupingPredicates: Set<String>,
+    val metricFrequencySpec: MetricFrequencySpec,
   )
 
   private data class ReportingSetResultInfo(
-    val vennDiagramRegionType: VennDiagramRegionType,
-    val metricFrequencySpec: MetricFrequencySpec,
     val reportingWindowResultInfoByEndDate: MutableMap<Date, ReportingWindowResultInfo>,
   )
 
