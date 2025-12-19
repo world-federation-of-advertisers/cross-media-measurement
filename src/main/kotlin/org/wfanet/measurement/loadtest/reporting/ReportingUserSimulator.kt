@@ -225,21 +225,11 @@ class ReportingUserSimulator(
                   reach = true
                   percentReach = true
                 }
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  percentReach = true
-                }
               stackedIncrementalReach = false
             }
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
               nonCumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  percentReach = true
-                }
-              cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
