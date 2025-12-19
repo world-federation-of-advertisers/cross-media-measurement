@@ -55,8 +55,10 @@ class SpannerEventGroupActivitiesService(
         throw InvalidFieldValueException(
             "requests.$index.event_group_activity.external_event_group_id"
           ) {
-            "Child's externalEventGroupId $childExternalEventGroupId different from parent's externalEventGroupId $externalEventGroupId"
-          }
+          fieldPath ->
+          "Value of $fieldPath does not match parent request"
+
+        }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
