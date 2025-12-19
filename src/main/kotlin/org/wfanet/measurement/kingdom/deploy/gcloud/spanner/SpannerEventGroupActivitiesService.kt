@@ -14,16 +14,13 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse
-import org.wfanet.measurement.internal.kingdom.DeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
@@ -63,6 +60,11 @@ class SpannerEventGroupActivitiesService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
+      if (!child.hasEventGroupActivity()) {
+        throw RequiredFieldNotSetException("requests.$index.event_group_activity")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
       if (!child.eventGroupActivity.hasDate()) {
         throw RequiredFieldNotSetException("requests.$index.event_group_activity.date")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -78,15 +80,5 @@ class SpannerEventGroupActivitiesService(
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
-  }
-
-  override suspend fun deleteEventGroupActivity(request: DeleteEventGroupActivityRequest): Empty {
-    return super.deleteEventGroupActivity(request)
-  }
-
-  override suspend fun batchDeleteEventGroupActivities(
-    request: BatchDeleteEventGroupActivitiesRequest
-  ): Empty {
-    return super.batchDeleteEventGroupActivities(request)
   }
 }

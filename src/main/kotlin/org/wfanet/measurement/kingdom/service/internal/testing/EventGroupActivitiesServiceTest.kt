@@ -351,6 +351,24 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when activity is not set`() =
+    runBlocking {
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest { allowMissing = true }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("requests.0.event_group_activity")
+    }
+
+  @Test
   fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when activity date is not set`() =
     runBlocking {
       val request = batchUpdateEventGroupActivitiesRequest {
@@ -371,7 +389,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("date")
+      assertThat(exception).hasMessageThat().contains("requests.0.event_group_activity.date")
     }
 
   @Test
