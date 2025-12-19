@@ -65,7 +65,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
         upsertedActivities.add(updateEventGroupActivity(child.eventGroupActivity, result))
       } else if (child.allowMissing) {
         upsertedActivities.add(
-          createEventGroupActivity(idGenerator, dataProviderId, eventGroupId, child)
+          insertEventGroupActivity(idGenerator, dataProviderId, eventGroupId, child)
         )
       } else {
         throw EventGroupActivityNotFoundException(
@@ -109,7 +109,7 @@ private fun SpannerWriter.TransactionScope.updateEventGroupActivity(
 }
 
 /** Buffers an insert mutation for the EventGroupActivities table. */
-private fun SpannerWriter.TransactionScope.createEventGroupActivity(
+private fun SpannerWriter.TransactionScope.insertEventGroupActivity(
   idGenerator: IdGenerator,
   dataProviderId: InternalId,
   eventGroupId: InternalId,
