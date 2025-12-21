@@ -121,7 +121,4 @@ defaultNetworkPolicies: {
 			"networking.gke.io/load-balancer-ip-addresses": _ipAddressName
 		}
 	}
-
-	// Explicitly clear deprecated field.
-	spec: loadBalancerIP: null
 }
