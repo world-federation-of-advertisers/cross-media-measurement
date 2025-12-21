@@ -465,7 +465,8 @@ object BasicReportProcessedResultsTransformation {
               nonCumulativeWindowStartDate =
                 if (
                   reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
-                    MetricFrequencySpec.SelectorCase.WEEKLY
+                    MetricFrequencySpec.SelectorCase.WEEKLY &&
+                    reportingWindowEntry.key.hasNonCumulativeStart()
                 ) {
                   reportingWindowEntry.key.nonCumulativeStart
                 } else {
@@ -635,10 +636,11 @@ object BasicReportProcessedResultsTransformation {
         percentReach = processedValues.percentReach
       }
       if (basicMetricSetSpec.kPlusReach > 0) {
-        kPlusReach += processedValues.kPlusReachList
+        kPlusReach += processedValues.kPlusReachList.take(basicMetricSetSpec.kPlusReach)
       }
       if (basicMetricSetSpec.percentKPlusReach) {
-        percentKPlusReach += processedValues.percentKPlusReachList
+        percentKPlusReach +=
+          processedValues.percentKPlusReachList.take(basicMetricSetSpec.kPlusReach)
       }
       if (basicMetricSetSpec.averageFrequency) {
         averageFrequency = processedValues.averageFrequency

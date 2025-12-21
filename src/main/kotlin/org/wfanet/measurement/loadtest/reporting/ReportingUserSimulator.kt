@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.loadtest.reporting
 
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.util.JsonFormat
 import com.google.type.DayOfWeek
@@ -46,41 +45,18 @@ import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
-import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
-import org.wfanet.measurement.reporting.v2alpha.MediaType
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
-import org.wfanet.measurement.reporting.v2alpha.MetricSpec
-import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
-import org.wfanet.measurement.reporting.v2alpha.Report
-import org.wfanet.measurement.reporting.v2alpha.ReportKt
-import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
-import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
-import org.wfanet.measurement.reporting.v2alpha.createMetricCalculationSpecRequest
-import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
-import org.wfanet.measurement.reporting.v2alpha.getReportRequest
-import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.reporting.v2alpha.metricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
-import org.wfanet.measurement.reporting.v2alpha.metricSpec
-import org.wfanet.measurement.reporting.v2alpha.report
-import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
@@ -93,9 +69,6 @@ class ReportingUserSimulator(
   private val dataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsGrpcKt.EventGroupsCoroutineStub,
   private val reportingSetsClient: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
-  private val metricCalculationSpecsClient:
-    MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub,
-  private val reportsClient: ReportsGrpcKt.ReportsCoroutineStub,
   private val okHttpReportingClient: OkHttpClient,
   private val reportingGatewayScheme: String = "https",
   private val reportingGatewayHost: String,
@@ -107,58 +80,7 @@ class ReportingUserSimulator(
 ) {
   private val dataProviderByName: MutableMap<String, DataProvider> = mutableMapOf()
 
-  suspend fun testCreateReport(runId: String) {
-    logger.info("Creating report...")
-
-    val eventGroup = getEventGroup()
-    val createdPrimitiveReportingSet = createPrimitiveReportingSet(eventGroup, runId)
-    val createdMetricCalculationSpec = createMetricCalculationSpec(runId)
-
-    val report = report {
-      reportingMetricEntries +=
-        ReportKt.reportingMetricEntry {
-          key = createdPrimitiveReportingSet.name
-          value =
-            ReportKt.reportingMetricCalculationSpec {
-              metricCalculationSpecs += createdMetricCalculationSpec.name
-            }
-        }
-      reportingInterval =
-        ReportKt.reportingInterval {
-          reportStart = dateTime {
-            year = 2024
-            month = 1
-            day = 3
-            timeZone = timeZone { id = "America/Los_Angeles" }
-          }
-          reportEnd = date {
-            year = 2024
-            month = 1
-            day = 4
-          }
-        }
-    }
-
-    val createdReport =
-      try {
-        reportsClient.createReport(
-          createReportRequest {
-            parent = measurementConsumerName
-            this.report = report
-            reportId = "a-$runId"
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception("Error creating Report", e)
-      }
-
-    val completedReport = pollForCompletedReport(createdReport.name)
-
-    assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED)
-    logger.info("Report creation succeeded")
-  }
-
-  suspend fun testBasicReportCreationAndRetrieval(runId: String) {
+  suspend fun testBasicReport(runId: String) {
     logger.info("Creating Basic Report...")
 
     val eventGroup = getEventGroup()
@@ -190,67 +112,20 @@ class ReportingUserSimulator(
           day = 15
         }
       }
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        custom =
-          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.DISPLAY
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "banner_ad.viewable"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
-                }
-              }
-            }
-          }
-      }
       resultGroupSpecs += resultGroupSpec {
         title = "title"
         reportingUnit = reportingUnit { components += eventGroup.cmmsDataProvider }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-        dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.social_grade_group" }
-          filters += eventFilter {
-            terms += eventTemplateField {
-              path = "person.age_group"
-              value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
-            }
-          }
-        }
+        dimensionSpec = dimensionSpec {}
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
-          reportingUnit =
-            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              nonCumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  averageFrequency = true
-                  impressions = true
-                }
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  averageFrequency = true
-                  impressions = true
-                }
-              stackedIncrementalReach = false
-            }
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
               nonCumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  averageFrequency = true
                   impressions = true
                 }
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  averageFrequency = true
-                  impressions = true
-                }
-              nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
-              cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
             }
         }
       }
@@ -293,6 +168,11 @@ class ReportingUserSimulator(
 
     logger.info("Basic Report created")
 
+    val createdBasicReport =
+      BasicReport.newBuilder()
+        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
+        .build()
+
     val getBasicReportUrl =
       HttpUrl.Builder()
         .scheme("https")
@@ -308,48 +188,25 @@ class ReportingUserSimulator(
         .header("Authorization", "Bearer $accessToken")
         .build()
 
-    val retrievedBasicReportJson: String =
-      try {
-        val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
+    val retrievedCompletedBasicReport = pollForCompletedBasicReport(getBasicReportRequest)
 
-        val responseBody = response.body!!.string()
-        if (!response.isSuccessful) {
-          throw Exception(
-            "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
-          )
-        }
-
-        responseBody
-      } catch (e: StatusException) {
-        throw Exception("Error retrieving Basic Report", e)
-      }
-
-    logger.info("Basic Report retrieval succeeded")
-
-    val retrievedBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it) }
-        .build()
-
-    assertThat(retrievedBasicReport)
+    assertThat(retrievedCompletedBasicReport)
       .ignoringFields(
         BasicReport.CREATE_TIME_FIELD_NUMBER,
         BasicReport.EFFECTIVE_IMPRESSION_QUALIFICATION_FILTERS_FIELD_NUMBER,
+        BasicReport.RESULT_GROUPS_FIELD_NUMBER,
       )
       .isEqualTo(
         basicReport.copy {
           name = basicReportKey.toName()
-          state = BasicReport.State.RUNNING
-          effectiveModelLine = retrievedBasicReport.effectiveModelLine
+          state = BasicReport.State.SUCCEEDED
+          effectiveModelLine = retrievedCompletedBasicReport.effectiveModelLine
         }
       )
-
-    val createdBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
-        .build()
-
-    assertThat(retrievedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
+    assertThat(retrievedCompletedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
+    assertThat(retrievedCompletedBasicReport.effectiveImpressionQualificationFiltersList)
+      .isNotEmpty()
+    assertThat(retrievedCompletedBasicReport.resultGroupsList).isNotEmpty()
   }
 
   private suspend fun getEventGroup(): EventGroup {
@@ -425,78 +282,54 @@ class ReportingUserSimulator(
     }
   }
 
-  private suspend fun createMetricCalculationSpec(runId: String): MetricCalculationSpec {
-    try {
-      return metricCalculationSpecsClient.createMetricCalculationSpec(
-        createMetricCalculationSpecRequest {
-          parent = measurementConsumerName
-          metricCalculationSpecId = "a-$runId"
-          metricCalculationSpec = metricCalculationSpec {
-            displayName = "union reach"
-            modelLine = modelLineName
-            metricSpecs += metricSpec {
-              populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
-            }
-            metricSpecs += metricSpec {
-              reach =
-                MetricSpecKt.reachParams {
-                  singleDataProviderParams =
-                    MetricSpecKt.samplingAndPrivacyParams {
-                      privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                    }
-                  multipleDataProviderParams =
-                    MetricSpecKt.samplingAndPrivacyParams {
-                      privacyParams = MetricSpecKt.differentialPrivacyParams {}
-                    }
-                }
-            }
-            metricFrequencySpec =
-              MetricCalculationSpecKt.metricFrequencySpec {
-                weekly =
-                  MetricCalculationSpecKt.MetricFrequencySpecKt.weekly {
-                    dayOfWeek = DayOfWeek.WEDNESDAY
-                  }
-              }
-            trailingWindow =
-              MetricCalculationSpecKt.trailingWindow {
-                count = 1
-                increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
-              }
-          }
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Error creating MetricCalculationSpec", e)
-    }
-  }
-
-  private suspend fun pollForCompletedReport(reportName: String): Report {
+  private suspend fun pollForCompletedBasicReport(getBasicReportRequest: Request): BasicReport {
     val backoff =
       ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
     var attempt = 1
     while (true) {
-      val retrievedReport =
+      val retrievedBasicReport =
         try {
-          reportsClient.getReport(getReportRequest { name = reportName })
+          val retrievedBasicReportJson: String =
+            try {
+              val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
+
+              val responseBody = response.body!!.string()
+              if (!response.isSuccessful) {
+                throw Exception(
+                  "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
+                )
+              }
+
+              responseBody
+            } catch (e: StatusException) {
+              throw Exception("Error retrieving Basic Report", e)
+            }
+
+          BasicReport.newBuilder()
+            .also {
+              JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it)
+            }
+            .build()
         } catch (e: StatusException) {
-          throw Exception("Error getting Report", e)
+          throw Exception("Error getting BasicReport", e)
         }
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (retrievedReport.state) {
-        Report.State.SUCCEEDED,
-        Report.State.FAILED -> return retrievedReport
-        Report.State.RUNNING,
-        Report.State.UNRECOGNIZED,
-        Report.State.STATE_UNSPECIFIED -> {
+      when (retrievedBasicReport.state) {
+        BasicReport.State.SUCCEEDED,
+        BasicReport.State.FAILED,
+        BasicReport.State.INVALID -> return retrievedBasicReport
+        BasicReport.State.RUNNING -> {
           val resultPollingDelay =
             backoff.durationForAttempt(attempt).coerceAtMost(maximumResultPollingDelay)
           logger.info {
-            "Report not completed yet. Waiting for ${resultPollingDelay.seconds} seconds."
+            "BasicReport not completed yet. Waiting for ${resultPollingDelay.seconds} seconds."
           }
           delay(resultPollingDelay)
           attempt++
         }
+        BasicReport.State.UNRECOGNIZED,
+        BasicReport.State.STATE_UNSPECIFIED -> throw Exception("Unknown BasicReport state")
       }
     }
   }

@@ -31,7 +31,6 @@ import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProces
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
-import org.wfanet.measurement.reporting.postprocessing.v2alpha.ReportProcessorTest.Companion.hasConsistentMeasurements
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient

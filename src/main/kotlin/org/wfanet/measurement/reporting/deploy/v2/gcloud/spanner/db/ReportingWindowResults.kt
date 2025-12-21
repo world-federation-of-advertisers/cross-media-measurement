@@ -72,7 +72,19 @@ suspend fun AsyncDatabaseClient.ReadContext.readReportingWindowResultIds(
       MeasurementConsumerId = @measurementConsumerId
       AND ReportResultId = @reportResultId
       AND ReportingSetResultId = @reportingSetResultId
-      AND STRUCT(ReportingWindowStartDate, ReportingWindowEndDate) IN UNNEST(@reportingWindows)
+      AND EXISTS (
+        SELECT 1 
+        FROM UNNEST(@reportingWindows) AS reporting_windows
+        WHERE
+          CASE
+            WHEN ReportingWindowStartDate = reporting_windows.ReportingWindowStartDate
+              AND ReportingWindowEndDate = reporting_windows.ReportingWindowEndDate THEN TRUE
+            WHEN ReportingWindowStartDate IS NULL
+              AND reporting_windows.ReportingWindowStartDate IS NULL
+              AND ReportingWindowEndDate = reporting_windows.ReportingWindowEndDate THEN TRUE
+            ELSE FALSE
+          END
+      )
     """
       .trimIndent()
   val query =

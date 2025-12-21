@@ -428,6 +428,222 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `addProcessedResultValues adds values when nonCumulative window doesn't exist`() {
+    ensureMeasurementConsumer()
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val reportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          batchCreateReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportResultId = reportResult.externalReportResultId
+            requests += createReportingSetResultRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportResultId = reportResult.externalReportResultId
+              reportingSetResult = reportingSetResult {
+                dimension =
+                  ReportingSetResultKt.dimension {
+                    externalReportingSetId = "primitive-1"
+                    vennDiagramRegionType =
+                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    externalImpressionQualificationFilterId =
+                      AMI_IQF.externalImpressionQualificationFilterId
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                    grouping =
+                      ReportingSetResultKt.DimensionKt.grouping {
+                        valueByPath["person.age_group"] =
+                          EventTemplateFieldKt.fieldValue {
+                            enumValue = Person.AgeGroup.YEARS_18_TO_34.name
+                          }
+                        valueByPath["person.gender"] =
+                          EventTemplateFieldKt.fieldValue { enumValue = Person.Gender.MALE.name }
+                      }
+                    eventFilters += eventFilter {
+                      terms += eventTemplateField {
+                        path = "person.age_group"
+                        value =
+                          EventTemplateFieldKt.fieldValue {
+                            enumValue = Person.AgeGroup.YEARS_35_TO_54.name
+                          }
+                      }
+                    }
+                  }
+                populationSize = 1000
+                reportingWindowResults += reportingWindowEntry {
+                  key = reportingWindow {
+                    end = date {
+                      year = 2025
+                      month = 1
+                      day = 20
+                    }
+                  }
+                  value = reportingWindowResult {
+                    unprocessedReportResultValues =
+                      ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                        cumulativeResults = noisyMetricSet {
+                          impressionCount = NoisyMetricSetKt.impressionCountResult { value = 1 }
+                        }
+                      }
+                  }
+                }
+              }
+            }
+          }
+        )
+        .reportingSetResultsList
+
+    val request = addProcessedResultValuesRequest {
+      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+      externalReportResultId = reportResult.externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddProcessedResultValuesRequestKt.processedReportingSetResult {
+          reportingWindowResults +=
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                }
+            }
+        }
+    }
+
+    reportResultsStub.addProcessedResultValues(request)
+
+    val updatedReportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .listReportingSetResults(
+          listReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+            externalReportResultId = reportResult.externalReportResultId
+            view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
+          }
+        )
+        .reportingSetResultsList
+    assertThat(updatedReportingSetResults)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactly(
+        reportingSetResults[0].copy {
+          reportingWindowResults[0] =
+            reportingWindowResults[0].copy {
+              value =
+                value.copy {
+                  processedReportResultValues =
+                    request.reportingSetResultsMap
+                      .getValue(reportingSetResults[0].externalReportingSetResultId)
+                      .reportingWindowResultsList[0]
+                      .value
+                }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `addProcessedResultValues adds values when no grouping nor filter`() {
+    ensureMeasurementConsumer()
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val reportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          batchCreateReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportResultId = reportResult.externalReportResultId
+            requests += createReportingSetResultRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportResultId = reportResult.externalReportResultId
+              reportingSetResult = reportingSetResult {
+                dimension =
+                  ReportingSetResultKt.dimension {
+                    externalReportingSetId = "primitive-1"
+                    vennDiagramRegionType =
+                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    externalImpressionQualificationFilterId =
+                      AMI_IQF.externalImpressionQualificationFilterId
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                  }
+                populationSize = 1000
+                reportingWindowResults += reportingWindowEntry {
+                  key = reportingWindow {
+                    end = date {
+                      year = 2025
+                      month = 1
+                      day = 20
+                    }
+                  }
+                  value = reportingWindowResult {
+                    unprocessedReportResultValues =
+                      ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                        cumulativeResults = noisyMetricSet {
+                          impressionCount = NoisyMetricSetKt.impressionCountResult { value = 1 }
+                        }
+                      }
+                  }
+                }
+              }
+            }
+          }
+        )
+        .reportingSetResultsList
+
+    val request = addProcessedResultValuesRequest {
+      cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+      externalReportResultId = reportResult.externalReportResultId
+      this.reportingSetResults[reportingSetResults[0].externalReportingSetResultId] =
+        AddProcessedResultValuesRequestKt.processedReportingSetResult {
+          reportingWindowResults +=
+            AddProcessedResultValuesRequestKt.ProcessedReportingSetResultKt.reportingWindowEntry {
+              key = reportingSetResults[0].reportingWindowResultsList[0].key
+              value =
+                ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                  cumulativeResults = basicMetricSet {
+                    reach = 2
+                    impressions = 10
+                  }
+                }
+            }
+        }
+    }
+
+    reportResultsStub.addProcessedResultValues(request)
+
+    val updatedReportingSetResults: List<ReportingSetResult> =
+      reportResultsStub
+        .listReportingSetResults(
+          listReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+            externalReportResultId = reportResult.externalReportResultId
+            view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_FULL
+          }
+        )
+        .reportingSetResultsList
+    assertThat(updatedReportingSetResults)
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactly(
+        reportingSetResults[0].copy {
+          dimension =
+            dimension.copy { grouping = ReportingSetResult.Dimension.Grouping.getDefaultInstance() }
+          reportingWindowResults[0] =
+            reportingWindowResults[0].copy {
+              value =
+                value.copy {
+                  processedReportResultValues =
+                    request.reportingSetResultsMap
+                      .getValue(reportingSetResults[0].externalReportingSetResultId)
+                      .reportingWindowResultsList[0]
+                      .value
+                }
+            }
+        }
+      )
+  }
+
+  @Test
   fun `addProcessedResultValues throws if reporting window not found`() {
     ensureMeasurementConsumer()
     val reportResult: ReportResult =
