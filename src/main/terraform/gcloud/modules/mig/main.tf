@@ -31,7 +31,8 @@ locals {
     },
     var.java_tool_options == null ? {} : {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
-    }
+    },
+    var.extra_metadata,
   )
 }
 

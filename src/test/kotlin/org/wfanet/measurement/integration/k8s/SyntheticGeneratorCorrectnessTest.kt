@@ -52,11 +52,10 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRelease
-import org.wfanet.measurement.api.v2alpha.ModelReleaseKey
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRollout
-import org.wfanet.measurement.api.v2alpha.ModelRolloutKey
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
+import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
@@ -67,7 +66,6 @@ import org.wfanet.measurement.api.v2alpha.listModelReleasesRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
-import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -143,10 +141,35 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
       pdpKingdomPublicApiChannel: Channel,
       mpKingdomPublicApiChannel: Channel,
     ): ModelLine {
-      val population = ensurePopulation(pdpKingdomPublicApiChannel)
-
-      val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
       val modelLinesStub = ModelLinesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
+
+      val modelLine: ModelLine =
+        modelLinesStub.getModelLine(getModelLineRequest { name = TEST_CONFIG.modelLine })
+
+      check(
+        modelLine.activeStartTime.toInstant() <=
+          getMinModelLineStartDate().atStartOfDay(ZoneOffset.UTC).toInstant()
+      ) {
+        "ModelLine ${modelLine.name} not active for all EventGroups"
+      }
+
+      ensureModelRelease(
+        mpKingdomPublicApiChannel,
+        ensurePopulation(pdpKingdomPublicApiChannel),
+        modelLine,
+      )
+
+      return modelLine
+    }
+
+    /** Ensures that a ModelRelease exists for the [population] that references [modelLine]. */
+    @Blocking
+    private fun ensureModelRelease(
+      mpKingdomPublicApiChannel: Channel,
+      population: Population,
+      modelLine: ModelLine,
+    ) {
+      val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpKingdomPublicApiChannel)
       val modelRolloutsStub = ModelRolloutsGrpc.newBlockingStub(mpKingdomPublicApiChannel)
 
       // Find ModelReleases for the Population.
@@ -160,10 +183,8 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           )
           .modelReleasesList
 
+      // If there's no ModelRelease for the Population, create one and reference the ModelLine.
       if (modelReleases.isEmpty()) {
-        val modelLine: ModelLine =
-          modelLinesStub.getModelLine(getModelLineRequest { name = TEST_CONFIG.modelLine })
-
         val modelSuiteName = ModelLineKey.fromName(modelLine.name)!!.parentKey.toName()
 
         val modelRelease: ModelRelease =
@@ -188,40 +209,25 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
             }
           }
         )
+        return
       }
 
-      // If there's a ModelRelease for the Population, we expect a ModelLine to exist that
-      // references it.
+      // If there's a ModelRelease for the Population, verify that it references the ModelLine.
       val modelRelease = modelReleases.first()
-      val modelReleaseKey = checkNotNull(ModelReleaseKey.fromName(modelRelease.name))
-      val modelSuiteName = modelReleaseKey.parentKey.toName()
       val modelRollouts: List<ModelRollout> =
         modelRolloutsStub
           .listModelRollouts(
             listModelRolloutsRequest {
-              parent = "$modelSuiteName/modelLines/${ResourceKey.WILDCARD_ID}"
+              parent = modelLine.name
               filter = ListModelRolloutsRequestKt.filter { modelReleaseIn += modelRelease.name }
             }
           )
           .modelRolloutsList
       if (modelRollouts.isEmpty()) {
-        throw Exception("Unable to find ModelLine for Population")
+        throw Exception("Unable to find ModelRollout for ${modelLine.name}")
       }
 
-      val modelRolloutKey = checkNotNull(ModelRolloutKey.fromName(modelRollouts.first().name))
-      val modelLine: ModelLine =
-        modelLinesStub.getModelLine(
-          getModelLineRequest { name = modelRolloutKey.parentKey.toName() }
-        )
-      if (
-        modelLine.activeStartTime.toInstant() >
-          getMinModelLineStartDate().atStartOfDay(ZoneOffset.UTC).toInstant()
-      ) {
-        throw Exception("Unable to find appropriately active ModelLine for Population")
-      }
-
-      logger.info { "Found ${modelLine.name} for ${population.name}" }
-      return modelLine
+      logger.info { "Found ${modelRelease.name} for ${population.name} and ${modelLine.name}" }
     }
 
     private fun createTestHarness(): EventQueryMeasurementConsumerSimulator {

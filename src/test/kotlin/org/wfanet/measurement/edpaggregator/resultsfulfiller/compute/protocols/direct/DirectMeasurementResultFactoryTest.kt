@@ -62,6 +62,7 @@ class DirectMeasurementResultFactoryTest {
           maxPopulation = null,
           kAnonymityParams = null,
           impressionMaxFrequencyPerUser = null,
+          totalUncappedImpressions = 0L,
         )
 
       // Verify
@@ -104,6 +105,7 @@ class DirectMeasurementResultFactoryTest {
         maxPopulation = null,
         kAnonymityParams = null,
         impressionMaxFrequencyPerUser = null,
+        totalUncappedImpressions = 0L,
       )
 
     // Verify
@@ -142,6 +144,7 @@ class DirectMeasurementResultFactoryTest {
           maxPopulation = null,
           kAnonymityParams = null,
           impressionMaxFrequencyPerUser = null,
+          totalUncappedImpressions = 110L,
         )
 
       // Verify
