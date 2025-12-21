@@ -204,7 +204,6 @@ module "trustee_mill" {
   tee_cmd                       = var.trustee_config.app_flags
   secrets_to_access             = local.trustee_secrets_to_access
   subnetwork_name               = google_compute_subnetwork.trustee_mill_subnetwork[0].name
-  otel_service_name             = "duchy.trustee-mill"
 }
 
 module "secrets" {
