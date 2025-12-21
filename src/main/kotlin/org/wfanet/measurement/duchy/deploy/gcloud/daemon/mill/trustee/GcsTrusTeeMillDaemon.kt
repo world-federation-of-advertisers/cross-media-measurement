@@ -20,6 +20,7 @@ import com.google.cloud.secretmanager.v1.SecretVersionName
 import com.google.protobuf.ByteString
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee.TrusTeeMillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
@@ -111,11 +112,17 @@ class GcsTrusTeeMillDaemon : TrusTeeMillDaemon() {
     val file = File(path)
     file.parentFile?.mkdirs()
     val buffer = bytes.asReadOnlyByteBuffer()
-    Files.newByteChannel(file.toPath()).use { channel ->
-      while (buffer.hasRemaining()) {
-        channel.write(buffer)
+    Files.newByteChannel(
+        file.toPath(),
+        StandardOpenOption.CREATE,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.TRUNCATE_EXISTING,
+      )
+      .use { channel ->
+        while (buffer.hasRemaining()) {
+          channel.write(buffer)
+        }
       }
-    }
   }
 
   private fun accessSecret(projectId: String, secretId: String, version: String): ByteString {
