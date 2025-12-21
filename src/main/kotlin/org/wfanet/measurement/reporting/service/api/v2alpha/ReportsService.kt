@@ -113,6 +113,7 @@ class ReportsService(
   private val secureRandom: Random,
   private val allowSamplingIntervalWrapping: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val skipAuth: Boolean = false,
 ) : ReportsCoroutineImplBase(coroutineContext) {
   private data class CreateReportInfo(
     val parent: String,
@@ -127,7 +128,9 @@ class ReportsService(
     }
     val listReportsPageToken = request.toListReportsPageToken()
 
-    authorization.check(request.parent, Permission.LIST)
+    if (!skipAuth) {
+      authorization.check(request.parent, Permission.LIST)
+    }
 
     val streamInternalReportsRequest: StreamReportsRequest =
       listReportsPageToken.toStreamReportsRequest()
@@ -233,7 +236,9 @@ class ReportsService(
       }
     val parent: String = reportKey.parentKey.toName()
 
-    authorization.check(listOf(request.name, parent), Permission.GET)
+    if (!skipAuth) {
+      authorization.check(listOf(request.name, parent), Permission.GET)
+    }
 
     val internalReport =
       try {
@@ -353,7 +358,9 @@ class ReportsService(
         }
       }
 
-    authorization.check(request.parent, Permission.CREATE)
+    if (!skipAuth) {
+      authorization.check(request.parent, Permission.CREATE)
+    }
 
     val externalIdToMetricCalculationSpecMap: Map<String, InternalMetricCalculationSpec> =
       createExternalIdToMetricCalculationSpecMap(

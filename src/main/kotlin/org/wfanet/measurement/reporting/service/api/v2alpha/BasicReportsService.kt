@@ -227,10 +227,12 @@ class BasicReportsService(
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
-      effectiveReportingImpressionQualificationFilters.map {
-        if (it.hasImpressionQualificationFilter()) {
+
+    val impressionQualificationFilterSpecsByName:
+      Map<String, List<ImpressionQualificationFilterSpec>> =
+      effectiveReportingImpressionQualificationFilters
+        .filter { it.hasImpressionQualificationFilter() }
+        .associate {
           val impressionQualificationFilterKey =
             impressionQualificationFilterKeyByName.getValue(it.impressionQualificationFilter)
           val internalImpressionQualificationFilter: InternalImpressionQualificationFilter =
@@ -239,13 +241,18 @@ class BasicReportsService(
             } catch (e: ImpressionQualificationFilterNotFoundException) {
               throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
             }
-          internalImpressionQualificationFilter.filterSpecsList.map { internalFilterSpec ->
-            internalFilterSpec.toImpressionQualificationFilterSpec()
-          }
-        } else {
-          it.custom.filterSpecList
+          val filterSpecs =
+            internalImpressionQualificationFilter.filterSpecsList.map { internalFilterSpec ->
+              internalFilterSpec.toImpressionQualificationFilterSpec()
+            }
+
+          it.impressionQualificationFilter to filterSpecs
         }
-      }
+
+    val customFilterSpecs: List<List<ImpressionQualificationFilterSpec>> =
+      effectiveReportingImpressionQualificationFilters
+        .filter { it.hasCustom() }
+        .map { it.custom.filterSpecList }
 
     val createReportRequestId = UUID.randomUUID().toString()
 
@@ -259,10 +266,11 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
-                internalReportingImpressionQualificationFilters =
-                  request.basicReport.impressionQualificationFiltersList.map { it.toInternal() },
-                internalEffectiveReportingImpressionQualificationFilters =
-                  effectiveReportingImpressionQualificationFilters.map { it.toInternal() },
+                reportingImpressionQualificationFilters =
+                  request.basicReport.impressionQualificationFiltersList,
+                effectiveReportingImpressionQualificationFilters =
+                  effectiveReportingImpressionQualificationFilters,
+                impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
                 effectiveModelLine = effectiveModelLine?.name.orEmpty(),
               )
             requestId = request.requestId
@@ -298,7 +306,8 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecLists,
+        impressionQualificationFilterSpecsLists =
+          impressionQualificationFilterSpecsByName.values.toList() + customFilterSpecs,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,

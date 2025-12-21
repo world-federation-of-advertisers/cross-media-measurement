@@ -19,3 +19,11 @@ py_image(
     binary = ":post_process_report_result_job_executor",
     visibility = ["//src:docker_image_deployment"],
 )
+
+filegroup(
+    name = "post_process_report_result_job_executor_pyzip",
+    srcs = [
+        ":post_process_report_result_job_executor",
+    ],
+    output_group = "python_zip_file",
+)

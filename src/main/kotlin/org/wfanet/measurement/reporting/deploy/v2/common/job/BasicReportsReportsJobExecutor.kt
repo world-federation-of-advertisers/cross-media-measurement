@@ -59,7 +59,6 @@ import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfoInterceptor
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportsService
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
@@ -147,6 +146,7 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
+        skipAuth = true,
       )
       .withTrustedPrincipalAuthentication()
 
@@ -167,9 +167,9 @@ private fun run(
         metricSpecConfig,
         authorization,
         SecureRandom().asKotlinRandom(),
+        skipAuth = true,
       )
       .withTrustedPrincipalAuthentication()
-      .withReportScheduleInfoInterceptor()
 
   val inProcessReportsServerName = InProcessServerBuilder.generateName()
   val inProcessReportsServer: Server =
@@ -197,7 +197,6 @@ private fun run(
       measurementConsumerConfigs,
       InternalBasicReportsCoroutineStub(channel),
       ReportsCoroutineStub(inProcessReportsChannel),
-      InternalReportingSetsCoroutineStub(channel),
       InternalMetricCalculationSpecsCoroutineStub(channel),
       ReportResultsCoroutineStub(channel),
       eventMessageFlags.eventDescriptor,

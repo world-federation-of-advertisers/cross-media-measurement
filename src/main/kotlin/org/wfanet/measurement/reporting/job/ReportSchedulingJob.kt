@@ -84,8 +84,7 @@ class ReportSchedulingJob(
 ) {
 
   suspend fun execute() {
-    val measurementConsumerConfigByName =
-      measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
+    val measurementConsumerConfigByName = measurementConsumerConfigs.configsMap
     // map of resource name to resource
     val dataProvidersMap: MutableMap<String, DataProvider> = mutableMapOf()
     for ((measurementConsumerName, measurementConsumerConfig) in
@@ -105,7 +104,7 @@ class ReportSchedulingJob(
               filter =
                 ListReportSchedulesRequestKt.filter {
                   cmmsMeasurementConsumerId = measurementConsumerId
-                  if (listReportSchedulesResponse.reportSchedulesList.size > 0) {
+                  if (listReportSchedulesResponse.reportSchedulesList.isNotEmpty()) {
                     externalReportScheduleIdAfter =
                       listReportSchedulesResponse.reportSchedulesList
                         .last()
