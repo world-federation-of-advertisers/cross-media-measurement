@@ -103,6 +103,7 @@ jobs:
         GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
         GCLOUD_PROJECT_NUMBER: "462363635192"
         GCLOUD_LOCATION: "us-central1"
+        # DO_NOT_SUBMIT: Use Github variables.
 #        GCLOUD_PROJECT_NUMBER: ${{ vars.GCLOUD_PROJECT_NUMBER }}
 #        GCLOUD_LOCATION: ${{ vars.GCLOUD_LOCATION }}
       run: |

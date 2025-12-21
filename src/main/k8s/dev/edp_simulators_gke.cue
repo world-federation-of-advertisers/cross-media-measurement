@@ -39,9 +39,9 @@ _worker2PublicApiTarget:    string @tag("worker2_public_api_target")
 _aggregatorId:              string @tag("aggregator_id")
 _aggregatorPublicApiTarget: string @tag("aggregator_public_api_target")
 
-_google_cloud_project_id:     string @tag("gcp_project_id")
-_google_cloud_project_number: string @tag("gcp_project_number")
-_google_cloud_location:       string @tag("gcp_location")
+_google_cloud_project_id:     string @tag("google_cloud_project")
+_google_cloud_project_number: string @tag("google_cloud_project_number")
+_google_cloud_location:       string @tag("google_cloud_location")
 
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {

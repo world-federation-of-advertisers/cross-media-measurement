@@ -31,12 +31,18 @@ _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, 
 _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4_cert_name, _edp5_cert_name, _edp6_cert_name]
 _secret_name: string @tag("secret_name")
 
-_worker1Id: "worker1"
-_worker2Id: "worker2"
+_worker1Id:    "worker1"
+_worker2Id:    "worker2"
+_aggregatorId: "aggregator"
 
-#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
-#Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
-#Worker2PublicApiTarget: (#Target & {name: "worker2-requisition-fulfillment-server"}).target
+_google_cloud_project_id:     "cmms-local"
+_google_cloud_project_number: "12345"
+_google_cloud_location:       "local"
+
+#KingdomPublicApiTarget:    (#Target & {name: "v2alpha-public-api-server"}).target
+#Worker1PublicApiTarget:    (#Target & {name: "worker1-requisition-fulfillment-server"}).target
+#Worker2PublicApiTarget:    (#Target & {name: "worker2-requisition-fulfillment-server"}).target
+#AggregatorPublicApiTarget: (#Target & {name: "aggregator-requisition-fulfillment-server"}).target
 
 objectSets: [ for simulator in edpSimulators {[simulator.deployment]}] +
 	[ for simulator in edpSimulators {simulator.networkPolicies}]
@@ -89,8 +95,15 @@ edpSimulators: {
 					duchyId:              _worker2Id
 					duchyPublicApiTarget: #Worker2PublicApiTarget
 				},
+				{
+					duchyId:              _aggregatorId
+					duchyPublicApiTarget: #AggregatorPublicApiTarget
+				},
 			]
 			_kingdom_public_api_target: #KingdomPublicApiTarget
+			_gcp_project_id:            _google_cloud_project_id
+			_gcp_project_number:        _google_cloud_project_number
+			_gcp_location:              _google_cloud_location
 
 			deployment: spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
@@ -98,6 +111,7 @@ edpSimulators: {
 					"v2alpha-public-api-server",
 					"worker1-requisition-fulfillment-server",
 					"worker2-requisition-fulfillment-server",
+					"aggregator-requisition-fulfillment-server",
 				]
 			}
 		}
