@@ -69,6 +69,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param getRequisitionsStorageConfig Lambda to obtain [StorageConfig] for requisitions.
  * @param modelLineInfoMap map of model line to [ModelLineInfo]
  * @param pipelineConfiguration Configuration for the event processing pipeline.
+ * @param metrics Metrics recorder for telemetry.
  * @constructor Initializes the application with all required dependencies for result fulfillment.
  */
 class ResultsFulfillerApp(
@@ -86,6 +87,7 @@ class ResultsFulfillerApp(
   private val getRequisitionsStorageConfig: (StorageParams) -> StorageConfig,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val pipelineConfiguration: PipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+  private val metrics: ResultsFulfillerMetrics,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -175,6 +177,13 @@ class ResultsFulfillerApp(
         null
       }
 
+    require(
+      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
+        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
+    ) {
+      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
+    }
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -183,8 +192,13 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         kAnonymityParams = kAnonymityParams,
+        // When -1, treat as no frequency cap. When 0 or unset, use measurement spec value.
         overrideImpressionMaxFrequencyPerUser =
-          fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 },
+          if (fulfillerParams.impressionMaxFrequencyPerUser == -1) {
+            -1
+          } else {
+            fulfillerParams.impressionMaxFrequencyPerUser.takeIf { it > 0 }
+          },
       )
 
     ResultsFulfiller(
@@ -199,6 +213,7 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
       .fulfillRequisitions()
   }

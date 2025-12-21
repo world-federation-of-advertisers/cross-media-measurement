@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/secure_computation"
+  KUBECTL_APPLYSET: true
 
 jobs:
   update-secure-computation-control-plane:

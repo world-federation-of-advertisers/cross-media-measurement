@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.FulfillerSelector
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVector
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 
 /**
@@ -37,10 +38,14 @@ class NoOpFulfillerSelector : FulfillerSelector {
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
-    frequencyDataBytes: ByteArray,
+    frequencyVector: StripedByteFrequencyVector,
     populationSpec: PopulationSpec,
   ): MeasurementFulfiller {
-    return NoOpMeasurementFulfiller(requisition, frequencyDataBytes)
+    return NoOpMeasurementFulfiller(
+      requisition,
+      frequencyVector.getByteArray(),
+      frequencyVector.getTotalUncappedImpressions(),
+    )
   }
 
   companion object {
@@ -54,6 +59,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
   private class NoOpMeasurementFulfiller(
     private val requisition: Requisition,
     private val frequencyDataBytes: ByteArray,
+    private val totalUncappedImpressions: Long,
   ) : MeasurementFulfiller {
 
     override suspend fun fulfillRequisition() {
@@ -84,6 +90,7 @@ class NoOpFulfillerSelector : FulfillerSelector {
         |    - Total frequency: $totalFrequency
         |    - Max frequency: $maxFrequency
         |    - Average frequency: $avgFrequency
+        |    - Total uncapped impressions: $totalUncappedImpressions
         |  Processing time: ${System.currentTimeMillis() - startTime}ms
         |================================
         """

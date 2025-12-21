@@ -36,6 +36,10 @@ object DirectMeasurementResultFactory {
    * @param measurementSpec The measurement specification.
    * @param frequencyData IntArray of VID indices.
    * @param maxPopulation Optional parameter of the max result that should be returned.
+   * @param kAnonymityParams Optional k-anonymity parameters.
+   * @param impressionMaxFrequencyPerUser Optional override for max frequency per user. -1 means no
+   *   frequency cap.
+   * @param totalUncappedImpressions Total impression count without frequency capping.
    * @return The measurement result.
    */
   suspend fun buildMeasurementResult(
@@ -46,6 +50,7 @@ object DirectMeasurementResultFactory {
     maxPopulation: Int?,
     kAnonymityParams: KAnonymityParams?,
     impressionMaxFrequencyPerUser: Int?,
+    totalUncappedImpressions: Long,
   ): Measurement.Result {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
@@ -73,8 +78,10 @@ object DirectMeasurementResultFactory {
             measurementSpec.vidSamplingInterval.width,
             directNoiseMechanism,
             maxPopulation,
-            impressionMaxFrequencyPerUser ?: measurementSpec.impression.maximumFrequencyPerUser,
+            measurementSpec.impression.maximumFrequencyPerUser,
             kAnonymityParams,
+            impressionMaxFrequencyPerUser,
+            totalUncappedImpressions,
           )
         impressionResultBuilder.buildMeasurementResult()
       }

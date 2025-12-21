@@ -169,6 +169,7 @@ class ResultsFulfillerTest {
   private lateinit var metricExporter: InMemoryMetricExporter
   private lateinit var metricReader: MetricReader
   private lateinit var spanExporter: InMemorySpanExporter
+  private lateinit var metrics: ResultsFulfillerMetrics
 
   @Before
   fun initTelemetry() {
@@ -177,6 +178,9 @@ class ResultsFulfillerTest {
     metricExporter = InMemoryMetricExporter.create()
     metricReader = PeriodicMetricReader.create(metricExporter)
     spanExporter = InMemorySpanExporter.create()
+    // Ensure exporters are cleared for test isolation
+    metricExporter.reset()
+    spanExporter.reset()
     openTelemetry =
       OpenTelemetrySdk.builder()
         .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
@@ -186,6 +190,7 @@ class ResultsFulfillerTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    metrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
   }
 
   @After
@@ -193,12 +198,19 @@ class ResultsFulfillerTest {
     if (this::openTelemetry.isInitialized) {
       openTelemetry.close()
     }
+    if (this::metricExporter.isInitialized) {
+      metricExporter.reset()
+    }
+    if (this::spanExporter.isInitialized) {
+      spanExporter.reset()
+    }
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
   }
 
   private fun collectMetrics(): List<MetricData> {
-    metricReader.forceFlush()
+    // Force flush the meter provider to ensure all metrics are exported
+    openTelemetry.sdkMeterProvider.forceFlush().join(10, java.util.concurrent.TimeUnit.SECONDS)
     return metricExporter.finishedMetricItems
   }
 
@@ -383,6 +395,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -523,6 +536,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -645,6 +659,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -778,6 +793,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -800,6 +816,132 @@ class ResultsFulfillerTest {
       assertThat(result).impressionValue().isEqualTo(overrideExpectedImpressions)
       assertThat(overrideExpectedImpressions).isNotEqualTo(expectedImpressions)
       assertThat(result.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
+
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+        startProcessingRequisitionMetadata(any())
+      }
+      verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    }
+
+  @Test
+  fun `runWork processes direct impression requisition with uncapped frequency when overrideMaxFrequency is -1`() =
+    runBlocking {
+      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+      val metadataTmpPath = Files.createTempDirectory(null).toFile()
+      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+      // Create 130 VIDs, each appearing 150 times (19500 total impressions)
+      // This tests with data larger than MAX_BYTE_SIZE
+      // When uncapped (-1), we should get the raw total: 19500
+      val impressions =
+        List(150) {
+            List(130) {
+              LABELED_IMPRESSION.copy {
+                vid = it.toLong() + 1
+                eventTime = TIME_RANGE.start.toProtoTime()
+              }
+            }
+          }
+          .flatten()
+
+      val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+      val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+        .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = REQUISITION_NAME
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "an-existing-group-id"
+              report = "report-name"
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any()))
+        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+      // Set up KMS
+      val kmsClient = FakeKmsClient()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+      createData(
+        kmsClient,
+        kekUri,
+        impressionsTmpPath,
+        metadataTmpPath,
+        requisitionsTmpPath,
+        impressions,
+        listOf(DIRECT_IMPRESSION_REQUISITION),
+      )
+      val impressionsMetadataService =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = impressionMetadataStub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+        )
+
+      val fulfillerSelector =
+        DefaultFulfillerSelector(
+          requisitionsStub = requisitionsStub,
+          requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+          noiserSelector = NoNoiserSelector(),
+          kAnonymityParams = null,
+          overrideImpressionMaxFrequencyPerUser = -1, // Uncapped
+        )
+
+      // Load grouped requisitions from storage
+      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          groupedRequisitions = groupedRequisitions,
+          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider = impressionsMetadataService,
+          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+          kmsClient = kmsClient,
+          fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
+        )
+
+      resultsFulfiller.fulfillRequisitions()
+
+      val request: FulfillDirectRequisitionRequest =
+        verifyAndCapture(
+          requisitionsServiceMock,
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+        )
+      val result: Measurement.Result =
+        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+
+      // With uncapped impressions (-1), we expect the total impression count (19500)
+      // not the capped value (260 if max_freq=2, or 1300 if max_freq=10)
+      val expectedUncappedImpressions = 19500L
+      val cappedAtTwo = computeExpectedImpressions(impressions, IMPRESSION_MEASUREMENT_SPEC, 2)
+
+      assertThat(result.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+      assertTrue(result.impression.hasDeterministicCount())
+
+      // The uncapped value should be used
+      assertThat(result).impressionValue().isEqualTo(expectedUncappedImpressions)
+      // Verify it's different from what we'd get with capping
+      assertThat(expectedUncappedImpressions).isNotEqualTo(cappedAtTwo)
+      // The effective max frequency should be from the measurement spec
+      assertThat(result.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(10)
 
       verifyBlocking(requisitionMetadataServiceMock, times(1)) {
         startProcessingRequisitionMetadata(any())
@@ -892,6 +1034,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -989,6 +1132,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1088,6 +1232,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1185,6 +1330,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
     assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions() }
 
@@ -1279,6 +1425,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -1394,6 +1541,7 @@ class ResultsFulfillerTest {
           impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
           kmsClient = kmsClient,
           fulfillerSelector = fulfillerSelector,
+          metrics = metrics,
         )
 
       resultsFulfiller.fulfillRequisitions()
@@ -1494,6 +1642,8 @@ class ResultsFulfillerTest {
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
 
+    val testMetrics = ResultsFulfillerMetrics(openTelemetry.getMeter("test"))
+
     val resultsFulfiller =
       ResultsFulfiller(
         dataProvider = EDP_NAME,
@@ -1507,6 +1657,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = testMetrics,
       )
 
     resultsFulfiller.fulfillRequisitions()
@@ -1667,6 +1818,7 @@ class ResultsFulfillerTest {
         impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
       )
 
     resultsFulfiller.fulfillRequisitions()

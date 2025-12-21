@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-kingdom:

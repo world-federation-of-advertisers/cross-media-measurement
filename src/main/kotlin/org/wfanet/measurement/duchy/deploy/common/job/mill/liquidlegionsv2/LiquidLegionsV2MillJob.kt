@@ -126,9 +126,10 @@ abstract class LiquidLegionsV2MillJob : Runnable {
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
     // included in mill logs to help debugging.
     val millId = flags.millId
+    val claimedComputationFlags = flags.claimedComputationFlags
 
     val mill: LiquidLegionsV2Mill =
-      when (flags.claimedComputationType) {
+      when (claimedComputationFlags.claimedComputationType) {
         ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
           ReachFrequencyLiquidLegionsV2Mill(
             millId = millId,
@@ -169,11 +170,14 @@ abstract class LiquidLegionsV2MillJob : Runnable {
         ComputationTypeEnum.ComputationType.TRUS_TEE,
         ComputationTypeEnum.ComputationType.UNSPECIFIED,
         ComputationTypeEnum.ComputationType.UNRECOGNIZED ->
-          error("Unsupported ComputationType ${flags.claimedComputationType}")
+          error("Unsupported ComputationType ${claimedComputationFlags.claimedComputationType}")
       }
 
     runBlocking(CoroutineName("Mill $millId")) {
-      mill.processClaimedWork(flags.claimedGlobalComputationId, flags.claimedComputationVersion)
+      mill.processClaimedWork(
+        claimedComputationFlags.claimedGlobalComputationId,
+        claimedComputationFlags.claimedComputationVersion,
+      )
 
       // Continue processing until work is exhausted.
       do {

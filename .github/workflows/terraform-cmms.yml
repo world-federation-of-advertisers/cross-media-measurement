@@ -180,6 +180,11 @@ jobs:
         ABSOLUTE_PROTO_DESCRIPTORS_PATH="$(realpath "$RELATIVE_PROTO_DESCRIPTORS_PATH")"
         echo "event_proto_descriptors_path=$ABSOLUTE_PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
 
+    - name: Generate and copy trusted certs
+      run: |
+        bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
+        cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
+
     - name: terraform init
       env:
         TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}
@@ -234,6 +239,9 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        DUCHY_AGGREGATOR_INTERNAL_API_TARGET: ${{ vars.AGGREGATOR_INTERNAL_API_TARGET }}
+        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
@@ -278,6 +286,9 @@ jobs:
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
+        -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_INTERNAL_API_TARGET"
+        -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
+        -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -out=tfplan

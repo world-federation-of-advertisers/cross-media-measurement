@@ -112,12 +112,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
   )
 
   override suspend fun TransactionScope.runTransaction(): List<Metric> {
+    val cmmsMeasurementConsumerId = requests[0].metric.cmmsMeasurementConsumerId
     val measurementConsumerId =
-      (MeasurementConsumerReader(transactionContext)
-          .getByCmmsId(requests[0].metric.cmmsMeasurementConsumerId)
-          ?: throw MeasurementConsumerNotFoundException(
-            requests[0].metric.cmmsMeasurementConsumerId
-          ))
+      (MeasurementConsumerReader(transactionContext).getByCmmsId(cmmsMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException(cmmsMeasurementConsumerId))
         .measurementConsumerId
 
     // Request IDs take precedence
@@ -143,7 +141,7 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
 
     if (externalIdsSet.isNotEmpty()) {
       val batchGetMetricsRequest: BatchGetMetricsRequest = batchGetMetricsRequest {
-        cmmsMeasurementConsumerId = requests[0].metric.cmmsMeasurementConsumerId
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalMetricIds += externalIdsSet
       }
       // If there is any metrics found, it means there are metrics already existing with different
@@ -177,8 +175,10 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         .toList()
         .associateBy({ it.externalReportingSetId }, { it.reportingSetId })
 
-    if (reportingSetMap.size < externalReportingSetIds.size) {
-      throw ReportingSetNotFoundException()
+    for (externalReportingSetId in externalReportingSetIds) {
+      if (!reportingSetMap.containsKey(externalReportingSetId)) {
+        throw ReportingSetNotFoundException(cmmsMeasurementConsumerId, externalReportingSetId)
+      }
     }
 
     val metrics = mutableListOf<Metric>()
