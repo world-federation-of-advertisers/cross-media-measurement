@@ -25,10 +25,11 @@ import "list"
 }
 
 #EdpConfig: {
-	displayName:      string
-	resourceName:     string
-	certResourceName: string
-	supportHmss:      bool | *false
+	displayName:             string
+	resourceName:            string
+	certResourceName:        string
+	supportHmss:             bool | *false
+	supportEncryptedTrustee: bool | *false
 	eventGroupConfigs: [...#EventGroupConfig]
 }
 
@@ -52,16 +53,16 @@ import "list"
 
 	let DisplayName = _edpConfig.displayName
 
-	let RequisitionFulfillmentServiceOptions = {
-		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
+	let RequisitionFulfillmentServiceOptions = list.FlattenN([
+		for config in _requisitionFulfillmentServiceConfigs {[
 			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
 			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
 			"--requisition-fulfillment-service-cert-host=localhost",
-		]}]
-		list.FlattenN(flagLists, 2)
-	}
-	let EventGroupOptions = {
-		let Lists = [ for config in _edpConfig.eventGroupConfigs {
+		]},
+	], 2)
+
+	let EventGroupOptions = list.FlattenN([
+		for config in _edpConfig.eventGroupConfigs {
 			[
 				"--event-group-reference-id-suffix=\(config.referenceIdSuffix)",
 				"--event-group-synthetic-spec=\(config.syntheticDataSpecPath)",
@@ -69,22 +70,17 @@ import "list"
 				"--event-group-campaign-name=\(config.campaignName)",
 				for mediaType in config.mediaTypes {"--event-group-media-type=\(mediaType)"},
 			]
-		}]
-		list.FlattenN(Lists, 2)
-	}
+		},
+	], 2)
 
-	let TeeOptions = {
-		let keyRingName = "\(DisplayName)-simulator-key-ring"
-		let kekName = "\(DisplayName)-simulator-kek"
-		let workloadIdentityPoolName = "\(DisplayName)-simulator-wip"
-		let workloadIdentityProviderName = "trustee-provider"
-		let impersonatedServiceAccountName = "\(DisplayName)-simulator-kms-decrypt"
-		[
-			"--trustee-kms-kek-uri=gcp-kms://projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)",
-			"--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)",
-			"--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com",
-		]
-	}
+	let keyRingName = "\(DisplayName)-simulator-key-ring"
+	let kekName = "\(DisplayName)-simulator-kek"
+	let workloadIdentityPoolName = "\(DisplayName)-simulator-wip"
+	let workloadIdentityProviderName = "trustee-provider"
+	let impersonatedServiceAccountName = "\(DisplayName)-simulator-kms-decrypt"
+	_trusteeKmsKekUriFlag:      "--trustee-kms-kek-uri=gcp-kms://projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)"
+	_trusteeWipFlag:            "--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)"
+	_trusteeImpersonatedSaFlag: "--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com"
 
 	deployment: #Deployment & {
 		let HealthFile = "/run/probe/healthy"
@@ -111,7 +107,10 @@ import "list"
 				"--health-file=\(HealthFile)",
 				"--population-spec=\(_populationSpecPath)",
 				"--support-hmss=\(_edpConfig.supportHmss)",
-			] + RequisitionFulfillmentServiceOptions + EventGroupOptions + TeeOptions
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeKmsKekUriFlag},
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeWipFlag},
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeImpersonatedSaFlag},
+			] + RequisitionFulfillmentServiceOptions + EventGroupOptions
 		}
 		spec: template: spec: {
 			_mounts: {

@@ -82,6 +82,7 @@ _edpConfigs: [
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
 			supportHmss: true
 		}
+		supportEncryptedTrustee: true
 
 		eventGroupConfigs: [{
 			referenceIdSuffix:     ""
