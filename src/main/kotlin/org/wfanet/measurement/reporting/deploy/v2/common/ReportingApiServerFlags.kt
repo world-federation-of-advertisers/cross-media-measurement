@@ -90,6 +90,14 @@ class ReportingApiServerFlags {
   var measurementConsumerModelLines: Map<String, String> = emptyMap()
     private set
 
+  @CommandLine.Option(
+    names = ["--base-impression-qualification-filter"],
+    description = ["ImpressionQualificationFilters that are always used in BasicReports"],
+    required = false,
+  )
+  var baseImpressionQualificationFilters: List<String> = emptyList()
+    private set
+
   // TODO(world-federation-of-advertisers/cross-media-measurement#2220): Remove this flag when LLv2
   // is deprecated.
   @set:CommandLine.Option(
@@ -98,5 +106,13 @@ class ReportingApiServerFlags {
     defaultValue = "false",
   )
   var allowSamplingIntervalWrapping by Delegates.notNull<Boolean>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--pdp-name"],
+    description = ["The Population DataProvider resource name."],
+    required = true,
+  )
+  lateinit var populationDataProvider: String
     private set
 }

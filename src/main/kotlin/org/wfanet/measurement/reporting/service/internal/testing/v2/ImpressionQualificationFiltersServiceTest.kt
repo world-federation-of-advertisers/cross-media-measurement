@@ -68,6 +68,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
     assertThat(result).isEqualTo(AMI_IQF)
   }
 
+  @Test
   fun `getImpressionQualificationFilter throws INVALID_ARGUMENT when ImpressionQualificationFilter resource id is not set`() =
     runBlocking {
       val exception =
@@ -83,11 +84,12 @@ abstract class ImpressionQualificationFiltersServiceTest<
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "externalImpressionQualificationFilterId"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "external_impression_qualification_filter_id"
           }
         )
     }
 
+  @Test
   fun `getImpressionQualificationFilter throws NOT_FOUND when ImpressionQualificationFilter not found`() =
     runBlocking {
       val exception =
@@ -110,6 +112,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
         )
     }
 
+  @Test
   fun `listImpressionQualificationFilter returns ImpressionQualificationFilters when no page size and page token is specified`() =
     runBlocking {
       val result =
@@ -126,6 +129,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
         )
     }
 
+  @Test
   fun `listImpressionQualificationFilter returns AMI IQF when page size is one and no page token is specified`() =
     runBlocking {
       val result =
@@ -148,6 +152,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
         )
     }
 
+  @Test
   fun `listImpressionQualificationFilter returns MRC IQF and no next page token when page size is one and page token is AMI`() =
     runBlocking {
       val result =
@@ -170,6 +175,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
         )
     }
 
+  @Test
   fun `listImpressionQualificationFilter throws INVALID_ARGUMENT when pageSize is negative `() =
     runBlocking {
       val exception =
@@ -185,7 +191,7 @@ abstract class ImpressionQualificationFiltersServiceTest<
           errorInfo {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "pageSize"
+            metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
           }
         )
     }
@@ -193,9 +199,15 @@ abstract class ImpressionQualificationFiltersServiceTest<
   companion object {
     private val AMI_IQF = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+        filters += eventFilter {
+          terms += eventTemplateField {
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = false }
+          }
+        }
+      }
     }
 
     private val MRC_IQF = impressionQualificationFilter {
@@ -204,21 +216,11 @@ abstract class ImpressionQualificationFiltersServiceTest<
         mediaType = MediaType.DISPLAY
         filters += eventFilter {
           terms += eventTemplateField {
-            path = "banner_ad.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 0.5F }
+            path = "banner_ad.viewable"
+            value = EventTemplateFieldKt.fieldValue { boolValue = true }
           }
         }
       }
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.VIDEO
-        filters += eventFilter {
-          terms += eventTemplateField {
-            path = "video.viewable_fraction_1_second"
-            value = EventTemplateFieldKt.fieldValue { floatValue = 1.0F }
-          }
-        }
-      }
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.OTHER }
     }
   }
 }

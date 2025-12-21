@@ -35,6 +35,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     val eventGroup: EventGroup,
     val internalEventGroupId: InternalId,
     val internalDataProviderId: InternalId,
+    val createRequestId: String?,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -66,6 +67,33 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       .singleOrNull()
   }
 
+  suspend fun readByCreateRequestIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    createRequestIds: Collection<String>,
+  ): Map<String, Result> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            """
+          WHERE
+            DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND CreateRequestId IN UNNEST (@${Params.CREATE_REQUEST_IDS})
+          """
+              .trimIndent()
+          )
+          bind(Params.DATA_PROVIDER_ID to dataProviderId)
+          bind(Params.CREATE_REQUEST_IDS).toStringArray(createRequestIds)
+        }
+        .execute(readContext)
+        .collect { result ->
+          if (!result.createRequestId.isNullOrEmpty()) {
+            put(result.createRequestId, result)
+          }
+        }
+    }
+  }
+
   suspend fun readByDataProvider(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: ExternalId,
@@ -86,6 +114,28 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  suspend fun batchReadByExternalIds(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderId: ExternalId,
+    externalEventGroupIds: Collection<ExternalId>,
+  ): Map<ExternalId, Result> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            """
+          WHERE ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
+            AND ExternalEventGroupId IN UNNEST(@${Params.EXTERNAL_EVENT_GROUP_IDS})
+          """
+              .trimIndent()
+          )
+          bind(Params.EXTERNAL_EVENT_GROUP_IDS).toInt64Array(externalEventGroupIds.map { it.value })
+          bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        }
+        .execute(readContext)
+        .collect { put(ExternalId(it.eventGroup.externalEventGroupId), it) }
+    }
   }
 
   suspend fun readByMeasurementConsumer(
@@ -115,6 +165,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       buildEventGroup(struct),
       InternalId(struct.getLong("EventGroupId")),
       InternalId(struct.getLong("DataProviderId")),
+      if (struct.isNull("CreateRequestId")) null else struct.getString("CreateRequestId"),
     )
 
   private fun buildEventGroup(struct: Struct): EventGroup {
@@ -156,6 +207,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         EventGroups.EventGroupId,
         EventGroups.ExternalEventGroupId,
         EventGroups.MeasurementConsumerId,
+        EventGroups.CreateRequestId,
         EventGroups.DataProviderId,
         EventGroups.ProvidedEventGroupId,
         EventGroups.CreateTime,
@@ -184,8 +236,10 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
       const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
       const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
+      const val EXTERNAL_EVENT_GROUP_IDS = "externalEventGroupIds"
       const val DATA_PROVIDER_ID = "dataProviderId"
       const val CREATE_REQUEST_ID = "createRequestId"
+      const val CREATE_REQUEST_IDS = "createRequestIds"
     }
   }
 }

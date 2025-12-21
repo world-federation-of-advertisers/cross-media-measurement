@@ -189,6 +189,8 @@ cue_dump(
         "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
         "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
         "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
+        "internal_api_address_name": DUCHY_K8S_SETTINGS.internal_api_address_name,
+        "trustee_mill_subnetwork_cidr_range": DUCHY_K8S_SETTINGS.trustee_mill_subnetwork_cidr_range,
     },
     tags = ["manual"],
     deps = [
@@ -221,6 +223,7 @@ cue_dump(
         "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
         "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
         "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
+        "internal_api_address_name": DUCHY_K8S_SETTINGS.internal_api_address_name,
     },
     tags = ["manual"],
     deps = [
@@ -253,6 +256,7 @@ cue_dump(
         "aggregator_system_api_target": DUCHY_K8S_SETTINGS.aggregator_system_api_target,
         "worker1_system_api_target": DUCHY_K8S_SETTINGS.worker1_system_api_target,
         "worker2_system_api_target": DUCHY_K8S_SETTINGS.worker2_system_api_target,
+        "internal_api_address_name": DUCHY_K8S_SETTINGS.internal_api_address_name,
     },
     tags = ["manual"],
     deps = [
@@ -435,7 +439,6 @@ EDP_SIMULATOR_TAGS = {
     "gcp_project_id": GCLOUD_SETTINGS.project,
     "gcp_project_number": GCLOUD_SETTINGS.project_number,
     "gcp_location": GCLOUD_SETTINGS.gcp_location,
-    "google_cloud_project": GCLOUD_SETTINGS.project,
 }
 
 cue_dump(
@@ -489,11 +492,13 @@ cue_dump(
         "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
         "basic_reports_enabled": REPORTING_K8S_SETTINGS.basic_reports_enabled,
         "public_api_address_name": REPORTING_K8S_SETTINGS.public_api_address_name,
+        "event_message_type_url": REPORTING_K8S_SETTINGS.event_message_type_url,
         "google_cloud_project": GCLOUD_SETTINGS.project,
         "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
         "postgres_instance": GCLOUD_SETTINGS.postgres_instance,
         "postgres_region": GCLOUD_SETTINGS.postgres_region,
         "kingdom_public_api_target": KINGDOM_K8S_SETTINGS.public_api_target,
+        "pdp_name": PDP_K8S_SETTINGS.pdp_name,
     },
     tags = ["manual"],
     deps = [

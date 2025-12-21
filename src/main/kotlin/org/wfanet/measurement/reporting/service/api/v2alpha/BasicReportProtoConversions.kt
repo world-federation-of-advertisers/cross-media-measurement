@@ -97,6 +97,9 @@ fun BasicReport.toInternal(
   createReportRequestId: String,
   internalReportingImpressionQualificationFilters:
     List<InternalReportingImpressionQualificationFilter>,
+  internalEffectiveReportingImpressionQualificationFilters:
+    List<InternalReportingImpressionQualificationFilter>,
+  effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -107,11 +110,8 @@ fun BasicReport.toInternal(
     details = internalBasicReportDetails {
       title = source.title
       impressionQualificationFilters += internalReportingImpressionQualificationFilters
-      for (reportingImpressionQualificationFilter in source.impressionQualificationFiltersList) {
-        if (reportingImpressionQualificationFilter.hasCustom()) {
-          impressionQualificationFilters += reportingImpressionQualificationFilter.toInternal()
-        }
-      }
+      effectiveImpressionQualificationFilters +=
+        internalEffectiveReportingImpressionQualificationFilters
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
         reportEnd = source.reportingInterval.reportEnd
@@ -122,14 +122,16 @@ fun BasicReport.toInternal(
     }
 
     this.createReportRequestId = createReportRequestId
-    if (modelLine.isNotEmpty()) {
-      val modelLineKey = ModelLineKey.fromName(modelLine)
+    if (effectiveModelLine.isNotEmpty()) {
+      val modelLineKey = ModelLineKey.fromName(effectiveModelLine)
       this.modelLineKey =
         InternalBasicReportKt.modelLineKey {
           cmmsModelProviderId = modelLineKey!!.modelProviderId
           cmmsModelSuiteId = modelLineKey.modelSuiteId
           cmmsModelLineId = modelLineKey.modelLineId
         }
+
+      modelLineSystemSpecified = source.modelLine.isEmpty()
     }
   }
 }
@@ -151,14 +153,23 @@ fun ReportingImpressionQualificationFilter.toInternal():
       }
       ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
         for (filterSpec in source.custom.filterSpecList) {
-          filterSpecs += internalImpressionQualificationFilterSpec {
-            mediaType = filterSpec.mediaType.toInternal()
-            filters += filterSpec.filtersList.map { it.toInternal() }
-          }
+          filterSpecs += filterSpec.toInternal()
         }
       }
       ReportingImpressionQualificationFilter.SelectorCase.SELECTOR_NOT_SET -> {}
     }
+  }
+}
+
+/**
+ * Converts the public [ImpressionQualificationFilterSpec] to the internal
+ * [InternalImpressionQualificationFilterSpec].
+ */
+fun ImpressionQualificationFilterSpec.toInternal(): InternalImpressionQualificationFilterSpec {
+  val source = this
+  return internalImpressionQualificationFilterSpec {
+    mediaType = source.mediaType.toInternal()
+    filters += source.filtersList.map { it.toInternal() }
   }
 }
 
@@ -388,6 +399,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       impressionQualificationFilters +=
         internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
     }
+    for (internalImpressionQualificationFilter in
+      source.details.effectiveImpressionQualificationFiltersList) {
+      effectiveImpressionQualificationFilters +=
+        internalImpressionQualificationFilter.toReportingImpressionQualificationFilter()
+    }
     for (internalResultGroupSpec in source.details.resultGroupSpecsList) {
       resultGroupSpecs += internalResultGroupSpec.toResultGroupSpec()
     }
@@ -401,7 +417,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       when (source.state) {
         InternalBasicReport.State.CREATED,
         InternalBasicReport.State.REPORT_CREATED,
-        InternalBasicReport.State.NOISY_RESULTS_READY -> BasicReport.State.RUNNING
+        InternalBasicReport.State.UNPROCESSED_RESULTS_READY -> BasicReport.State.RUNNING
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
         InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
         InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
@@ -410,13 +426,18 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       }
 
     if (modelLineKey.cmmsModelProviderId.isNotEmpty()) {
-      modelLine =
+      val modelLineName =
         ModelLineKey(
             modelLineKey.cmmsModelProviderId,
             modelLineKey.cmmsModelSuiteId,
             modelLineKey.cmmsModelLineId,
           )
           .toName()
+
+      effectiveModelLine = modelLineName
+      if (!modelLineSystemSpecified) {
+        modelLine = modelLineName
+      }
     }
   }
 }

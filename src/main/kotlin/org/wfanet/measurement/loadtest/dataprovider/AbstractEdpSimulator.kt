@@ -1107,7 +1107,12 @@ abstract class AbstractEdpSimulator(
 
     logger.info("Generating sampled frequency vector for HMSS...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(
+        vidIndexMap.populationSpec,
+        measurementSpec,
+        overrideImpressionMaxFrequencyPerUser = null,
+        strict = false,
+      )
     for (eventGroupSpec in eventGroupSpecs) {
       try {
         eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
@@ -1173,7 +1178,12 @@ abstract class AbstractEdpSimulator(
 
     logger.info("Generating sampled frequency vector for TrusTee...")
     val frequencyVectorBuilder =
-      FrequencyVectorBuilder(vidIndexMap.populationSpec, measurementSpec, strict = false)
+      FrequencyVectorBuilder(
+        vidIndexMap.populationSpec,
+        measurementSpec,
+        overrideImpressionMaxFrequencyPerUser = null,
+        strict = false,
+      )
     for (eventGroupSpec in eventGroupSpecs) {
       eventQuery.getUserVirtualIds(eventGroupSpec).forEach {
         frequencyVectorBuilder.increment(vidIndexMap[it])

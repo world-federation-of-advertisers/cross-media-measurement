@@ -138,9 +138,9 @@ serviceAccounts: [Name=string]: #ServiceAccount & {
 }
 serviceAccounts: {
 	for edp in _edpConfigs {
-		let saName = "\(edp.displayName)-simulator"
-		"\(saName)": #WorkloadIdentityServiceAccount & {
-			_iamServiceAccountName: saName
+		let ServiceAccountName = "\(edp.displayName)-simulator"
+		"\(ServiceAccountName)": #WorkloadIdentityServiceAccount & {
+			_iamServiceAccountName: ServiceAccountName
 		}
 	}
 }

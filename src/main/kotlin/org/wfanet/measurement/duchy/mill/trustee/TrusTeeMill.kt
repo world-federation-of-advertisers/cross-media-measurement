@@ -222,6 +222,8 @@ class TrusTeeMill(
 
   private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): ByteArray {
     try {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3347): decrypt data by chunks
+      //  while reading from the storage to improve the performance.
       val streamingAead = dek.getPrimitive(StreamingAead::class.java)
       val decryptingStream = streamingAead.newDecryptingStream(data.newInput(), byteArrayOf())
       return decryptingStream.readAllBytes()

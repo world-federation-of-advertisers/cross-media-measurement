@@ -20,7 +20,7 @@ locals {
     {
       "tee-signed-image-repos"                        = var.tee_signed_image_repo
       "tee-image-reference"                           = var.docker_image
-      "tee-cmd"                                       = jsonencode(var.tee_cmd),
+      "tee-cmd"                                       = jsonencode(var.tee_cmd)
 
       "google-logging-enabled"                        = "true"
       "google-monitoring-enabled"                     = "true"
@@ -29,9 +29,10 @@ locals {
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"
     },
-    var.java_tool_options == "" ? {} : {
+    var.java_tool_options == null ? {} : {
       "tee-env-JAVA_TOOL_OPTIONS" = var.java_tool_options
-    }
+    },
+    var.extra_metadata,
   )
 }
 

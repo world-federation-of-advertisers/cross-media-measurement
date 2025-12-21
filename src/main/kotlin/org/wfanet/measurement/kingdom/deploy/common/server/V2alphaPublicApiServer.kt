@@ -124,8 +124,8 @@ private fun run(
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
   @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
   @CommandLine.Mixin hmssProtocolConfigFlags: HmssProtocolConfigFlags,
-  @CommandLine.Mixin trusteeProtocolConfigFlags: TrusTeeProtocolConfigFlags,
   @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
+  @CommandLine.Mixin trusteeProtocolConfigFlags: TrusTeeProtocolConfigFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
@@ -472,11 +472,11 @@ private class V2alphaFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--trus-tee-enabled-measurement-consumers"],
+    names = ["--trustee-enabled-measurement-consumers"],
     description =
       [
         "MeasurementConsumer names who force to enable TrusTEE protocol" +
-          " regardless the --enable-trus-tee flag."
+          " regardless the --enable-trustee flag."
       ],
     required = false,
     defaultValue = "",

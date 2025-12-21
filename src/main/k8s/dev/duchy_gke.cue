@@ -14,17 +14,19 @@
 
 package k8s
 
-_duchy_name:                   string @tag("duchy_name")
-_duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
-_secret_name:                  string @tag("secret_name")
-_cloudStorageBucket:           string @tag("cloud_storage_bucket")
-_certificateId:                string @tag("certificate_id")
-_publicApiAddressName:         string @tag("public_api_address_name")
-_systemApiAddressName:         string @tag("system_api_address_name")
-_aggregatorSystemApiTarget:    string @tag("aggregator_system_api_target")
-_worker1SystemApiTarget:       string @tag("worker1_system_api_target")
-_worker2SystemApiTarget:       string @tag("worker2_system_api_target")
-_duchyKeyEncryptionKeyFile:    string @tag("duchy_key_encryption_key_file")
+_duchy_name:                     string @tag("duchy_name")
+_duchy_protocols_setup_config:   string @tag("duchy_protocols_setup_config")
+_secret_name:                    string @tag("secret_name")
+_cloudStorageBucket:             string @tag("cloud_storage_bucket")
+_certificateId:                  string @tag("certificate_id")
+_publicApiAddressName:           string @tag("public_api_address_name")
+_systemApiAddressName:           string @tag("system_api_address_name")
+_internalApiAddressName:         string @tag("internal_api_address_name")
+_trusteeMillSubnetworkCidrRange: string @tag("trustee_mill_subnetwork_cidr_range")
+_aggregatorSystemApiTarget:      string @tag("aggregator_system_api_target")
+_worker1SystemApiTarget:         string @tag("worker1_system_api_target")
+_worker2SystemApiTarget:         string @tag("worker2_system_api_target")
+_duchyKeyEncryptionKeyFile:      string @tag("duchy_key_encryption_key_file")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
@@ -90,6 +92,8 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "192M"
 
+#TrusteeMillSubnetworkCidrRange: "10.0.0.0/24"
+
 objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
 _cloudStorageConfig: #CloudStorageConfig & {
@@ -113,8 +117,9 @@ duchy: #SpannerDuchy & {
 	}
 	_kingdom_system_api_target:       #KingdomSystemApiTarget
 	_kingdom_public_api_target:       #KingdomPublicApiTarget
+	_trusteeMillSubnetworkRange:      _trusteeMillSubnetworkCidrRange
 	_blob_storage_flags:              _cloudStorageConfig.flags
-	_verbose_grpc_logging:            "true"
+	_verbose_grpc_logging:            "false"
 	_duchyMillParallelism:            4
 	_liquidLegionsV2WorkLockDuration: "10m"
 
@@ -175,13 +180,17 @@ duchy: #SpannerDuchy & {
 		"requisition-fulfillment-server": _ipAddressName: _publicApiAddressName
 		"computation-control-server": _ipAddressName:     _systemApiAddressName
 		"internal-api-server": {
-			metadata: annotations: "cloud.google.com/load-balancer-type": "Internal"
-			spec: {
-				type: "LoadBalancer"
-				loadBalancerSourceRanges: [
-					// TrusTEE mill from confidential space.
-					"10.0.0.0/24",
-				]
+			metadata: annotations: {
+				"cloud.google.com/load-balancer-type":          "Internal"
+				"networking.gke.io/load-balancer-ip-addresses": _internalApiAddressName
+			}
+			if _trusteeMillSubnetworkCidrRange != _|_ {
+				spec: {
+					type: "LoadBalancer"
+					loadBalancerSourceRanges: [
+						_trusteeMillSubnetworkCidrRange,
+					]
+				}
 			}
 		}
 	}

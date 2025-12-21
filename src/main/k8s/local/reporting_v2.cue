@@ -14,6 +14,7 @@
 
 package k8s
 
+_pdpName:                      string @tag("pdp_name")
 _reportingBasicReportsEnabled: string @tag("basic_reports_enabled")
 _reportingSecretName:          string @tag("secret_name")
 _reportingDbSecretName:        string @tag("db_secret_name")
@@ -22,9 +23,10 @@ _reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
-	_basicReportsEnabled: _reportingBasicReportsEnabled
-	_secretName:          _reportingSecretName
-	_mcConfigSecretName:  _reportingMcConfigSecretName
+	_populationDataProviderName: _pdpName
+	_basicReportsEnabled:        _reportingBasicReportsEnabled
+	_secretName:                 _reportingSecretName
+	_mcConfigSecretName:         _reportingMcConfigSecretName
 	_postgresConfig: {
 		serviceName:      "postgres"
 		password:         "$(POSTGRES_PASSWORD)"
@@ -37,6 +39,7 @@ reporting: #Reporting & {
 	}
 	_verboseGrpcServerLogging: true
 	_verboseGrpcClientLogging: true
+	_eventMessageTypeUrl:      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
 
 	let EnvVars = #EnvVarMap & {
 		"POSTGRES_USER": {

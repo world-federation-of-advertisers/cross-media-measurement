@@ -82,6 +82,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGroupe
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerApp
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -205,6 +206,7 @@ class InProcessEdpAggregatorComponents(
       getImpressionsStorageConfig = getStorageConfig,
       getRequisitionsStorageConfig = getStorageConfig,
       modelLineInfoMap = modelLineInfoMap,
+      metrics = ResultsFulfillerMetrics.create(),
     )
   }
 
@@ -325,7 +327,7 @@ class InProcessEdpAggregatorComponents(
       }
       val eventGroups = buildEventGroups(measurementConsumerData)
       eventGroupSync =
-        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler)
+        EventGroupSync(edpResourceName, eventGroupsClient, eventGroups.asFlow(), throttler, 500)
       val mappedEventGroups: List<MappedEventGroup> = runBlocking { eventGroupSync.sync().toList() }
       logger.info("Received mappedEventGroups: $mappedEventGroups")
       runBlocking { writeImpressionData(mappedEventGroups, edpAggregatorShortName) }

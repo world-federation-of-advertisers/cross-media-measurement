@@ -162,8 +162,9 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
                     source.details.honestMajorityShareShuffle.tinkPublicKeySignatureAlgorithmOid
                 }
             }
-            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE ->
+            InternalComputationParticipantDetails.ProtocolCase.TRUS_TEE -> {
               trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
+            }
             InternalComputationParticipantDetails.ProtocolCase.PROTOCOL_NOT_SET -> Unit
           }
         }

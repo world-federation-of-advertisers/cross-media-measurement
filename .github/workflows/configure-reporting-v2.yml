@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/reporting_v2"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-reporting-v2:
@@ -61,12 +62,12 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -86,6 +87,7 @@ jobs:
         POSTGRES_INSTANCE: ${{ vars.POSTGRES_INSTANCE }}
         GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+        PDP_NAME: ${{ vars.PDP_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -99,13 +101,15 @@ jobs:
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define reporting_public_api_address_name=reporting-v2alpha
         build --define basic_reports_enabled=true
+        build --define 'event_message_type_url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent'
+        build --define "pdp_name=$PDP_NAME"
         EOF
 
     - name: Export BAZEL_BIN
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v2
+      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
       with:
         cluster_name: reporting-v2
         location: ${{ vars.GCLOUD_ZONE }}
@@ -194,7 +198,7 @@ jobs:
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/reporting_v2_secrets/kustomization.yaml"
 
     - name: Upload Kustomization artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       continue-on-error: true
       with:
         name: reporting-kustomization
@@ -211,7 +215,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-reporting
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

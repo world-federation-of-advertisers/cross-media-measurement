@@ -43,6 +43,7 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
@@ -56,6 +57,11 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
@@ -92,6 +98,10 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest as internalBatchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse as internalBatchCreateEventGroupsResponse
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest as internalBatchUpdateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse as internalBatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest as internalCreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
@@ -121,6 +131,7 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 private val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
 private val EVENT_GROUP_NAME_2 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
 private val EVENT_GROUP_NAME_3 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAKs"
+private val EVENT_GROUP_NAME_4 = "$DATA_PROVIDER_NAME_2/eventGroups/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_EVENT_GROUP_NAME =
@@ -241,7 +252,26 @@ class EventGroupsServiceTest {
   private val internalEventGroupsMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
     onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+    onBlocking { batchCreateEventGroups(any()) }
+      .thenReturn(
+        internalBatchCreateEventGroupsResponse {
+          eventGroups += INTERNAL_EVENT_GROUP
+          eventGroups +=
+            INTERNAL_EVENT_GROUP.copy {
+              externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID_2
+              externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+            }
+        }
+      )
     onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+    onBlocking { batchUpdateEventGroup(any()) }
+      .thenReturn(
+        internalBatchUpdateEventGroupsResponse {
+          eventGroups += INTERNAL_EVENT_GROUP
+          eventGroups +=
+            INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 }
+        }
+      )
     onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_DELETED_EVENT_GROUP)
     onBlocking { streamEventGroups(any()) }
       .thenReturn(
@@ -644,6 +674,235 @@ class EventGroupsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("before")
+  }
+
+  @Test
+  fun `batchCreateEventGroup returns created event groups`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP.copy { measurementConsumer = MEASUREMENT_CONSUMER_NAME_2 }
+        requestId = "boo"
+      }
+    }
+
+    val response: BatchCreateEventGroupsResponse =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchCreateEventGroups(request) }
+      }
+
+    verifyProtoArgument(
+        internalEventGroupsMock,
+        EventGroupsCoroutineImplBase::batchCreateEventGroups,
+      )
+      .isEqualTo(
+        internalBatchCreateEventGroupsRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          requests += internalCreateEventGroupRequest {
+            eventGroup =
+              INTERNAL_EVENT_GROUP.copy {
+                clearCreateTime()
+                clearExternalEventGroupId()
+                clearState()
+              }
+            requestId = request.requestsList[0].requestId
+          }
+          requests += internalCreateEventGroupRequest {
+            eventGroup =
+              INTERNAL_EVENT_GROUP.copy {
+                externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID_2
+                externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+                clearCreateTime()
+                clearExternalEventGroupId()
+                clearState()
+              }
+            requestId = request.requestsList[1].requestId
+          }
+        }
+      )
+    assertThat(response)
+      .isEqualTo(
+        batchCreateEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups +=
+            EVENT_GROUP.copy {
+              name = EVENT_GROUP_NAME_2
+              measurementConsumer = MEASUREMENT_CONSUMER_NAME_2
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws INVALID_ARGUMENT when parent is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchCreateEventGroups(
+              batchCreateEventGroupsRequest {
+                requests += createEventGroupRequest {
+                  parent = DATA_PROVIDER_NAME
+                  eventGroup = EVENT_GROUP
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws INVALID_ARGUMENT when parent is malformed`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchCreateEventGroups(
+              batchCreateEventGroupsRequest {
+                parent = "malformed-parent-name"
+                requests += createEventGroupRequest {
+                  parent = DATA_PROVIDER_NAME
+                  eventGroup = EVENT_GROUP
+                }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws UNAUTHENTICATED when no principal is found`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchCreateEventGroups(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws INVALID_ARGUMENT when parent and child DataProvider doesn't match`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME_2
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("Parent and child")
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws INVALID_ARGUMENT when child event group isn't specified`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("event group is unspecified")
+  }
+
+  @Test
+  fun `batchCreateEventGroup throws INVALID_ARGUMENT when child request id is duplicate in the batch`() {
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP
+        requestId = "foo"
+      }
+      requests += createEventGroupRequest {
+        parent = DATA_PROVIDER_NAME
+        eventGroup = EVENT_GROUP.copy { measurementConsumer = MEASUREMENT_CONSUMER_NAME_2 }
+        requestId = "foo"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("duplicate")
   }
 
   @Test
@@ -1577,5 +1836,220 @@ class EventGroupsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("eventGroup", EVENT_GROUP_NAME)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup returns event groups`() {
+    val request = batchUpdateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+      requests += updateEventGroupRequest {
+        eventGroup = EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+      }
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchUpdateEventGroups(request) }
+      }
+
+    verifyProtoArgument(
+        internalEventGroupsMock,
+        EventGroupsCoroutineImplBase::batchUpdateEventGroup,
+      )
+      .isEqualTo(
+        internalBatchUpdateEventGroupsRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          requests += internalUpdateEventGroupRequest {
+            eventGroup =
+              INTERNAL_EVENT_GROUP.copy {
+                clearCreateTime()
+                clearState()
+              }
+          }
+          requests += internalUpdateEventGroupRequest {
+            eventGroup =
+              INTERNAL_EVENT_GROUP.copy {
+                externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+                clearCreateTime()
+                clearState()
+              }
+          }
+        }
+      )
+
+    assertThat(result)
+      .isEqualTo(
+        batchUpdateEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+        }
+      )
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing parent`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for invalid parent`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = "invalid-parent"
+                requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing event group in child requests`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                requests += UpdateEventGroupRequest.getDefaultInstance()
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for missing event group name in child requests`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                requests += updateEventGroupRequest {
+                  eventGroup = EVENT_GROUP.copy { clearName() }
+                }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for invalid event group name in child requests`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                requests += updateEventGroupRequest {
+                  eventGroup = EVENT_GROUP.copy { name = "invalid-name" }
+                }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws INVALID_ARGUMENT for different parent and child DataProvider`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.batchUpdateEventGroups(
+              batchUpdateEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                requests += updateEventGroupRequest {
+                  eventGroup = EVENT_GROUP.copy { name = EVENT_GROUP_NAME_4 }
+                }
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws UNAUTHENTICATED when no principal is found`() {
+    val request = batchUpdateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchUpdateEventGroups(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = batchUpdateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.batchUpdateEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchUpdateEventGroup throws PERMISSION_DENIED when edp caller doesn't match `() {
+    val request = batchUpdateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += updateEventGroupRequest { eventGroup = EVENT_GROUP }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.batchUpdateEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 }

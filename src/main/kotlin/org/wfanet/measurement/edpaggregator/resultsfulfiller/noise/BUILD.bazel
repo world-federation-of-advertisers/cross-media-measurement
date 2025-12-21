@@ -11,10 +11,10 @@ kt_jvm_library(
     name = "noiser",
     srcs = ["Noiser.kt"],
     deps = [
+        "//imports/java/org/apache/commons/math3",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider:requisition_refusal_exception",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:differential_privacy_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
     ],
 )

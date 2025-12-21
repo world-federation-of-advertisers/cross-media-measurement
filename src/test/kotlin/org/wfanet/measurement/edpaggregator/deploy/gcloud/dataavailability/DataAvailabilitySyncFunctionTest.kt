@@ -61,11 +61,11 @@ import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.fileSystemSto
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
@@ -101,8 +101,13 @@ class DataAvailabilitySyncFunctionTest {
 
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
-      onBlocking { createImpressionMetadata(any<CreateImpressionMetadataRequest>()) }
-        .thenReturn(ImpressionMetadata.getDefaultInstance())
+      onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          batchCreateImpressionMetadataResponse {
+            impressionMetadata += request.requestsList.map { it.impressionMetadata }
+          }
+        }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
           computeModelLineBoundsResponse {
@@ -221,7 +226,7 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
 
@@ -283,7 +288,7 @@ class DataAvailabilitySyncFunctionTest {
     logger.info("Trace propagation response body: ${response.body()}")
 
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { createImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
     logger.info("Captured traceparent headers: $capturedTraceparentHeaders")
@@ -316,6 +321,7 @@ class DataAvailabilitySyncFunctionTest {
         certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+      edpImpressionPath = "edp/edp_name"
     }
 
   private fun parseTraceparentTraceId(header: String?): String? {

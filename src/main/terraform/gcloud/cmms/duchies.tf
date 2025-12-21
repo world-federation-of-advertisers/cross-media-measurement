@@ -53,6 +53,8 @@ locals {
     docker_image                       = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
     mig_distribution_policy_zones      = ["us-central1-a"]
+    # TODO(world-federation-of-advertisers/cross-media-measurement#3370): Use "confidential-space" to turn off debug
+    # mode when log is visible on Cloud.
     disk_image_family                  = "confidential-space-debug"
 
     aggregator_tls_cert                = local.aggregator_tls_cert
@@ -63,7 +65,7 @@ locals {
     terraform_service_account          = var.terraform_service_account
 
     app_flags = [
-      "--gcp-project-id", data.google_client_config.default.project,
+      "--google-project-id", data.google_client_config.default.project,
       "--tls-cert-secret-id", local.aggregator_tls_cert.secret_id,
       "--tls-key-secret-id", local.aggregator_tls_key.secret_id,
       "--cert-collection-secret-id", local.aggregator_cert_collection.secret_id,
@@ -123,7 +125,7 @@ module "highmem_node_pools" {
   cluster         = each.value.cluster
   name            = "highmem"
   service_account = module.common.cluster_service_account
-  machine_type    = "c2-standard-4"
+  machine_type    = "c3d-standard-4"
   max_node_count  = 20
   spot            = true
 }

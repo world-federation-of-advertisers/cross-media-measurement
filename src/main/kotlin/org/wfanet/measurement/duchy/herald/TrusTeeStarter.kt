@@ -32,7 +32,6 @@ import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.TrusTeeSetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
-import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeKt
@@ -55,7 +54,7 @@ private const val MIN_FREQUENCY_EPSILON = 0.000001
 object TrusTeeStarter {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  val TERMINAL_STAGE = HonestMajorityShareShuffle.Stage.COMPLETE.toProtocolStage()
+  val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
 
   /** Create a TrusTEE Computation. */
   suspend fun createComputation(

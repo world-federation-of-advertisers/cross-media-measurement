@@ -52,6 +52,7 @@ permissions:
 
 env:
   KUSTOMIZATION_PATH: "k8s/cmms"
+  KUBECTL_APPLYSET: true  
 
 jobs:
   update-simulators:
@@ -61,12 +62,12 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
@@ -85,8 +86,7 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         WORKER1_PUBLIC_API_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         WORKER2_PUBLIC_API_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
-        AGGREGATOR_PUBLIC_API_TARGET: "34.123.92.50:8443"
-#        AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
+        AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
@@ -140,7 +140,7 @@ jobs:
       run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
     - name: Get GKE cluster credentials
-      uses: google-github-actions/get-gke-credentials@v2
+      uses: google-github-actions/get-gke-credentials@64bc7249bbcf78056bb92f14d3cedc2da193946c # v2.3.5
       with:
         cluster_name: simulators
         location: ${{ vars.GCLOUD_ZONE }}
@@ -178,7 +178,7 @@ jobs:
 
     - name: kubectl apply
       if: ${{ inputs.apply }}
-      run: kubectl apply -k "$KUSTOMIZE_PATH"
+      run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-edp-sims
 
     - name: Wait for rollout
       if: ${{ inputs.apply }}

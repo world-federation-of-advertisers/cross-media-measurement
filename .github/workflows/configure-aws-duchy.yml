@@ -73,12 +73,12 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     # Authenticate to AWS Cloud. This will export some environment
     # e.g. AWS_REGION, AWS_SESSION_TOKEN ...
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
       with:
         aws-region: ${{ vars.AWS_REGION }}
         role-to-assume: ${{ vars.AWS_GHA_ROLE }}
@@ -177,7 +177,7 @@ jobs:
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
 
     - name: Upload Kustomization artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: kustomization
         path: ${{ env.KUSTOMIZATION_PATH }}

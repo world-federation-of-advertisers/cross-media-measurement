@@ -67,7 +67,7 @@ class DuchyInfoFlags {
   @CommandLine.Option(
     names = ["--duchy-info-config"],
     description = ["DuchyCertConfig proto message in text format."],
-    required = false,
+    required = true,
   )
   lateinit var config: File
     private set

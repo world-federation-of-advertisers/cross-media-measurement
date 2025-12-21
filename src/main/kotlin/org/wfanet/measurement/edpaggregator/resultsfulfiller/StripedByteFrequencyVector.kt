@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
+import java.util.concurrent.atomic.AtomicLong
+
 /**
  * Thread-safe, memory-efficient frequency vector using striped byte arrays.
  *
@@ -24,6 +26,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
  * - Implements lock striping for high-concurrency performance
  * - Provides O(1) increment operations
  * - Supports concurrent access from multiple threads
+ * - Tracks total uncapped impressions for direct measurement fulfillment
  *
  * @param size Number of entries to allocate
  */
@@ -40,15 +43,21 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
   private val data = ByteArray(size)
   private val locks = Array(stripeCount) { Any() }
 
+  /** Counter for total impressions without any capping, used for uncapped direct measurements. */
+  private val totalUncappedImpressions = AtomicLong(0L)
+
   private fun getStripe(index: Int) = index / stripeSize
 
   /**
    * Increments the frequency count for a given VID index.
    *
+   * Also increments the total uncapped impressions counter.
+   *
    * @param index The index to increment
    */
   fun increment(index: Int) {
     require(index in 0 until size) { "Index must be in range [0, ${size - 1}]" }
+    totalUncappedImpressions.incrementAndGet()
     synchronized(locks[getStripe(index)]) {
       val current = data[index].toInt()
       if (current < MAX_VALUE) {
@@ -63,12 +72,21 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
     }
   }
 
+  /** Returns the total count of impressions without any frequency capping applied. */
+  fun getTotalUncappedImpressions(): Long {
+    return totalUncappedImpressions.get()
+  }
+
   /**
    * Thread-safe merge of another StripedByteFrequencyVector into this one.
    *
    * This method safely combines two frequency vectors by adding their counts per index, with
    * saturation at the maximum value. It uses lock striping to maintain thread safety while
-   * providing good concurrent performance.
+   * providing good concurrent performance. Also merges the total uncapped impressions counter.
+   *
+   * Note: While individual AtomicLong operations are atomic, the merge operation as a whole is not
+   * atomic with respect to concurrent increments. However, this is acceptable since merges are
+   * typically performed at aggregation boundaries after concurrent processing has completed.
    *
    * @param other The other frequency vector to merge into this one
    * @return This frequency vector after merging
@@ -78,6 +96,9 @@ class StripedByteFrequencyVector(val size: Int, val stripeCount: Int = DEFAULT_S
     require(size == other.size) {
       "Cannot merge frequency vectors of different sizes: $size != ${other.size}"
     }
+
+    // Merge uncapped impressions counter
+    totalUncappedImpressions.addAndGet(other.totalUncappedImpressions.get())
 
     // Process each stripe with appropriate locking
     for (stripe in 0 until stripeCount) {

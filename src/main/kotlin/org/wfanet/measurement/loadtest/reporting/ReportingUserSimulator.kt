@@ -54,6 +54,7 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
@@ -177,15 +178,16 @@ class ReportingUserSimulator(
       modelLine = modelLineName
       reportingInterval = reportingInterval {
         reportStart = dateTime {
-          year = 2025
-          month = 9
-          day = 3
+          year = 2021
+          month = 3
+          day = 14
+          hours = 17
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {
-          year = 2025
-          month = 9
-          day = 17
+          year = 2021
+          month = 3
+          day = 15
         }
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
@@ -260,6 +262,7 @@ class ReportingUserSimulator(
         .host(reportingGatewayHost)
         .port(reportingGatewayPort)
         .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
+        .addQueryParameter("basic_report_id", basicReportKey.basicReportId)
         .build()
 
     val accessToken = getReportingAccessToken()
@@ -267,16 +270,7 @@ class ReportingUserSimulator(
     val createBasicReportRequest =
       Request.Builder()
         .url(createBasicReportUrl)
-        .post(
-          JsonFormat.printer()
-            .print(
-              createBasicReportRequest {
-                this.basicReport = basicReport
-                basicReportId = basicReportKey.basicReportId
-              }
-            )
-            .toRequestBody()
-        )
+        .post(JsonFormat.printer().print(basicReport).toRequestBody())
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer $accessToken")
         .build()
@@ -338,11 +332,15 @@ class ReportingUserSimulator(
         .build()
 
     assertThat(retrievedBasicReport)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(
+        BasicReport.CREATE_TIME_FIELD_NUMBER,
+        BasicReport.EFFECTIVE_IMPRESSION_QUALIFICATION_FILTERS_FIELD_NUMBER,
+      )
       .isEqualTo(
         basicReport.copy {
           name = basicReportKey.toName()
           state = BasicReport.State.RUNNING
+          effectiveModelLine = retrievedBasicReport.effectiveModelLine
         }
       )
 
@@ -435,6 +433,10 @@ class ReportingUserSimulator(
           metricCalculationSpecId = "a-$runId"
           metricCalculationSpec = metricCalculationSpec {
             displayName = "union reach"
+            modelLine = modelLineName
+            metricSpecs += metricSpec {
+              populationCount = MetricSpec.PopulationCountParams.getDefaultInstance()
+            }
             metricSpecs += metricSpec {
               reach =
                 MetricSpecKt.reachParams {

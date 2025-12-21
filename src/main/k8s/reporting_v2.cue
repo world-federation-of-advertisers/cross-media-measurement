@@ -18,8 +18,8 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_reportSchedulingCronSchedule:    string | *"30 6 * * *" // Daily at 6:30 AM
-	_basicReportsReportsCronSchedule: string | *"30 7 * * *" // Daily at 7:30 AM
+	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
+	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -69,6 +69,7 @@ package k8s
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
+		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"update-access-schema":                string | *"access/update-schema"
 		"access-internal-api-server":          string | *"access/internal-api"
@@ -85,16 +86,18 @@ package k8s
 			"\(name)": config.image
 		}
 	}
-	_basicReportsEnabled: string
-	_secretName:          string
-	_mcConfigSecretName:  string
+	_basicReportsEnabled:        string
+	_secretName:                 string
+	_mcConfigSecretName:         string
+	_populationDataProviderName: string
 
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
 	]
+	_eventMessageTypeUrl: string
 	_eventDescriptorArgs: [
-		"--event-message-type-url=type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent",
+		"--event-message-type-url=\(_eventMessageTypeUrl)",
 		"--event-message-descriptor-set=/etc/\(#AppName)/config-files/event_message_descriptor_set.pb",
 	]
 	_reportingCertCollectionFileFlag:             "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -150,7 +153,7 @@ package k8s
 						"--basic-reports-enabled=" + Reporting._basicReportsEnabled,
 						"--disable-metrics-reuse=false",
 						_impressionQualificationFilterConfigFileFlag,
-			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs
+			] + _postgresConfig.flags + _reportingSpannerConfig.flags + _tlsArgs + _eventDescriptorArgs
 
 			_updatePostgresSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]
@@ -193,6 +196,9 @@ package k8s
 						"--event-group-metadata-descriptor-cache-duration=1h",
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
+						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
+						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -271,6 +277,9 @@ package k8s
 		_container: {
 			image: _images[_name]
 		}
+		spec: {
+			concurrencyPolicy: "Forbid"
+		}
 	}
 	cronJobs: {
 		"report-scheduling": {
@@ -285,6 +294,7 @@ package k8s
 						_metricSpecConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: {
@@ -297,28 +307,39 @@ package k8s
 				schedule: _reportSchedulingCronSchedule
 			}
 		}
-		"basic-reports-reports": {
-			_container: args: [
-						_debugVerboseGrpcClientLoggingFlag,
-						_debugVerboseGrpcServerLoggingFlag,
-						_reportingCertCollectionFileFlag,
-						_measurementConsumerConfigFileFlag,
-						_signingPrivateKeyStoreDirFlag,
-						_encryptionKeyPairDirFlag,
-						_encryptionKeyPairConfigFileFlag,
-						_metricSpecConfigFileFlag,
-						"--port=8443",
-						"--health-port=8080",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
+		"report-result-post-processor": {
+			_container: {
+				args: [
+					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+				] + _tlsArgs + _internalApiTarget.args
+			}
 			spec: {
-				jobTemplate: spec: template: spec: _mounts: {
-					"mc-config": {
-						volume: secret: secretName: Reporting._mcConfigSecretName
-						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+				schedule: _reportResultProcessorCronSchedule
+				jobTemplate: spec: template: spec: {
+					_mounts: {
+						"mc-config": {
+							volume: secret: secretName: Reporting._mcConfigSecretName
+							volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+						}
+						"config-files": #ConfigMapMount
 					}
-					"config-files": #ConfigMapMount
+					_initContainers: "basic-reports-reports": Container={
+						image: _images[Container.name]
+						args:  [
+							_debugVerboseGrpcClientLoggingFlag,
+							_debugVerboseGrpcServerLoggingFlag,
+							_reportingCertCollectionFileFlag,
+							_measurementConsumerConfigFileFlag,
+							_signingPrivateKeyStoreDirFlag,
+							_encryptionKeyPairDirFlag,
+							_encryptionKeyPairConfigFileFlag,
+							_metricSpecConfigFileFlag,
+							"--port=8443",
+							"--health-port=8080",
+							"--pdp-name=\(_populationDataProviderName)",
+						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
+					}
 				}
-				schedule: _basicReportsReportsCronSchedule
 			}
 		}
 	}
@@ -333,7 +354,7 @@ package k8s
 			_sourceMatchLabels: [
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
-				"basic-reports-reports-app",
+				"report-result-post-processor-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -371,7 +392,7 @@ package k8s
 				any: {}
 			}
 		}
-		"basic-reports-reports": {
+		"report-result-processor": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 		}
 		"access-internal-api-server": {

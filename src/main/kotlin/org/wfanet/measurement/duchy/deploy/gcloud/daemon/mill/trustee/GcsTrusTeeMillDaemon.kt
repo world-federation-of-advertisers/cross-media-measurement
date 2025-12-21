@@ -17,7 +17,10 @@ package org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.trustee
 import com.google.cloud.secretmanager.v1.AccessSecretVersionRequest
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient
 import com.google.cloud.secretmanager.v1.SecretVersionName
+import com.google.protobuf.ByteString
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee.TrusTeeMillDaemon
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
@@ -37,7 +40,7 @@ class GcsTrusTeeMillDaemon : TrusTeeMillDaemon() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   @CommandLine.Option(
-    names = ["--gcp-project-id"],
+    names = ["--google-project-id"],
     description = ["The Google Cloud Project ID."],
     required = true,
   )
@@ -85,40 +88,51 @@ class GcsTrusTeeMillDaemon : TrusTeeMillDaemon() {
   }
 
   private fun saveCerts() {
-    val tlsCert = accessSecretBytes(gcpProjectId, tlsCertSecretId, SECRET_VERSION)
-    saveByteArrayToFile(tlsCert, flags.tlsFlags.certFile.path)
+    val tlsCert = accessSecret(gcpProjectId, tlsCertSecretId, SECRET_VERSION)
+    saveByteStringToFile(tlsCert, flags.tlsFlags.certFile.path)
 
-    val tlsKey = accessSecretBytes(gcpProjectId, tlsKeySecretId, SECRET_VERSION)
-    saveByteArrayToFile(tlsKey, flags.tlsFlags.privateKeyFile.path)
+    val tlsKey = accessSecret(gcpProjectId, tlsKeySecretId, SECRET_VERSION)
+    saveByteStringToFile(tlsKey, flags.tlsFlags.privateKeyFile.path)
 
     val certCollectionSecret = certCollectionSecretId
     val certCollectionFile = flags.tlsFlags.certCollectionFile
     if (certCollectionSecret != null && certCollectionFile != null) {
-      val certCollection = accessSecretBytes(gcpProjectId, certCollectionSecret, SECRET_VERSION)
-      saveByteArrayToFile(certCollection, certCollectionFile.path)
+      val certCollection = accessSecret(gcpProjectId, certCollectionSecret, SECRET_VERSION)
+      saveByteStringToFile(certCollection, certCollectionFile.path)
     }
 
-    val csCert = accessSecretBytes(gcpProjectId, csCertSecretId, SECRET_VERSION)
-    saveByteArrayToFile(csCert, flags.csCertificateDerFile.path)
+    val csCert = accessSecret(gcpProjectId, csCertSecretId, SECRET_VERSION)
+    saveByteStringToFile(csCert, flags.csCertificateDerFile.path)
 
-    val csPrivateKey = accessSecretBytes(gcpProjectId, csPrivateKeySecretId, SECRET_VERSION)
-    saveByteArrayToFile(csPrivateKey, flags.csPrivateKeyDerFile.path)
+    val csPrivateKey = accessSecret(gcpProjectId, csPrivateKeySecretId, SECRET_VERSION)
+    saveByteStringToFile(csPrivateKey, flags.csPrivateKeyDerFile.path)
   }
 
-  private fun saveByteArrayToFile(bytes: ByteArray, path: String) {
+  private fun saveByteStringToFile(bytes: ByteString, path: String) {
     val file = File(path)
     file.parentFile?.mkdirs()
-    file.writeBytes(bytes)
+    val buffer = bytes.asReadOnlyByteBuffer()
+    Files.newByteChannel(
+        file.toPath(),
+        StandardOpenOption.CREATE,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.TRUNCATE_EXISTING,
+      )
+      .use { channel ->
+        while (buffer.hasRemaining()) {
+          channel.write(buffer)
+        }
+      }
   }
 
-  private fun accessSecretBytes(projectId: String, secretId: String, version: String): ByteArray {
+  private fun accessSecret(projectId: String, secretId: String, version: String): ByteString {
     return SecretManagerServiceClient.create().use { client ->
       val secretVersionName = SecretVersionName.of(projectId, secretId, version)
       val request =
         AccessSecretVersionRequest.newBuilder().setName(secretVersionName.toString()).build()
 
       val response = client.accessSecretVersion(request)
-      response.payload.data.toByteArray()
+      response.payload.data
     }
   }
 }

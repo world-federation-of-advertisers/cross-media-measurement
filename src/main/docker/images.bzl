@@ -182,7 +182,7 @@ GKE_IMAGES = [
         repository = _PREFIX + "/duchy/honest-majority-share-shuffle-mill",
     ),
     struct(
-        name = "duchy_trus_tee_mill_job_image",
+        name = "duchy_trus_tee_mill_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/trustee:gcs_trus_tee_mill_daemon_image",
         repository = _PREFIX + "/duchy/trus-tee-mill",
     ),
@@ -297,6 +297,11 @@ REPORTING_V2_COMMON_IMAGES = [
         name = "basic_reports_reports_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_reports_job_executor_image",
         repository = _PREFIX + "/reporting/v2/basic-reports-reports",
+    ),
+    struct(
+        name = "report_result_post_processor_image",
+        image = "//src/main/python/wfa/measurement/reporting/deploy/v2/common/job:post_process_report_result_job_executor_image",
+        repository = _PREFIX + "/reporting/v2/report-result-post-processor",
     ),
     struct(
         name = "reporting_spanner_update_schema_image",

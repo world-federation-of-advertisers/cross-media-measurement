@@ -69,7 +69,7 @@ jobs:
       EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: Write auth.bazelrc
       env:
@@ -93,13 +93,13 @@ jobs:
     # Authenticate to Google Cloud. This will export some environment
     # variables, including GCLOUD_PROJECT.
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
     - name: Set up Java & Maven
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@17f84c3641ba7b8f6deff6309fc4c864478f5d62 # v3.14.1
       with:
         distribution: zulu
         java-version: '17'
@@ -198,7 +198,7 @@ jobs:
     - id: get-public-key-fingerprint
       name: Get TEE image signing key fingerprint
       env:
-        GCP_KMS_KEY_RESOURCE_NAME: projects/halo-cmm-dev/locations/global/keyRings/image-signing/cryptoKeys/image-signing-test/cryptoKeyVersions/1
+        GCP_KMS_KEY_RESOURCE_NAME: ${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME}}
       run: |
         set -euo pipefail
         gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pub.pem
@@ -238,7 +238,7 @@ jobs:
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
         DUCHY_WORKER2_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
-        DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET: ${{ vars.DUCHY_AGGREGATOR_COMPUTATIONS_SERVICE_TARGET }}
+        DUCHY_AGGREGATOR_INTERNAL_API_TARGET: ${{ vars.AGGREGATOR_INTERNAL_API_TARGET }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
@@ -285,7 +285,7 @@ jobs:
         -var="duchy_worker2_id=$DUCHY_WORKER2_ID"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"
         -var="results_fulfiller_trusted_root_ca_collection_file_path=$CONFIG_DIR/results-fulfiller-trusted-root-ca.pem"
-        -var="duchy_aggregator_computations_service_target=10.128.0.105:8443"
+        -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_INTERNAL_API_TARGET"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"

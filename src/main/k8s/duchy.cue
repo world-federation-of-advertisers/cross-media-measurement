@@ -34,6 +34,7 @@ import ("strings")
 	_shareShuffleWorkLockDuration?:    string
 	_kingdom_system_api_target:        string
 	_kingdom_public_api_target:        string
+	_trusteeMillSubnetworkRange?:      string
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
@@ -353,8 +354,13 @@ import ("strings")
 				_object_prefix + "requisition-fulfillment-server-app",
 				_object_prefix + "computations-cleaner-app",
 			]
-			_ingresses: {
-				gRpc: {
+			if _trusteeMillSubnetworkRange != _|_ {
+				_ingresses: gRpc: {
+					from: [{
+						ipBlock: {
+							cidr: _trusteeMillSubnetworkRange
+						}
+					}]
 					ports: [{
 						port: #GrpcPort
 					}]

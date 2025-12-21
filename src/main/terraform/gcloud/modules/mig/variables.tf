@@ -121,13 +121,13 @@ variable "tee_signed_image_repo" {
 }
 
 variable "java_tool_options" {
-  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable."
+  description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable (e.g., '-Xmx96G' for heap size based on machine type)."
   type        = string
-  default     = ""
+  default     = null
 }
 
-variable "otel_service_name" {
-  description = "OpenTelemetry service name"
-  type        = string
-  nullable    = false
+variable "extra_metadata" {
+  description = "Extra metadata for the instance template."
+  type        = map(string)
+  default     = {}
 }

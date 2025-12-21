@@ -39,11 +39,13 @@ message Resources {
     message ModelProvider {
       bytes authority_key_identifier = 1;
     }
+    message ModelLine {}
     oneof resource {
       MeasurementConsumer measurement_consumer = 2;
       DataProvider data_provider = 3;
       DuchyCertificate duchy_certificate = 4;
       ModelProvider model_provider = 5;
+      ModelLine model_line = 6;
     }
   }
   repeated Resource resources = 1;

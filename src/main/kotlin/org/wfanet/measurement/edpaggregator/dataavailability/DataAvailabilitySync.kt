@@ -35,11 +35,12 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -70,6 +71,8 @@ import org.wfanet.measurement.storage.StorageClient
  * 4. Model line availability intervals are computed from the persisted metadata.
  * 5. The data provider’s availability intervals are updated accordingly.
  *
+ * @property edpImpressionPath a string name assigned to the EDP. All impressions for this edp will
+ *   be within a subfolder with that name.
  * @property storageClient Client for accessing Cloud Storage blobs, used for crawling and reading
  *   metadata files.
  * @property dataProvidersStub gRPC stub for interacting with the Kingdom Data Providers service.
@@ -80,14 +83,26 @@ import org.wfanet.measurement.storage.StorageClient
  * @property throttler A throttling utility to regulate request flow to external services.
  */
 class DataAvailabilitySync(
+  private val edpImpressionPath: String,
   private val storageClient: StorageClient,
   private val dataProvidersStub: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val impressionMetadataServiceStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val throttler: Throttler,
+  private val impressionMetadataBatchSize: Int,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
+  private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
+
+  init {
+    require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
+    require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(impressionMetadataBatchSize > 0) {
+      "impressionMetadataBatchSize must be greater than zero"
+    }
+  }
+
   /**
    * Synchronizes impression availability data after a completion signal.
    *
@@ -107,8 +122,10 @@ class DataAvailabilitySync(
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
 
-      require(VALID_IMPRESSION_PATH_PREFIX.matches(folderPrefix)) {
-        "Folder prefix $folderPrefix does not match expected pattern $VALID_IMPRESSION_PATH_PREFIX"
+      if (edpImpressionPath.isNotBlank()) {
+        require(validImpressionPathRegex.matches(folderPrefix)) {
+          "Folder prefix $folderPrefix does not match expected pattern $validImpressionPathRegex"
+        }
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
@@ -216,21 +233,21 @@ class DataAvailabilitySync(
   }
 
   private suspend fun saveImpressionMetadata(impressionMetadataList: List<ImpressionMetadata>) {
-    val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
-      mutableListOf()
-    impressionMetadataList.forEach {
-      createImpressionMetadataRequests.add(
-        createImpressionMetadataRequest {
-          parent = dataProviderName
-          this.impressionMetadata = it
-          requestId = uuidV4FromPath(it.blobUri)
-        }
-      )
-    }
     try {
-      throttler.onReady {
-        createImpressionMetadataRequests.forEach {
-          impressionMetadataServiceStub.createImpressionMetadata(it)
+      impressionMetadataList.chunked(impressionMetadataBatchSize).forEach { chunk ->
+        val batchRequest: BatchCreateImpressionMetadataRequest =
+          batchCreateImpressionMetadataRequest {
+            parent = dataProviderName
+            chunk.forEach { metadata ->
+              requests += createImpressionMetadataRequest {
+                parent = dataProviderName
+                impressionMetadata = metadata
+                requestId = uuidV4FromPath(metadata.blobUri)
+              }
+            }
+          }
+        throttler.onReady {
+          impressionMetadataServiceStub.batchCreateImpressionMetadata(batchRequest)
         }
       }
     } catch (e: StatusException) {
@@ -370,7 +387,6 @@ class DataAvailabilitySync(
     private const val METADATA_FILE_NAME = "metadata"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
-    private val VALID_IMPRESSION_PATH_PREFIX: Regex = Regex("^edp/[^/]+/[^/]+(/.*)?$")
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }

@@ -143,6 +143,7 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
     // included in mill logs to help debugging.
     val millId = flags.millId
+    val claimedComputationFlags = flags.claimedComputationFlags
 
     val privateKeyStore =
       flags.keyEncryptionKeyTinkFile?.let { file ->
@@ -184,7 +185,10 @@ abstract class HonestMajorityShareShuffleMillJob : Runnable {
       )
 
     runBlocking(CoroutineName("Mill $millId")) {
-      mill.processClaimedWork(flags.claimedGlobalComputationId, flags.claimedComputationVersion)
+      mill.processClaimedWork(
+        claimedComputationFlags.claimedGlobalComputationId,
+        claimedComputationFlags.claimedComputationVersion,
+      )
 
       // Continue processing until work is exhausted.
       do {

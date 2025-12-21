@@ -16,22 +16,19 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.server
 
-import java.io.File
-import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.ServiceFlags
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
-import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.server.AbstractInternalReportingServer
 import org.wfanet.measurement.reporting.deploy.v2.common.service.DataServices
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
@@ -47,46 +44,29 @@ import picocli.CommandLine
 class GCloudInternalReportingServer : AbstractInternalReportingServer() {
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
-  @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
-
-  @CommandLine.Option(
-    names = ["--impression-qualification-filter-config-file"],
-    description =
-      [
-        "Path to file containing a ImpressionQualificationsFilterConfig protobuf message in text format"
-      ],
-    required = true,
-  )
-  private lateinit var impressionQualificationFilterConfigFile: File
 
   override fun run() = runBlocking {
-    val clock = Clock.systemUTC()
-    val idGenerator = RandomIdGenerator(clock)
+    validateCommandLine()
+    val idGenerator = RandomIdGenerator()
     val serviceDispatcher: CoroutineDispatcher = serviceFlags.executor.asCoroutineDispatcher()
 
     val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
     val postgresClient = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     if (basicReportsEnabled) {
-      if (
-        spannerFlags.projectName.isEmpty() ||
-          spannerFlags.instanceName.isEmpty() ||
-          spannerFlags.databaseName.isEmpty()
-      ) {
-        throw CommandLine.MissingParameterException(
-          spec.commandLine(),
-          spec.args(),
-          "--spanner-project, --spanner-instance, and --spanner-database are all required if --basic-reports-enabled is set to true",
-        )
-      }
-
-      val impressionQualificationFiltersConfig =
+      val impressionQualificationFilterConfig =
         parseTextProto(
           impressionQualificationFilterConfigFile,
           ImpressionQualificationFilterConfig.getDefaultInstance(),
         )
+
+      val eventMessageDescriptor = getEventMessageDescriptor()
+
       val impressionQualificationFilterMapping =
-        ImpressionQualificationFilterMapping(impressionQualificationFiltersConfig)
+        ImpressionQualificationFilterMapping(
+          impressionQualificationFilterConfig,
+          eventMessageDescriptor,
+        )
 
       spannerFlags.usingSpanner { spanner: SpannerDatabaseConnector ->
         val spannerClient = spanner.databaseClient
@@ -96,6 +76,7 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             postgresClient,
             spannerClient,
             impressionQualificationFilterMapping,
+            eventMessageDescriptor,
             disableMetricsReuse,
             serviceDispatcher,
           )
@@ -106,8 +87,9 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
         DataServices.create(
           idGenerator,
           postgresClient,
-          null,
-          null,
+          spannerClient = null,
+          impressionQualificationFilterMapping = null,
+          eventMessageDescriptor = null,
           disableMetricsReuse,
           serviceDispatcher,
         )

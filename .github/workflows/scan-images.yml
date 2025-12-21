@@ -101,7 +101,7 @@ jobs:
         run:
           echo "path=${IMAGE//\//_}.sarif" >> $GITHUB_OUTPUT
       - name: Run Trivy image scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         env:
           TRIVY_SKIP_DB_UPDATE: true
           TRIVY_SKIP_JAVA_DB_UPDATE: true
@@ -110,7 +110,7 @@ jobs:
           format: sarif
           output: ${{ steps.get-sarif-file-path.outputs.path }}
       - name: Upload scan results to GitHub
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e # v4.31.8
         with:
           sarif_file: ${{ steps.get-sarif-file-path.outputs.path }}
           category: trivy-${{ matrix.image }}

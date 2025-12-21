@@ -1,5 +1,7 @@
 # WFA Measurement System
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/world-federation-of-advertisers/cross-media-measurement/badge)](https://scorecard.dev/viewer/?uri=github.com/world-federation-of-advertisers/cross-media-measurement)
+
 **Table of Contents**
 
 *   [Purpose](#purpose)

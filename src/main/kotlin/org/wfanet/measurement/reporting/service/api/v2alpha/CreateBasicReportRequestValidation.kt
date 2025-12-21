@@ -19,14 +19,16 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.Descriptors
 import io.grpc.Status
 import java.util.UUID
-import kotlin.collections.List
 import kotlin.collections.Set
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.mediatype.toEventAnnotationMediaType
+import org.wfanet.measurement.reporting.service.api.DataProviderNotFoundForCampaignGroupException
+import org.wfanet.measurement.reporting.service.api.EventTemplateFieldInvalidException
 import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
@@ -43,672 +45,663 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 
-private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
+object CreateBasicReportRequestValidation {
+  private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
 
-/**
- * Validates a [CreateBasicReportRequest]. Only supports validation that does not requires gRPC
- * calls
- *
- * @param request
- * @param campaignGroup
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateCreateBasicReportRequest(
-  request: CreateBasicReportRequest,
-  campaignGroup: ReportingSet,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (request.basicReportId.isEmpty()) {
-    throw RequiredFieldNotSetException("basic_report_id")
+  data class ParsedFields(
+    val parentKey: MeasurementConsumerKey,
+    val impressionQualificationFilterKeys: Set<ImpressionQualificationFilterKey>,
+  )
+
+  private data class CampaignGroupInfo(val name: String, val dataProviderNames: Set<String>) {
+    constructor(
+      campaignGroup: ReportingSet
+    ) : this(
+      campaignGroup.name,
+      buildSet {
+        for (eventGroupName in campaignGroup.primitive.cmmsEventGroupsList) {
+          val eventGroupKey = requireNotNull(EventGroupKey.fromName(eventGroupName))
+          add(eventGroupKey.parentKey.toName())
+        }
+      },
+    )
   }
 
-  if (!request.basicReportId.matches(RESOURCE_ID_REGEX)) {
-    throw InvalidFieldValueException("basic_report_id")
-  }
-
-  if (request.requestId.isNotEmpty()) {
-    try {
-      UUID.fromString(request.requestId)
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("request_id") { "Not a UUID" }
+  /**
+   * Validates [request].
+   *
+   * This does not validate the
+   * [request.basicReport.campaignGroup][org.wfanet.measurement.reporting.v2alpha.BasicReport.campaignGroup]
+   * field.
+   *
+   * @throws InvalidFieldValueException
+   * @throws RequiredFieldNotSetException
+   * @throws DataProviderNotFoundForCampaignGroupException
+   * @throws EventTemplateFieldInvalidException
+   * @throws FieldUnimplementedException
+   */
+  fun validateRequest(
+    request: CreateBasicReportRequest,
+    campaignGroup: ReportingSet,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ): ParsedFields {
+    if (request.basicReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("basic_report_id")
     }
-  }
 
-  if (campaignGroup.campaignGroup != campaignGroup.name) {
-    throw InvalidFieldValueException("basic_report.campaign_group") { "Not a Campaign Group" }
-  }
+    if (!request.basicReportId.matches(RESOURCE_ID_REGEX)) {
+      throw InvalidFieldValueException("basic_report_id")
+    }
 
-  if (request.basicReport.hasReportingInterval()) {
-    validateReportingInterval(request.basicReport.reportingInterval)
-  } else {
-    throw RequiredFieldNotSetException("basic_report.reporting_interval")
-  }
+    if (request.requestId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("request_id", e) { fieldPath ->
+          "$fieldPath is not a valid UUID"
+        }
+      }
+    }
 
-  if (request.basicReport.modelLine.isNotEmpty()) {
-    ModelLineKey.fromName(request.basicReport.modelLine)
-      ?: throw InvalidFieldValueException("basic_report.model_line")
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-  }
-
-  validateReportingImpressionQualificationFilters(
-    request.basicReport.impressionQualificationFiltersList,
-    eventTemplateFieldsByPath,
-  )
-  validateResultGroupSpecs(
-    request.basicReport.resultGroupSpecsList,
-    campaignGroup,
-    eventTemplateFieldsByPath,
-  )
-}
-
-/**
- * Validates a [List] of [ResultGroupSpec]
- *
- * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
- * @param campaignGroup [ReportingSet] to validate against
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateResultGroupSpecs(
-  resultGroupSpecs: List<ResultGroupSpec>,
-  campaignGroup: ReportingSet,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (resultGroupSpecs.isEmpty()) {
-    throw RequiredFieldNotSetException("basic_report.result_group_specs")
-  }
-
-  val dataProviderNameSet: Set<String> = buildSet {
-    for (cmmsEventGroup in campaignGroup.primitive.cmmsEventGroupsList) {
-      val eventGroupKey = EventGroupKey.fromName(cmmsEventGroup)
-      add(eventGroupKey!!.parentKey.toName())
     }
-  }
+    val parentKey =
+      MeasurementConsumerKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent") { fieldPath ->
+          "$fieldPath is not a valid MeasurmentConsumer resource name"
+        }
 
-  for (resultGroupSpec in resultGroupSpecs) {
-    if (
-      resultGroupSpec.metricFrequency.selectorCase ==
-        MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
-    ) {
-      throw RequiredFieldNotSetException("basic_report.result_group_specs.metric_frequency")
+    if (!request.hasBasicReport()) {
+      throw RequiredFieldNotSetException("basic_report")
     }
-
-    if (resultGroupSpec.hasReportingUnit()) {
-      validateReportingUnit(resultGroupSpec.reportingUnit, dataProviderNameSet)
+    if (request.basicReport.hasReportingInterval()) {
+      validateReportingInterval(request.basicReport.reportingInterval)
     } else {
-      throw RequiredFieldNotSetException("basic_report.result_group_specs.reporting_unit")
+      throw RequiredFieldNotSetException("basic_report.reporting_interval")
     }
-
-    if (resultGroupSpec.hasDimensionSpec()) {
-      validateDimensionSpec(resultGroupSpec.dimensionSpec, eventTemplateFieldsByPath)
-    } else {
-      throw RequiredFieldNotSetException("basic_report.result_group_specs.dimension_spec")
+    if (request.basicReport.modelLine.isNotEmpty()) {
+      ModelLineKey.fromName(request.basicReport.modelLine)
+        ?: throw InvalidFieldValueException("basic_report.model_line")
     }
-
-    if (resultGroupSpec.hasResultGroupMetricSpec()) {
-      validateResultGroupMetricSpec(
-        resultGroupSpec.resultGroupMetricSpec,
-        resultGroupSpec.metricFrequency.selectorCase,
+    val impressionQualificationFilterKeyByName =
+      validateReportingImpressionQualificationFilters(
+        request.basicReport.impressionQualificationFiltersList,
+        eventTemplateFieldsByPath,
       )
-    } else {
-      throw RequiredFieldNotSetException("basic_report.result_group_specs.result_group_metric_spec")
-    }
-  }
-}
 
-/**
- * Validates a [ReportingUnit]
- *
- * @param reportingUnit [ReportingUnit] to validate
- * @param dataProviderNameSet [Set] of [DataProvider] names that CampaignGroup is associated with
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateReportingUnit(reportingUnit: ReportingUnit, dataProviderNameSet: Set<String>) {
-  if (reportingUnit.componentsList.isEmpty()) {
-    throw InvalidFieldValueException("basic_report.result_group_specs.reporting_unit.components")
+    validateResultGroupSpecs(
+      request.basicReport.resultGroupSpecsList,
+      eventTemplateFieldsByPath,
+      CampaignGroupInfo(campaignGroup),
+    )
+
+    return ParsedFields(parentKey, impressionQualificationFilterKeyByName)
   }
 
-  for (component in reportingUnit.componentsList) {
-    DataProviderKey.fromName(component)
-      ?: throw InvalidFieldValueException(
-        "basic_report.result_group_specs.reporting_unit.components"
-      ) { fieldName ->
-        "$component in $fieldName is not a valid data provider name"
+  /**
+   * Validates [resultGroupSpecs] within the context of a [CreateBasicReportRequest].
+   *
+   * @param resultGroupSpecs [List] of [ResultGroupSpec] to validate
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws [RequiredFieldNotSetException] when validation fails
+   * @throws [InvalidFieldValueException] when validation fails
+   * @throws FieldUnimplementedException
+   */
+  private fun validateResultGroupSpecs(
+    resultGroupSpecs: List<ResultGroupSpec>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+    campaignGroupInfo: CampaignGroupInfo,
+  ) {
+    val fieldPath = "basic_report.result_group_specs"
+    if (resultGroupSpecs.isEmpty()) {
+      throw RequiredFieldNotSetException(fieldPath)
+    }
+
+    resultGroupSpecs.forEachIndexed { index, resultGroupSpec ->
+      val resultGroupSpecFieldPath = "$fieldPath[$index]"
+      if (
+        resultGroupSpec.metricFrequency.selectorCase ==
+          MetricFrequencySpec.SelectorCase.SELECTOR_NOT_SET
+      ) {
+        throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.metric_frequency")
       }
 
-    if (!dataProviderNameSet.contains(component)) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.reporting_unit.components"
-      ) { fieldName ->
-        "$component in $fieldName does not have any cmms_event_groups in campaign_group"
+      if (resultGroupSpec.hasReportingUnit()) {
+        validateReportingUnit(
+          resultGroupSpec.reportingUnit,
+          "$resultGroupSpecFieldPath.reporting_unit",
+          campaignGroupInfo,
+        )
+      } else {
+        throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.reporting_unit")
+      }
+
+      if (resultGroupSpec.hasDimensionSpec()) {
+        validateDimensionSpec(
+          resultGroupSpec.dimensionSpec,
+          "$resultGroupSpecFieldPath.dimension_spec",
+          eventTemplateFieldsByPath,
+        )
+      } else {
+        throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.dimension_spec")
+      }
+
+      if (resultGroupSpec.hasResultGroupMetricSpec()) {
+        validateResultGroupMetricSpec(
+          resultGroupSpec.resultGroupMetricSpec,
+          "$resultGroupSpecFieldPath.result_group_metric_spec",
+          resultGroupSpec.metricFrequency.selectorCase,
+        )
+      } else {
+        throw RequiredFieldNotSetException("$resultGroupSpecFieldPath.result_group_metric_spec")
       }
     }
   }
-}
 
-/**
- * Validates a [DimensionSpec]
- *
- * @param dimensionSpec [DimensionSpec] to validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateDimensionSpec(
-  dimensionSpec: DimensionSpec,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  val groupingEventTemplateFieldsSet: Set<String> = buildSet {
-    if (dimensionSpec.hasGrouping()) {
-      validateDimensionSpecGrouping(dimensionSpec.grouping, eventTemplateFieldsByPath)
-      for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
-        add(eventTemplateFieldPath)
+  /**
+   * Validates [reportingUnit] within the context of a [CreateBasicReportRequest].
+   *
+   * @param fieldPath Path of [reportingUnit] relative to the request message
+   * @param campaignGroupInfo Information about the Campaign Group for the BasicReport
+   */
+  private fun validateReportingUnit(
+    reportingUnit: ReportingUnit,
+    fieldPath: String,
+    campaignGroupInfo: CampaignGroupInfo,
+  ) {
+    if (reportingUnit.componentsList.isEmpty()) {
+      throw InvalidFieldValueException("$fieldPath.components")
+    }
+
+    reportingUnit.componentsList.forEachIndexed { index, component ->
+      DataProviderKey.fromName(component)
+        ?: throw InvalidFieldValueException("$fieldPath.components[$index]") { fieldPath ->
+          "$fieldPath is not a valid data provider name"
+        }
+
+      if (!campaignGroupInfo.dataProviderNames.contains(component)) {
+        throw DataProviderNotFoundForCampaignGroupException(component, campaignGroupInfo.name)
       }
     }
   }
 
-  for (eventFilter in dimensionSpec.filtersList) {
-    if (eventFilter.termsList.isEmpty()) {
-      throw RequiredFieldNotSetException(
-        "basic_report.result_group_specs.dimension_spec.filters.terms"
-      )
-    }
-    if (eventFilter.termsList.size > 1) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.dimension_spec.filters.terms"
-      ) { fieldName ->
-        "$fieldName can only have a size of 1"
+  /**
+   * Validates [dimensionSpec] within the context of a [CreateBasicReportRequest].
+   *
+   * @param dimensionSpec [DimensionSpec] to validate
+   * @param fieldPath Path of [dimensionSpec] relative to the request
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws RequiredFieldNotSetException
+   * @throws InvalidFieldValueException
+   * @throws EventTemplateFieldInvalidException
+   */
+  private fun validateDimensionSpec(
+    dimensionSpec: DimensionSpec,
+    fieldPath: String,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ) {
+    val groupingEventTemplateFieldsSet: Set<String> = buildSet {
+      if (dimensionSpec.hasGrouping()) {
+        validateDimensionSpecGrouping(
+          dimensionSpec.grouping,
+          "$fieldPath.grouping",
+          eventTemplateFieldsByPath,
+        )
+        for (eventTemplateFieldPath in dimensionSpec.grouping.eventTemplateFieldsList) {
+          add(eventTemplateFieldPath)
+        }
       }
     }
 
-    for (eventTemplateField in eventFilter.termsList) {
-      validateDimensionSpecEventTemplateField(eventTemplateField, eventTemplateFieldsByPath)
-      if (groupingEventTemplateFieldsSet.contains(eventTemplateField.path)) {
-        throw InvalidFieldValueException(
-          "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-        ) { fieldName ->
-          "$fieldName is already in basic_report.result_group_specs.dimension_spec.grouping.event_template_fields for the same dimension_spec"
+    dimensionSpec.filtersList.forEachIndexed { index, eventFilter ->
+      val filterFieldPath = "$fieldPath.filters[$index]"
+      if (eventFilter.termsList.isEmpty()) {
+        throw RequiredFieldNotSetException("$filterFieldPath.terms")
+      }
+      if (eventFilter.termsList.size > 1) {
+        throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
+          "$fieldName can only have a size of 1"
+        }
+      }
+
+      eventFilter.termsList.forEachIndexed { index, term ->
+        val termFieldPath = "$filterFieldPath.terms[$index]"
+        validateDimensionSpecEventTemplateField(term, termFieldPath, eventTemplateFieldsByPath)
+        if (groupingEventTemplateFieldsSet.contains(term.path)) {
+          throw InvalidFieldValueException(termFieldPath) { fieldName ->
+            "$fieldName is already in $fieldPath.grouping.event_template_fields for the same dimension_spec"
+          }
         }
       }
     }
   }
-}
 
-/**
- * Validates a [DimensionSpec.Grouping]
- *
- * @param grouping [DimensionSpec.Grouping] to validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateDimensionSpecGrouping(
-  grouping: DimensionSpec.Grouping,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (grouping.eventTemplateFieldsList.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-    )
-  }
+  /**
+   * Validates [grouping] within the context of a [CreateBasicReportRequest].
+   *
+   * @param grouping [DimensionSpec.Grouping] to validate
+   * @param fieldPath Path of [grouping] relative to the request
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws RequiredFieldNotSetException
+   * @throws EventTemplateFieldInvalidException
+   */
+  private fun validateDimensionSpecGrouping(
+    grouping: DimensionSpec.Grouping,
+    fieldPath: String,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ) {
+    if (grouping.eventTemplateFieldsList.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.event_template_fields")
+    }
 
-  for (eventTemplateFieldPath in grouping.eventTemplateFieldsList) {
-    val eventTemplateFieldInfo =
-      eventTemplateFieldsByPath[eventTemplateFieldPath]
-        ?: throw InvalidFieldValueException(
-          "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-        ) { fieldName ->
-          "$fieldName contains event template field that doesn't exist"
+    for (eventTemplateFieldPath in grouping.eventTemplateFieldsList) {
+      val eventTemplateFieldInfo =
+        eventTemplateFieldsByPath[eventTemplateFieldPath]
+          ?: throw EventTemplateFieldInvalidException(eventTemplateFieldPath) {
+            eventTemplateFieldPath ->
+            "$eventTemplateFieldPath does not exist in event message"
+          }
+
+      if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
+        throw EventTemplateFieldInvalidException(eventTemplateFieldPath) { eventTemplateFieldPath ->
+          "$eventTemplateFieldPath is not groupable"
         }
-
-    if (!eventTemplateFieldInfo.supportedReportingFeatures.groupable) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-      ) { fieldName ->
-        "$fieldName contains event template field that is not groupable"
       }
-    }
 
-    if (!eventTemplateFieldInfo.isPopulationAttribute) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.dimension_spec.grouping.event_template_fields"
-      ) { fieldName ->
-        "$fieldName contains event template field that is not a population attribute"
+      if (!eventTemplateFieldInfo.isPopulationAttribute) {
+        throw EventTemplateFieldInvalidException(eventTemplateFieldPath) { eventTemplateFieldPath ->
+          "$eventTemplateFieldPath is not a population attribute"
+        }
       }
     }
   }
-}
 
-/**
- * Validates an [EventTemplateField] for a [DimensionSpec]
- *
- * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateDimensionSpecEventTemplateField(
-  eventTemplateField: EventTemplateField,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (eventTemplateField.path.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-    )
-  } else {
+  /**
+   * Validates [eventTemplateField] within the context of a [CreateBasicReportRequest].
+   *
+   * @param eventTemplateField [EventTemplateField] to validate
+   * @param fieldPath Path of [eventTemplateField] relative to the request
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws EventTemplateFieldInvalidException
+   * @throws RequiredFieldNotSetException
+   * @throws InvalidFieldValueException
+   */
+  private fun validateDimensionSpecEventTemplateField(
+    eventTemplateField: EventTemplateField,
+    fieldPath: String,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ) {
+    if (eventTemplateField.path.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.path")
+    }
+    if (!eventTemplateField.hasValue()) {
+      throw RequiredFieldNotSetException("$fieldPath.value")
+    }
+
     val eventTemplateFieldInfo =
       eventTemplateFieldsByPath[eventTemplateField.path]
-        ?: throw InvalidFieldValueException(
-          "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-        ) { fieldName ->
-          "$fieldName doesn't exist"
-        }
+        ?: throw EventTemplateFieldInvalidException(eventTemplateField.path)
 
     if (!eventTemplateFieldInfo.supportedReportingFeatures.filterable) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-      ) { fieldName ->
-        "$fieldName is not filterable"
+      throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath ->
+        "$eventTemplateFieldPath is not filterable"
+      }
+    }
+    if (!eventTemplateFieldInfo.isPopulationAttribute) {
+      throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath ->
+        "$eventTemplateFieldPath is not a population attribute"
       }
     }
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    validateEventTemplateFieldValue(eventTemplateField, fieldPath, eventTemplateFieldInfo)
+  }
+
+  /**
+   * Validates [eventTemplateField] in the context of a [CreateBasicReportRequest].
+   *
+   * @param fieldPath Path of [eventTemplateField] relative to the request
+   * @throws EventTemplateFieldInvalidException
+   * @throws RequiredFieldNotSetException
+   */
+  private fun validateEventTemplateFieldValue(
+    eventTemplateField: EventTemplateField,
+    fieldPath: String,
+    eventTemplateFieldInfo: EventMessageDescriptor.EventTemplateFieldInfo,
+  ) {
     when (eventTemplateField.value.selectorCase) {
       EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.string_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
+          throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+            ->
+            "Incorrect value type specified for template field $eventTemplateFieldPath"
           }
         }
       }
+
       EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM) {
+          throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+            ->
+            "Incorrect value type specified for template field $eventTemplateFieldPath"
+          }
+        }
         if (
-          eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
-              null
+          eventTemplateFieldInfo.enumType!!.findValueByName(eventTemplateField.value.enumValue) ==
+            null
         ) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.enum_value"
-          ) { fieldName ->
-            "$fieldName is invalid for for ${eventTemplateField.path}"
+          throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+            ->
+            "Invalid enum value specified for template field $eventTemplateFieldPath"
           }
         }
       }
+
       EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
         if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.bool_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
+          throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+            ->
+            "Incorrect value type specified for template field $eventTemplateFieldPath"
           }
         }
-      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
-          throw InvalidFieldValueException(
-            "basic_report.result_group_specs.dimension_spec.filters.terms.value.float_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
-          }
-        }
-      }
-      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
-        throw RequiredFieldNotSetException(
-          "basic_report.result_group_specs.dimension_spec.filters.terms.value"
-        )
-      }
-    }
 
-    if (!eventTemplateFieldInfo.isPopulationAttribute) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.dimension_spec.filters.terms.path"
-      ) { fieldName ->
-        "$fieldName is not a population attribute"
+      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
+        throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+          ->
+          "Incorrect value type specified for template field $eventTemplateFieldPath"
+        }
+      }
+
+      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
+        throw RequiredFieldNotSetException("$fieldPath.value.selector")
       }
     }
   }
-}
 
-/**
- * Validates an [EventTemplateField] for an [CustomImpressionQualificationFilterSpec]
- *
- * @param eventTemplateField [EventTemplateField] to validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @param mediaType [MediaType] to check against if set
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateCustomImpressionQualificationFilterSpecEventTemplateField(
-  eventTemplateField: EventTemplateField,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-  mediaType: MediaType,
-) {
-  if (eventTemplateField.path.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-    )
-  } else {
+  /**
+   * Validates [term] of an Impression Qualification Filter (IQF) spec in the context of a
+   * [CreateBasicReportRequest].
+   *
+   * @param term [EventTemplateField] to validate
+   * @param fieldPath Path of [term] relative to the request
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @param mediaType [MediaType] to check against if set
+   * @throws EventTemplateFieldInvalidException
+   */
+  private fun validateIqfTerm(
+    term: EventTemplateField,
+    fieldPath: String,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+    mediaType: MediaType,
+  ) {
+    if (term.path.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.path")
+    }
+    if (!term.hasValue()) {
+      throw RequiredFieldNotSetException("$fieldPath.value")
+    }
+
     val eventTemplateFieldInfo =
-      eventTemplateFieldsByPath[eventTemplateField.path]
-        ?: throw InvalidFieldValueException(
-          "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-        ) { fieldName ->
-          "$fieldName doesn't exist"
+      eventTemplateFieldsByPath[term.path]
+        ?: throw EventTemplateFieldInvalidException(term.path) { eventTemplateFieldPath ->
+          "$eventTemplateFieldPath does not exist in event message"
         }
 
     if (!eventTemplateFieldInfo.supportedReportingFeatures.impressionQualification) {
-      throw InvalidFieldValueException(
-        "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-      ) { fieldName ->
-        "$fieldName cannot be used for impression qualification"
+      throw EventTemplateFieldInvalidException(term.path) { eventTemplateFieldPath ->
+        "$eventTemplateFieldPath cannot be used for impression qualification"
       }
     }
 
     if (eventTemplateFieldInfo.mediaType != mediaType.toEventAnnotationMediaType()) {
-      throw InvalidFieldValueException(
-        "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.path"
-      ) { fieldName ->
+      throw InvalidFieldValueException("$fieldPath.path") { fieldName ->
         "$fieldName does not have same media_type as parent ImpressionQualificationFilterSpec"
       }
     }
 
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    when (eventTemplateField.value.selectorCase) {
-      EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> {
-        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.STRING) {
-          throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.string_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
-          }
+    validateEventTemplateFieldValue(term, fieldPath, eventTemplateFieldInfo)
+  }
+
+  /**
+   * Validates a [ResultGroupMetricSpec]
+   *
+   * @param resultGroupMetricSpec [ResultGroupMetricSpec] to validate
+   * @param metricFrequencySelectorCase [MetricFrequencySpec.SelectorCase] to validate against
+   * @throws [RequiredFieldNotSetException] when validation fails
+   * @throws [InvalidFieldValueException] when validation fails
+   * @throws [FieldUnimplementedException] when validation fails
+   */
+  private fun validateResultGroupMetricSpec(
+    resultGroupMetricSpec: ResultGroupMetricSpec,
+    fieldPath: String,
+    metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase,
+  ) {
+    if (resultGroupMetricSpec.hasComponentIntersection()) {
+      throw FieldUnimplementedException("$fieldPath.component_intersection")
+    }
+
+    if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
+      if (resultGroupMetricSpec.reportingUnit.hasNonCumulative()) {
+        throw InvalidFieldValueException("$fieldPath.reporting_unit.non_cumulative") { fieldName ->
+          "$fieldName cannot be specified when metric_frequency is total"
         }
       }
-      EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-        if (
-          eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.ENUM ||
-            eventTemplateFieldInfo.enumType?.findValueByName(eventTemplateField.value.enumValue) ==
-              null
-        ) {
-          throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.enum_value"
-          ) { fieldName ->
-            "$fieldName is invalid for for ${eventTemplateField.path}"
-          }
+
+      if (resultGroupMetricSpec.component.hasNonCumulative()) {
+        throw InvalidFieldValueException("$fieldPath.component.non_cumulative") { fieldName ->
+          "$fieldName cannot be specified when metric_frequency is total"
         }
       }
-      EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE ->
-        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.BOOL) {
-          throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.bool_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
-          }
+
+      if (resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
+        throw InvalidFieldValueException("$fieldPath.component.non_cumulative_unique") { fieldName
+          ->
+          "$fieldName cannot be specified when metric_frequency is total"
         }
-      EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
-          throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value.float_value"
-          ) { fieldName ->
-            "$fieldName is invalid for ${eventTemplateField.path}"
-          }
-        }
-      }
-      EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> {
-        throw RequiredFieldNotSetException(
-          "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms.value"
-        )
       }
     }
-  }
-}
 
-/**
- * Validates a [ResultGroupMetricSpec]
- *
- * @param resultGroupMetricSpec [ResultGroupMetricSpec] to validate
- * @param metricFrequencySelectorCase [MetricFrequencySpec.SelectorCase] to validate against
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- * @throws [FieldUnimplementedException] when validation fails
- */
-fun validateResultGroupMetricSpec(
-  resultGroupMetricSpec: ResultGroupMetricSpec,
-  metricFrequencySelectorCase: MetricFrequencySpec.SelectorCase,
-) {
-  if (resultGroupMetricSpec.hasComponentIntersection()) {
-    throw FieldUnimplementedException(
-      "basic_report.result_group_specs.result_group_metric_spec.component_intersection"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.reportingUnit.cumulative,
+      "$fieldPath.reporting_unit.cumulative",
     )
-  }
-
-  if (metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.TOTAL) {
-    if (resultGroupMetricSpec.reportingUnit.hasNonCumulative()) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative"
-      ) { fieldName ->
-        "$fieldName cannot be specified when metric_frequency is total"
-      }
-    }
-
-    if (resultGroupMetricSpec.component.hasNonCumulative()) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative"
-      ) { fieldName ->
-        "$fieldName cannot be specified when metric_frequency is total"
-      }
-    }
-
-    if (resultGroupMetricSpec.component.hasNonCumulativeUnique()) {
-      throw InvalidFieldValueException(
-        "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative_unique"
-      ) { fieldName ->
-        "$fieldName cannot be specified when metric_frequency is total"
-      }
-    }
-  }
-
-  validateBasicMetricSetSpec(
-    resultGroupMetricSpec.reportingUnit.cumulative,
-    "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.cumulative.k_plus_reach",
-  )
-  validateBasicMetricSetSpec(
-    resultGroupMetricSpec.reportingUnit.nonCumulative,
-    "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.non_cumulative.k_plus_reach",
-  )
-  validateBasicMetricSetSpec(
-    resultGroupMetricSpec.component.nonCumulative,
-    "basic_report.result_group_specs.result_group_metric_spec.component.non_cumulative.k_plus_reach",
-  )
-  validateBasicMetricSetSpec(
-    resultGroupMetricSpec.component.cumulative,
-    "basic_report.result_group_specs.result_group_metric_spec.component.cumulative.k_plus_reach",
-  )
-
-  if (
-    resultGroupMetricSpec.reportingUnit.stackedIncrementalReach &&
-      metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
-  ) {
-    throw InvalidFieldValueException(
-      "basic_report.result_group_specs.result_group_metric_spec.reporting_unit.stacked_incremental_reach"
-    ) { fieldName ->
-      "$fieldName requires metric_frequency to be total"
-    }
-  }
-}
-
-/**
- * Validates a [ReportingInterval]
- *
- * @param reportingInterval [ReportingInterval] to validate
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateReportingInterval(reportingInterval: ReportingInterval) {
-  if (!reportingInterval.hasReportStart()) {
-    throw RequiredFieldNotSetException("basic_report.reporting_interval.report_start")
-  }
-
-  if (!reportingInterval.hasReportEnd()) {
-    throw RequiredFieldNotSetException("basic_report.reporting_interval.report_end")
-  }
-
-  if (
-    reportingInterval.reportStart.year == 0 ||
-      reportingInterval.reportStart.month == 0 ||
-      reportingInterval.reportStart.day == 0 ||
-      !(reportingInterval.reportStart.hasTimeZone() || reportingInterval.reportStart.hasUtcOffset())
-  ) {
-    throw InvalidFieldValueException("basic_report.reporting_interval.report_start") { fieldName ->
-      "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
-    }
-  }
-
-  if (
-    reportingInterval.reportEnd.year == 0 ||
-      reportingInterval.reportEnd.month == 0 ||
-      reportingInterval.reportEnd.day == 0
-  ) {
-    throw InvalidFieldValueException("basic_report.reporting_interval.report_end") { fieldName ->
-      "$fieldName requires year, month, and day to be set"
-    }
-  }
-}
-
-/**
- * Validates a [List] of [ReportingImpressionQualificationFilter]
- *
- * @param reportingImpressionQualificationFilters [List] of [ReportingImpressionQualificationFilter]
- *   to validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateReportingImpressionQualificationFilters(
-  reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (reportingImpressionQualificationFilters.isEmpty()) {
-    throw RequiredFieldNotSetException("basic_report.impression_qualification_filters")
-  }
-
-  var customImpressionQualificationFilterUsed = false
-  for (impressionQualificationFilter in reportingImpressionQualificationFilters) {
-    if (impressionQualificationFilter.hasImpressionQualificationFilter()) {
-      ImpressionQualificationFilterKey.fromName(
-        impressionQualificationFilter.impressionQualificationFilter
-      )
-        ?: throw InvalidFieldValueException(
-          "basic_report.impression_qualification_filters.impression_qualification_filter"
-        )
-    } else if (impressionQualificationFilter.hasCustom()) {
-      if (customImpressionQualificationFilterUsed) {
-        throw InvalidFieldValueException("basic_report.impression_qualification_filters") {
-          fieldName ->
-          "$fieldName can only have one custom filter"
-        }
-      }
-
-      customImpressionQualificationFilterUsed = true
-      validateCustomImpressionQualificationFilterSpec(
-        impressionQualificationFilter.custom,
-        eventTemplateFieldsByPath,
-      )
-    } else {
-      throw InvalidFieldValueException("basic_report.impression_qualification_filters.selector")
-    }
-  }
-}
-
-/**
- * Validates a [CustomImpressionQualificationFilterSpec]
- *
- * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
- *   validate
- * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
- *   info for the field. Used for validating [EventTemplateField]
- * @throws [RequiredFieldNotSetException] when validation fails
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateCustomImpressionQualificationFilterSpec(
-  customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec,
-  eventTemplateFieldsByPath: Map<String, EventDescriptor.EventTemplateFieldInfo>,
-) {
-  if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
-    throw RequiredFieldNotSetException(
-      "basic_report.impression_qualification_filters.custom.filter_spec"
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.reportingUnit.nonCumulative,
+      "$fieldPath.reporting_unit.non_cumulative",
     )
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.component.nonCumulative,
+      "$fieldPath.component.non_cumulative",
+    )
+    validateBasicMetricSetSpec(
+      resultGroupMetricSpec.component.cumulative,
+      "$fieldPath.component.cumulative",
+    )
+
+    if (
+      resultGroupMetricSpec.reportingUnit.stackedIncrementalReach &&
+        metricFrequencySelectorCase != MetricFrequencySpec.SelectorCase.TOTAL
+    ) {
+      throw InvalidFieldValueException("$fieldPath.reporting_unit.stacked_incremental_reach") {
+        fieldName ->
+        "$fieldName requires metric_frequency to be total"
+      }
+    }
   }
 
-  // No more than 1 filter_spec per MediaType
-  buildSet<MediaType> {
-    for (filterSpec in customImpressionQualificationFilterSpec.filterSpecList) {
-      if (this.contains(filterSpec.mediaType)) {
-        throw InvalidFieldValueException(
-          "basic_report.impression_qualification_filters.custom.filter_spec"
-        ) { fieldName ->
-          "$fieldName cannot have more than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
+  /**
+   * Validates [reportingInterval] within the context of a [CreateBasicReportRequest].
+   *
+   * @param reportingInterval [ReportingInterval] to validate
+   * @throws RequiredFieldNotSetException when validation fails
+   * @throws InvalidFieldValueException when validation fails
+   */
+  private fun validateReportingInterval(reportingInterval: ReportingInterval) {
+    val fieldPath = "basic_report.reporting_interval"
+    if (!reportingInterval.hasReportStart()) {
+      throw RequiredFieldNotSetException("$fieldPath.report_start")
+    }
+
+    if (!reportingInterval.hasReportEnd()) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end")
+    }
+
+    if (
+      reportingInterval.reportStart.year == 0 ||
+        reportingInterval.reportStart.month == 0 ||
+        reportingInterval.reportStart.day == 0 ||
+        !(reportingInterval.reportStart.hasTimeZone() ||
+          reportingInterval.reportStart.hasUtcOffset())
+    ) {
+      throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
+        "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset"
+      }
+    }
+
+    if (
+      reportingInterval.reportEnd.year == 0 ||
+        reportingInterval.reportEnd.month == 0 ||
+        reportingInterval.reportEnd.day == 0
+    ) {
+      throw InvalidFieldValueException("$fieldPath.report_end") { fieldName ->
+        "$fieldName requires year, month, and day to be set"
+      }
+    }
+  }
+
+  /**
+   * Validates [reportingImpressionQualificationFilters] within the context of a
+   * [CreateBasicReportRequest].
+   *
+   * @param reportingImpressionQualificationFilters [List] of
+   *   [ReportingImpressionQualificationFilter] to validate
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws [RequiredFieldNotSetException] when validation fails
+   * @throws [InvalidFieldValueException] when validation fails
+   */
+  private fun validateReportingImpressionQualificationFilters(
+    reportingImpressionQualificationFilters: List<ReportingImpressionQualificationFilter>,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ): Set<ImpressionQualificationFilterKey> {
+    val fieldPath = "basic_report.impression_qualification_filters"
+
+    return buildSet {
+      var customImpressionQualificationFilterUsed = false
+      reportingImpressionQualificationFilters.forEachIndexed { index, reportingIqf ->
+        val reportingIqfFieldPath = "$fieldPath[$index]"
+        when (reportingIqf.selectorCase) {
+          ReportingImpressionQualificationFilter.SelectorCase.IMPRESSION_QUALIFICATION_FILTER -> {
+            val key =
+              ImpressionQualificationFilterKey.fromName(reportingIqf.impressionQualificationFilter)
+                ?: throw InvalidFieldValueException(
+                  "$reportingIqfFieldPath.impression_qualification_filter"
+                )
+            add(key)
+          }
+
+          ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
+            if (customImpressionQualificationFilterUsed) {
+              throw InvalidFieldValueException(fieldPath) { fieldPath ->
+                "$fieldPath may have at most one entry with a custom filter"
+              }
+            }
+            validateCustomImpressionQualificationFilterSpec(
+              reportingIqf.custom,
+              "$reportingIqfFieldPath.custom",
+              eventTemplateFieldsByPath,
+            )
+
+            customImpressionQualificationFilterUsed = true
+          }
+
+          ReportingImpressionQualificationFilter.SelectorCase.SELECTOR_NOT_SET ->
+            throw RequiredFieldNotSetException("$reportingIqfFieldPath.selector")
         }
       }
-      add(filterSpec.mediaType)
+    }
+  }
 
-      if (filterSpec.filtersList.isEmpty()) {
-        throw RequiredFieldNotSetException(
-          "basic_report.impression_qualification_filters.custom.filter_spec.filters"
-        )
-      }
+  /**
+   * Validates a [CustomImpressionQualificationFilterSpec]
+   *
+   * @param customImpressionQualificationFilterSpec [CustomImpressionQualificationFilterSpec] to
+   *   validate
+   * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message
+   *   to info for the field. Used for validating [EventTemplateField]
+   * @throws [RequiredFieldNotSetException] when validation fails
+   * @throws [InvalidFieldValueException] when validation fails
+   */
+  private fun validateCustomImpressionQualificationFilterSpec(
+    customImpressionQualificationFilterSpec: CustomImpressionQualificationFilterSpec,
+    fieldPath: String,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+  ) {
+    if (customImpressionQualificationFilterSpec.filterSpecList.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPath.filter_spec")
+    }
 
-      for (eventFilter in filterSpec.filtersList) {
-        if (eventFilter.termsList.isEmpty()) {
-          throw RequiredFieldNotSetException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
-          )
-        }
-        if (eventFilter.termsList.size > 1) {
-          throw InvalidFieldValueException(
-            "basic_report.impression_qualification_filters.custom.filter_spec.filters.terms"
-          ) { fieldName ->
-            "$fieldName can only have a size of 1"
+    // No more than 1 filter_spec per MediaType
+    buildSet<MediaType> {
+      customImpressionQualificationFilterSpec.filterSpecList.forEachIndexed { index, filterSpec ->
+        if (this.contains(filterSpec.mediaType)) {
+          throw InvalidFieldValueException("$fieldPath.filter_specs") { fieldName ->
+            "$fieldName cannot have more than 1 filter_spec for MediaType ${filterSpec.mediaType}. Only 1 filter_spec per MediaType allowed"
           }
         }
+        add(filterSpec.mediaType)
 
-        for (eventTemplateField in eventFilter.termsList) {
-          validateCustomImpressionQualificationFilterSpecEventTemplateField(
-            eventTemplateField,
-            eventTemplateFieldsByPath,
-            filterSpec.mediaType,
-          )
+        val filterSpecFieldPath = "$fieldPath.filter_specs[$index]"
+        if (filterSpec.filtersList.isEmpty()) {
+          throw RequiredFieldNotSetException("$filterSpecFieldPath.filters")
+        }
+
+        filterSpec.filtersList.forEachIndexed { filterIndex, filter ->
+          val filterFieldPath = "$filterSpecFieldPath.filters[$filterIndex]"
+          if (filter.termsList.isEmpty()) {
+            throw RequiredFieldNotSetException("$filterFieldPath.terms")
+          }
+          if (filter.termsList.size > 1) {
+            throw InvalidFieldValueException("$filterFieldPath.terms") { fieldName ->
+              "$fieldName can only have a size of 1"
+            }
+          }
+
+          filter.termsList.forEachIndexed { termIndex, term ->
+            validateIqfTerm(
+              term,
+              "$filterFieldPath.terms[$termIndex]",
+              eventTemplateFieldsByPath,
+              filterSpec.mediaType,
+            )
+          }
         }
       }
     }
   }
-}
 
-/**
- * Validates a [ResultGroupMetricSpec.BasicMetricSetSpec]
- *
- * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] to validate
- * @param kPlusReachFieldName field name to use in error
- * @throws [InvalidFieldValueException] when validation fails
- */
-fun validateBasicMetricSetSpec(
-  basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
-  kPlusReachFieldName: String,
-) {
-  if (basicMetricSetSpec.percentKPlusReach) {
-    if (basicMetricSetSpec.kPlusReach <= 0) {
-      throw InvalidFieldValueException(kPlusReachFieldName) { fieldName ->
-        "$fieldName must have a positive value"
+  /**
+   * Validates [basicMetricSetSpec] within the context of a [CreateBasicReportRequest],
+   *
+   * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] to validate
+   * @param fieldPath Path of [basicMetricSetSpec] relative to the request
+   * @throws InvalidFieldValueException
+   */
+  private fun validateBasicMetricSetSpec(
+    basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
+    fieldPath: String,
+  ) {
+    if (basicMetricSetSpec.percentKPlusReach) {
+      if (basicMetricSetSpec.kPlusReach <= 0) {
+        throw InvalidFieldValueException("$fieldPath.k_plus_reach") { fieldName ->
+          "$fieldName must have a positive value"
+        }
       }
     }
   }

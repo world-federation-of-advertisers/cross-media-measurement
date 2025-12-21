@@ -480,7 +480,7 @@ class MetricReport:
         edp
         for edp in self._weekly_non_cumulative_measurements.keys()
         if len(self._weekly_non_cumulative_measurements[edp]) > 0 and
-          self._weekly_non_cumulative_measurements[edp][0].k_reach is not None
+          self._weekly_non_cumulative_measurements[edp][0].k_reach
     }
 
   def get_weekly_non_cumulative_impression_edp_combinations(self) -> set[EdpCombination]:
@@ -615,16 +615,17 @@ class Report:
     self._population_size = population_size
 
     # All metrics in the set relationships must have a corresponding report.
-    for parent in metric_subsets_by_parent.keys():
-      if not (parent in metric_reports):
-        raise ValueError(
-            "key {1} does not have a corresponding report".format(parent)
-        )
-      for child in metric_subsets_by_parent[parent]:
-        if not (child in metric_reports):
-          raise ValueError(
-              "key {1} does not have a corresponding report".format(child)
-          )
+    if metric_subsets_by_parent:
+        for parent in metric_subsets_by_parent.keys():
+            if not (parent in metric_reports):
+                raise ValueError(
+                "key {1} does not have a corresponding report".format(parent)
+                )
+            for child in metric_subsets_by_parent[parent]:
+                if not (child in metric_reports):
+                    raise ValueError(
+                        "key {1} does not have a corresponding report".format(child)
+                    )
 
     self._metric_index = {}
     for index, metric in enumerate(metric_reports.keys()):
