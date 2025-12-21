@@ -19,8 +19,8 @@ locals {
   kms_key_name                    = "${var.simulator_name}-kek"
   edp_service_account_name        = "${var.simulator_name}"
   tee_decrypter_account_name      = "${var.simulator_name}-kms-decrypt"
-  workload_identity_pool_id       = "${var.simulator_name}-workload-identity-pool"
-  workload_identity_pool_name     = "${var.simulator_name}-workload-identity-pool"
+  workload_identity_pool_id       = "${var.simulator_name}-wip"
+  workload_identity_pool_name     = "${var.simulator_name}-wip"
   workload_identity_provider_id   = "trustee-provider"
   workload_identity_provider_name = "trustee-provider"
 }
