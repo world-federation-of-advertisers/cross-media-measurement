@@ -157,7 +157,7 @@ class InProcessReportingServer(
 
   val internalReportResultsClient by lazy { ReportResultsCoroutineStub(internalApiChannel) }
 
-  lateinit var _internalReportingServer: CommonServer
+  private lateinit var _internalReportingServer: CommonServer
 
   // An server that isn't inProcess is required for a Python process.
   private val internalReportingServerRule = TestRule { base, _ ->
@@ -379,7 +379,7 @@ class InProcessReportingServer(
             .apply(base, description)
             .evaluate()
         } finally {
-          internalApiChannel.shutdown()
+          internalApiChannel.shutdownNow()
           internalReportingServer.shutdown()
         }
       }
