@@ -157,6 +157,16 @@ locals {
     "event_group_sync"          = module.event_group_sync_cloud_function.cloud_function_service_account.email
     "data_availability_sync"    = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   }
+
+  otel_metadata = {
+    "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
+    "tee-env-OTEL_METRICS_EXPORTER"                 = "google_cloud_monitoring",
+    "tee-env-OTEL_TRACES_EXPORTER"                  = "google_cloud_trace",
+    "tee-env-OTEL_LOGS_EXPORTER"                    = "logging",
+    "tee-env-OTEL_SERVICE_NAME"                     = "edpa.results_fulfiller",
+    "tee-env-OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID" = data.google_project.project.project_id
+    "tee-env-OTEL_METRIC_EXPORT_INTERVAL"           = "60000"
+  }
 }
 
 module "edp_aggregator_bucket" {
@@ -327,7 +337,7 @@ module "result_fulfiller_tee_app" {
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   # TODO(world-federation-of-advertisers/cross-media-measurement#2924): Rename `results_fulfiller` into `results-fulfiller`
   tee_signed_image_repo         = "ghcr.io/world-federation-of-advertisers/edp-aggregator/results_fulfiller"
-  otel_service_name             = "edpa.results_fulfiller"
+  extra_metadata                = local.otel_metadata
 }
 
 resource "google_storage_bucket_iam_member" "result_fulfiller_storage_viewer" {

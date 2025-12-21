@@ -291,7 +291,6 @@ class ResultsFulfiller(
         )
 
     val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val frequencyDataBytes = frequencyVector.getByteArray()
     val signedRequisitionSpec: SignedMessage =
       try {
         withContext(Dispatchers.IO) {
@@ -333,7 +332,7 @@ class ResultsFulfiller(
             requisition,
             measurementSpec,
             requisitionSpec,
-            frequencyDataBytes,
+            frequencyVector,
             populationSpec,
           )
         val fulfillerType =
