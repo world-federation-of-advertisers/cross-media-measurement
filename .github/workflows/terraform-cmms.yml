@@ -66,6 +66,7 @@ jobs:
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       RESULTS_FULFILLER_POPULATION_SPEC_CONTENT: ${{ vars.RESULTS_FULFILLER_POPULATION_SPEC_CONTENT }}
       RESULTS_FULFILLER_TRUSTED_CA_CONTENT: ${{ secrets.RESULTS_FULFILLER_TRUSTED_CA_CONTENT }}
+      EDP_SIMULATOR_NAMES: '["edp1-simulator", "edp2-simulator", "edp3-simulator", "edp4-simulator", "edp5-simulator", "edp6-simulator"]'
 
     steps:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -194,6 +195,18 @@ jobs:
         -lockfile=readonly
         -backend-config="bucket=$TF_STORAGE_BUCKET"
 
+    - id: get-public-key-fingerprint
+      name: Get TEE image signing key fingerprint
+      env:
+        GCP_KMS_KEY_RESOURCE_NAME: ${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME}}
+      run: |
+        set -euo pipefail
+        gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pub.pem
+        KEY_ID=$(openssl pkey -pubin -in pub.pem -outform DER | openssl sha256 | cut -d' ' -f2)
+        FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
+        echo "fingerprint=${FINGERPRINT}" >> "$GITHUB_OUTPUT"
+
+
     - name: terraform plan
       env:
         KEY_RING: ${{ vars.KEY_RING }}
@@ -229,6 +242,7 @@ jobs:
         DUCHY_AGGREGATOR_INTERNAL_API_TARGET: ${{ vars.AGGREGATOR_INTERNAL_API_TARGET }}
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
+        TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -275,6 +289,8 @@ jobs:
         -var="duchy_aggregator_computations_service_target=$DUCHY_AGGREGATOR_INTERNAL_API_TARGET"
         -var="kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
         -var="duchy_aggregator_cert_id=$AGGREGATOR_DUCHY_CERT_ID"
+        -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
+        -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -out=tfplan
 
     - name: terraform apply
