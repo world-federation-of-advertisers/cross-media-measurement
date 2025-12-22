@@ -197,6 +197,7 @@ package k8s
 						"--certificate-cache-expiration-duration=\(_certificateCacheExpirationDuration)",
 						"--data-provider-cache-expiration-duration=\(_dataProviderCacheExpirationDuration)",
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
+						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
@@ -391,7 +392,7 @@ package k8s
 				any: {}
 			}
 		}
-		"report-result-processor": {
+		"report-result-post-processor": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.
