@@ -156,10 +156,12 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     health: SettableHealth,
     random: Random,
   ): AbstractEdpSimulator {
-    val kmsClient =
-      requireNotNull(GcpKmsClient().withDefaultCredentials()) { "Failed to initialize KMS client." }
     val trusTeeEncryptionParams =
       trusTeeParams?.let {
+        val kmsClient =
+          requireNotNull(GcpKmsClient().withDefaultCredentials()) {
+            "Failed to initialize KMS client."
+          }
         TrusTeeFulfillRequisitionRequestBuilder.EncryptionParams(
           kmsClient,
           it.kmsKekUri,
