@@ -181,11 +181,15 @@ class BasicReportsReportsJob(
                       eventTemplateFieldsByPath,
                       eventTemplateFieldByPredicate,
                     )
-                  // There is a bug with CreateBasicReports involving the storing of
-                  // ImpressionQualificationFilter information that has been fixed. BasicReports
-                  // affected by the bug will be FAILED.
+                    // There is a bug with CreateBasicReports involving the storing of
+                    // ImpressionQualificationFilter information that has been fixed. BasicReports
+                    // affected by the bug will be FAILED.
                   } catch (e: NoSuchElementException) {
-                    logger.log(Level.WARNING, "BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()} is affected by a bug that has been fixed and must be FAILED", e)
+                    logger.log(
+                      Level.WARNING,
+                      "BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()} is affected by a bug that has been fixed and must be FAILED",
+                      e,
+                    )
                     failBasicReport(
                       cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
                       externalBasicReportId = basicReport.externalBasicReportId,
@@ -216,7 +220,8 @@ class BasicReportsReportsJob(
               }
             }
           } catch (e: Exception) {
-            logger.log(Level.WARNING,
+            logger.log(
+              Level.WARNING,
               "Failed to get Report Results for BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()}",
               e,
             )
