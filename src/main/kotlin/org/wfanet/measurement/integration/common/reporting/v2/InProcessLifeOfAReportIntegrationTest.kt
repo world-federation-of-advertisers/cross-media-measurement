@@ -26,12 +26,8 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
 import java.time.LocalDate
-import kotlin.io.path.name
 import kotlin.math.max
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.Deferred
@@ -81,7 +77,6 @@ import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -3362,31 +3357,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     // For a 99.9% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
 
-    private val POST_PROCESS_REPORT_RESULT_FILE: File = createPostProcessReportResultFile()
-
-    private fun createPostProcessReportResultFile(): File {
-      val postProcessReportResultZipName =
-        "src/main/python/wfa/measurement/reporting/deploy/v2/common/job/post_process_report_result_job_executor.zip"
-
-      /*
-      val zipPath: Path =
-        this::class.java.classLoader.getJarResourcePath(postProcessReportResultZipName)
-          ?: error("$postProcessReportResultZipName not found in JAR")
-
-      val postProcessReportResultFile =
-        File.createTempFile(zipPath.name, "").apply { deleteOnExit() }
-
-      // Copies python zip package from JAR to local directory.
-      //Files.copy(
-      //  zipPath,
-      //  postProcessReportResultFile.toPath(),
-      //  StandardCopyOption.REPLACE_EXISTING,
-      //)
-
-       */
-
-      return File(postProcessReportResultZipName)
-    }
+    private val POST_PROCESS_REPORT_RESULT_FILE: File =
+      File("src/main/python/wfa/measurement/reporting/deploy/v2/common/job/post_process_report_result_job_executor.zip")
 
     @BeforeClass
     @JvmStatic
