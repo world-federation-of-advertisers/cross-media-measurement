@@ -259,7 +259,6 @@ class MetricsService(
   keyReaderContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
-  private val skipAuth: Boolean = false,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -1213,10 +1212,7 @@ class MetricsService(
       }
 
     val measurementConsumerName: String = metricKey.parentKey.toName()
-
-    if (!skipAuth) {
-      authorization.check(listOf(request.name, measurementConsumerName), Permission.GET)
-    }
+    authorization.check(listOf(request.name, measurementConsumerName), Permission.GET)
 
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[measurementConsumerName]
@@ -1256,9 +1252,7 @@ class MetricsService(
     val measurementConsumerName: String = parentKey.toName()
 
     // TODO(@SanjayVas): Consider also allowing permission on each Metric.
-    if (!skipAuth) {
-      authorization.check(measurementConsumerName, Permission.GET)
-    }
+    authorization.check(measurementConsumerName, Permission.GET)
 
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[measurementConsumerName]
@@ -1310,10 +1304,7 @@ class MetricsService(
       }
 
     val measurementConsumerName: String = parentKey.toName()
-
-    if (!skipAuth) {
-      authorization.check(measurementConsumerName, Permission.LIST)
-    }
+    authorization.check(measurementConsumerName, Permission.LIST)
 
     val measurementConsumerConfig =
       measurementConsumerConfigs.configsMap[measurementConsumerName]
@@ -1374,10 +1365,7 @@ class MetricsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     val measurementConsumerName: String = metricKey.parentKey.toName()
-
-    if (!skipAuth) {
-      authorization.check(measurementConsumerName, Permission.INVALIDATE)
-    }
+    authorization.check(measurementConsumerName, Permission.INVALIDATE)
 
     try {
       return internalMetricsStub
@@ -1485,10 +1473,7 @@ class MetricsService(
         }
       }
     }
-
-    if (!skipAuth) {
-      authorization.check(measurementConsumerName, requiredPermissionIds)
-    }
+    authorization.check(measurementConsumerName, requiredPermissionIds)
 
     val batchGetReportingSetsResponse =
       batchGetInternalReportingSets(
@@ -1595,10 +1580,7 @@ class MetricsService(
         }
       }
     }
-
-    if (!skipAuth) {
-      authorization.check(measurementConsumerName, requiredPermissionIds)
-    }
+    authorization.check(measurementConsumerName, requiredPermissionIds)
 
     grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
     grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
