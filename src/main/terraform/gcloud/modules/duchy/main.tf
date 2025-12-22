@@ -143,7 +143,7 @@ resource "google_monitoring_dashboard" "dashboards" {
 resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
   count = var.trustee_config != null ? 1 : 0
 
-  name          = "${var.name}-trustee-mill-compute-subnetwork"
+  name          = "${var.name}-trustee-mill-subnetwork"
   region        = data.google_client_config.default.region
   network       = var.trustee_mill_subnetwork_network
   ip_cidr_range = var.trustee_mill_subnetwork_cidr_range
@@ -154,7 +154,7 @@ resource "google_compute_subnetwork" "trustee_mill_subnetwork" {
 resource "google_compute_router" "trustee_mill_router" {
   count   = var.trustee_config != null ? 1 : 0
 
-  name    = "${var.name}-trustee-mill-compute-router"
+  name    = "${var.name}-trustee-mill-router"
   region  = data.google_client_config.default.region
   network = var.trustee_mill_subnetwork_network
 }
@@ -163,7 +163,7 @@ resource "google_compute_router" "trustee_mill_router" {
 resource "google_compute_router_nat" "trustee_mill_nat" {
   count = var.trustee_config != null ? 1 : 0
 
-  name                               = "${var.name}-trustee-mill-compute-router-nat"
+  name                               = "${var.name}-trustee-mill-router-nat"
   router                             = google_compute_router.trustee_mill_router[0].name
   region                             = google_compute_router.trustee_mill_router[0].region
   nat_ip_allocate_option             = "AUTO_ONLY"
