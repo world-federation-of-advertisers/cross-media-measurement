@@ -298,6 +298,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -372,6 +373,7 @@ class BasicReportsService(
         InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
         InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+        InternalErrors.Reason.INVALID_BASIC_REPORT,
         null -> Exception("Error retrieving internal ImpressionQualificationFilter", e)
       }
     }
@@ -473,6 +475,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -518,6 +521,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
