@@ -69,6 +69,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.createImpressionQual
 import org.wfanet.measurement.reporting.service.api.v2alpha.createMetricCalculationSpecFilters
 import org.wfanet.measurement.reporting.service.api.v2alpha.toEventFilter
 import org.wfanet.measurement.reporting.service.api.v2alpha.toImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.service.internal.InvalidBasicReportException
 import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -184,10 +185,10 @@ class BasicReportsReportsJob(
                     // There is a bug with CreateBasicReports involving the storing of
                     // ImpressionQualificationFilter information that has been fixed. BasicReports
                     // affected by the bug will be FAILED.
-                  } catch (e: NoSuchElementException) {
+                  } catch (e: InvalidBasicReportException) {
                     logger.log(
                       Level.WARNING,
-                      "BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()} is affected by a bug that has been fixed and must be FAILED",
+                      "BasicReport is affected by a bug that has been fixed and must be FAILED",
                       e,
                     )
                     failBasicReport(
@@ -241,7 +242,7 @@ class BasicReportsReportsJob(
    * @param eventTemplateFieldByPredicate Map of Predicate String from
    *   [MetricCalculationSpec.Grouping] to [EventTemplateField]
    * @return [ReportResult]
-   * @throws NoSuchElementException When [BasicReport] was created incorrectly
+   * @throws [InvalidBasicReportException] When [BasicReport] was created incorrectly
    */
   private suspend fun transformReportResults(
     reportResult: ReportResult,
@@ -269,7 +270,11 @@ class BasicReportsReportsJob(
         externalReportResultId = reportResult.externalReportResultId
 
         reportingSetResult = reportingSetResult {
-          val filterInfo = filterInfoByFilter.getValue(reportingSetResultInfoEntry.key.filter)
+          val filterInfo = filterInfoByFilter[reportingSetResultInfoEntry.key.filter]
+            ?: throw InvalidBasicReportException(
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId,
+              externalBasicReportId = basicReport.externalBasicReportId,
+            )
           dimension =
             ReportingSetResultKt.dimension {
               externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId
