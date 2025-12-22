@@ -331,9 +331,7 @@ private fun buildBasicReport(row: Struct): BasicReport {
           cmmsModelLineId = row.getString("CmmsModelLineId")
         }
     }
-    if (!row.isNull("ModelLineSystemSpecified")) {
-      modelLineSystemSpecified = row.getBoolean("ModelLineSystemSpecified")
-    }
+    modelLineSystemSpecified = row.getBoolean("ModelLineSystemSpecified")
     if (!row.isNull("ExternalReportResultId")) {
       externalReportResultId = row.getLong("ExternalReportResultId")
     }

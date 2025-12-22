@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -172,13 +173,26 @@ class BasicReportsReportsJob(
                     }
                   )
                 val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
-                  transformReportResults(
-                    reportResult,
-                    basicReport,
-                    report,
-                    eventTemplateFieldsByPath,
-                    eventTemplateFieldByPredicate,
-                  )
+                  try {
+                    transformReportResults(
+                      reportResult,
+                      basicReport,
+                      report,
+                      eventTemplateFieldsByPath,
+                      eventTemplateFieldByPredicate,
+                    )
+                  // There is a bug with CreateBasicReports involving the storing of
+                  // ImpressionQualificationFilter information that has been fixed. BasicReports
+                  // affected by the bug will be FAILED.
+                  } catch (e: NoSuchElementException) {
+                    logger.log(Level.WARNING, "BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()} is affected by a bug that has been fixed and must be FAILED", e)
+                    failBasicReport(
+                      cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                      externalBasicReportId = basicReport.externalBasicReportId,
+                    )
+                    continue
+                  }
+
                 reportResultsStub.batchCreateReportingSetResults(
                   batchCreateReportingSetResultsRequest {
                     this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
@@ -202,13 +216,10 @@ class BasicReportsReportsJob(
               }
             }
           } catch (e: Exception) {
-            logger.log(Level.WARNING, "Failed to get Report Results for BasicReports", e)
-            if (e is NoSuchElementException) {
-              failBasicReport(
-                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                externalBasicReportId = basicReport.externalBasicReportId,
-              )
-            }
+            logger.log(Level.WARNING,
+              "Failed to get Report Results for BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()}",
+              e,
+            )
           }
         }
       }
