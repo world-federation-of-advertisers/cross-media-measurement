@@ -185,11 +185,9 @@ class BasicReportsReportsJob(
                 )
               }
               Report.State.FAILED -> {
-                internalBasicReportsStub.failBasicReport(
-                  failBasicReportRequest {
-                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                    externalBasicReportId = basicReport.externalBasicReportId
-                  }
+                failBasicReport(
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  externalBasicReportId = basicReport.externalBasicReportId,
                 )
               }
 
@@ -201,6 +199,12 @@ class BasicReportsReportsJob(
             }
           } catch (e: Exception) {
             logger.log(Level.WARNING, "Failed to get Report Results for BasicReports", e)
+            if (e is NoSuchElementException) {
+              failBasicReport(
+                cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                externalBasicReportId = basicReport.externalBasicReportId,
+              )
+            }
           }
         }
       }
@@ -217,6 +221,7 @@ class BasicReportsReportsJob(
    * @param eventTemplateFieldByPredicate Map of Predicate String from
    *   [MetricCalculationSpec.Grouping] to [EventTemplateField]
    * @return [ReportResult]
+   * @throws NoSuchElementException When [BasicReport] was created incorrectly
    */
   private suspend fun transformReportResults(
     reportResult: ReportResult,
@@ -693,6 +698,15 @@ class BasicReportsReportsJob(
           univariateStatistics = source.univariateStatistics.toNoisyMetricSetUnivariateStatistics()
         }
       }
+  }
+
+  private suspend fun failBasicReport(cmmsMeasurementConsumerId: String, externalBasicReportId: String) {
+    internalBasicReportsStub.failBasicReport(
+      failBasicReportRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        this.externalBasicReportId = externalBasicReportId
+      }
+    )
   }
 
   private data class MetricCalculationSpecInfo(
