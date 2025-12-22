@@ -114,7 +114,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
   }
 
   @Test
-  fun `basic report ccompletes with expected result`() = runBlocking {
+  fun `basic report completes with expected result`() = runBlocking {
     reportingTestHarness.testBasicReport(runId)
   }
 
