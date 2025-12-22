@@ -30,6 +30,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.service.internal.Errors
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.common.IdGenerator
@@ -38,14 +39,20 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.access.ListRolesPageTokenKt
 import org.wfanet.measurement.internal.access.ListRolesRequest
 import org.wfanet.measurement.internal.access.ListRolesResponse
+import org.wfanet.measurement.internal.access.PoliciesGrpcKt
+import org.wfanet.measurement.internal.access.PolicyKt
+import org.wfanet.measurement.internal.access.PrincipalKt.oAuthUser
+import org.wfanet.measurement.internal.access.PrincipalsGrpcKt
 import org.wfanet.measurement.internal.access.Role
 import org.wfanet.measurement.internal.access.RolesGrpcKt
 import org.wfanet.measurement.internal.access.copy
+import org.wfanet.measurement.internal.access.createUserPrincipalRequest
 import org.wfanet.measurement.internal.access.deleteRoleRequest
 import org.wfanet.measurement.internal.access.getRoleRequest
 import org.wfanet.measurement.internal.access.listRolesPageToken
 import org.wfanet.measurement.internal.access.listRolesRequest
 import org.wfanet.measurement.internal.access.listRolesResponse
+import org.wfanet.measurement.internal.access.policy
 import org.wfanet.measurement.internal.access.role
 
 @RunWith(JUnit4::class)
@@ -58,6 +65,22 @@ abstract class RolesServiceTest {
 
   private fun initService(idGenerator: IdGenerator = IdGenerator.Default) =
     initService(TestConfig.PERMISSION_MAPPING, idGenerator)
+
+  protected data class Services(
+    /** Service under test. */
+    val service: RolesGrpcKt.RolesCoroutineImplBase,
+    val principalsService: PrincipalsGrpcKt.PrincipalsCoroutineImplBase,
+    val policiesServices: PoliciesGrpcKt.PoliciesCoroutineImplBase,
+  )
+
+  protected abstract fun initServices(
+    permissionMapping: PermissionMapping,
+    tlsClientMapping: TlsClientPrincipalMapping,
+    idGenerator: IdGenerator,
+  ): Services
+
+  private fun initServices(idGenerator: IdGenerator = IdGenerator.Default) =
+    initServices(TestConfig.PERMISSION_MAPPING, TestConfig.TLS_CLIENT_MAPPING, idGenerator)
 
   @Test
   fun `getRole throws NOT_FOUND when Role not found`() = runBlocking {
@@ -349,6 +372,45 @@ abstract class RolesServiceTest {
           permissionResourceIds += TestConfig.PermissionResourceId.BOOKS_GET
         }
       )
+
+    service.deleteRole(deleteRoleRequest { roleResourceId = role.roleResourceId })
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getRole(getRoleRequest { roleResourceId = role.roleResourceId })
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `deleteRole deletes Role when policy exists`() = runBlocking {
+    val (service, principalsService, policiesService) = initServices()
+
+    val createPrincipalRequest = createUserPrincipalRequest {
+      principalResourceId = "user-1"
+      user = oAuthUser {
+        issuer = "example-issuer"
+        subject = "user@example.com"
+      }
+    }
+    val principal = principalsService.createUserPrincipal(createPrincipalRequest)
+
+    val role =
+      service.createRole(
+        role {
+          roleResourceId = "bookReader"
+          resourceTypes += TestConfig.ResourceType.BOOK
+          permissionResourceIds += TestConfig.PermissionResourceId.BOOKS_GET
+        }
+      )
+
+    val createPolicyRequest = policy {
+      policyResourceId = "fantasy-shelf-policy"
+      protectedResourceName = "shelves/fantasy"
+      bindings[role.roleResourceId] =
+        PolicyKt.members { memberPrincipalResourceIds += principal.principalResourceId }
+    }
+    policiesService.createPolicy(createPolicyRequest)
 
     service.deleteRole(deleteRoleRequest { roleResourceId = role.roleResourceId })
 
