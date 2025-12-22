@@ -3365,24 +3365,27 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     private val POST_PROCESS_REPORT_RESULT_FILE: File = createPostProcessReportResultFile()
 
     private fun createPostProcessReportResultFile(): File {
-      val postProcessReportResultResourceName =
+      val postProcessReportResultZipName =
         "src/main/python/wfa/measurement/reporting/deploy/v2/common/job/post_process_report_result_job_executor.zip"
 
-      val resourcePath: Path =
-        this::class.java.classLoader.getJarResourcePath(postProcessReportResultResourceName)
-          ?: error("$postProcessReportResultResourceName not found in JAR")
+      /*
+      val zipPath: Path =
+        this::class.java.classLoader.getJarResourcePath(postProcessReportResultZipName)
+          ?: error("$postProcessReportResultZipName not found in JAR")
 
       val postProcessReportResultFile =
-        File.createTempFile(resourcePath.name, "").apply { deleteOnExit() }
+        File.createTempFile(zipPath.name, "").apply { deleteOnExit() }
 
       // Copies python zip package from JAR to local directory.
-      Files.copy(
-        resourcePath,
-        postProcessReportResultFile.toPath(),
-        StandardCopyOption.REPLACE_EXISTING,
-      )
+      //Files.copy(
+      //  zipPath,
+      //  postProcessReportResultFile.toPath(),
+      //  StandardCopyOption.REPLACE_EXISTING,
+      //)
 
-      return postProcessReportResultFile
+       */
+
+      return File(postProcessReportResultZipName)
     }
 
     @BeforeClass
