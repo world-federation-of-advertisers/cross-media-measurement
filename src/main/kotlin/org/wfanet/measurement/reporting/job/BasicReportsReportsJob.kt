@@ -137,29 +137,27 @@ class BasicReportsReportsJob(
           try {
             val actualReportsStub =
               if (measurementConsumerConfig.offlinePrincipal.isNotEmpty()) {
-                reportsStub
-                  .withCallCredentials(
-                    TrustedPrincipalAuthInterceptor.Credentials(
-                      // TODO(@SanjayVas): Read full Principal from Access.
-                      principal { name = measurementConsumerConfig.offlinePrincipal },
-                      setOf("reporting.reports.get", "reporting.metrics.get"),
-                    )
+                reportsStub.withCallCredentials(
+                  TrustedPrincipalAuthInterceptor.Credentials(
+                    // TODO(@SanjayVas): Read full Principal from Access.
+                    principal { name = measurementConsumerConfig.offlinePrincipal },
+                    setOf("reporting.reports.get", "reporting.metrics.get"),
                   )
+                )
               } else {
                 reportsStub
               }
-              val report =
-                actualReportsStub
-                .getReport(
-                  getReportRequest {
-                    name =
-                      ReportKey(
-                          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                          reportId = basicReport.externalReportId,
-                        )
-                        .toName()
-                  }
-                )
+            val report =
+              actualReportsStub.getReport(
+                getReportRequest {
+                  name =
+                    ReportKey(
+                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                        reportId = basicReport.externalReportId,
+                      )
+                      .toName()
+                }
+              )
 
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
             when (report.state) {
