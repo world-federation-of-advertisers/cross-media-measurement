@@ -52,17 +52,16 @@ import "list"
 	_gcp_location:              string
 
 	let DisplayName = _edpConfig.displayName
-
-	let RequisitionFulfillmentServiceOptions = list.FlattenN([
-		for config in _requisitionFulfillmentServiceConfigs {[
+	let RequisitionFulfillmentServiceOptions = {
+		let flagLists = [ for config in _requisitionFulfillmentServiceConfigs {[
 			"--requisition-fulfillment-service-duchy-id=\(config.duchyId)",
 			"--requisition-fulfillment-service-target=\(config.duchyPublicApiTarget)",
 			"--requisition-fulfillment-service-cert-host=localhost",
-		]},
-	], 2)
-
-	let EventGroupOptions = list.FlattenN([
-		for config in _edpConfig.eventGroupConfigs {
+		]}]
+		list.FlattenN(flagLists, 2)
+	}
+	let EventGroupOptions = {
+		let Lists = [ for config in _edpConfig.eventGroupConfigs {
 			[
 				"--event-group-reference-id-suffix=\(config.referenceIdSuffix)",
 				"--event-group-synthetic-spec=\(config.syntheticDataSpecPath)",
@@ -70,8 +69,9 @@ import "list"
 				"--event-group-campaign-name=\(config.campaignName)",
 				for mediaType in config.mediaTypes {"--event-group-media-type=\(mediaType)"},
 			]
-		},
-	], 2)
+		}]
+		list.FlattenN(Lists, 2)
+	}
 
 	let keyRingName = "\(DisplayName)-simulator-key-ring"
 	let kekName = "\(DisplayName)-simulator-kek"
