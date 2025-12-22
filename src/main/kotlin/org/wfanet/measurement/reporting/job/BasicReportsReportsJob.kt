@@ -700,7 +700,10 @@ class BasicReportsReportsJob(
       }
   }
 
-  private suspend fun failBasicReport(cmmsMeasurementConsumerId: String, externalBasicReportId: String) {
+  private suspend fun failBasicReport(
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+  ) {
     internalBasicReportsStub.failBasicReport(
       failBasicReportRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
