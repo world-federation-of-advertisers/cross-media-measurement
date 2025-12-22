@@ -266,11 +266,12 @@ class BasicReportsReportsJob(
         externalReportResultId = reportResult.externalReportResultId
 
         reportingSetResult = reportingSetResult {
-          val filterInfo = filterInfoByFilter[reportingSetResultInfoEntry.key.filter]
-            ?: throw InvalidBasicReportException(
-              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId,
-              externalBasicReportId = basicReport.externalBasicReportId,
-            )
+          val filterInfo =
+            filterInfoByFilter[reportingSetResultInfoEntry.key.filter]
+              ?: throw InvalidBasicReportException(
+                cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId,
+                externalBasicReportId = basicReport.externalBasicReportId,
+              )
           dimension =
             ReportingSetResultKt.dimension {
               externalReportingSetId = reportingSetResultInfoEntry.key.externalReportingSetId

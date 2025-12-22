@@ -250,13 +250,13 @@ class ResourceSetup(
                 signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
                 offlinePrincipal =
                   PrincipalKey(
-                    tlsClientPrincipalMapping
-                      .getByAuthorityKeyIdentifier(
-                        resource
-                          .measurementConsumer
-                          .authorityKeyIdentifier
-                      )!!.principalResourceId
-                  ).toName()
+                      tlsClientPrincipalMapping
+                        .getByAuthorityKeyIdentifier(
+                          resource.measurementConsumer.authorityKeyIdentifier
+                        )!!
+                        .principalResourceId
+                    )
+                    .toName()
               },
             )
           else -> continue
