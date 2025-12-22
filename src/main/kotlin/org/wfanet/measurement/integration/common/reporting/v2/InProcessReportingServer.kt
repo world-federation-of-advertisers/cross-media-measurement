@@ -316,7 +316,6 @@ class InProcessReportingServer(
                 keyReaderContext = Dispatchers.IO,
                 cacheLoaderContext = Dispatchers.Default,
                 populationDataProvider = populationDataProviderName,
-                skipAuth = true,
               )
               .withTrustedPrincipalAuthentication(),
             ReportingSetsService(internalReportingSetsClient, authorization)
@@ -328,7 +327,6 @@ class InProcessReportingServer(
                 METRIC_SPEC_CONFIG,
                 authorization,
                 SecureRandom().asKotlinRandom(),
-                skipAuth = true,
               )
               .withTrustedPrincipalAuthentication(),
             BasicReportsService(

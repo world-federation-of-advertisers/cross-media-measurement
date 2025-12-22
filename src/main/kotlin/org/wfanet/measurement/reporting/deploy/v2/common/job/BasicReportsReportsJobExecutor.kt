@@ -146,7 +146,6 @@ private fun run(
         keyReaderContext = Dispatchers.IO,
         cacheLoaderContext = Dispatchers.Default,
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
-        skipAuth = true,
       )
       .withTrustedPrincipalAuthentication()
 
@@ -167,7 +166,6 @@ private fun run(
         metricSpecConfig,
         authorization,
         SecureRandom().asKotlinRandom(),
-        skipAuth = true,
       )
       .withTrustedPrincipalAuthentication()
 

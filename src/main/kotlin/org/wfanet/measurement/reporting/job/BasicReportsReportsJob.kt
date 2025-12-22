@@ -135,15 +135,21 @@ class BasicReportsReportsJob(
       resourceLists.collect { resourceList ->
         for (basicReport in resourceList.resources) {
           try {
-            val report =
-              reportsStub
-                .withCallCredentials(
-                  TrustedPrincipalAuthInterceptor.Credentials(
-                    // TODO(@SanjayVas): Read full Principal from Access.
-                    principal { name = measurementConsumerConfig.offlinePrincipal },
-                    setOf("reporting.reports.get", "reporting.metrics.get"),
+            val actualReportsStub =
+              if (measurementConsumerConfig.offlinePrincipal.isNotEmpty()) {
+                reportsStub
+                  .withCallCredentials(
+                    TrustedPrincipalAuthInterceptor.Credentials(
+                      // TODO(@SanjayVas): Read full Principal from Access.
+                      principal { name = measurementConsumerConfig.offlinePrincipal },
+                      setOf("reporting.reports.get", "reporting.metrics.get"),
+                    )
                   )
-                )
+              } else {
+                reportsStub
+              }
+              val report =
+                actualReportsStub
                 .getReport(
                   getReportRequest {
                     name =
