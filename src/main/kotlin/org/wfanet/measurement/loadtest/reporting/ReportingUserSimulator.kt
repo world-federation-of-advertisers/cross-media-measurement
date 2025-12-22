@@ -125,6 +125,7 @@ class ReportingUserSimulator(
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   impressions = true
+                  kPlusReach = 5
                 }
             }
         }
@@ -207,6 +208,8 @@ class ReportingUserSimulator(
     assertThat(retrievedCompletedBasicReport.effectiveImpressionQualificationFiltersList)
       .isNotEmpty()
     assertThat(retrievedCompletedBasicReport.resultGroupsList).isNotEmpty()
+
+    logger.info("BasicReport ${retrievedCompletedBasicReport.name} is Completed.")
   }
 
   private suspend fun getEventGroup(): EventGroup {
