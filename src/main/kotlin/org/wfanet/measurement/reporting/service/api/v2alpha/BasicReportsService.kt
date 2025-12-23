@@ -252,34 +252,30 @@ class BasicReportsService(
           it.impressionQualificationFilter to filterSpecs
         }
 
-    val customFilterSpecs:
-      List<List<ImpressionQualificationFilterSpec>> =
-      buildList {
-        addAll(
-          effectiveReportingImpressionQualificationFilters
-            .filter { it.hasCustom() }
-            .map { customIqf ->
-              val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
-                normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
+    val customFilterSpecs: List<List<ImpressionQualificationFilterSpec>> = buildList {
+      addAll(
+        effectiveReportingImpressionQualificationFilters
+          .filter { it.hasCustom() }
+          .map { customIqf ->
+            val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
+              normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
-              impressionQualificationFilterSpecsByName.forEach {
-                (iqFName, existingIqfSpecs) ->
-                val normalizedExistingIqfSpecs =
-                  normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
+            impressionQualificationFilterSpecsByName.forEach { (iqFName, existingIqfSpecs) ->
+              val normalizedExistingIqfSpecs =
+                normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
 
-                if (normalizedCustomSpecs == normalizedExistingIqfSpecs) {
-                  throw InvalidFieldValueException(
-                    "basic_report.impression_qualification_filters"
-                  ) { fieldPath ->
+              if (normalizedCustomSpecs == normalizedExistingIqfSpecs) {
+                throw InvalidFieldValueException("basic_report.impression_qualification_filters") {
+                    fieldPath ->
                     "$fieldPath contains a custom ReportingImpressionQualificationFilter that matches $iqFName"
                   }
-                    .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-                }
+                  .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
               }
-              customIqf.custom.filterSpecList
             }
-        )
-      }
+            customIqf.custom.filterSpecList
+          }
+      )
+    }
 
     val createReportRequestId = UUID.randomUUID().toString()
 
