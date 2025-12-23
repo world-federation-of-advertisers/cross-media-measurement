@@ -35,9 +35,9 @@ _worker1Id:    "worker1"
 _worker2Id:    "worker2"
 _aggregatorId: "aggregator"
 
-_google_cloud_project_id:     "cmms-local"
-_google_cloud_project_number: "12345"
-_key_ring_location:           "local"
+_googleCloudProjectId:       "cmms-local"
+_googleCloudProjectNumber:   "12345"
+_googleCloudKeyRingLocation: "local"
 
 #KingdomPublicApiTarget:    (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget:    (#Target & {name: "worker1-requisition-fulfillment-server"}).target
@@ -102,9 +102,9 @@ edpSimulators: {
 				},
 			]
 			_kingdom_public_api_target: #KingdomPublicApiTarget
-			_gcloudProjectId:           _google_cloud_project_id
-			_gcloudProjectNumber:       _google_cloud_project_number
-			_keyRingLocation:           _key_ring_location
+			_gcloudProjectId:           _googleCloudProjectId
+			_gcloudProjectNumber:       _googleCloudProjectNumber
+			_keyRingLocation:           _googleCloudKeyRingLocation
 
 			deployment: spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount

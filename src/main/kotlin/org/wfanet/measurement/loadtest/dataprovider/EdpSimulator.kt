@@ -23,7 +23,6 @@ import java.time.ZoneId
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
