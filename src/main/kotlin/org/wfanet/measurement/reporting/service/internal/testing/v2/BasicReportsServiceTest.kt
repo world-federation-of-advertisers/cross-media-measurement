@@ -1132,6 +1132,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               year = 2025
               month = 7
               day = 9
+              hours = 5
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            effectiveReportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 9
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {

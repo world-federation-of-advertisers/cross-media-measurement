@@ -1321,6 +1321,7 @@ class BasicReportsServiceTest {
           year = 2025
           month = 7
           day = 3
+          hours = 5
           timeZone = timeZone { id = "America/Los_Angeles" }
         }
         reportEnd = date {

@@ -1108,9 +1108,9 @@ class BasicReportProcessedResultsTransformationTest {
                               }
                         }
                     }
-                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.effectiveReportStart.toTimestamp()
                   metricEndTime =
-                    REPORTING_INTERVAL.reportStart
+                    REPORTING_INTERVAL.effectiveReportStart
                       .copy {
                         year = REPORTING_INTERVAL.reportEnd.year
                         month = REPORTING_INTERVAL.reportEnd.month
@@ -2685,15 +2685,12 @@ class BasicReportProcessedResultsTransformationTest {
         year = 2025
         month = 1
         day = 1
-        minutes = 5
-        seconds = 4
-        nanos = 3
-        timeZone = timeZone { id = "UTC" }
       }
       effectiveReportStart = dateTime {
         year = 2025
         month = 1
         day = 1
+        hours = 5
         timeZone = timeZone { id = "UTC" }
       }
       reportEnd = date {
