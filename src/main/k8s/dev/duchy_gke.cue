@@ -92,8 +92,6 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 }
 #ControlServiceMaxHeapSize: "192M"
 
-#TrusteeMillSubnetworkCidrRange: "10.0.0.0/24"
-
 objectSets: [defaultNetworkPolicies] + [ for objectSet in duchy {objectSet}]
 
 _cloudStorageConfig: #CloudStorageConfig & {
