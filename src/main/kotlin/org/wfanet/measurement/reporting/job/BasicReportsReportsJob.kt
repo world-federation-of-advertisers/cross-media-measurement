@@ -97,7 +97,8 @@ class BasicReportsReportsJob(
     val eventTemplateFieldByPredicate =
       buildEventTemplateFieldByPredicateMap(eventTemplateFieldsByPath)
 
-    val measurementConsumerConfigByName = measurementConsumerConfigs.configsMap
+    val measurementConsumerConfigByName =
+      measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
 
     for ((measurementConsumerName, measurementConsumerConfig) in
       measurementConsumerConfigByName.entries) {

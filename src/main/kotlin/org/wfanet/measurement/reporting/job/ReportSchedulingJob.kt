@@ -84,7 +84,8 @@ class ReportSchedulingJob(
 ) {
 
   suspend fun execute() {
-    val measurementConsumerConfigByName = measurementConsumerConfigs.configsMap
+    val measurementConsumerConfigByName =
+      measurementConsumerConfigs.configsMap.filterValues { it.offlinePrincipal.isNotEmpty() }
     // map of resource name to resource
     val dataProvidersMap: MutableMap<String, DataProvider> = mutableMapOf()
     for ((measurementConsumerName, measurementConsumerConfig) in

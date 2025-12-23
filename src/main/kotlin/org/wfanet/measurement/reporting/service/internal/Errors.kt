@@ -333,10 +333,7 @@ class InvalidBasicReportException(
 ) :
   ServiceException(
     Errors.Reason.INVALID_BASIC_REPORT,
-    """
-      BasicReport with cmms measurement consumer ID $cmmsMeasurementConsumerId and external ID
-      $externalBasicReportId is invalid
-    """,
+    "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) is invalid",
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,

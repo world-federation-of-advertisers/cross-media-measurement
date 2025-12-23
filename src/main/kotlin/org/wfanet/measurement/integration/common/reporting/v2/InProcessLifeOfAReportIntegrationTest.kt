@@ -3358,9 +3358,10 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 3.291
 
     private val POST_PROCESS_REPORT_RESULT_FILE: File =
-      File(
-        "src/main/python/wfa/measurement/reporting/deploy/v2/common/job/post_process_report_result_job_executor.zip"
-      )
+      getRuntimePath(
+        Paths.get("wfa_measurement_system", "src", "main", "python", "wfa", "measurement", "reporting", "deploy", "v2", "common", "job", "post_process_report_result_job_executor.zip")
+      )!!
+        .toFile()
 
     @BeforeClass
     @JvmStatic
