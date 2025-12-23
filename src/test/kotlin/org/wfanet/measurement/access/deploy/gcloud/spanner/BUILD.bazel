@@ -46,6 +46,8 @@ spanner_emulator_test(
     srcs = ["SpannerRolesServiceTest.kt"],
     test_class = "org.wfanet.measurement.access.deploy.gcloud.spanner.SpannerRolesServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_policies_service",
+        "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_principals_service",
         "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner:spanner_roles_service",
         "//src/main/kotlin/org/wfanet/measurement/access/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/access/service/internal/testing:roles_service_test",
