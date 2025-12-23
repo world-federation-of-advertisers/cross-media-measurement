@@ -392,8 +392,12 @@ package k8s
 				any: {}
 			}
 		}
-		"report-result-processor": {
+		"report-result-post-processor": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
+			_egresses: {
+				// Needs to call out to Kingdom.
+				any: {}
+			}
 		}
 		"access-internal-api-server": {
 			_sourceMatchLabels: ["access-public-api-server-app"]

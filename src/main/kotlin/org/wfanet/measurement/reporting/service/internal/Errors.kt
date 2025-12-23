@@ -44,6 +44,7 @@ object Errors {
     REPORTING_SET_RESULT_NOT_FOUND,
     REPORTING_WINDOW_RESULT_NOT_FOUND,
     BASIC_REPORT_STATE_INVALID,
+    INVALID_BASIC_REPORT,
   }
 
   enum class Metadata(val key: String) {
@@ -321,6 +322,21 @@ class InvalidMetricStateTransitionException(
       Errors.Metadata.EXTERNAL_METRIC_ID to externalMetricId,
       Errors.Metadata.METRIC_STATE to metricState.name,
       Errors.Metadata.NEW_METRIC_STATE to newMetricState.name,
+    ),
+    cause,
+  )
+
+class InvalidBasicReportException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.INVALID_BASIC_REPORT,
+    "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) is invalid",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
     ),
     cause,
   )

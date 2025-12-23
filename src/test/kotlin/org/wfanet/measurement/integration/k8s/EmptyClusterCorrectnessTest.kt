@@ -105,9 +105,7 @@ import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.resourcesetup.Resources
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
  * Test for correctness of the CMMS on a single "empty" Kubernetes cluster using the `local`
@@ -495,6 +493,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
+            ttl = Duration.ofMinutes(60),
           )
           .token
       }
@@ -507,9 +506,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             publicApiChannel
           ),
         reportingSetsClient = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
-        metricCalculationSpecsClient =
-          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
-        reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayHost = gatewayAddress.hostName,
         reportingGatewayPort = gatewayAddress.port,

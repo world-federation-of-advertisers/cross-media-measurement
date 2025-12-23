@@ -113,14 +113,9 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     )
   }
 
-  @Test(timeout = 1 * 60 * 1000)
-  fun `report can be created`() = runBlocking {
-    reportingTestHarness.testCreateReport("$runId-test-report")
-  }
-
-  @Test(timeout = 1 * 60 * 1000)
-  fun `basic report can be created and retrieved`() = runBlocking {
-    reportingTestHarness.testBasicReportCreationAndRetrieval(runId)
+  @Test
+  fun `basic report completes with expected result`() = runBlocking {
+    reportingTestHarness.testBasicReport(runId)
   }
 
   @Test

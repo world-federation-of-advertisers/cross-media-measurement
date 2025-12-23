@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
+import org.wfanet.measurement.access.service.PrincipalKey
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
@@ -234,6 +236,8 @@ class ResourceSetup(
       TextFormat.printer().print(akidMap, writer)
     }
 
+    val tlsClientPrincipalMapping = TlsClientPrincipalMapping(akidMap)
+
     val measurementConsumerConfig = measurementConsumerConfigs {
       for (resource in resources) {
         when (resource.resourceCase) {
@@ -244,6 +248,15 @@ class ResourceSetup(
                 apiKey = resource.measurementConsumer.apiKey
                 signingCertificateName = resource.measurementConsumer.certificate
                 signingPrivateKeyPath = MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY_PATH
+                offlinePrincipal =
+                  PrincipalKey(
+                      tlsClientPrincipalMapping
+                        .getByAuthorityKeyIdentifier(
+                          resource.measurementConsumer.authorityKeyIdentifier
+                        )!!
+                        .principalResourceId
+                    )
+                    .toName()
               },
             )
           else -> continue

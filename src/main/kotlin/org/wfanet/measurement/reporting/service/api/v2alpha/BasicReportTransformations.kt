@@ -225,7 +225,8 @@ private fun DimensionSpec.Grouping.toMetricCalculationSpecGroupings(
   return eventTemplateFieldsList.map { field ->
     val fieldInfo = eventTemplateFieldsByPath.getValue(field)
     val fieldInfoEnumType = fieldInfo.enumType as Descriptors.EnumDescriptor
-    val predicatesList = fieldInfoEnumType.values.map { "$field == ${it.number}" }
+    val predicatesList =
+      fieldInfoEnumType.values.filter { it.number > 0 }.map { "$field == ${it.number}" }
     MetricCalculationSpecKt.grouping { predicates += predicatesList }
   }
 }
@@ -652,25 +653,21 @@ private fun MutableMap<
 private fun MetricCalculationSpecInfo.updateRequestedMetricSpecs(
   basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec
 ) {
-  if (basicMetricSetSpec.reach) {
+  if (basicMetricSetSpec.reach || basicMetricSetSpec.percentReach) {
     this.includeReach = true
   }
 
-  if (basicMetricSetSpec.percentReach) {
-    this.includeReach = true
-  }
-
-  if (basicMetricSetSpec.averageFrequency || basicMetricSetSpec.kPlusReach > 0) {
+  if (basicMetricSetSpec.kPlusReach > 0 || basicMetricSetSpec.percentKPlusReach) {
     this.includeFrequency = true
     this.includeReach = true
   }
 
-  if (basicMetricSetSpec.percentKPlusReach || basicMetricSetSpec.grps) {
-    this.includeFrequency = true
+  if (basicMetricSetSpec.averageFrequency) {
     this.includeReach = true
+    this.includeImpressionCount = true
   }
 
-  if (basicMetricSetSpec.impressions) {
+  if (basicMetricSetSpec.impressions || basicMetricSetSpec.grps) {
     this.includeImpressionCount = true
   }
 }
