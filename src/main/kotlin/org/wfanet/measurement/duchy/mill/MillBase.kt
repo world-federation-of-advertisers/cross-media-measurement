@@ -224,6 +224,7 @@ abstract class MillBase(
     computationsServerReady = true
 
     if (!claimWorkResponse.hasToken()) {
+      logger.info("No work claimed.")
       return false
     }
 
