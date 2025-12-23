@@ -335,7 +335,7 @@ class BasicReportsService(
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
         impressionQualificationFilterSpecsLists =
-          impressionQualificationFilterSpecsByName.values.toList() + customFilterSpecs,
+          impressionQualificationFilterSpecsByName.values + customFilterSpecs,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
