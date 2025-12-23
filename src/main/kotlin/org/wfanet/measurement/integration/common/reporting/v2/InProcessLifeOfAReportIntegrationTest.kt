@@ -2676,7 +2676,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               retrievedBasicReport.impressionQualificationFiltersList
             effectiveModelLine = inProcessCmmsComponents.modelLineResourceName
             reportingInterval = reportingInterval.copy {
-                effectiveReportStart = reportingInterval.reportStart
+                effectiveReportStart =
+                  createBasicReportRequest.basicReport.reportingInterval.reportStart
               }
           }
         )

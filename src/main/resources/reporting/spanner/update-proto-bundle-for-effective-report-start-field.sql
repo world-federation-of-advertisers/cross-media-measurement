@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset tristanvuong2021:14 dbms:cloudspanner
+-- changeset tristanvuong2021:15 dbms:cloudspanner
 -- comment: Alter proto bundle to update Reporting Interval for effective_report_start
 
 -- Set protobuf FileDescriptorSet as a base64 string. This gets applied to the next DDL batch.
