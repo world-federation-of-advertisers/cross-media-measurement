@@ -15,7 +15,8 @@
 -- limitations under the License.
 
 -- changeset tristanvuong2021:14 dbms:cloudspanner
--- comment: Alter ModelLine Boolean in BasicReport to be NOT NULL with default false
+-- validCheckSum: 9:2f1d8b384902dc86e2a5a6e1d91403ac
+-- comment: Alter ModelLine Boolean in BasicReport to have default false
 
 ALTER TABLE BasicReports
-  ALTER COLUMN ModelLineSystemSpecified Bool NOT NULL DEFAULT(false);
+  ALTER COLUMN ModelLineSystemSpecified Bool DEFAULT(false);
