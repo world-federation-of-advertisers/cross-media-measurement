@@ -61,7 +61,8 @@ message StorageDetails {
       // The optional owner-provided external identifier used in the assume role
       // request. Only used with role_arn.
       string role_external_id = 2;
-      // An identifier for the assumed role session.
+      // An identifier for the assumed role session. If not set this will
+      // default to the exchange ID + a UUID for easier log tracing.
       string role_session_name = 3;
     }
 
