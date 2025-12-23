@@ -70,7 +70,7 @@ GCLOUD_SETTINGS = struct(
     spanner_instance = "$(spanner_instance)",
     postgres_instance = "$(postgres_instance)",
     postgres_region = "$(postgres_region)",
-    location = "$(google_cloud_location)",
+    key_ring_location = "$(key_ring_location)",
 )
 
 AWS_SETTINGS = struct(

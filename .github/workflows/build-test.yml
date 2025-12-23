@@ -92,7 +92,7 @@ jobs:
           build --define pdp_cert_name=dataProviders/foodp1/certificates/bar1
           build --define google_cloud_project=example-project
           build --define google_cloud_project_number=12345
-          build --define google_cloud_location=us-central1
+          build --define key_ring_location=us-central1
           build --define basic_reports_enabled=true
           EOF
 

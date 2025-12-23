@@ -72,6 +72,12 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Install gcloud
+      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+
+    - name: Export GCLOUD_PROJECT_NUMBER
+      run: echo "GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT --format="value(projectNumber)")" >> $GITHUB_ENV
+
     - name: Write auth.bazelrc
       env:
         BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
@@ -100,12 +106,7 @@ jobs:
         EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
-        GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-        GCLOUD_PROJECT_NUMBER: "462363635192"
-        GCLOUD_LOCATION: "us-central1"
-        # DO_NOT_SUBMIT: Use Github variables.
-#        GCLOUD_PROJECT_NUMBER: ${{ vars.GCLOUD_PROJECT_NUMBER }}
-#        GCLOUD_LOCATION: ${{ vars.GCLOUD_LOCATION }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -114,7 +115,7 @@ jobs:
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "google_cloud_project_number=$GCLOUD_PROJECT_NUMBER"
-        build --define "google_cloud_location=$GCLOUD_LOCATION"
+        build --define "key_ring_location=$GCLOUD_REGION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define "worker1_id=worker1"
         build --define "worker1_public_api_target=$WORKER1_PUBLIC_API_TARGET"

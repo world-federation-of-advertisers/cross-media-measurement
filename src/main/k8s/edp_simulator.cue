@@ -47,9 +47,9 @@ import "list"
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
 	_imageConfig:               #ImageConfig
-	_gcp_project_id:            string
-	_gcp_project_number:        string
-	_gcp_location:              string
+	_gcloudProjectId:           string
+	_gcloudProjectNumber:       string
+	_keyRingLocation:           string
 
 	let DisplayName = _edpConfig.displayName
 	let RequisitionFulfillmentServiceOptions = {
@@ -78,9 +78,9 @@ import "list"
 	let workloadIdentityPoolName = "\(DisplayName)-simulator-wip"
 	let workloadIdentityProviderName = "trustee-provider"
 	let impersonatedServiceAccountName = "\(DisplayName)-simulator-kms-decrypt"
-	_trusteeKmsKekUriFlag:      "--trustee-kms-kek-uri=gcp-kms://projects/\(_gcp_project_id)/locations/\(_gcp_location)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)"
-	_trusteeWipFlag:            "--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcp_project_number)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)"
-	_trusteeImpersonatedSaFlag: "--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcp_project_id).iam.gserviceaccount.com"
+	_trusteeKmsKekUriFlag:      "--trustee-kms-kek-uri=gcp-kms://projects/\(_gcloudProjectId)/locations/\(_keyRingLocation)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)"
+	_trusteeWipFlag:            "--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcloudProjectNumber)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)"
+	_trusteeImpersonatedSaFlag: "--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcloudProjectId).iam.gserviceaccount.com"
 
 	deployment: #Deployment & {
 		let HealthFile = "/run/probe/healthy"
