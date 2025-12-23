@@ -260,6 +260,7 @@ class BasicReportsService(
             val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
               normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
 
+            // Check if custom ImpressionQualificationFilter already exists
             impressionQualificationFilterSpecsByName.forEach { (iqFName, existingIqfSpecs) ->
               val normalizedExistingIqfSpecs =
                 normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
