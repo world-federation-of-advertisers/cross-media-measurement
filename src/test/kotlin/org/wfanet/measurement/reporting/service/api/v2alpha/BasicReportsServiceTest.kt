@@ -1374,9 +1374,10 @@ class BasicReportsServiceTest {
           campaignGroupDisplayName = campaignGroup.displayName
           state = BasicReport.State.RUNNING
           effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
-          reportingInterval = basicReport.reportingInterval.copy {
-            effectiveReportStart = basicReport.reportingInterval.reportStart
-          }
+          reportingInterval =
+            basicReport.reportingInterval.copy {
+              effectiveReportStart = basicReport.reportingInterval.reportStart
+            }
         }
       )
     assertThat(response.createTime.seconds).isAtLeast(1)
