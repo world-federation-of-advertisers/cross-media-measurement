@@ -66,9 +66,11 @@ TEST_K8S_SETTINGS = struct(
 
 GCLOUD_SETTINGS = struct(
     project = "$(google_cloud_project)",
+    project_number = "$(google_cloud_project_number)",
     spanner_instance = "$(spanner_instance)",
     postgres_instance = "$(postgres_instance)",
     postgres_region = "$(postgres_region)",
+    key_ring_location = "$(key_ring_location)",
 )
 
 AWS_SETTINGS = struct(
@@ -98,11 +100,13 @@ DUCHY_K8S_SETTINGS = struct(
     storage_bucket = "$(duchy_storage_bucket)",
     worker1_public_api_target = "$(worker1_public_api_target)",
     worker2_public_api_target = "$(worker2_public_api_target)",
+    aggregator_public_api_target = "$(aggregator_public_api_target)",
     aggregator_system_api_target = "$(aggregator_system_api_target)",
     worker1_system_api_target = "$(worker1_system_api_target)",
     worker2_system_api_target = "$(worker2_system_api_target)",
     worker1_id = "$(worker1_id)",
     worker2_id = "$(worker2_id)",
+    aggregator_id = "$(aggregator_id)",
     public_api_address_name = "$(duchy_public_api_address_name)",
     system_api_address_name = "$(duchy_system_api_address_name)",
     internal_api_address_name = "$(duchy_internal_api_address_name)",

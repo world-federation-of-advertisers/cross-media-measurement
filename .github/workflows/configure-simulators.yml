@@ -72,6 +72,12 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
+    - name: Install gcloud
+      uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+
+    - name: Export GCLOUD_PROJECT_NUMBER
+      run: echo "GCLOUD_PROJECT_NUMBER=$(gcloud projects describe $GCLOUD_PROJECT --format="value(projectNumber)")" >> $GITHUB_ENV
+
     - name: Write auth.bazelrc
       env:
         BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
@@ -86,6 +92,7 @@ jobs:
         KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
         WORKER1_PUBLIC_API_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         WORKER2_PUBLIC_API_TARGET: ${{ vars.WORKER2_PUBLIC_API_TARGET }}
+        AGGREGATOR_PUBLIC_API_TARGET: ${{ vars.AGGREGATOR_PUBLIC_API_TARGET }}
         MC_NAME: ${{ vars.MC_NAME }}
         EDP1_NAME: ${{ vars.EDP1_NAME }}
         EDP1_CERT_NAME: ${{ vars.EDP1_CERT_NAME }}
@@ -99,6 +106,7 @@ jobs:
         EDP5_CERT_NAME: ${{ vars.EDP5_CERT_NAME }}
         EDP6_NAME: ${{ vars.EDP6_NAME }}
         EDP6_CERT_NAME: ${{ vars.EDP6_CERT_NAME }}
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -106,11 +114,15 @@ jobs:
         common --config=ghcr
         build --define "image_tag=$IMAGE_TAG"
         build --define "google_cloud_project=$GCLOUD_PROJECT"
+        build --define "google_cloud_project_number=$GCLOUD_PROJECT_NUMBER"
+        build --define "key_ring_location=$GCLOUD_REGION"
         build --define "kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
         build --define "worker1_id=worker1"
         build --define "worker1_public_api_target=$WORKER1_PUBLIC_API_TARGET"
         build --define "worker2_id=worker2"
         build --define "worker2_public_api_target=$WORKER2_PUBLIC_API_TARGET"
+        build --define "aggregator_id=aggregator"
+        build --define "aggregator_public_api_target=$AGGREGATOR_PUBLIC_API_TARGET"
         build --define "mc_name=$MC_NAME"
         build --define "edp1_name=$EDP1_NAME"
         build --define "edp1_cert_name=$EDP1_CERT_NAME"

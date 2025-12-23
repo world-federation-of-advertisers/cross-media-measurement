@@ -32,10 +32,16 @@ _edpCertResourceNames: [_edp1_cert_name, _edp2_cert_name, _edp3_cert_name, _edp4
 _secret_name:            string @tag("secret_name")
 _kingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 
-_worker1Id:              string @tag("worker1_id")
-_worker1PublicApiTarget: string @tag("worker1_public_api_target")
-_worker2Id:              string @tag("worker2_id")
-_worker2PublicApiTarget: string @tag("worker2_public_api_target")
+_worker1Id:                 string @tag("worker1_id")
+_worker1PublicApiTarget:    string @tag("worker1_public_api_target")
+_worker2Id:                 string @tag("worker2_id")
+_worker2PublicApiTarget:    string @tag("worker2_public_api_target")
+_aggregatorId:              string @tag("aggregator_id")
+_aggregatorPublicApiTarget: string @tag("aggregator_public_api_target")
+
+_googleCloudProjectId:       string @tag("google_cloud_project")
+_googleCloudProjectNumber:   string @tag("google_cloud_project_number")
+_googelCloudKeyRingLocation: string @tag("key_ring_location")
 
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
@@ -76,6 +82,7 @@ _edpConfigs: [
 		if (name == _edp1_name || name == _edp2_name || name == _edp3_name) {
 			supportHmss: true
 		}
+		supportEncryptedTrustee: true
 
 		eventGroupConfigs: [{
 			referenceIdSuffix:     ""
@@ -102,9 +109,16 @@ edp_simulators: {
 					duchyId:              _worker2Id
 					duchyPublicApiTarget: _worker2PublicApiTarget
 				},
+				{
+					duchyId:              _aggregatorId
+					duchyPublicApiTarget: _aggregatorPublicApiTarget
+				},
 			]
 			_kingdom_public_api_target: _kingdomPublicApiTarget
 			_mc_resource_name:          _mc_name
+			_gcloudProjectId:           _googleCloudProjectId
+			_gcloudProjectNumber:       _googleCloudProjectNumber
+			_keyRingLocation:           _googelCloudKeyRingLocation
 
 			deployment: {
 				_container: {
