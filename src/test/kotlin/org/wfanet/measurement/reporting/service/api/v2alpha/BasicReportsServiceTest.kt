@@ -142,6 +142,7 @@ import org.wfanet.measurement.reporting.service.api.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
@@ -359,11 +360,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               stackedIncrementalReach = false
             }
@@ -383,11 +379,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
@@ -826,11 +817,6 @@ class BasicReportsServiceTest {
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
                     percentReach = true
-                    kPlusReach = 5
-                    percentKPlusReach = true
-                    averageFrequency = true
-                    impressions = true
-                    grps = true
                   }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -867,11 +853,6 @@ class BasicReportsServiceTest {
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
                     percentReach = true
-                    kPlusReach = 5
-                    percentKPlusReach = true
-                    averageFrequency = true
-                    impressions = true
-                    grps = true
                   }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -964,6 +945,122 @@ class BasicReportsServiceTest {
         .ignoringRepeatedFieldOrder()
         .containsExactlyElementsIn(identicalReportingSets)
     }
+
+  @Test
+  fun `createBasicReport returns basic report when only custom IQF exists`(): Unit = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    val campaignGroup =
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = internalReportingSet {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            displayName = "displayName"
+            primitive =
+              ReportingSetKt.primitive {
+                eventGroupKeys +=
+                  ReportingSetKt.PrimitiveKt.eventGroupKey {
+                    cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                    cmmsEventGroupId = "1235"
+                  }
+              }
+          }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+    val basicReport = basicReport {
+      title = "title"
+      this.campaignGroup = campaignGroupKey.toName()
+      reportingInterval = reportingInterval {
+        reportStart = dateTime {
+          year = 2025
+          month = 7
+          day = 3
+          timeZone = timeZone { id = "America/Los_Angeles" }
+        }
+        reportEnd = date {
+          year = 2026
+          month = 1
+          day = 5
+        }
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+      }
+      resultGroupSpecs += resultGroupSpec {
+        title = "title"
+        reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
+        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = DimensionSpec.getDefaultInstance()
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      this.basicReport = basicReport
+      basicReportId = "a1234"
+    }
+
+    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    assertThat(response)
+      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        basicReport.copy {
+          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
+          campaignGroupDisplayName = campaignGroup.displayName
+          state = BasicReport.State.RUNNING
+          effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
+        }
+      )
+    assertThat(response.createTime.seconds).isAtLeast(1)
+
+    val listMetricCalculationSpecsRequest = listMetricCalculationSpecsRequest {
+      cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      filter =
+        ListMetricCalculationSpecsRequestKt.filter {
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+        }
+      limit = 50
+    }
+
+    val createdMetricCalculationSpecs =
+      internalMetricCalculationSpecsService
+        .listMetricCalculationSpecs(listMetricCalculationSpecsRequest)
+        .metricCalculationSpecsList
+
+    assertThat(
+        createdMetricCalculationSpecs.first().details.filter.isNotEmpty() ||
+          createdMetricCalculationSpecs.last().details.filter.isNotEmpty()
+      )
+      .isTrue()
+  }
 
   @Test
   fun `createBasicReport creates new composite reportingsets only when needed`(): Unit =
@@ -1339,11 +1436,6 @@ class BasicReportsServiceTest {
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
                     percentReach = true
-                    kPlusReach = 5
-                    percentKPlusReach = true
-                    averageFrequency = true
-                    impressions = true
-                    grps = true
                   }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -1380,11 +1472,6 @@ class BasicReportsServiceTest {
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
                     percentReach = true
-                    kPlusReach = 5
-                    percentKPlusReach = true
-                    averageFrequency = true
-                    impressions = true
-                    grps = true
                   }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
@@ -1766,12 +1853,7 @@ class BasicReportsServiceTest {
             populationSize = false
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                    kPlusReach = 5
-                    averageFrequency = true
-                  }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
                 nonCumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
@@ -1798,7 +1880,7 @@ class BasicReportsServiceTest {
             populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
+                cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
                 nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
           }
@@ -1831,7 +1913,6 @@ class BasicReportsServiceTest {
               MetricCalculationSpecKt.details {
                 groupings +=
                   MetricCalculationSpecKt.grouping {
-                    predicates += "person.social_grade_group == 0"
                     predicates += "person.social_grade_group == 1"
                     predicates += "person.social_grade_group == 2"
                   }
@@ -1844,91 +1925,62 @@ class BasicReportsServiceTest {
                       }
                   }
                 metricSpecs += metricSpec {
-                  reachAndFrequency =
-                    MetricSpecKt.reachAndFrequencyParams {
+                  reach =
+                    MetricSpecKt.reachParams {
                       multipleDataProviderParams =
-                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                          reachPrivacyParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
                             MetricSpecKt.differentialPrivacyParams {
                               epsilon =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
-                                  .reachPrivacyParams
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
                                   .epsilon
                               delta =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
-                                  .reachPrivacyParams
-                                  .delta
-                            }
-                          frequencyPrivacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
-                                  .frequencyPrivacyParams
-                                  .epsilon
-                              delta =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
-                                  .frequencyPrivacyParams
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
                                   .delta
                             }
                           vidSamplingInterval =
                             MetricSpecKt.vidSamplingInterval {
                               start =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
                                   .vidSamplingInterval
                                   .fixedStart
                                   .start
                               width =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams
-                                  .multipleDataProviderParams
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
                                   .vidSamplingInterval
                                   .fixedStart
                                   .width
                             }
                         }
                       singleDataProviderParams =
-                        MetricSpecKt.reachAndFrequencySamplingAndPrivacyParams {
-                          reachPrivacyParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
                             MetricSpecKt.differentialPrivacyParams {
                               epsilon =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                                  .reachPrivacyParams
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
                                   .epsilon
                               delta =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                                  .reachPrivacyParams
-                                  .delta
-                            }
-                          frequencyPrivacyParams =
-                            MetricSpecKt.differentialPrivacyParams {
-                              epsilon =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                                  .frequencyPrivacyParams
-                                  .epsilon
-                              delta =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
-                                  .frequencyPrivacyParams
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
                                   .delta
                             }
                           vidSamplingInterval =
                             MetricSpecKt.vidSamplingInterval {
                               start =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
                                   .vidSamplingInterval
                                   .fixedStart
                                   .start
                               width =
-                                METRIC_SPEC_CONFIG.reachAndFrequencyParams.singleDataProviderParams
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
                                   .vidSamplingInterval
                                   .fixedStart
                                   .width
                             }
                         }
-                      maximumFrequency = METRIC_SPEC_CONFIG.reachAndFrequencyParams.maximumFrequency
                     }
                 }
               }
@@ -1941,7 +1993,6 @@ class BasicReportsServiceTest {
               MetricCalculationSpecKt.details {
                 groupings +=
                   MetricCalculationSpecKt.grouping {
-                    predicates += "person.social_grade_group == 0"
                     predicates += "person.social_grade_group == 1"
                     predicates += "person.social_grade_group == 2"
                   }
@@ -1958,7 +2009,6 @@ class BasicReportsServiceTest {
               MetricCalculationSpecKt.details {
                 groupings +=
                   MetricCalculationSpecKt.grouping {
-                    predicates += "person.social_grade_group == 0"
                     predicates += "person.social_grade_group == 1"
                     predicates += "person.social_grade_group == 2"
                   }
@@ -2110,32 +2160,62 @@ class BasicReportsServiceTest {
                       }
                   }
                 metricSpecs += metricSpec {
-                  impressionCount =
-                    MetricSpecKt.impressionCountParams {
-                      params =
+                  reach =
+                    MetricSpecKt.reachParams {
+                      multipleDataProviderParams =
                         MetricSpecKt.samplingAndPrivacyParams {
                           privacyParams =
                             MetricSpecKt.differentialPrivacyParams {
                               epsilon =
-                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
                                   .epsilon
                               delta =
-                                METRIC_SPEC_CONFIG.impressionCountParams.params.privacyParams.delta
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .privacyParams
+                                  .delta
                             }
                           vidSamplingInterval =
                             MetricSpecKt.vidSamplingInterval {
                               start =
-                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .vidSamplingInterval
                                   .fixedStart
                                   .start
                               width =
-                                METRIC_SPEC_CONFIG.impressionCountParams.params.vidSamplingInterval
+                                METRIC_SPEC_CONFIG.reachParams.multipleDataProviderParams
+                                  .vidSamplingInterval
                                   .fixedStart
                                   .width
                             }
                         }
-                      maximumFrequencyPerUser =
-                        METRIC_SPEC_CONFIG.impressionCountParams.maximumFrequencyPerUser
+                      singleDataProviderParams =
+                        MetricSpecKt.samplingAndPrivacyParams {
+                          privacyParams =
+                            MetricSpecKt.differentialPrivacyParams {
+                              epsilon =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
+                                  .epsilon
+                              delta =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .privacyParams
+                                  .delta
+                            }
+                          vidSamplingInterval =
+                            MetricSpecKt.vidSamplingInterval {
+                              start =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .start
+                              width =
+                                METRIC_SPEC_CONFIG.reachParams.singleDataProviderParams
+                                  .vidSamplingInterval
+                                  .fixedStart
+                                  .width
+                            }
+                        }
                     }
                 }
               }
@@ -3052,11 +3132,6 @@ class BasicReportsServiceTest {
                     ResultGroupMetricSpecKt.basicMetricSetSpec {
                       reach = true
                       percentReach = true
-                      kPlusReach = 5
-                      percentKPlusReach = true
-                      averageFrequency = true
-                      impressions = true
-                      grps = true
                     }
                   stackedIncrementalReach = false
                 }
@@ -3076,11 +3151,6 @@ class BasicReportsServiceTest {
                     ResultGroupMetricSpecKt.basicMetricSetSpec {
                       reach = true
                       percentReach = true
-                      kPlusReach = 5
-                      percentKPlusReach = true
-                      averageFrequency = true
-                      impressions = true
-                      grps = true
                     }
                   nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
                   cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
@@ -4224,6 +4294,73 @@ class BasicReportsServiceTest {
       }
 
     assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.impression_qualification_filters"
+        }
+      )
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when custom same as non-custom`() = runBlocking {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet =
+          INTERNAL_CAMPAIGN_GROUP.copy {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+          }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    val request = createBasicReportRequest {
+      parent = measurementConsumerKey.toName()
+      basicReport =
+        BASIC_REPORT.copy {
+          campaignGroup = campaignGroupKey.toName()
+          impressionQualificationFilters.clear()
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            impressionQualificationFilter =
+              ImpressionQualificationFilterKey(MRC_IQF.externalImpressionQualificationFilterId)
+                .toName()
+          }
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+                filterSpec += impressionQualificationFilterSpec {
+                  mediaType = MediaType.DISPLAY
+                  filters += eventFilter {
+                    terms += eventTemplateField {
+                      path = "banner_ad.viewable"
+                      value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                    }
+                  }
+                }
+              }
+          }
+        }
+      basicReportId = "a1234"
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .errorInfo()
       .isEqualTo(
@@ -7055,69 +7192,6 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when reporting unit cumulative 0 kplusReach`() =
-    runBlocking {
-      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-        }
-      )
-
-      internalReportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet =
-            INTERNAL_CAMPAIGN_GROUP.copy {
-              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-              externalCampaignGroupId = campaignGroupKey.reportingSetId
-            }
-          externalReportingSetId = campaignGroupKey.reportingSetId
-        }
-      )
-
-      val request = createBasicReportRequest {
-        parent = measurementConsumerKey.toName()
-        basicReport =
-          BASIC_REPORT.copy {
-            campaignGroup = campaignGroupKey.toName()
-            resultGroupSpecs[0] =
-              resultGroupSpecs[0].copy {
-                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
-                resultGroupMetricSpec = resultGroupMetricSpec {
-                  reportingUnit =
-                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                      cumulative =
-                        ResultGroupMetricSpecKt.basicMetricSetSpec {
-                          kPlusReach = 0
-                          percentKPlusReach = true
-                        }
-                    }
-                }
-              }
-          }
-        basicReportId = "a1234"
-      }
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-        }
-
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception)
-        .errorInfo()
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.cumulative.k_plus_reach"
-          }
-        )
-    }
-
-  @Test
   fun `createBasicReport throws INVALID_ARGUMENT when stacked reach set with weekly`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -7172,6 +7246,65 @@ class BasicReportsServiceTest {
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
               "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.stacked_incremental_reach"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws UNIMPLEMENTED when reportingunit cumulative weekly impressions`() =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            resultGroupSpecs[0] =
+              resultGroupSpecs[0].copy {
+                metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                resultGroupMetricSpec = resultGroupMetricSpec {
+                  reportingUnit =
+                    ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                      cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
+                    }
+                }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.UNIMPLEMENTED)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.FIELD_UNIMPLEMENTED.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.result_group_specs[0].result_group_metric_spec.reporting_unit.cumulative"
           }
         )
     }
@@ -7240,7 +7373,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport throws INVALID_ARGUMENT when component cumulative 0 kplusReach`() =
+  fun `createBasicReport throws UNIMPLEMENTED when component weekly cumulative has impressions`() =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
@@ -7273,11 +7406,7 @@ class BasicReportsServiceTest {
                 resultGroupMetricSpec = resultGroupMetricSpec {
                   component =
                     ResultGroupMetricSpecKt.componentMetricSetSpec {
-                      cumulative =
-                        ResultGroupMetricSpecKt.basicMetricSetSpec {
-                          kPlusReach = 0
-                          percentKPlusReach = true
-                        }
+                      cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { impressions = true }
                     }
                 }
               }
@@ -7289,15 +7418,15 @@ class BasicReportsServiceTest {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
         }
 
-      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).status().code().isEqualTo(Status.Code.UNIMPLEMENTED)
       assertThat(exception)
         .errorInfo()
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            reason = Errors.Reason.FIELD_UNIMPLEMENTED.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.result_group_specs[0].result_group_metric_spec.component.cumulative.k_plus_reach"
+              "basic_report.result_group_specs[0].result_group_metric_spec.component.cumulative"
           }
         )
     }
@@ -7451,11 +7580,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               stackedIncrementalReach = false
             }
@@ -7475,11 +7599,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
@@ -9809,11 +9928,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               stackedIncrementalReach = false
             }
@@ -9833,11 +9947,6 @@ class BasicReportsServiceTest {
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   percentReach = true
-                  kPlusReach = 5
-                  percentKPlusReach = true
-                  averageFrequency = true
-                  impressions = true
-                  grps = true
                 }
               nonCumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
               cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }

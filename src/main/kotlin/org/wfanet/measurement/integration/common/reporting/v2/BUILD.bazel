@@ -14,6 +14,7 @@ kt_jvm_library(
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/python/wfa/measurement/reporting/deploy/v2/common/job:post_process_report_result_job_executor_pyzip",
     ],
     deps = [
         ":in_process_reporting_server",
@@ -27,6 +28,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/common:sample_vids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/server:internal_reporting_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_job",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
@@ -80,6 +82,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:impression_qualification_filters_service_kt_jvm_grpc_proto",

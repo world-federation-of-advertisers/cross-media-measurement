@@ -985,6 +985,178 @@ class BasicReportProcessedResultsTransformationTest {
   }
 
   @Test
+  fun `buildResultGroups takes only 5 elements from kplusreach when only 5 asked for`() {
+    val basicReport = basicReport {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      details = basicReportDetails {
+        impressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        effectiveImpressionQualificationFilters += IMPRESSION_QUALIFICATION_FILTER_1
+        reportingInterval = REPORTING_INTERVAL
+        resultGroupSpecs += resultGroupSpec {
+          title = "result-group-1"
+          reportingUnit = reportingUnit {
+            dataProviderKeys =
+              ReportingUnitKt.dataProviderKeys {
+                dataProviderKeys += dataProviderKey { cmmsDataProviderId = DATA_PROVIDER_1_ID }
+              }
+          }
+          metricFrequency = metricFrequencySpec { total = true }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "person.age_group" }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            populationSize = true
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    kPlusReach = 5
+                    percentKPlusReach = true
+                  }
+              }
+          }
+        }
+      }
+    }
+
+    val reportingSetResults =
+      listOf(
+        // Primitive 1
+        reportingSetResult {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+          externalReportingSetResultId = 1
+          dimension =
+            ReportingSetResultKt.dimension {
+              externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID
+              externalImpressionQualificationFilterId =
+                IMPRESSION_QUALIFICATION_FILTER_1.externalImpressionQualificationFilterId
+              metricFrequencySpec = metricFrequencySpec { total = true }
+              grouping =
+                ReportingSetResultKt.DimensionKt.grouping {
+                  valueByPath["person.age_group"] =
+                    EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                }
+            }
+          populationSize = 100
+          reportingWindowResults +=
+            ReportingSetResultKt.reportingWindowEntry {
+              key = ReportingSetResultKt.reportingWindow { end = REPORTING_INTERVAL.reportEnd }
+              value =
+                ReportingSetResultKt.reportingWindowResult {
+                  processedReportResultValues =
+                    ReportingSetResultKt.ReportingWindowResultKt.reportResultValues {
+                      cumulativeResults =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          kPlusReach += 10
+                          kPlusReach += 9
+                          kPlusReach += 8
+                          kPlusReach += 7
+                          kPlusReach += 6
+                          kPlusReach += 5
+                          kPlusReach += 4
+                          kPlusReach += 3
+                          kPlusReach += 2
+                          kPlusReach += 1
+                          percentKPlusReach += 18.0f
+                          percentKPlusReach += 16.0f
+                          percentKPlusReach += 14.0f
+                          percentKPlusReach += 12.0f
+                          percentKPlusReach += 10.0f
+                          percentKPlusReach += 9.0f
+                          percentKPlusReach += 7.0f
+                          percentKPlusReach += 5.0f
+                          percentKPlusReach += 3.0f
+                          percentKPlusReach += 1.0f
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    val primitiveInfoByDataProviderId =
+      mapOf(
+        DATA_PROVIDER_1_ID to
+          BasicReportProcessedResultsTransformation.PrimitiveInfo(
+            eventGroupKeys = PRIMITIVE_REPORTING_SET_1.primitive.eventGroupKeysList.toSet(),
+            externalReportingSetId = PRIMITIVE_REPORTING_SET_1_ID,
+          )
+      )
+
+    val resultGroups =
+      buildResultGroups(basicReport, reportingSetResults, primitiveInfoByDataProviderId, mapOf())
+
+    val expectedResultGroups =
+      listOf(
+        resultGroup {
+          title = "result-group-1"
+          results +=
+            ResultGroupKt.result {
+              metadata =
+                ResultGroupKt.metricMetadata {
+                  reportingUnitSummary =
+                    ResultGroupKt.MetricMetadataKt.reportingUnitSummary {
+                      reportingUnitComponentSummary +=
+                        ResultGroupKt.MetricMetadataKt.reportingUnitComponentSummary {
+                          cmmsDataProviderId = DATA_PROVIDER_1_ID
+                          eventGroupSummaries +=
+                            ResultGroupKt.MetricMetadataKt.ReportingUnitComponentSummaryKt
+                              .eventGroupSummary {
+                                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                                cmmsEventGroupId = "eg1"
+                              }
+                        }
+                    }
+                  cumulativeMetricStartTime = REPORTING_INTERVAL.reportStart.toTimestamp()
+                  metricEndTime =
+                    REPORTING_INTERVAL.reportStart
+                      .copy {
+                        year = REPORTING_INTERVAL.reportEnd.year
+                        month = REPORTING_INTERVAL.reportEnd.month
+                        day = REPORTING_INTERVAL.reportEnd.day
+                      }
+                      .toTimestamp()
+                  metricFrequencySpec = metricFrequencySpec { total = true }
+                  dimensionSpecSummary =
+                    ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {
+                      groupings += eventTemplateField {
+                        path = "person.age_group"
+                        value = EventTemplateFieldKt.fieldValue { enumValue = "YEARS_18_TO_34" }
+                      }
+                    }
+                  filter = IMPRESSION_QUALIFICATION_FILTER_1
+                }
+              metricSet =
+                ResultGroupKt.metricSet {
+                  populationSize = 100
+                  reportingUnit =
+                    ResultGroupKt.MetricSetKt.reportingUnitMetricSet {
+                      cumulative =
+                        ResultGroupKt.MetricSetKt.basicMetricSet {
+                          kPlusReach += 10
+                          kPlusReach += 9
+                          kPlusReach += 8
+                          kPlusReach += 7
+                          kPlusReach += 6
+                          percentKPlusReach += 18.0f
+                          percentKPlusReach += 16.0f
+                          percentKPlusReach += 14.0f
+                          percentKPlusReach += 12.0f
+                          percentKPlusReach += 10.0f
+                        }
+                    }
+                }
+            }
+        }
+      )
+
+    assertThat(resultGroups)
+      .ignoringRepeatedFieldOrder()
+      .containsExactlyElementsIn(expectedResultGroups)
+  }
+
+  @Test
   fun `buildResultGroups creates result groups correctly when weekly and noncumulative`() {
     val basicReport = basicReport {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

@@ -105,7 +105,7 @@ class ReportSchedulingJob(
               filter =
                 ListReportSchedulesRequestKt.filter {
                   cmmsMeasurementConsumerId = measurementConsumerId
-                  if (listReportSchedulesResponse.reportSchedulesList.size > 0) {
+                  if (listReportSchedulesResponse.reportSchedulesList.isNotEmpty()) {
                     externalReportScheduleIdAfter =
                       listReportSchedulesResponse.reportSchedulesList
                         .last()
