@@ -164,8 +164,19 @@ message ExchangeWorkflow {
     // serialization of the `Certificate` resource.
     message GenerateCertificateStep {}
 
-    // Preprocesses data for later use by ExecutePrivateMembershipQueriesStep
-    message PreprocessEventsStep {}
+    // Preprocesses events for use in the selected exchange workflow.
+    message PreprocessEventsStep {
+      enum PreprocessProtocol {
+        // Default value used if the preprocessor protocol is omitted.
+        PREPROCESSOR_PROTOCOL_UNSPECIFIED = 0;
+        // Indicates events should be preprocessed for Private Membership.
+        PRIVATE_MEMBERSHIP = 1;
+        // Indicates events should be preprocessed for Authorized View.
+        AUTHORIZED_VIEW = 2;
+      }
+      // Select the type of preprocessor to use.
+      PreprocessProtocol protocol = 1;
+    }
 
     // Copies a blob from a previous exchange into this one. Requires a single
     // output label "output".
@@ -199,6 +210,75 @@ message ExchangeWorkflow {
     // Assigns JoinKey Ids
     message AssignJoinKeyIdsStep {}
 
+    // Reads encrypted events from BigQuery authorized views
+    message ReadEncryptedEventsFromBigQueryStep {
+      // BigQuery project ID
+      string project_id = 1;
+
+      // BigQuery dataset ID
+      string dataset_id = 2;
+
+      // BigQuery table or view name
+      string table_or_view_id = 3;
+
+      // Optional, column name for encrypted join key (default:
+      // "encrypted_join_key")
+      string key_column_name = 4;
+
+      // Optional, column name for encrypted event data (default:
+      // "encrypted_event_data")
+      string event_data_column_name = 5;
+
+      // Optional, column name for exchange date (default: "exchange_date")
+      string date_column_name = 6;
+    }
+
+    // Decrypts matched events from BigQuery authorized view and outputs
+    // KeyedDecryptedEventDataSet format
+    message DecryptAndMatchEventsStep {}
+
+    // Writes encrypted join keys to BigQuery using streaming API
+    message WriteKeysToBigQueryStep {
+      // BigQuery project ID
+      string project_id = 1;
+
+      // BigQuery dataset ID
+      string dataset_id = 2;
+
+      // BigQuery table name for keys
+      string table_id = 3;
+
+      // Optional, column name for encrypted join key (default:
+      // "encrypted_join_key")
+      string key_column_name = 4;
+
+      // Optional, column name for exchange date (default: "exchange_date")
+      string date_column_name = 5;
+    }
+
+    // Writes encrypted events to BigQuery using streaming API
+    message WriteEventsToBigQueryStep {
+      // BigQuery project ID
+      string project_id = 1;
+
+      // BigQuery dataset ID
+      string dataset_id = 2;
+
+      // BigQuery table name for events
+      string table_id = 3;
+
+      // Optional, column name for encrypted join key (default:
+      // "encrypted_join_key")
+      string key_column_name = 4;
+
+      // Optional, column name for encrypted event data (default:
+      // "encrypted_event_data")
+      string event_data_column_name = 5;
+
+      // Optional, column name for exchange date (default: "exchange_date")
+      string date_column_name = 6;
+    }
+
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
       CopyToSharedStorageStep copy_to_shared_storage_step = 6;
@@ -230,6 +310,11 @@ message ExchangeWorkflow {
           generate_hybrid_encryption_key_pair_step = 23;
       GenerateRandomBytesStep generate_random_bytes_step = 24;
       AssignJoinKeyIdsStep assign_join_key_ids_step = 25;
+      ReadEncryptedEventsFromBigQueryStep
+          read_encrypted_events_from_big_query_step = 26;
+      DecryptAndMatchEventsStep decrypt_and_match_events_step = 27;
+      WriteKeysToBigQueryStep write_keys_to_big_query_step = 28;
+      WriteEventsToBigQueryStep write_events_to_big_query_step = 29;
     }
   }
 
