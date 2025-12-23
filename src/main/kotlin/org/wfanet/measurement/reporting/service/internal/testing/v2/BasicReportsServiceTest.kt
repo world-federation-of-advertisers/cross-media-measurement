@@ -1318,8 +1318,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                                   }
                             }
                         }
-                      cumulativeMetricStartTime = timestamp { seconds = 1752044400 }
-                      metricEndTime = timestamp { seconds = 1752649200 }
+                      cumulativeMetricStartTime = timestamp { seconds = 1752062400 }
+                      metricEndTime = timestamp { seconds = 1752667200 }
                       metricFrequencySpec =
                         basicReport.details.resultGroupSpecsList.first().metricFrequency
                       dimensionSpecSummary = ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {}
