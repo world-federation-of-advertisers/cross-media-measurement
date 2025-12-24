@@ -49,7 +49,7 @@ message ReportingInterval {
   // or `report_start.time_offset` were not set and the server applied a default
   // value.
   google.type.DateTime effective_report_start = 3
-    [(google.api.field_behavior) = OUTPUT_ONLY];
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The end date of the report.
   //
