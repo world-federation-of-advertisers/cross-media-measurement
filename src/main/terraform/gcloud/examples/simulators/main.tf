@@ -19,6 +19,9 @@ data "google_client_config" "default" {}
 locals {
   cluster_location  = var.cluster_location == null ? data.google_client_config.default.zone : var.cluster_location
   key_ring_location = var.key_ring_location == null ? data.google_client_config.default.region : var.key_ring_location
+
+  # List of simulator names to be created.
+  simulator_names = ["edp1", "edp2", "edp3"]
 }
 
 module "common" {
@@ -58,6 +61,11 @@ module "simulators_spot_node_pool" {
   spot            = true
 }
 
-module "simulators" {
-  source = "../../modules/simulators"
+module "simulator" {
+  source   = "../../modules/simulator"
+  for_each = toset(local.simulator_names)
+
+  simulator_name                  = each.key
+  key_ring_location               = local.key_ring_location
+  tee_image_signature_fingerprint = var.tee_image_signature_fingerprint
 }

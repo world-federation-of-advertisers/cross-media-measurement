@@ -81,4 +81,7 @@ module "duchy" {
   database_name    = "${var.name}-duchy"
   spanner_instance = google_spanner_instance.spanner_instance
   storage_bucket   = module.storage.storage_bucket
+  trustee_mill_subnetwork_network      = var.trustee_mill_subnetwork_network
+  trustee_mill_subnetwork_cidr_range   = var.trustee_mill_subnetwork_cidr_range
+  trustee_config                       = var.trustee_config
 }
