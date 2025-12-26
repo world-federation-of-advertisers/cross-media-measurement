@@ -97,6 +97,9 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Check lockfile
+        # DO_NOT_SUBMIT: remove env var
+        env:
+          BAZELISK_BASE_URL: "https://github.com/bazelbuild/bazel/releases/download/"
         run: bazel mod deps
 
       - name: Build
