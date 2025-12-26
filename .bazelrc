@@ -1,6 +1,8 @@
 # Enable Bzlmod.
 common --enable_bzlmod
 common --registry=https://raw.githubusercontent.com/world-federation-of-advertisers/bazel-registry/main
+# DO_NOT_SUBMIT: https://github.com/bazelbuild/bazel-central-registry/issues/6955
+common --registry=https://raw.githubusercontent.com/bazelbuild/bazel-central-registry/main/
 common --registry=https://bcr.bazel.build
 
 # Use clang as C++ compiler.
