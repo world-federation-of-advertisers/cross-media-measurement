@@ -23,6 +23,13 @@ production loads.
     *   Default node pool
     *   Spot VM node pool
     *   Kubernetes service account for internal server
+*   Trustee Mill resources
+    *   [Managed Instance Group](../../modules/mig)
+    *   Service account for Trustee Mill
+        *   IAM membership for storage access
+    *   Compute Subnetwork
+    *   Cloud Router and Cloud NAT
+    *   [Secret Manager secrets](../../modules/secret)
 
 ## Preconditions
 
