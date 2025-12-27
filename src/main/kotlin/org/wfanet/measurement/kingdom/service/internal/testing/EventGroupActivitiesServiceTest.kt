@@ -347,7 +347,9 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("requests.0.event_group_activity.external_event_group_id")
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group_activity.external_event_group_id")
     }
 
   @Test
