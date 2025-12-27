@@ -151,6 +151,27 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       details = basicReportDetails {
         title = "title"
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          effectiveReportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           externalImpressionQualificationFilterId =
             IMPRESSION_QUALIFICATION_FILTER_MAPPING.impressionQualificationFilters
@@ -526,6 +547,27 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       externalCampaignGroupId = REPORTING_SET.externalReportingSetId
       details = basicReportDetails {
         title = "title"
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          effectiveReportStart = dateTime {
+            year = 2025
+            month = 7
+            day = 3
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2026
+            month = 1
+            day = 5
+          }
+        }
         resultGroupSpecs += resultGroupSpec {
           title = "title"
           reportingUnit = reportingUnit {
@@ -771,6 +813,12 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           title = "title"
           reportingInterval = reportingInterval {
             reportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 9
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            effectiveReportStart = dateTime {
               year = 2025
               month = 7
               day = 9
@@ -1084,6 +1132,14 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               year = 2025
               month = 7
               day = 9
+              hours = 5
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            effectiveReportStart = dateTime {
+              year = 2025
+              month = 7
+              day = 9
+              hours = 5
               timeZone = timeZone { id = "America/Los_Angeles" }
             }
             reportEnd = date {
@@ -1262,8 +1318,8 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
                                   }
                             }
                         }
-                      cumulativeMetricStartTime = timestamp { seconds = 1752044400 }
-                      metricEndTime = timestamp { seconds = 1752649200 }
+                      cumulativeMetricStartTime = timestamp { seconds = 1752062400 }
+                      metricEndTime = timestamp { seconds = 1752667200 }
                       metricFrequencySpec =
                         basicReport.details.resultGroupSpecsList.first().metricFrequency
                       dimensionSpecSummary = ResultGroupKt.MetricMetadataKt.dimensionSpecSummary {}

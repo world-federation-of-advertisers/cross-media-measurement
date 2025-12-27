@@ -832,6 +832,14 @@ abstract class ReportResultsServiceTest {
                 year = 2025
                 month = 1
                 day = 6
+                hours = 5
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              effectiveReportStart = dateTime {
+                year = 2025
+                month = 1
+                day = 6
+                hours = 5
                 timeZone = timeZone { id = "America/Los_Angeles" }
               }
             }
