@@ -48,7 +48,7 @@ locals {
     base_instance_name                 = "trustee-mill"
     managed_instance_group_name        = "trustee-mill-mig"
     mig_service_account_name           = "trustee-mill-mig-sa"
-    replicas                           = 1
+    replicas                           = 4
     machine_type                       = "c4d-standard-2"
     docker_image                       = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill:${var.image_tag}"
     signed_image_repo                  = "ghcr.io/world-federation-of-advertisers/duchy/trus-tee-mill"
