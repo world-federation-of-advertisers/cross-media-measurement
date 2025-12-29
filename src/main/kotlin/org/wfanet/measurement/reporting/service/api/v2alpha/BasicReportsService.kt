@@ -124,6 +124,7 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  // If not null, hours and time_offset are set.
   private val defaultReportStartHour: DateTime? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
