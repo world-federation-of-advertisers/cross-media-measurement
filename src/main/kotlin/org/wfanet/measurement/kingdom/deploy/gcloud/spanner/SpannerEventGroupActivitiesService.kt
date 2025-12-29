@@ -47,8 +47,21 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val externalDataProviderId = request.externalDataProviderId
     val externalEventGroupId = request.externalEventGroupId
     request.requestsList.forEachIndexed { index, child ->
+      val childExternalDataProviderId = child.eventGroupActivity.externalDataProviderId
+      if (
+        childExternalDataProviderId != 0L && childExternalDataProviderId != externalDataProviderId
+      ) {
+        throw InvalidFieldValueException(
+            "requests.$index.event_group_activity.external_data_provider_id"
+          ) { fieldPath ->
+            "Value of $fieldPath does not match parent request"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
       val childExternalEventGroupId = child.eventGroupActivity.externalEventGroupId
 
       if (childExternalEventGroupId != 0L && childExternalEventGroupId != externalEventGroupId) {
