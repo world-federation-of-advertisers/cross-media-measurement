@@ -189,10 +189,8 @@ class BasicReportsService(
     val effectiveReportStart =
       if (defaultReportStartHour != null) {
         request.basicReport.reportingInterval.reportStart.copy {
-          if (hours == 0) {
+          if (hours == 0 && timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
             hours = defaultReportStartHour.hours
-          }
-          if (timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
             if (defaultReportStartHour.timeOffsetCase == DateTime.TimeOffsetCase.UTC_OFFSET) {
               utcOffset = defaultReportStartHour.utcOffset
             } else {

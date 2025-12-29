@@ -579,14 +579,16 @@ object CreateBasicReportRequestValidation {
       }
     }
 
-    if (!hasDefaultReportStartHour) {
+    // If there is no default, both hours and time_offset must be set, or neither must be set.
+    if (!hasDefaultReportStartHour || reportingInterval.reportStart.hours != 0 ||
+      reportingInterval.reportStart.timeOffsetCase != DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
       if (
         reportingInterval.reportStart.hours == 0 ||
           !(reportingInterval.reportStart.hasTimeZone() ||
             reportingInterval.reportStart.hasUtcOffset())
       ) {
         throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-          "$fieldName requires hours to be set, as well as either time_zone or utc_offset, when there is no default"
+          "$fieldName requires hours to be set, as well as either time_zone or utc_offset"
         }
       }
     }

@@ -879,168 +879,6 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport hours overwrites default`(): Unit = runBlocking {
-    service =
-      BasicReportsService(
-        internalBasicReportsService,
-        internalImpressionQualificationFiltersService,
-        internalReportingSetsService,
-        internalMetricCalculationSpecsService,
-        reportsService,
-        modelLinesService,
-        TEST_EVENT_DESCRIPTOR,
-        METRIC_SPEC_CONFIG,
-        SecureRandom().asKotlinRandom(),
-        authorization,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        dateTime {
-          hours = 5
-          timeZone = timeZone { id = "America/Los_Angeles" }
-        },
-        emptyList(),
-      )
-
-    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet = internalReportingSet {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-          displayName = "displayName"
-          primitive =
-            ReportingSetKt.primitive {
-              eventGroupKeys +=
-                ReportingSetKt.PrimitiveKt.eventGroupKey {
-                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-                  cmmsEventGroupId = "1235"
-                }
-            }
-        }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val basicReport =
-      BASIC_REPORT.copy {
-        this.campaignGroup = campaignGroupKey.toName()
-        reportingInterval =
-          BASIC_REPORT.reportingInterval.copy {
-            reportStart =
-              BASIC_REPORT.reportingInterval.reportStart.copy {
-                hours = 7
-                clearTimeOffset()
-              }
-          }
-      }
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      this.basicReport = basicReport
-      basicReportId = "a1234"
-    }
-
-    val createdBasicReport =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-
-    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
-      .isEqualTo(
-        BASIC_REPORT.reportingInterval.reportStart.copy {
-          hours = 7
-          timeZone = timeZone { id = "America/Los_Angeles" }
-        }
-      )
-  }
-
-  @Test
-  fun `createBasicReport utc_offset overwrites default`(): Unit = runBlocking {
-    service =
-      BasicReportsService(
-        internalBasicReportsService,
-        internalImpressionQualificationFiltersService,
-        internalReportingSetsService,
-        internalMetricCalculationSpecsService,
-        reportsService,
-        modelLinesService,
-        TEST_EVENT_DESCRIPTOR,
-        METRIC_SPEC_CONFIG,
-        SecureRandom().asKotlinRandom(),
-        authorization,
-        MEASUREMENT_CONSUMER_CONFIGS,
-        dateTime {
-          hours = 5
-          timeZone = timeZone { id = "America/Los_Angeles" }
-        },
-        emptyList(),
-      )
-
-    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
-    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
-
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-      }
-    )
-
-    internalReportingSetsService.createReportingSet(
-      createReportingSetRequest {
-        reportingSet = internalReportingSet {
-          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
-          externalCampaignGroupId = campaignGroupKey.reportingSetId
-          displayName = "displayName"
-          primitive =
-            ReportingSetKt.primitive {
-              eventGroupKeys +=
-                ReportingSetKt.PrimitiveKt.eventGroupKey {
-                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
-                  cmmsEventGroupId = "1235"
-                }
-            }
-        }
-        externalReportingSetId = campaignGroupKey.reportingSetId
-      }
-    )
-
-    val basicReport =
-      BASIC_REPORT.copy {
-        this.campaignGroup = campaignGroupKey.toName()
-        reportingInterval =
-          BASIC_REPORT.reportingInterval.copy {
-            reportStart =
-              BASIC_REPORT.reportingInterval.reportStart.copy {
-                clearHours()
-                utcOffset = duration { seconds = 14400 }
-              }
-          }
-      }
-
-    val request = createBasicReportRequest {
-      parent = measurementConsumerKey.toName()
-      this.basicReport = basicReport
-      basicReportId = "a1234"
-    }
-
-    val createdBasicReport =
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-
-    assertThat(createdBasicReport.reportingInterval.effectiveReportStart)
-      .isEqualTo(
-        BASIC_REPORT.reportingInterval.reportStart.copy {
-          hours = 5
-          utcOffset = duration { seconds = 14400 }
-        }
-      )
-  }
-
-  @Test
   fun `createBasicReport creates new primitive reportingsets only when needed`(): Unit =
     runBlocking {
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4494,6 +4332,79 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when reportStart time offset missing`() =
     runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport =
+          BASIC_REPORT.copy {
+            campaignGroup = campaignGroupKey.toName()
+            reportingInterval =
+              this.reportingInterval.copy {
+                reportStart = this.reportStart.copy { clearTimeOffset() }
+              }
+          }
+        basicReportId = "a1234"
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "basic_report.reporting_interval.report_start"
+          }
+        )
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when time_offset missing with default`() =
+    runBlocking {
+      service =
+        BasicReportsService(
+          internalBasicReportsService,
+          internalImpressionQualificationFiltersService,
+          internalReportingSetsService,
+          internalMetricCalculationSpecsService,
+          reportsService,
+          modelLinesService,
+          TEST_EVENT_DESCRIPTOR,
+          METRIC_SPEC_CONFIG,
+          SecureRandom().asKotlinRandom(),
+          authorization,
+          MEASUREMENT_CONSUMER_CONFIGS,
+          dateTime {
+            hours = 5
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          },
+          emptyList(),
+        )
+
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
       val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
 
