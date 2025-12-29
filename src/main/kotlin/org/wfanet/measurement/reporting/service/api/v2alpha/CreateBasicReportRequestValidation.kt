@@ -580,8 +580,11 @@ object CreateBasicReportRequestValidation {
     }
 
     // If there is no default, both hours and time_offset must be set, or neither must be set.
-    if (!hasDefaultReportStartHour || reportingInterval.reportStart.hours != 0 ||
-      reportingInterval.reportStart.timeOffsetCase != DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+    if (
+      !hasDefaultReportStartHour ||
+        reportingInterval.reportStart.hours != 0 ||
+        reportingInterval.reportStart.timeOffsetCase != DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+    ) {
       if (
         reportingInterval.reportStart.hours == 0 ||
           !(reportingInterval.reportStart.hasTimeZone() ||
