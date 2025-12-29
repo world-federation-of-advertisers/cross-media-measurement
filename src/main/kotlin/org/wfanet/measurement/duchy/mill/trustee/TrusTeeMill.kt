@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
@@ -127,17 +128,29 @@ class TrusTeeMill(
 
     val processor: TrusTeeProcessor = trusTeeProcessorFactory.create(trusTeeParams)
 
-    for (requisition in token.requisitionsList) {
-      val details = requisition.details
+    for (requisition: RequisitionMetadata in token.requisitionsList) {
+      val details: RequisitionDetails = requisition.details
 
-      val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
-      val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
-      //  StreamingAeadStorage instead to read and decrypt requisition data.
-      val rawRequisitionData = getRequisitionData(requisition)
-      val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
-
-      processor.addFrequencyVector(decryptedRequisitionData)
+      val dataFormat = details.protocol.trusTee.dataFormat
+      when (dataFormat) {
+        DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
+          val kmsClient = getKmsClient(kmsClientFactory, details.protocol.trusTee)
+          val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
+          // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
+          //  StreamingAeadStorage instead to read and decrypt requisition data.
+          val rawRequisitionData = getRequisitionData(requisition)
+          val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
+          processor.addFrequencyVector(decryptedRequisitionData)
+        }
+        DataFormat.FREQUENCY_VECTOR -> {
+          processor.addFrequencyVector(getRequisitionData(requisition).toByteArray())
+        }
+        else -> {
+          throw IllegalArgumentException(
+            "Unsupported or unspecified DataFormat TrusTeeDetails: $dataFormat"
+          )
+        }
+      }
     }
 
     val computationResult = processor.computeResult()
