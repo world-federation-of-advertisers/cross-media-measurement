@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toProtoDate
@@ -43,24 +42,24 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
     return this
   }
 
-  suspend fun batchReadByExternalIds(
+  suspend fun readByIds(
     readContext: AsyncDatabaseClient.ReadContext,
     dataProviderId: InternalId,
-    externalEventGroupId: ExternalId,
+    eventGroupId: InternalId,
     activityDates: Collection<Date>,
   ): Map<Date, Result> {
     return buildMap {
       fillStatementBuilder {
           appendClause(
             """
-            WHERE EventGroups.DataProviderId = @${Params.DATA_PROVIDER_ID}
-            AND EventGroups.ExternalEventGroupId = @${Params.EXTERNAL_EVENT_GROUP_ID}
+            WHERE EventGroupActivities.DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND EventGroupActivities.EventGroupId = @${Params.EVENT_GROUP_ID}
             AND   EventGroupActivities.ActivityDate IN UNNEST(@${Params.ACTIVITY_DATES})
           """
               .trimIndent()
           )
           bind(Params.DATA_PROVIDER_ID to dataProviderId)
-          bind(Params.EXTERNAL_EVENT_GROUP_ID to externalEventGroupId)
+          bind(Params.EVENT_GROUP_ID to eventGroupId)
           bind(Params.ACTIVITY_DATES).toDateArray(activityDates.map { it.toCloudDate() })
         }
         .execute(readContext)
@@ -78,7 +77,6 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
 
   private fun buildEventGroupActivity(struct: Struct): EventGroupActivity {
     return eventGroupActivity {
-      externalEventGroupId = struct.getLong("ExternalEventGroupId")
       date = struct.getDate("ActivityDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()
     }
@@ -93,16 +91,14 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         EventGroupActivities.EventGroupActivityId,
         EventGroupActivities.ActivityDate,
         EventGroupActivities.CreateTime,
-        EventGroups.ExternalEventGroupId,
       FROM
         EventGroupActivities
-        JOIN EventGroups USING (DataProviderId, EventGroupId)
       """
         .trimIndent()
 
     private object Params {
       const val DATA_PROVIDER_ID = "dataProviderId"
-      const val EXTERNAL_EVENT_GROUP_ID = "externalEventGroupId"
+      const val EVENT_GROUP_ID = "eventGroupId"
       const val ACTIVITY_DATES = "externalEventGroupActivityIds"
     }
   }

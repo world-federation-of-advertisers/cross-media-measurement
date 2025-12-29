@@ -155,6 +155,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
         .isEqualTo(
           eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
             externalEventGroupId = eventGroup.externalEventGroupId
             date = date {
               year = 2025
@@ -170,6 +171,7 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
         .ignoringFields(EventGroupActivity.CREATE_TIME_FIELD_NUMBER)
         .isEqualTo(
           eventGroupActivity {
+            externalDataProviderId = dataProvider.externalDataProviderId
             externalEventGroupId = eventGroup.externalEventGroupId
             date = date {
               year = 2025
@@ -319,6 +321,38 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("external_event_group_id")
+    }
+
+  @Test
+  fun `batchUpdateEventGroupActivities throws INVALID_ARGUMENT when parent and child has different external data provider id`() =
+    runBlocking {
+      val request = batchUpdateEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroup.externalEventGroupId
+        requests += updateEventGroupActivityRequest {
+          allowMissing = true
+          eventGroupActivity = eventGroupActivity {
+            // different data provider id
+            externalDataProviderId = 1L
+            externalEventGroupId = eventGroup.externalEventGroupId
+            date = date {
+              year = 2025
+              month = 12
+              day = 1
+            }
+          }
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("requests.0.event_group_activity.external_data_provider_id")
     }
 
   @Test

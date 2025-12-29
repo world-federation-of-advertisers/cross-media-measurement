@@ -51,10 +51,10 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
 
     val activities: Map<Date, EventGroupActivityReader.Result> =
       EventGroupActivityReader()
-        .batchReadByExternalIds(
+        .readByIds(
           transactionContext,
           dataProviderId,
-          externalEventGroupId,
+          eventGroupId,
           request.requestsList.map { it.eventGroupActivity.date },
         )
 
@@ -85,9 +85,18 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
     return batchUpdateEventGroupActivitiesResponse {
       transactionResult.forEach {
         if (it.hasCreateTime()) {
-          eventGroupActivities += it
+          eventGroupActivities +=
+            it.copy {
+              externalDataProviderId = request.externalDataProviderId
+              externalEventGroupId = request.externalEventGroupId
+            }
         } else {
-          eventGroupActivities += it.copy { createTime = commitTimestamp.toProto() }
+          eventGroupActivities +=
+            it.copy {
+              createTime = commitTimestamp.toProto()
+              externalDataProviderId = request.externalDataProviderId
+              externalEventGroupId = request.externalEventGroupId
+            }
         }
       }
     }
