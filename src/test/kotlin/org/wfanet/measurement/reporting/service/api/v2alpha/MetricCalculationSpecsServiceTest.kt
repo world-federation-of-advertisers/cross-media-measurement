@@ -231,6 +231,7 @@ class MetricCalculationSpecsServiceTest {
             predicates += listOf("age == 18_34", "age == 55_PLUS")
           },
         )
+      modelLine = MODEL_LINE_NAME
       tags["year"] = "2024"
     }
 
@@ -305,6 +306,7 @@ class MetricCalculationSpecsServiceTest {
         internalCreateMetricCalculationSpecRequest {
           this.metricCalculationSpec = internalMetricCalculationSpec {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            cmmsModelLine = MODEL_LINE_NAME
             details =
               InternalMetricCalculationSpecKt.details {
                 displayName = metricCalculationSpec.displayName
@@ -656,6 +658,33 @@ class MetricCalculationSpecsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("display_name")
   }
+
+  @Test
+  fun `createMetricCalculationSpec throws INVALID_ARGUMENT when model_line unspecified`() {
+    val request = createMetricCalculationSpecRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      metricCalculationSpec = METRIC_CALCULATION_SPEC.copy { clearModelLine() }
+      metricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.createMetricCalculationSpec(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "request.metric_calculation_spec.model_line"
+        }
+      )
+  }
+
 
   @Test
   fun `createMetricCalculationSpec throws INVALID_ARGUMENT when model_line invalid`() {
@@ -1561,6 +1590,8 @@ class MetricCalculationSpecsServiceTest {
     private const val METRIC_CALCULATION_SPEC_NAME =
       "$MEASUREMENT_CONSUMER_NAME/metricCalculationSpecs/$METRIC_CALCULATION_SPEC_ID"
 
+    private const val MODEL_LINE_NAME = "modelProviders/mp-1/modelSuites/ms-1/modelLines/model-line"
+
     private val SECRETS_DIR =
       getRuntimePath(
           Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
@@ -1655,6 +1686,7 @@ class MetricCalculationSpecsServiceTest {
           count = 5
           increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
         }
+      modelLine = MODEL_LINE_NAME
       tags["year"] = "2024"
     }
 
@@ -1713,6 +1745,7 @@ class MetricCalculationSpecsServiceTest {
       internalMetricCalculationSpec {
         cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
         externalMetricCalculationSpecId = METRIC_CALCULATION_SPEC_ID
+        cmmsModelLine = MODEL_LINE_NAME
         details =
           InternalMetricCalculationSpecKt.details {
             displayName = METRIC_CALCULATION_SPEC.displayName

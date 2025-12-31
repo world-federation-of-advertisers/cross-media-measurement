@@ -309,8 +309,6 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
                 SECRETS_DIR,
                 trustedCertificates,
-                defaultVidModelLine = defaultModelLineName,
-                measurementConsumerModelLines = emptyMap(),
                 certificateCacheExpirationDuration = Duration.ofMinutes(60),
                 dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
                 keyReaderContext = Dispatchers.IO,
