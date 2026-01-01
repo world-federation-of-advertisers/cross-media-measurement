@@ -95,10 +95,10 @@ fun BasicReport.toInternal(
   basicReportId: String,
   campaignGroupId: String,
   createReportRequestId: String,
-  internalReportingImpressionQualificationFilters:
-    List<InternalReportingImpressionQualificationFilter>,
-  internalEffectiveReportingImpressionQualificationFilters:
-    List<InternalReportingImpressionQualificationFilter>,
+  reportingImpressionQualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
+  effectiveReportingImpressionQualificationFilters:
+    Iterable<ReportingImpressionQualificationFilter>,
+  impressionQualificationFilterSpecsByName: Map<String, List<ImpressionQualificationFilterSpec>>,
   effectiveModelLine: String,
 ): InternalBasicReport {
   val source = this
@@ -109,9 +109,14 @@ fun BasicReport.toInternal(
 
     details = internalBasicReportDetails {
       title = source.title
-      impressionQualificationFilters += internalReportingImpressionQualificationFilters
+      impressionQualificationFilters +=
+        reportingImpressionQualificationFilters.map {
+          it.toInternal(impressionQualificationFilterSpecsByName)
+        }
       effectiveImpressionQualificationFilters +=
-        internalEffectiveReportingImpressionQualificationFilters
+        effectiveReportingImpressionQualificationFilters.map {
+          it.toInternal(impressionQualificationFilterSpecsByName)
+        }
       reportingInterval = internalReportingInterval {
         reportStart = source.reportingInterval.reportStart
         reportEnd = source.reportingInterval.reportEnd
@@ -140,8 +145,9 @@ fun BasicReport.toInternal(
  * Converts the public [ReportingImpressionQualificationFilter] to the internal
  * [InternalReportingImpressionQualificationFilter].
  */
-fun ReportingImpressionQualificationFilter.toInternal():
-  InternalReportingImpressionQualificationFilter {
+fun ReportingImpressionQualificationFilter.toInternal(
+  impressionQualificationFilterSpecsByName: Map<String, List<ImpressionQualificationFilterSpec>>
+): InternalReportingImpressionQualificationFilter {
   val source = this
   return internalReportingImpressionQualificationFilter {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -150,6 +156,11 @@ fun ReportingImpressionQualificationFilter.toInternal():
         externalImpressionQualificationFilterId =
           ImpressionQualificationFilterKey.fromName(source.impressionQualificationFilter)!!
             .impressionQualificationFilterId
+        val filterSpecs =
+          impressionQualificationFilterSpecsByName.getValue(source.impressionQualificationFilter)
+        for (filterSpec in filterSpecs) {
+          this.filterSpecs += filterSpec.toInternal()
+        }
       }
       ReportingImpressionQualificationFilter.SelectorCase.CUSTOM -> {
         for (filterSpec in source.custom.filterSpecList) {
@@ -262,10 +273,12 @@ fun EventFilter.toInternal(): InternalEventFilter {
 fun DimensionSpec.toInternal(): InternalDimensionSpec {
   val source = this
   return internalDimensionSpec {
-    grouping =
-      InternalDimensionSpecKt.grouping {
-        eventTemplateFields += source.grouping.eventTemplateFieldsList
-      }
+    if (source.hasGrouping()) {
+      grouping =
+        InternalDimensionSpecKt.grouping {
+          eventTemplateFields += source.grouping.eventTemplateFieldsList
+        }
+    }
     filters += source.filtersList.map { it.toInternal() }
   }
 }
@@ -484,8 +497,10 @@ fun InternalReportingUnit.toReportingUnit(): ReportingUnit {
 fun InternalDimensionSpec.toDimensionSpec(): DimensionSpec {
   val source = this
   return dimensionSpec {
-    grouping =
-      DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+    if (source.hasGrouping()) {
+      grouping =
+        DimensionSpecKt.grouping { eventTemplateFields += source.grouping.eventTemplateFieldsList }
+    }
     filters += source.filtersList.map { it.toEventFilter() }
   }
 }

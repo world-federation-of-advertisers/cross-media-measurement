@@ -25,7 +25,6 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -52,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType
@@ -61,13 +61,12 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
@@ -116,18 +115,6 @@ class BasicReportsReportsJobTest {
     onBlocking { getReport(any()) }.thenReturn(REPORT)
   }
 
-  private val reportingSetsMock: ReportingSetsCoroutineImplBase = mockService {
-    onBlocking { streamReportingSets(any()) }
-      .thenReturn(
-        flowOf(
-          CAMPAIGN_GROUP,
-          PRIMITIVE_REPORTING_SET,
-          PRIMITIVE_REPORTING_SET_2,
-          COMPOSITE_REPORTING_SET,
-        )
-      )
-  }
-
   private val metricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase = mockService {
     onBlocking { listMetricCalculationSpecs(any()) }
       .thenReturn(
@@ -155,7 +142,6 @@ class BasicReportsReportsJobTest {
   val grpcTestServerRule = GrpcTestServerRule {
     addService(basicReportsMock)
     addService(reportsMock)
-    addService(reportingSetsMock)
     addService(metricCalculationSpecsMock)
     addService(reportResultsMock)
   }
@@ -169,7 +155,6 @@ class BasicReportsReportsJobTest {
         MEASUREMENT_CONSUMER_CONFIGS,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),
-        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
@@ -310,23 +295,6 @@ class BasicReportsReportsJobTest {
                     populationCount = MetricResultKt.populationCountResult { value = 1000L }
                   }
                 }
-            }
-
-          metricCalculationResults +=
-            ReportKt.metricCalculationResult {
-              metricCalculationSpec =
-                MetricCalculationSpecKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                  )
-                  .toName()
-
-              reportingSet =
-                ReportingSetKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                  )
-                  .toName()
 
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
@@ -474,7 +442,7 @@ class BasicReportsReportsJobTest {
         externalReportId = "1234"
         externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
         details = basicReportDetails {
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             externalImpressionQualificationFilterId = "IQF"
             filterSpecs += impressionQualificationFilterSpec {
               mediaType = MediaType.DISPLAY
@@ -486,7 +454,7 @@ class BasicReportsReportsJobTest {
               }
             }
           }
-          impressionQualificationFilters += reportingImpressionQualificationFilter {
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
             filterSpecs += impressionQualificationFilterSpec {
               mediaType = MediaType.VIDEO
               filters += eventFilter {
@@ -602,8 +570,7 @@ class BasicReportsReportsJobTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                    vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -713,8 +680,7 @@ class BasicReportsReportsJobTest {
                 dimension =
                   ReportingSetResultKt.dimension {
                     externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
-                    vennDiagramRegionType =
-                      ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE
+                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
                     custom = true
                     metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
                     grouping =
@@ -822,6 +788,216 @@ class BasicReportsReportsJobTest {
     }
 
   @Test
+  fun `execute transforms and persists results when effective IQFs doesn't match original`(): Unit =
+    runBlocking {
+      val report =
+        REPORT.copy {
+          state = Report.State.SUCCEEDED
+          reportingInterval =
+            ReportKt.reportingInterval {
+              reportStart = dateTime {
+                year = 2025
+                month = 1
+                day = 6
+                timeZone = timeZone { id = "America/Los_Angeles" }
+              }
+              reportEnd = date {
+                year = 2025
+                month = 1
+                day = 2
+              }
+            }
+
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
+                  .toName()
+
+              reportingSet =
+                ReportingSetKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                  )
+                  .toName()
+
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
+                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+                }
+            }
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    POPULATION_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
+                  .toName()
+
+              reportingSet =
+                ReportingSetKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
+                  )
+                  .toName()
+
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  metricSpec = metricSpec {
+                    populationCount = MetricSpecKt.populationCountParams {}
+                  }
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult {
+                    populationCount = MetricResultKt.populationCountResult { value = 1000L }
+                  }
+                }
+            }
+        }
+
+      whenever(reportsMock.getReport(any())).thenReturn(report)
+
+      val basicReport = basicReport {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalReportId = "1234"
+        externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
+        details = basicReportDetails {
+          effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+            externalImpressionQualificationFilterId = "IQF"
+            filterSpecs += impressionQualificationFilterSpec {
+              mediaType = MediaType.DISPLAY
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "banner_ad.viewable"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = true }
+                }
+              }
+            }
+          }
+          reportingInterval = reportingInterval {
+            reportStart = dateTime {
+              year = 2025
+              month = 1
+              day = 6
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            }
+            reportEnd = date {
+              year = 2025
+              month = 1
+              day = 2
+            }
+          }
+          resultGroupSpecs += resultGroupSpec { dimensionSpec = DimensionSpec.getDefaultInstance() }
+        }
+      }
+
+      whenever(basicReportsMock.listBasicReports(any()))
+        .thenReturn(listBasicReportsResponse { basicReports += basicReport })
+
+      job.execute()
+
+      verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports)
+        .isEqualTo(
+          listBasicReportsRequest {
+            filter =
+              ListBasicReportsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                state = BasicReport.State.REPORT_CREATED
+              }
+            pageSize = BATCH_SIZE
+          }
+        )
+
+      verifyProtoArgument(reportsMock, ReportsCoroutineImplBase::getReport)
+        .isEqualTo(
+          getReportRequest {
+            name = ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, basicReport.externalReportId).toName()
+          }
+        )
+
+      verify(basicReportsMock, times(0)).failBasicReport(any())
+
+      verifyProtoArgument(reportResultsMock, ReportResultsCoroutineImplBase::createReportResult)
+        .isEqualTo(
+          createReportResultRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            reportResult = reportResult { reportStart = report.reportingInterval.reportStart }
+          }
+        )
+      verifyProtoArgument(
+          reportResultsMock,
+          ReportResultsCoroutineImplBase::batchCreateReportingSetResults,
+        )
+        .ignoringRepeatedFieldOrderOfFieldDescriptors(REPORTING_SET_RESULT_UNORDERED_LISTS)
+        .isEqualTo(
+          batchCreateReportingSetResultsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+            externalBasicReportId = basicReport.externalBasicReportId
+            requests += createReportingSetResultRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportResultId = EXTERNAL_REPORT_RESULT_ID
+              reportingSetResult = reportingSetResult {
+                dimension =
+                  ReportingSetResultKt.dimension {
+                    grouping = ReportingSetResult.Dimension.Grouping.getDefaultInstance()
+                    externalReportingSetId = PRIMITIVE_REPORTING_SET.externalReportingSetId
+                    vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
+                    externalImpressionQualificationFilterId = "IQF"
+                    metricFrequencySpec = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+                  }
+                populationSize = 1000
+                reportingWindowResults +=
+                  ReportingSetResultKt.reportingWindowEntry {
+                    key =
+                      ReportingSetResultKt.reportingWindow {
+                        nonCumulativeStart = date {
+                          year = 2025
+                          month = 1
+                          day = 6
+                        }
+                        end = date {
+                          year = 2025
+                          month = 1
+                          day = 13
+                        }
+                      }
+
+                    value =
+                      ReportingSetResultKt.reportingWindowResult {
+                        unprocessedReportResultValues =
+                          ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                            nonCumulativeResults =
+                              ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+                                .noisyMetricSet {
+                                  reach =
+                                    ReportingSetResultKt.ReportingWindowResultKt
+                                      .NoisyReportResultValuesKt
+                                      .NoisyMetricSetKt
+                                      .reachResult { value = 1 }
+                                }
+                          }
+                      }
+                  }
+              }
+            }
+          }
+        )
+    }
+
+  @Test
   fun `execute creates 2 reporting set results for 2 different reporting sets`(): Unit =
     runBlocking {
       val report =
@@ -896,122 +1072,13 @@ class BasicReportsReportsJobTest {
     }
 
   @Test
-  fun `execute sets primitive region when results for primitive reporting set`(): Unit =
-    runBlocking {
-      val report =
-        REPORT.copy {
-          state = Report.State.SUCCEEDED
-          metricCalculationResults.clear()
-          metricCalculationResults +=
-            ReportKt.metricCalculationResult {
-              metricCalculationSpec =
-                MetricCalculationSpecKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                  )
-                  .toName()
-
-              reportingSet =
-                ReportingSetKey(
-                    CMMS_MEASUREMENT_CONSUMER_ID,
-                    PRIMITIVE_REPORTING_SET.externalReportingSetId,
-                  )
-                  .toName()
-
-              resultAttributes +=
-                ReportKt.MetricCalculationResultKt.resultAttribute {
-                  filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
-                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-                  timeInterval = interval {
-                    startTime = timestamp { seconds = 1736150400 }
-                    endTime = timestamp { seconds = 1736755200 }
-                  }
-                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
-                }
-            }
-        }
-
-      whenever(reportsMock.getReport(any())).thenReturn(report)
-
-      job.execute()
-
-      val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
-      verifyBlocking(reportResultsMock, times(1)) {
-        batchCreateReportingSetResults(requestCaptor.capture())
-      }
-      assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-      assertThat(
-          requestCaptor.firstValue.requestsList
-            .single()
-            .reportingSetResult
-            .dimension
-            .vennDiagramRegionType
-        )
-        .isEqualTo(ReportingSetResult.Dimension.VennDiagramRegionType.PRIMITIVE)
-    }
-
-  @Test
-  fun `execute sets union region when results for composite reporting set`(): Unit = runBlocking {
-    val report =
-      REPORT.copy {
-        state = Report.State.SUCCEEDED
-        metricCalculationResults.clear()
-        metricCalculationResults +=
-          ReportKt.metricCalculationResult {
-            metricCalculationSpec =
-              MetricCalculationSpecKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
-                )
-                .toName()
-
-            reportingSet =
-              ReportingSetKey(
-                  CMMS_MEASUREMENT_CONSUMER_ID,
-                  COMPOSITE_REPORTING_SET.externalReportingSetId,
-                )
-                .toName()
-
-            resultAttributes +=
-              ReportKt.MetricCalculationResultKt.resultAttribute {
-                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
-                metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
-                timeInterval = interval {
-                  startTime = timestamp { seconds = 1736150400 }
-                  endTime = timestamp { seconds = 1736755200 }
-                }
-                metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
-              }
-          }
-      }
-
-    whenever(reportsMock.getReport(any())).thenReturn(report)
-
-    job.execute()
-
-    val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
-    verifyBlocking(reportResultsMock, times(1)) {
-      batchCreateReportingSetResults(requestCaptor.capture())
-    }
-    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-    assertThat(
-        requestCaptor.firstValue.requestsList
-          .single()
-          .reportingSetResult
-          .dimension
-          .vennDiagramRegionType
-      )
-      .isEqualTo(ReportingSetResult.Dimension.VennDiagramRegionType.UNION)
-  }
-
-  @Test
   fun `execute sets custom when results for custom IQF`(): Unit = runBlocking {
     val basicReport =
       INTERNAL_BASIC_REPORT.copy {
         details =
           INTERNAL_BASIC_REPORT.details.copy {
-            impressionQualificationFilters.clear()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
+            effectiveImpressionQualificationFilters.clear()
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               filterSpecs += impressionQualificationFilterSpec {
                 mediaType = MediaType.DISPLAY
                 filters += eventFilter {
@@ -1080,8 +1147,8 @@ class BasicReportsReportsJobTest {
       INTERNAL_BASIC_REPORT.copy {
         details =
           INTERNAL_BASIC_REPORT.details.copy {
-            impressionQualificationFilters.clear()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
+            effectiveImpressionQualificationFilters.clear()
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               externalImpressionQualificationFilterId = "IQF"
               filterSpecs += impressionQualificationFilterSpec {
                 mediaType = MediaType.DISPLAY
@@ -1157,8 +1224,8 @@ class BasicReportsReportsJobTest {
       INTERNAL_BASIC_REPORT.copy {
         details =
           INTERNAL_BASIC_REPORT.details.copy {
-            impressionQualificationFilters.clear()
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
+            effectiveImpressionQualificationFilters.clear()
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               externalImpressionQualificationFilterId = "IQF"
               filterSpecs += impressionQualificationFilterSpec {
                 mediaType = MediaType.DISPLAY
@@ -1170,7 +1237,7 @@ class BasicReportsReportsJobTest {
                 }
               }
             }
-            impressionQualificationFilters += reportingImpressionQualificationFilter {
+            effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
               filterSpecs += impressionQualificationFilterSpec {
                 mediaType = MediaType.DISPLAY
                 filters += eventFilter {
@@ -1494,8 +1561,8 @@ class BasicReportsReportsJobTest {
         INTERNAL_BASIC_REPORT.copy {
           details =
             INTERNAL_BASIC_REPORT.details.copy {
-              impressionQualificationFilters.clear()
-              impressionQualificationFilters += reportingImpressionQualificationFilter {
+              effectiveImpressionQualificationFilters.clear()
+              effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
                 filterSpecs += impressionQualificationFilterSpec {
                   mediaType = MediaType.VIDEO
                   filters += eventFilter {
@@ -1591,8 +1658,8 @@ class BasicReportsReportsJobTest {
         INTERNAL_BASIC_REPORT.copy {
           details =
             INTERNAL_BASIC_REPORT.details.copy {
-              impressionQualificationFilters.clear()
-              impressionQualificationFilters += reportingImpressionQualificationFilter {
+              effectiveImpressionQualificationFilters.clear()
+              effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
                 filterSpecs += impressionQualificationFilterSpec {
                   mediaType = MediaType.VIDEO
                   filters += eventFilter {
@@ -1669,6 +1736,40 @@ class BasicReportsReportsJobTest {
       REPORT.copy {
         state = Report.State.SUCCEEDED
         metricCalculationResults.clear()
+        metricCalculationResults +=
+          ReportKt.metricCalculationResult {
+            metricCalculationSpec =
+              MetricCalculationSpecKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  TOTAL_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                )
+                .toName()
+
+            reportingSet =
+              ReportingSetKey(
+                  CMMS_MEASUREMENT_CONSUMER_ID,
+                  COMPOSITE_REPORTING_SET.externalReportingSetId,
+                )
+                .toName()
+
+            resultAttributes +=
+              ReportKt.MetricCalculationResultKt.resultAttribute {
+                filter = "((has(banner_ad.viewable) && banner_ad.viewable == true))"
+                metricSpec = metricSpec { impressionCount = MetricSpecKt.impressionCountParams {} }
+                timeInterval = interval {
+                  startTime = timestamp { seconds = 1736150400 }
+                  endTime = timestamp { seconds = 1736755200 }
+                }
+                metricResult = metricResult {
+                  impressionCount =
+                    MetricResultKt.impressionCountResult {
+                      value = 5L
+                      univariateStatistics = univariateStatistics { standardDeviation = 1.0 }
+                    }
+                }
+              }
+          }
+
         metricCalculationResults +=
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
@@ -1823,11 +1924,62 @@ class BasicReportsReportsJobTest {
     verifyBlocking(reportResultsMock, times(1)) {
       batchCreateReportingSetResults(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(1)
-    val reportingSetResultEntry = requestCaptor.firstValue.requestsList.single().reportingSetResult
-    assertThat(reportingSetResultEntry.populationSize).isEqualTo(1000)
-    assertThat(reportingSetResultEntry.reportingWindowResultsList).hasSize(1)
-    assertThat(reportingSetResultEntry.reportingWindowResultsList[0])
+    assertThat(requestCaptor.firstValue.requestsCount).isEqualTo(2)
+    val totalReportingSetResult =
+      requestCaptor.firstValue.requestsList
+        .first {
+          it.reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
+            MetricFrequencySpec.SelectorCase.TOTAL
+        }
+        .reportingSetResult
+
+    assertThat(totalReportingSetResult.populationSize).isEqualTo(1000)
+    assertThat(totalReportingSetResult.reportingWindowResultsList).hasSize(1)
+    assertThat(totalReportingSetResult.reportingWindowResultsList[0])
+      .isEqualTo(
+        ReportingSetResultKt.reportingWindowEntry {
+          key =
+            ReportingSetResultKt.reportingWindow {
+              end = date {
+                year = 2025
+                month = 1
+                day = 13
+              }
+            }
+          value =
+            ReportingSetResultKt.reportingWindowResult {
+              unprocessedReportResultValues =
+                ReportingSetResultKt.ReportingWindowResultKt.noisyReportResultValues {
+                  cumulativeResults =
+                    ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+                      .noisyMetricSet {
+                        impressionCount =
+                          ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
+                            .NoisyMetricSetKt
+                            .impressionCountResult {
+                              value = 5
+                              univariateStatistics =
+                                ReportingSetResultKt.ReportingWindowResultKt
+                                  .NoisyReportResultValuesKt
+                                  .NoisyMetricSetKt
+                                  .univariateStatistics { standardDeviation = 1.0 }
+                            }
+                      }
+                }
+            }
+        }
+      )
+
+    val weeklyReportingSetResult =
+      requestCaptor.firstValue.requestsList
+        .first {
+          it.reportingSetResult.dimension.metricFrequencySpec.selectorCase ==
+            MetricFrequencySpec.SelectorCase.WEEKLY
+        }
+        .reportingSetResult
+    assertThat(weeklyReportingSetResult.populationSize).isEqualTo(1000)
+    assertThat(weeklyReportingSetResult.reportingWindowResultsList).hasSize(1)
+    assertThat(weeklyReportingSetResult.reportingWindowResultsList[0])
       .isEqualTo(
         ReportingSetResultKt.reportingWindowEntry {
           key =
@@ -2346,7 +2498,6 @@ class BasicReportsReportsJobTest {
         measurementConsumerConfigs,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportsCoroutineStub(grpcTestServerRule.channel),
-        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         MetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         TEST_EVENT_DESCRIPTOR,
@@ -2446,7 +2597,7 @@ class BasicReportsReportsJobTest {
       externalReportId = "1234"
       externalCampaignGroupId = CAMPAIGN_GROUP.externalReportingSetId
       details = basicReportDetails {
-        impressionQualificationFilters += reportingImpressionQualificationFilter {
+        effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
           filterSpecs += impressionQualificationFilterSpec {
             mediaType = MediaType.DISPLAY
             filters += eventFilter {

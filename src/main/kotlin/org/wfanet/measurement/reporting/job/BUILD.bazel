@@ -30,6 +30,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "basic_reports_reports_job",
     srcs = ["BasicReportsReportsJob.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
@@ -39,6 +44,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_report_transformations",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:errors",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",
         "//src/main/proto/wfa/measurement/access/v1alpha:principal_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
@@ -46,7 +52,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metric_calculation_specs_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metric_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",

@@ -78,20 +78,30 @@ message ResultGroupMetricSpec {
 
     // The k plus reach up to the frequency specified. Value must be
     // positive.
+    //
+    // Currently not supported for cumulative weekly.
     int32 k_plus_reach = 3 [(google.api.field_behavior) = IMMUTABLE];
 
     // This option requires that a positive value be given for
     // k_plus_reach, in which case if specified the percent k+
     // reach values are also computed.
+    //
+    // Currently not supported for cumulative weekly.
     bool percent_k_plus_reach = 4 [(google.api.field_behavior) = IMMUTABLE];
 
     // The average frequency
+    //
+    // Currently not supported for cumulative weekly.
     bool average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
 
     // The impression count
+    //
+    // Currently not supported for cumulative weekly.
     bool impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
 
     // Gross ratings points
+    //
+    // Currently not supported for cumulative weekly.
     bool grps = 7 [(google.api.field_behavior) = IMMUTABLE];
   }
 

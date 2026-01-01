@@ -18,10 +18,12 @@ package org.wfanet.measurement.access.deploy.gcloud.spanner
 
 import org.junit.ClassRule
 import org.junit.Rule
+import org.wfanet.measurement.access.common.TlsClientPrincipalMapping
 import org.wfanet.measurement.access.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.access.service.internal.PermissionMapping
 import org.wfanet.measurement.access.service.internal.testing.RolesServiceTest
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 
@@ -35,6 +37,19 @@ class SpannerRolesServiceTest : RolesServiceTest() {
       permissionMapping,
       idGenerator = idGenerator,
     )
+
+  override fun initServices(
+    permissionMapping: PermissionMapping,
+    tlsClientMapping: TlsClientPrincipalMapping,
+    idGenerator: IdGenerator,
+  ): Services {
+    val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
+    return Services(
+      SpannerRolesService(databaseClient, permissionMapping, idGenerator = idGenerator),
+      SpannerPrincipalsService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
+      SpannerPoliciesService(databaseClient, tlsClientMapping, idGenerator = idGenerator),
+    )
+  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

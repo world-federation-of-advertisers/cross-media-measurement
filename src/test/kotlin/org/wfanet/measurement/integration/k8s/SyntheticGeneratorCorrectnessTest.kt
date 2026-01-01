@@ -79,9 +79,7 @@ import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
-import org.wfanet.measurement.reporting.v2alpha.MetricCalculationSpecsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
-import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt
 
 /**
  * Test for correctness of an existing CMMS on Kubernetes with EDP simulators.
@@ -328,6 +326,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
                 "reporting.metrics.create",
                 "reporting.basicReports.get",
               ),
+            ttl = Duration.ofMinutes(60),
           )
           .token
       }
@@ -344,9 +343,6 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
             publicApiChannel
           ),
         reportingSetsClient = ReportingSetsGrpcKt.ReportingSetsCoroutineStub(publicApiChannel),
-        metricCalculationSpecsClient =
-          MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub(publicApiChannel),
-        reportsClient = ReportsGrpcKt.ReportsCoroutineStub(publicApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayScheme = reportingServiceUrl.scheme,
         reportingGatewayHost = reportingServiceUrl.host,

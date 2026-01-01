@@ -22,7 +22,9 @@ import com.google.protobuf.util.Durations
 import io.grpc.Channel
 import io.grpc.Status
 import io.grpc.StatusException
+import io.netty.handler.ssl.ClientAuth
 import java.io.File
+import java.nio.file.Paths
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -49,7 +51,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub as PublicKingdomModelLinesCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
@@ -71,6 +77,7 @@ import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.M
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
@@ -125,7 +132,7 @@ class InProcessReportingServer(
     PublicKingdomModelLinesCoroutineStub(kingdomPublicApiChannel)
 
   private val internalApiChannel
-    get() = internalReportingServer.channel
+    get() = buildMutualTlsChannel("localhost:${internalReportingServer.port}", SIGNING_CERTS)
 
   private val internalMeasurementConsumersClient by lazy {
     InternalMeasurementConsumersCoroutineStub(internalApiChannel)
@@ -133,7 +140,7 @@ class InProcessReportingServer(
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }
-  private val internalMetricCalculationSpecsClient by lazy {
+  val internalMetricCalculationSpecsClient by lazy {
     InternalMetricCalculationSpecsCoroutineStub(internalApiChannel)
   }
   private val internalMetricsClient by lazy { InternalMetricsCoroutineStub(internalApiChannel) }
@@ -148,13 +155,33 @@ class InProcessReportingServer(
     InternalImpressionQualificationFiltersCoroutineStub(internalApiChannel)
   }
 
-  private val internalReportingServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Reporting Server's internal Data services")
-      internalReportingServerServices.toList().forEach {
-        addService(it.withVerboseLogging(verboseGrpcLogging))
+  val internalReportResultsClient by lazy { ReportResultsCoroutineStub(internalApiChannel) }
+
+  private lateinit var _internalReportingServer: CommonServer
+
+  // An server that isn't inProcess is required for a Python process.
+  private val internalReportingServerRule = TestRule { base, _ ->
+    object : Statement() {
+      override fun evaluate() {
+        _internalReportingServer =
+          CommonServer.fromParameters(
+              verboseGrpcLogging = true,
+              certs = SIGNING_CERTS,
+              clientAuth = ClientAuth.OPTIONAL,
+              nameForLogging = INTERNAL_REPORTING_SERVER_NAME,
+              services =
+                internalReportingServerServices.toList().map {
+                  it.withVerboseLogging(verboseGrpcLogging)
+                },
+            )
+            .start()
+        base.evaluate()
       }
     }
+  }
+
+  val internalReportingServer: CommonServer
+    get() = _internalReportingServer
 
   private lateinit var publicApiServer: GrpcTestServerRule
 
@@ -280,7 +307,7 @@ class InProcessReportingServer(
                 authorization,
                 encryptionKeyPairStore,
                 SecureRandom().asKotlinRandom(),
-                signingPrivateKeyDir,
+                SECRETS_DIR,
                 trustedCertificates,
                 defaultVidModelLine = defaultModelLineName,
                 measurementConsumerModelLines = emptyMap(),
@@ -336,18 +363,47 @@ class InProcessReportingServer(
     get() = access.channel
 
   override fun apply(base: Statement, description: Description): Statement {
-    publicApiServer = createPublicApiTestServerRule()
-    return chainRulesSequentially(
-        internalReportingServer,
-        accessServicesFactory,
-        access,
-        celEnvCacheProvider,
-        publicApiServer,
-      )
-      .apply(base, description)
+    return object : Statement() {
+      override fun evaluate() {
+        try {
+          publicApiServer = createPublicApiTestServerRule()
+          chainRulesSequentially(
+              internalReportingServerRule,
+              accessServicesFactory,
+              access,
+              celEnvCacheProvider,
+              publicApiServer,
+            )
+            .apply(base, description)
+            .evaluate()
+        } finally {
+          internalApiChannel.shutdownNow()
+          internalReportingServer.shutdown()
+        }
+      }
+    }
   }
 
   companion object {
+    private const val INTERNAL_REPORTING_SERVER_NAME = "internal-reporting-server"
+
+    private val SECRETS_DIR: File =
+      getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+        )!!
+        .toFile()
+
+    private val ALL_ROOT_CERTS_FILE: File = SECRETS_DIR.resolve("all_root_certs.pem")
+    private val REPORTING_TLS_CERT_FILE: File = SECRETS_DIR.resolve("reporting_tls.pem")
+    private val REPORTING_TLS_KEY_FILE: File = SECRETS_DIR.resolve("reporting_tls.key")
+
+    private val SIGNING_CERTS =
+      SigningCerts.fromPemFiles(
+        REPORTING_TLS_CERT_FILE,
+        REPORTING_TLS_KEY_FILE,
+        ALL_ROOT_CERTS_FILE,
+      )
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val NUMBER_VID_BUCKETS = 300

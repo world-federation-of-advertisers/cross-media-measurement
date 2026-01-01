@@ -39,9 +39,9 @@ _worker2PublicApiTarget:    string @tag("worker2_public_api_target")
 _aggregatorId:              string @tag("aggregator_id")
 _aggregatorPublicApiTarget: string @tag("aggregator_public_api_target")
 
-_google_cloud_project_id:     string @tag("google_cloud_project")
-_google_cloud_project_number: string @tag("google_cloud_project_number")
-_key_ring_location:           string @tag("key_ring_location")
+_googleCloudProjectId:       string @tag("google_cloud_project")
+_googleCloudProjectNumber:   string @tag("google_cloud_project_number")
+_googelCloudKeyRingLocation: string @tag("key_ring_location")
 
 _resourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
@@ -116,9 +116,9 @@ edp_simulators: {
 			]
 			_kingdom_public_api_target: _kingdomPublicApiTarget
 			_mc_resource_name:          _mc_name
-			_gcloudProjectId:           _google_cloud_project_id
-			_gcloudProjectNumber:       _google_cloud_project_number
-			_keyRingLocation:           _key_ring_location
+			_gcloudProjectId:           _googleCloudProjectId
+			_gcloudProjectNumber:       _googleCloudProjectNumber
+			_keyRingLocation:           _googelCloudKeyRingLocation
 
 			deployment: {
 				_container: {

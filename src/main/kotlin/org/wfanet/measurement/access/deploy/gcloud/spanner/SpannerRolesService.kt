@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.RoleResult
+import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deletePolicyBinding
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deleteRole
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deleteRolePermission
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.deleteRoleResourceType
@@ -36,6 +37,7 @@ import org.wfanet.measurement.access.deploy.gcloud.spanner.db.getRoleIdByResourc
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertRole
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertRolePermission
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.insertRoleResourceType
+import org.wfanet.measurement.access.deploy.gcloud.spanner.db.readPolicyBindingsByRoleId
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.readRoles
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.roleExists
 import org.wfanet.measurement.access.deploy.gcloud.spanner.db.updateRole
@@ -266,6 +268,15 @@ class SpannerRolesService(
     try {
       databaseClient.readWriteTransaction(Options.tag("action=deleteRole")).run { txn ->
         val roleId = txn.getRoleIdByResourceId(request.roleResourceId)
+
+        txn.readPolicyBindingsByRoleId(roleId).collect { policyBindingResult ->
+          txn.deletePolicyBinding(
+            policyId = policyBindingResult.policyId,
+            roleId = policyBindingResult.roleId,
+            principalId = policyBindingResult.principalId,
+          )
+        }
+
         txn.deleteRole(roleId)
       }
     } catch (e: RoleNotFoundException) {

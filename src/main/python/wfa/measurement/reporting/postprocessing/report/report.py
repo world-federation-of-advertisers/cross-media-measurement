@@ -312,13 +312,13 @@ class MetricReport:
     frequencies = set()
     for edp_combination in whole_campaign_measurements.keys():
       k_reach_measurements = whole_campaign_measurements[edp_combination].k_reach
-      if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+      if k_reach_measurements:
         frequencies.add(len(k_reach_measurements))
 
     for edp_combination in weekly_non_cumulative_measurements.keys():
       for period in range(0, self._num_periods):
         k_reach_measurements = weekly_non_cumulative_measurements[edp_combination][period].k_reach
-        if k_reach_measurements is not None and len(k_reach_measurements) > 0:
+        if k_reach_measurements:
           frequencies.add(len(k_reach_measurements))
 
     if len(frequencies) > 1:
@@ -2110,7 +2110,7 @@ class Report:
        A list of zero variance EDPs.
     """
     zero_variance_edp_combinations: list[EdpCombination] = []
-    if self._metric_reports.keys() is None:
+    if not self._metric_reports.keys():
       raise ValueError("The report does not contain any measurements.")
 
     edp_combinations = self._metric_reports[

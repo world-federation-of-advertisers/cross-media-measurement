@@ -508,20 +508,24 @@ object CreateBasicReportRequestValidation {
     }
 
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.reportingUnit.cumulative,
-      "$fieldPath.reporting_unit.cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.reportingUnit.cumulative,
+      isWeeklyCumulative = metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
+      fieldPath = "$fieldPath.reporting_unit.cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.reportingUnit.nonCumulative,
-      "$fieldPath.reporting_unit.non_cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.reportingUnit.nonCumulative,
+      isWeeklyCumulative = false,
+      fieldPath = "$fieldPath.reporting_unit.non_cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.component.nonCumulative,
-      "$fieldPath.component.non_cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.component.nonCumulative,
+      isWeeklyCumulative = false,
+      fieldPath = "$fieldPath.component.non_cumulative",
     )
     validateBasicMetricSetSpec(
-      resultGroupMetricSpec.component.cumulative,
-      "$fieldPath.component.cumulative",
+      basicMetricSetSpec = resultGroupMetricSpec.component.cumulative,
+      isWeeklyCumulative = metricFrequencySelectorCase == MetricFrequencySpec.SelectorCase.WEEKLY,
+      fieldPath = "$fieldPath.component.cumulative",
     )
 
     if (
@@ -692,11 +696,27 @@ object CreateBasicReportRequestValidation {
    * @param basicMetricSetSpec [ResultGroupMetricSpec.BasicMetricSetSpec] to validate
    * @param fieldPath Path of [basicMetricSetSpec] relative to the request
    * @throws InvalidFieldValueException
+   * @throws FieldUnimplementedException
    */
   private fun validateBasicMetricSetSpec(
     basicMetricSetSpec: ResultGroupMetricSpec.BasicMetricSetSpec,
+    isWeeklyCumulative: Boolean,
     fieldPath: String,
   ) {
+    if (isWeeklyCumulative) {
+      if (
+        basicMetricSetSpec.impressions ||
+          basicMetricSetSpec.grps ||
+          basicMetricSetSpec.averageFrequency ||
+          basicMetricSetSpec.kPlusReach > 0 ||
+          basicMetricSetSpec.percentKPlusReach
+      ) {
+        throw FieldUnimplementedException(fieldPath) { fieldName ->
+          "$fieldName only supports reach and percent_reach when metric_frequency weekly"
+        }
+      }
+    }
+
     if (basicMetricSetSpec.percentKPlusReach) {
       if (basicMetricSetSpec.kPlusReach <= 0) {
         throw InvalidFieldValueException("$fieldPath.k_plus_reach") { fieldName ->

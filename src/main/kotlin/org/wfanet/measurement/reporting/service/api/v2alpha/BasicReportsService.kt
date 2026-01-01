@@ -87,6 +87,7 @@ import org.wfanet.measurement.reporting.service.api.ModelLineNotActiveException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
@@ -102,6 +103,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
@@ -227,10 +229,13 @@ class BasicReportsService(
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    // Validates that IQFs exist, but also constructs a List required for creating Report
-    val impressionQualificationFilterSpecLists: List<List<ImpressionQualificationFilterSpec>> =
-      effectiveReportingImpressionQualificationFilters.map {
-        if (it.hasImpressionQualificationFilter()) {
+
+    // Validates that IQFs exist as in addition to creating the Map
+    val impressionQualificationFilterSpecsByName:
+      Map<String, List<ImpressionQualificationFilterSpec>> =
+      effectiveReportingImpressionQualificationFilters
+        .filter { it.hasImpressionQualificationFilter() }
+        .associate {
           val impressionQualificationFilterKey =
             impressionQualificationFilterKeyByName.getValue(it.impressionQualificationFilter)
           val internalImpressionQualificationFilter: InternalImpressionQualificationFilter =
@@ -239,13 +244,39 @@ class BasicReportsService(
             } catch (e: ImpressionQualificationFilterNotFoundException) {
               throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
             }
-          internalImpressionQualificationFilter.filterSpecsList.map { internalFilterSpec ->
-            internalFilterSpec.toImpressionQualificationFilterSpec()
-          }
-        } else {
-          it.custom.filterSpecList
+          val filterSpecs =
+            internalImpressionQualificationFilter.filterSpecsList.map { internalFilterSpec ->
+              internalFilterSpec.toImpressionQualificationFilterSpec()
+            }
+
+          it.impressionQualificationFilter to filterSpecs
         }
-      }
+
+    val customFilterSpecs: List<List<ImpressionQualificationFilterSpec>> = buildList {
+      addAll(
+        effectiveReportingImpressionQualificationFilters
+          .filter { it.hasCustom() }
+          .map { customIqf ->
+            val normalizedCustomSpecs: Iterable<ImpressionQualificationFilterSpec> =
+              normalizeImpressionQualificationFilterSpecs(customIqf.custom.filterSpecList)
+
+            // Check if custom ImpressionQualificationFilter already exists
+            impressionQualificationFilterSpecsByName.forEach { (iqFName, existingIqfSpecs) ->
+              val normalizedExistingIqfSpecs =
+                normalizeImpressionQualificationFilterSpecs(existingIqfSpecs)
+
+              if (normalizedCustomSpecs == normalizedExistingIqfSpecs) {
+                throw InvalidFieldValueException("basic_report.impression_qualification_filters") {
+                    fieldPath ->
+                    "$fieldPath contains a custom ReportingImpressionQualificationFilter that matches $iqFName"
+                  }
+                  .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+              }
+            }
+            customIqf.custom.filterSpecList
+          }
+      )
+    }
 
     val createReportRequestId = UUID.randomUUID().toString()
 
@@ -259,10 +290,11 @@ class BasicReportsService(
                 basicReportId = request.basicReportId,
                 campaignGroupId = campaignGroupKey.reportingSetId,
                 createReportRequestId = createReportRequestId,
-                internalReportingImpressionQualificationFilters =
-                  request.basicReport.impressionQualificationFiltersList.map { it.toInternal() },
-                internalEffectiveReportingImpressionQualificationFilters =
-                  effectiveReportingImpressionQualificationFilters.map { it.toInternal() },
+                reportingImpressionQualificationFilters =
+                  request.basicReport.impressionQualificationFiltersList,
+                effectiveReportingImpressionQualificationFilters =
+                  effectiveReportingImpressionQualificationFilters,
+                impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
                 effectiveModelLine = effectiveModelLine?.name.orEmpty(),
               )
             requestId = request.requestId
@@ -290,6 +322,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -298,7 +331,8 @@ class BasicReportsService(
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>> =
       buildReportingSetMetricCalculationSpecDetailsMap(
         campaignGroupName = request.basicReport.campaignGroup,
-        impressionQualificationFilterSpecsLists = impressionQualificationFilterSpecLists,
+        impressionQualificationFilterSpecsLists =
+          impressionQualificationFilterSpecsByName.values + customFilterSpecs,
         dataProviderPrimitiveReportingSetMap =
           reportingSetMaps.primitiveReportingSetsByDataProvider,
         resultGroupSpecs = request.basicReport.resultGroupSpecsList,
@@ -363,6 +397,7 @@ class BasicReportsService(
         InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
         InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+        InternalErrors.Reason.INVALID_BASIC_REPORT,
         null -> Exception("Error retrieving internal ImpressionQualificationFilter", e)
       }
     }
@@ -464,6 +499,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -509,6 +545,7 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -905,6 +942,24 @@ class BasicReportsService(
         externalMetricCalculationSpecId = "a${UUID.randomUUID()}"
       }
     )
+  }
+
+  /** Normalize an iteration of [ImpressionQualificationFilterSpec]. */
+  private fun normalizeImpressionQualificationFilterSpecs(
+    impressionQualificationFilterSpecs: Iterable<ImpressionQualificationFilterSpec>
+  ): Iterable<ImpressionQualificationFilterSpec> {
+    return impressionQualificationFilterSpecs
+      .sortedBy { it.mediaType }
+      .map { impressionQualificationFilterSpec ->
+        impressionQualificationFilterSpec.copy {
+          filters.clear()
+          val normalizedEventFilters =
+            Normalization.normalizeEventFilters(
+              impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
+            )
+          filters += normalizedEventFilters.map { it.toEventFilter() }
+        }
+      }
   }
 
   object Permission {
