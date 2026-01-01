@@ -298,10 +298,7 @@ class MetricsService(
     cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
     private val populationDataProvider: String,
   ) {
-    data class RunningMetric(
-      val internalMetric: InternalMetric,
-      val modelLineName: String,
-    ) {
+    data class RunningMetric(val internalMetric: InternalMetric, val modelLineName: String) {
       init {
         require(internalMetric.state == InternalMetric.State.RUNNING)
       }
@@ -1450,7 +1447,6 @@ class MetricsService(
     ModelLineKey.fromName(request.metric.modelLine)
       ?: throw InvalidFieldValueException("metric.model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
 
     val requiredPermissionIds = buildSet {
       add(Permission.CREATE)

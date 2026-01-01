@@ -685,7 +685,6 @@ class MetricCalculationSpecsServiceTest {
       )
   }
 
-
   @Test
   fun `createMetricCalculationSpec throws INVALID_ARGUMENT when model_line invalid`() {
     val request = createMetricCalculationSpecRequest {

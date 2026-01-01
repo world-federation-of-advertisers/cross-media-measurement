@@ -276,9 +276,7 @@ class MetricCalculationSpecsService(
 
     try {
       kingdomModelLinesStub
-        .withAuthenticationKey(
-          measurementConsumerCredentials.callCredentials.apiAuthenticationKey
-        )
+        .withAuthenticationKey(measurementConsumerCredentials.callCredentials.apiAuthenticationKey)
         .getModelLine(getModelLineRequest { name = source.modelLine })
     } catch (e: StatusException) {
       throw when (e.status.code) {

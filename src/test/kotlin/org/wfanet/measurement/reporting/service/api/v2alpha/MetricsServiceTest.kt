@@ -4784,7 +4784,8 @@ class MetricsServiceTest {
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "metric.model_line"
         }
-      )  }
+      )
+  }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when time interval in Metric is unspecified`() {
