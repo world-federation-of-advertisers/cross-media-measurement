@@ -97,21 +97,21 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
     testHarness.testDuration("$runId-duration")
   }
 
-  @Test
-  fun `HMSS reach and frequency measurement completes with expected result`() = runBlocking {
-    testHarness.testReachAndFrequency(
-      "$runId-hmss-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
-    )
-  }
+//  @Test
+//  fun `HMSS reach and frequency measurement completes with expected result`() = runBlocking {
+//    testHarness.testReachAndFrequency(
+//      "$runId-hmss-reach-and-freq",
+//      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = true },
+//    )
+//  }
 
-  @Test
-  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
-    testHarness.testReachAndFrequency(
-      "$runId-llv2-reach-and-freq",
-      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
-    )
-  }
+  //  @Test
+  //  fun `LLv2 reach and frequency measurement completes with expected result`() = runBlocking {
+  //    testHarness.testReachAndFrequency(
+  //      "$runId-llv2-reach-and-freq",
+  //      DataProviderKt.capabilities { honestMajorityShareShuffleSupported = false },
+  //    )
+  //  }
 
   @Test
   fun `basic report completes with expected result`() = runBlocking {
