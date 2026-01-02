@@ -455,7 +455,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
             for (attempt in 1..5) {
               try {
-                // Close the previous response body if it exists to avoid leaks
+                // Close the previous response body if it exists
                 response?.close()
 
                 response = chain.proceed(request)
@@ -463,6 +463,8 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 // If successful or a client error (4xx), don't retry
                 if (response.isSuccessful || response.code < 500) {
                   return@addInterceptor response
+                } else {
+                  logger.info("Retrying CreateBasicReport...")
                 }
               } catch (e: Exception) {
                 logger.warning("Exception thrown during retry attempt $attempt: $e")
@@ -471,8 +473,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
               Thread.sleep(10000)
             }
 
-            // If we reached here, all retries failed
-            return@addInterceptor response ?: throw Exception("Unknown error during retry")
+            return@addInterceptor response ?: throw Exception("No CreateBasicReport response")
           }
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
