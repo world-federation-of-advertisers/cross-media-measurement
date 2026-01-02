@@ -453,7 +453,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             val request = chain.request()
             var response: Response? = null
 
-            for (attempt in 1..10) {
+            for (attempt in 1..20) {
               try {
                 // Close the previous response body if it exists
                 response?.close()
@@ -470,7 +470,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 logger.warning("Exception thrown during retry attempt $attempt: $e")
               }
 
-              Thread.sleep(30000)
+              Thread.sleep(10000)
             }
 
             return@addInterceptor response ?: throw Exception("No CreateBasicReport response")
