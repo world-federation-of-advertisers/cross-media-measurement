@@ -145,11 +145,11 @@ class TrusTeeMill(
         DataFormat.FREQUENCY_VECTOR -> {
           processor.addFrequencyVector(getRequisitionData(requisition).toByteArray())
         }
-        else -> {
+        DataFormat.DATA_FORMAT_UNSPECIFIED,
+        DataFormat.UNRECOGNIZED ->
           throw IllegalArgumentException(
             "Unsupported or unspecified DataFormat TrusTeeDetails: $dataFormat"
           )
-        }
       }
     }
 
