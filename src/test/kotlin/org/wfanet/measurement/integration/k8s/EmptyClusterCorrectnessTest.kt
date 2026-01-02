@@ -472,8 +472,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
             }
 
             // If we reached here, all retries failed
-            return@addInterceptor response
-              ?: throw Exception("Unknown error during retry")
+            return@addInterceptor response ?: throw Exception("Unknown error during retry")
           }
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
