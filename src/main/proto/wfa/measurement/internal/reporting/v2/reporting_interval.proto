@@ -34,10 +34,11 @@ message ReportingInterval {
   // This side of the interval is closed.
   google.type.DateTime report_start = 1;
 
-  // The date and time of the start of the report.
+  // The effective start time of the report.
   //
-  // `report_start` with hours and time_offset set if they are not set in
-  // `report_start`.
+  // This will be the same as `report_start` unless both `report_start.hours`
+  // and `report_start.time_offset` are not set and the server applied default
+  // values.
   google.type.DateTime effective_report_start = 3;
 
   // The end date of the report.
