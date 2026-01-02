@@ -17,7 +17,7 @@ You need to update your infrastructure to include the necessary resources for Tr
 You can use the [Simulator Terraform Module](../../src/main/terraform/gcloud/modules/simulator/README.md) as a reference. If you are not using Terraform, you need to manually create the following resources:
 
 ### 1.1 Cloud KMS Key Ring and Crypto Key
-Create a Key Ring and a Crypto Key in Cloud KMS. This key is owned by the EDP and will be used for encrypting data. The TrusTEE mill will use this key for decryption after successfully authenticating via Workload Identity Federation (WIF).
+Create a Key Ring and a Crypto Key in Cloud KMS. This key is owned by the EDP and will be used as the Key Encryption Key (KEK) for encrypting data. The TrusTEE mill will use this key for decryption after successfully authenticating via Workload Identity Federation (WIF).
 *   **Key Ring**: Create a key ring in the desired location.
 *   **Crypto Key**: Create a key with purpose `ENCRYPT_DECRYPT`.
 
@@ -48,7 +48,9 @@ The Workload Identity Provider needs an attribute condition (policy) to ensure t
 ### 2.1 Get Image Signing Public Key
 To ensure that only trusted code runs in the TEE, the Docker image for the TrusTEE mill is signed. You need to obtain the public key corresponding to the private key used for signing.
 
-You can retrieve the public key from Cloud KMS using the `gcloud` CLI. The following command retrieves the public key and encodes it in base64.
+The signing public key should be accessible by the EDP, or the derived `encoded_pub_key` should be known by the EDP.
+
+If you have access to the public key in Cloud KMS, you can retrieve it using the `gcloud` CLI. The following command retrieves the public key and encodes it in base64.
 
 ```bash
 # Replace with your actual KMS key resource name
@@ -67,27 +69,31 @@ Configure the attribute condition on the Workload Identity Provider to enforce t
 
 *   **Software Name**: Must be `CONFIDENTIAL_SPACE`.
 *   **Image Signature**: The running container's image signature must match the expected public key (retrieved in step 2.1).
-*   **Project ID**: (Optional but recommended) Restrict to a specific Google Cloud Project ID.
-*   **Debug Mode**: (Optional) Enforce whether debug mode is allowed or not.
+*   **Image Name**: The running container's image name must match the expected image name.
+*   **Project ID**: Restrict to a specific Google Cloud Project ID.
+*   **Debug Mode**: Enforce whether debug mode is allowed or not. Debug mode is used for development and debugging, and it exposes the TEE application host to the operator. Although the host still cannot access the memory of the TEE application, debug mode should be avoided in production environments unless necessary debugging is inevitable.
 
 **Example Condition:**
 
 ```cel
 assertion.swname == 'CONFIDENTIAL_SPACE' &&
 ['<ALGORITHM>:<ENCODED_PUBLIC_KEY>'].exists(fingerprint, fingerprint in assertion.submods.container.image_signatures.map(sig,sig.signature_algorithm+':'+sig.key_id)) &&
+assertion.submods.container.image_reference == '<IMAGE_NAME>' &&
 assertion.submods.gce.project_id == '<YOUR_PROJECT_ID>' &&
 assertion.submods.confidential_space.support_attributes.debug_mode == 'false'
 ```
 
-Replace `<ALGORITHM>` (e.g., `ECDSA_P256_SHA256`), `<ENCODED_PUBLIC_KEY>`, and `<YOUR_PROJECT_ID>` with your specific values.
+Replace `<ALGORITHM>` (e.g., `ECDSA_P256_SHA256`), `<ENCODED_PUBLIC_KEY>`, `<IMAGE_NAME>`, and `<YOUR_PROJECT_ID>` with your specific values.
 
 ## 3. Update Code
+
+**Note**: No code updates are required for EDPs that integrate with the EDP aggregator.
 
 You need to update your EDP application (or simulator) to use the TrusTEE library and pass the required parameters. This is necessary to generate the requisition fulfillment data for the TrusTEE protocol.
 
 ### TrusTEE Library
 
-Use the `TrusTeeFulfillRequisitionRequestBuilder` class (specifically the `EncryptionParams` nested class) to configure encryption for the TrusTEE protocol.
+Use the [`FulfillRequisitionRequestBuilder`](../../src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee/FulfillRequisitionRequestBuilder.kt) class (specifically the `EncryptionParams` nested class) in the `org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee` package to configure encryption for the TrusTEE protocol.
 
 ### Key Parameters
 
