@@ -14,19 +14,26 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.Empty
+import com.google.type.Date
 import io.grpc.Status
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse
+import org.wfanet.measurement.internal.kingdom.DeleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupActivityNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroupActivities
 
 class SpannerEventGroupActivitiesService(
@@ -93,5 +100,83 @@ class SpannerEventGroupActivitiesService(
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
+  }
+
+  override suspend fun deleteEventGroupActivity(request: DeleteEventGroupActivityRequest): Empty {
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalEventGroupId == 0L) {
+      throw RequiredFieldNotSetException("external_event_group_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalEventGroupActivityId == Date.getDefaultInstance()) {
+      throw RequiredFieldNotSetException("external_event_group_activity_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    try {
+      BatchDeleteEventGroupActivities(
+          batchDeleteEventGroupActivitiesRequest {
+            externalDataProviderId = request.externalDataProviderId
+            externalEventGroupId = request.externalEventGroupId
+            externalEventGroupActivityIds += request.externalEventGroupActivityId
+          }
+        )
+        .execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupActivityNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+
+    return Empty.getDefaultInstance()
+  }
+
+  override suspend fun batchDeleteEventGroupActivities(
+    request: BatchDeleteEventGroupActivitiesRequest
+  ): Empty {
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalEventGroupId == 0L) {
+      throw RequiredFieldNotSetException("external_event_group_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.externalEventGroupActivityIdsList.isEmpty()) {
+      throw RequiredFieldNotSetException("external_event_group_activity_ids")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    request.externalEventGroupActivityIdsList.forEachIndexed { index, it ->
+      if (it == Date.getDefaultInstance()) {
+        throw RequiredFieldNotSetException("external_event_group_activity_ids.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    try {
+      BatchDeleteEventGroupActivities(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupActivityNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+
+    return Empty.getDefaultInstance()
   }
 }
