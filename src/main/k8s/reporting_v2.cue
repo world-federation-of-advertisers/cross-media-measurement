@@ -213,7 +213,7 @@ package k8s
 			}
 		}
 
-		"reporting-grpc-gateway": {
+		"reporting-grpc-gateway": #ServerDeployment & {
 			_container: {
 				args: [
 					"--port=8443",

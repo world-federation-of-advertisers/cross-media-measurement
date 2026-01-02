@@ -42,7 +42,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
@@ -449,32 +448,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
-          .addInterceptor { chain ->
-            val request = chain.request()
-            var response: Response? = null
-
-            for (attempt in 1..20) {
-              try {
-                // Close the previous response body if it exists
-                response?.close()
-
-                response = chain.proceed(request)
-
-                // If successful or a client error (4xx), don't retry
-                if (response.isSuccessful || response.code < 500) {
-                  return@addInterceptor response
-                } else {
-                  logger.info("Retrying CreateBasicReport...")
-                }
-              } catch (e: Exception) {
-                logger.warning("Exception thrown during retry attempt $attempt: $e")
-              }
-
-              Thread.sleep(10000)
-            }
-
-            return@addInterceptor response ?: throw Exception("No CreateBasicReport response")
-          }
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
