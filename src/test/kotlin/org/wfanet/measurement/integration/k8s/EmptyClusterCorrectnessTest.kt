@@ -27,7 +27,6 @@ import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1Pod
 import io.kubernetes.client.util.ClientBuilder
 import java.io.File
-import java.io.IOException
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
@@ -453,7 +452,6 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
           .addInterceptor { chain ->
             val request = chain.request()
             var response: Response? = null
-            var exception: IOException? = null
 
             for (attempt in 1..5) {
               try {
@@ -466,8 +464,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
                 if (response.isSuccessful || response.code < 500) {
                   return@addInterceptor response
                 }
-              } catch (e: IOException) {
-                exception = e
+              } catch (e: Exception) {
                 logger.warning("Exception thrown during retry attempt $attempt: $e")
               }
 
@@ -476,7 +473,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
             // If we reached here, all retries failed
             return@addInterceptor response
-              ?: throw exception ?: IOException("Unknown error during retry")
+              ?: throw Exception("Unknown error during retry")
           }
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
