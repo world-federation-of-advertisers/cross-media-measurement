@@ -788,10 +788,8 @@ object VariancesImpl : Variances {
         )
       }
       is TrusTeeMethodology -> {
-        computeFrequencyVectorBasedVariance(
-          methodology.frequencyVectorSize,
-          measurementVarianceParams,
-        )
+        // TrusTEE has only noise from EDPs without noise from MPC.
+        computeDeterministicVariance(measurementVarianceParams)
       }
     }
   }
@@ -869,10 +867,8 @@ object VariancesImpl : Variances {
         )
       }
       is TrusTeeMethodology -> {
-        computeFrequencyVectorBasedVariance(
-          methodology.frequencyVectorSize,
-          measurementVarianceParams,
-        )
+        // TrusTEE has only noise from EDPs without noise from MPC.
+        computeDeterministicVariance(measurementVarianceParams)
       }
     }
   }
