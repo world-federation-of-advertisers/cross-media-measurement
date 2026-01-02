@@ -103,12 +103,12 @@ class ReportingUserSimulator(
         reportStart = dateTime {
           year = 2021
           month = 3
-          day = 14
+          day = 15
         }
         reportEnd = date {
           year = 2021
           month = 3
-          day = 15
+          day = 16
         }
       }
       resultGroupSpecs += resultGroupSpec {
