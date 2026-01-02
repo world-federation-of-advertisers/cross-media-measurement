@@ -105,7 +105,7 @@ class ReportingUserSimulator(
           year = 2021
           month = 3
           day = 14
-          hours = 19
+          hours = 20
           timeZone = timeZone { id = "America/New_York" }
         }
         reportEnd = date {
