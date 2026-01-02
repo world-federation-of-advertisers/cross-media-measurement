@@ -730,10 +730,11 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
-          defaultReportStartHour = dateTime {
-            hours = 5
-            timeZone = timeZone { id = "America/Los_Angeles" }
-          },
+          defaultReportStartHour =
+            dateTime {
+              hours = 5
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            },
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -812,10 +813,11 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
-          defaultReportStartHour = dateTime {
-            hours = 5
-            utcOffset = duration { seconds = 14400 }
-          },
+          defaultReportStartHour =
+            dateTime {
+              hours = 5
+              utcOffset = duration { seconds = 14400 }
+            },
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -2738,7 +2740,8 @@ class BasicReportsServiceTest {
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
-        baseExternalImpressionQualificationFilterIds = listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        baseExternalImpressionQualificationFilterIds =
+          listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2854,7 +2857,8 @@ class BasicReportsServiceTest {
         authorization,
         MEASUREMENT_CONSUMER_CONFIGS,
         defaultReportStartHour = null,
-        baseExternalImpressionQualificationFilterIds = listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
+        baseExternalImpressionQualificationFilterIds =
+          listOf(INTERNAL_AMI_IQF.externalImpressionQualificationFilterId),
       )
 
     val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -2980,10 +2984,11 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour = null,
-          baseExternalImpressionQualificationFilterIds = listOf(
-            INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
-            INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
-          ),
+          baseExternalImpressionQualificationFilterIds =
+            listOf(
+              INTERNAL_AMI_IQF.externalImpressionQualificationFilterId,
+              INTERNAL_MRC_IQF.externalImpressionQualificationFilterId,
+            ),
         )
 
       val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
@@ -4398,10 +4403,11 @@ class BasicReportsServiceTest {
           SecureRandom().asKotlinRandom(),
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
-          defaultReportStartHour = dateTime {
-            hours = 5
-            timeZone = timeZone { id = "America/Los_Angeles" }
-          },
+          defaultReportStartHour =
+            dateTime {
+              hours = 5
+              timeZone = timeZone { id = "America/Los_Angeles" }
+            },
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
