@@ -22,6 +22,7 @@ import com.google.type.DateTime
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
+import com.google.type.timeZone
 import io.grpc.StatusException
 import java.time.Duration
 import java.util.logging.Logger
@@ -103,12 +104,14 @@ class ReportingUserSimulator(
         reportStart = dateTime {
           year = 2021
           month = 3
-          day = 15
+          day = 14
+          hours = 22
+          timeZone = timeZone { id = "America/New_York" }
         }
         reportEnd = date {
           year = 2021
           month = 3
-          day = 16
+          day = 15
         }
       }
       resultGroupSpecs += resultGroupSpec {
