@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
+import com.google.type.Date
 import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
@@ -47,8 +49,10 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMet
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupActivityRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
@@ -501,6 +505,371 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    }
+
+  @Test
+  fun `deleteEventGroupActivity succeeded`() = runBlocking {
+    val request = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 12
+            day = 1
+          }
+        }
+      }
+    }
+
+    val activity =
+      eventGroupActivitiesService
+        .batchUpdateEventGroupActivities(request)
+        .eventGroupActivitiesList
+        .single()
+
+    val response =
+      eventGroupActivitiesService.deleteEventGroupActivity(
+        deleteEventGroupActivityRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = eventGroup.externalEventGroupId
+          externalEventGroupActivityId = activity.date
+        }
+      )
+
+    assertThat(response).isEqualTo(Empty.getDefaultInstance())
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws NOT_FOUND for non existent DataProvider`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = 1L
+            externalEventGroupId = eventGroup.externalEventGroupId
+            externalEventGroupActivityId = date {
+              year = 2025
+              month = 1
+              day = 1
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws NOT_FOUND for non existent EventGroup`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = 1L
+            externalEventGroupActivityId = date {
+              year = 2025
+              month = 1
+              day = 1
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws NOT_FOUND when activity does not exist`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            externalEventGroupActivityId = date {
+              year = 2025
+              month = 1
+              day = 1
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("EventGroupActivity not found")
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when external data provider id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.deleteEventGroupActivity(
+            deleteEventGroupActivityRequest {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityId = date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+    }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when external event group id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.deleteEventGroupActivity(
+            deleteEventGroupActivityRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupActivityId = date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_id")
+    }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when external event group activity id is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.deleteEventGroupActivity(
+            deleteEventGroupActivityRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityId = Date.getDefaultInstance()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_activity_id")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities succeeded`() = runBlocking {
+    val request = batchUpdateEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 1
+            day = 1
+          }
+        }
+      }
+      requests += updateEventGroupActivityRequest {
+        allowMissing = true
+        eventGroupActivity = eventGroupActivity {
+          externalEventGroupId = eventGroup.externalEventGroupId
+          date = date {
+            year = 2025
+            month = 1
+            day = 2
+          }
+        }
+      }
+    }
+
+    eventGroupActivitiesService.batchUpdateEventGroupActivities(request)
+
+    val deleteRequest = batchDeleteEventGroupActivitiesRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalEventGroupId = eventGroup.externalEventGroupId
+      externalEventGroupActivityIds += date {
+        year = 2025
+        month = 1
+        day = 1
+      }
+      externalEventGroupActivityIds += date {
+        year = 2025
+        month = 1
+        day = 2
+      }
+    }
+
+    val response = eventGroupActivitiesService.batchDeleteEventGroupActivities(deleteRequest)
+
+    assertThat(response).isEqualTo(Empty.getDefaultInstance())
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.batchDeleteEventGroupActivities(deleteRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws NOT_FOUND for non existent DataProvider`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = 1L
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("DataProvider not found")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws NOT_FOUND for non existent EventGroup`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = 1L
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws NOT_FOUND when activity does not exist`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("EventGroupActivity not found")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when external data provider id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_data_provider_id")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when external event group id is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_id")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when external event group activity ids is empty`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_activity_ids")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when an activity id is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+              externalEventGroupActivityIds += Date.getDefaultInstance()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("external_event_group_activity_ids.1")
     }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {

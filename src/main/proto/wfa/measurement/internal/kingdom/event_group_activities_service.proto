@@ -27,6 +27,12 @@ option java_multiple_files = true;
 service EventGroupActivities {
   rpc BatchUpdateEventGroupActivities(BatchUpdateEventGroupActivitiesRequest)
       returns (BatchUpdateEventGroupActivitiesResponse);
+
+  rpc DeleteEventGroupActivity(DeleteEventGroupActivityRequest)
+      returns (google.protobuf.Empty);
+
+  rpc BatchDeleteEventGroupActivities(BatchDeleteEventGroupActivitiesRequest)
+      returns (google.protobuf.Empty);
 }
 
 message UpdateEventGroupActivityRequest {
@@ -47,4 +53,24 @@ message BatchUpdateEventGroupActivitiesRequest {
 
 message BatchUpdateEventGroupActivitiesResponse {
   repeated EventGroupActivity event_group_activities = 1;
+}
+
+message DeleteEventGroupActivityRequest {
+  // External ID of the parent. Required.
+  fixed64 external_data_provider_id = 1;
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 2;
+  // External ID of the EventGroupActivity. Required.
+  google.type.Date external_event_group_activity_id = 3;
+}
+
+message BatchDeleteEventGroupActivitiesRequest {
+  // External ID of the parent. Required.
+  fixed64 external_data_provider_id = 1;
+  // External ID of the parent. Required.
+  fixed64 external_event_group_id = 2;
+
+  // The external ids specifying the EventGroupActivity to permanently
+  // delete. A maximum of 1000 EventGroupActivity can be deleted in a batch.
+  repeated google.type.Date external_event_group_activity_ids = 3;
 }
