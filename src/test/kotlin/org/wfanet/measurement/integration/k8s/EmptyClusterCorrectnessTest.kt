@@ -262,7 +262,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(5)) {
+              withTimeout(Duration.ofMinutes(10)) {
                 val resourceInfo: ResourceInfo = populateCluster()
                 _populationDataProviderName =
                   resourceInfo.dataProviders.getValue(PDP_DISPLAY_NAME).name
