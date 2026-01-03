@@ -25,7 +25,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/world-federation-of-advertisers/cross-media-measurement/cmms/apiv2alpha/cmmspb"
 	"github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb"
@@ -46,12 +45,15 @@ func run() error {
 	defer cancel()
 
 	// Connect to gRPC server.
+	mux := runtime.NewServeMux()
 	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 	if err != nil {
 		return err
 	}
-  healthClient := grpc_health_v1.NewHealthClient(conn)
-  mux := runtime.NewServeMux(runtime.WithHealthzEndpoint(healthClient))
+
+  mainMux := http.NewServeMux()
+  mainMux.HandleFunc("/healthz", healthzHandler)
+  mainMux.Handle("/", mux)
 
 	// Register handlers for every service.
 	for _, f := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
@@ -69,7 +71,7 @@ func run() error {
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
 	addr := ":" + strconv.Itoa(*port)
-	return http.ListenAndServeTLS(addr, *tlsCertPath, *tlsKeyPath, mux)
+	return http.ListenAndServeTLS(addr, *tlsCertPath, *tlsKeyPath, mainMux)
 }
 
 func dial(ctx context.Context, target string, trustedCertsPath string, certHost string) (*grpc.ClientConn, error) {
@@ -79,6 +81,12 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 	}
 
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
+}
+
+// Create a local health handler
+func healthzHandler(w http.ResponseWriter, r *http.Request) {
+  w.WriteHeader(http.StatusOK)
+  w.Write([]byte("ok"))
 }
 
 func main() {
