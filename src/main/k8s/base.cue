@@ -615,8 +615,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		ports: [#GrpcContainerPort]
 		readinessProbe: {
 			grpc: port: #HealthPort
-			failureThreshold: 100
-			periodSeconds:    10
+			failureThreshold: 12
 			timeoutSeconds:   2
 		}
 	}

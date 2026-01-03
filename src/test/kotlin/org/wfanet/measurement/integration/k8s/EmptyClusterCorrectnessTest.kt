@@ -42,6 +42,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
@@ -262,7 +263,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(20)) {
+              withTimeout(Duration.ofMinutes(5)) {
                 val resourceInfo: ResourceInfo = populateCluster()
                 _populationDataProviderName =
                   resourceInfo.dataProviders.getValue(PDP_DISPLAY_NAME).name
@@ -448,6 +449,32 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
 
       val okHttpReportingClient =
         OkHttpClient.Builder()
+          .addInterceptor { chain ->
+            val request = chain.request()
+            var response: Response? = null
+
+            for (attempt in 1..20) {
+              try {
+                // Close the previous response body if it exists
+                response?.close()
+
+                response = chain.proceed(request)
+
+                // If successful or a client error (4xx), don't retry
+                if (response.isSuccessful || response.code < 500) {
+                  return@addInterceptor response
+                } else {
+                  logger.info("Retrying CreateBasicReport...")
+                }
+              } catch (e: Exception) {
+                logger.warning("Exception thrown during retry attempt $attempt: $e")
+              }
+
+              Thread.sleep(10000)
+            }
+
+            return@addInterceptor response ?: throw Exception("No CreateBasicReport response")
+          }
           .sslSocketFactory(certificates.sslSocketFactory(), certificates.trustManager)
           .build()
 
@@ -751,7 +778,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val ACCESS_PUBLIC_API_DEPLOYMENT_NAME = "access-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
-    private val READY_TIMEOUT = Duration.ofMinutes(20L)
+    private val READY_TIMEOUT = Duration.ofMinutes(2L)
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
