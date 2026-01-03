@@ -81,6 +81,14 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
 }
 
+func (s *serviceServer) Check(ctx context.Context, in *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
+	return &health.HealthCheckResponse{Status: health.HealthCheckResponse_SERVING}, nil
+}
+
+func (s *serviceServer) Watch(in *health.HealthCheckRequest, _ health.Health_WatchServer) error {
+	return status.Error(codes.Unimplemented, "unimplemented")
+}
+
 func main() {
 	flag.Parse()
 
