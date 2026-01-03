@@ -23,11 +23,9 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/status"
 
 	"github.com/world-federation-of-advertisers/cross-media-measurement/cmms/apiv2alpha/cmmspb"
 	"github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb"
@@ -81,14 +79,6 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 	}
 
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
-}
-
-func (s *Server) Check(ctx context.Context, in *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
-	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
-}
-
-func (s *Server) Watch(in *grpc_health_v1.HealthCheckRequest, _ grpc_health_v1.Health_WatchServer) error {
-	return status.Error(codes.Unimplemented, "unimplemented")
 }
 
 func main() {
