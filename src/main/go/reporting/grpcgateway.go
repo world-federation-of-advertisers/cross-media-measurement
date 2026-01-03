@@ -45,14 +45,13 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-  healthClient := grpc_health_v1.NewHealthClient(conn)
-
 	// Connect to gRPC server.
-	mux := runtime.NewServeMux(runtime.WithHealthzEndpoint(healthClient))
 	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 	if err != nil {
 		return err
 	}
+  healthClient := grpc_health_v1.NewHealthClient(conn)
+  mux := runtime.NewServeMux(runtime.WithHealthzEndpoint(healthClient))
 
 	// Register handlers for every service.
 	for _, f := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
