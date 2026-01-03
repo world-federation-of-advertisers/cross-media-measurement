@@ -82,7 +82,7 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 
 	return grpc.DialContext(ctx, target,
 	  grpc.WithTransportCredentials(creds),
-	  grpc.withBlock(),
+	  grpc.WithBlock(),
 	)
 }
 
