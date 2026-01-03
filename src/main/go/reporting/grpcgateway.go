@@ -45,15 +45,11 @@ func run() error {
 	defer cancel()
 
 	// Connect to gRPC server.
-	mux := runtime.NewServeMux()
+	gatewayMux := runtime.NewServeMux()
 	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 	if err != nil {
 		return err
 	}
-
-  mainMux := http.NewServeMux()
-  mainMux.HandleFunc("/healthz", healthzHandler)
-  mainMux.Handle("/", mux)
 
 	// Register handlers for every service.
 	for _, f := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
@@ -64,10 +60,14 @@ func run() error {
 		cmmspb.RegisterDataProvidersHandler,
 		cmmspb.RegisterEventGroupMetadataDescriptorsHandler,
 	} {
-		if err := f(ctx, mux, conn); err != nil {
+		if err := f(ctx, gatewayMux, conn); err != nil {
 			return err
 		}
 	}
+
+  mainMux := http.NewServeMux()
+  mainMux.HandleFunc("/healthz", healthzHandler)
+  mainMux.Handle("/", gatewayMux)
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
 	addr := ":" + strconv.Itoa(*port)
