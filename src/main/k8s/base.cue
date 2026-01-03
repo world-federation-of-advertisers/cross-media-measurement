@@ -503,8 +503,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		port: uint32
 	}
 	httpGet?: {
-		path: string
-		port: uint32
+		path:   string
+		port:   uint32
+		scheme: "HTTPS" | *"HTTP"
 	}
 	exec?: {
 		command: [...string]
