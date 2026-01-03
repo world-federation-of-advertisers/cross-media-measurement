@@ -223,9 +223,10 @@ package k8s
 					containerPort: 8443
 				}]
 				readinessProbe: {
-					httpGet:
+					httpGet: {
 						path: "/healthz" // This is the default path used by WithHealthzEndpoint
-					port:             8443
+						port: 8443
+					}
 					failureThreshold: 12
 					timeoutSeconds:   2
 				}
