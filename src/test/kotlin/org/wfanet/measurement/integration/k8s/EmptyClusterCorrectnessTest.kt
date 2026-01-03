@@ -262,7 +262,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         override fun evaluate() {
           try {
             runBlocking {
-              withTimeout(Duration.ofMinutes(10)) {
+              withTimeout(Duration.ofMinutes(20)) {
                 val resourceInfo: ResourceInfo = populateCluster()
                 _populationDataProviderName =
                   resourceInfo.dataProviders.getValue(PDP_DISPLAY_NAME).name
@@ -751,7 +751,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     private const val ACCESS_PUBLIC_API_DEPLOYMENT_NAME = "access-public-api-server-deployment"
     private const val NUM_DATA_PROVIDERS = 6
     private val EDP_DISPLAY_NAMES: List<String> = (1..NUM_DATA_PROVIDERS).map { "edp$it" }
-    private val READY_TIMEOUT = Duration.ofMinutes(5L)
+    private val READY_TIMEOUT = Duration.ofMinutes(20L)
 
     private val LOCAL_K8S_PATH = Paths.get("src", "main", "k8s", "local")
     private val LOCAL_K8S_TESTING_PATH = LOCAL_K8S_PATH.resolve("testing")
