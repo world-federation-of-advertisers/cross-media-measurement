@@ -25,7 +25,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/world-federation-of-advertisers/cross-media-measurement/cmms/apiv2alpha/cmmspb"
@@ -82,11 +81,11 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
 }
 
-func (s *serviceServer) Check(ctx context.Context, in *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
-	return &health.HealthCheckResponse{Status: health.HealthCheckResponse_SERVING}, nil
+func (s *Server) Check(ctx context.Context, in *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
+	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
 }
 
-func (s *serviceServer) Watch(in *health.HealthCheckRequest, _ health.Health_WatchServer) error {
+func (s *Server) Watch(in *grpc_health_v1.HealthCheckRequest, _ grpc_health_v1.Health_WatchServer) error {
 	return status.Error(codes.Unimplemented, "unimplemented")
 }
 
