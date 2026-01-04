@@ -65,7 +65,7 @@ func run() error {
           break
       }
       if !conn.WaitForStateChange(waitCtx, state) {
-          return fmt.Error("gRPC connection failed to reach READY state within timeout")
+          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
       }
   }
   fmt.Println("gRPC connection established.")
