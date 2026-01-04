@@ -17,12 +17,15 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
@@ -44,6 +47,10 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+  // Create connection object to connect to gRPC server
+  gatewayMux := runtime.NewServeMux()
+  conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
+
 	// Block until the connection is actually READY
   fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
   waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -51,18 +58,18 @@ func run() error {
 
   for {
       state := conn.GetState()
+      if state == connectivity.Idle {
+          conn.Connect()
+      }
       if state == connectivity.Ready {
           break
       }
       if !conn.WaitForStateChange(waitCtx, state) {
-          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
+          return fmt.Error("gRPC connection failed to reach READY state within timeout")
       }
   }
   fmt.Println("gRPC connection established.")
 
-	// Connect to gRPC server.
-	gatewayMux := runtime.NewServeMux()
-	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 	if err != nil {
 		return err
 	}
@@ -90,13 +97,13 @@ func run() error {
 	return http.ListenAndServeTLS(addr, *tlsCertPath, *tlsKeyPath, mainMux)
 }
 
-func dial(ctx context.Context, target string, trustedCertsPath string, certHost string) (*grpc.ClientConn, error) {
+func newClient(target string, trustedCertsPath string, certHost string) (*grpc.ClientConn, error) {
 	creds, err := credentials.NewClientTLSFromFile(trustedCertsPath, certHost)
 	if err != nil {
 		return nil, err
 	}
 
-	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
+	return grpc.NewClient(target, grpc.WithTransportCredentials(creds))
 }
 
 // Create a local health handler
