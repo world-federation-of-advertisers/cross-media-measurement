@@ -44,6 +44,22 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Block until the connection is actually READY
+  fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
+  waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+  defer waitCancel()
+
+  for {
+      state := conn.GetState()
+      if state == connectivity.Ready {
+          break
+      }
+      if !conn.WaitForStateChange(waitCtx, state) {
+          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
+      }
+  }
+  fmt.Println("gRPC connection established.")
+
 	// Connect to gRPC server.
 	gatewayMux := runtime.NewServeMux()
 	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
@@ -80,10 +96,7 @@ func dial(ctx context.Context, target string, trustedCertsPath string, certHost 
 		return nil, err
 	}
 
-	return grpc.DialContext(ctx, target,
-	  grpc.WithTransportCredentials(creds),
-	  grpc.WithBlock(),
-	)
+	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
 }
 
 // Create a local health handler
