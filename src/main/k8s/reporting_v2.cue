@@ -228,8 +228,9 @@ package k8s
 						port:   8443
 						scheme: "HTTPS"
 					}
-					failureThreshold: 12
-					timeoutSeconds:   2
+					failureThreshold:    12
+					timeoutSeconds:      2
+					initialDelaySeconds: 10
 				}
 			}
 
