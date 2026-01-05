@@ -17,12 +17,15 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 
@@ -44,9 +47,30 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Connect to gRPC server.
-	mux := runtime.NewServeMux()
-	conn, err := dial(ctx, *grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
+  // Create connection object to connect to gRPC server
+  gatewayMux := runtime.NewServeMux()
+  conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
+
+  // TODO: Replace with connection to health check at grpcTarget
+	// Block until the connection is actually READY
+  fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
+  waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+  defer waitCancel()
+
+  for {
+      state := conn.GetState()
+      if state == connectivity.Idle {
+          conn.Connect()
+      }
+      if state == connectivity.Ready {
+          break
+      }
+      if !conn.WaitForStateChange(waitCtx, state) {
+          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
+      }
+  }
+  fmt.Println("gRPC connection established.")
+
 	if err != nil {
 		return err
 	}
@@ -60,23 +84,33 @@ func run() error {
 		cmmspb.RegisterDataProvidersHandler,
 		cmmspb.RegisterEventGroupMetadataDescriptorsHandler,
 	} {
-		if err := f(ctx, mux, conn); err != nil {
+		if err := f(ctx, gatewayMux, conn); err != nil {
 			return err
 		}
 	}
 
+  mainMux := http.NewServeMux()
+  mainMux.HandleFunc("/healthz", healthzHandler)
+  mainMux.Handle("/", gatewayMux)
+
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
 	addr := ":" + strconv.Itoa(*port)
-	return http.ListenAndServeTLS(addr, *tlsCertPath, *tlsKeyPath, mux)
+	return http.ListenAndServeTLS(addr, *tlsCertPath, *tlsKeyPath, mainMux)
 }
 
-func dial(ctx context.Context, target string, trustedCertsPath string, certHost string) (*grpc.ClientConn, error) {
+func newClient(target string, trustedCertsPath string, certHost string) (*grpc.ClientConn, error) {
 	creds, err := credentials.NewClientTLSFromFile(trustedCertsPath, certHost)
 	if err != nil {
 		return nil, err
 	}
 
-	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(creds))
+	return grpc.NewClient(target, grpc.WithTransportCredentials(creds))
+}
+
+// Create a local health handler
+func healthzHandler(w http.ResponseWriter, r *http.Request) {
+  w.WriteHeader(http.StatusOK)
+  w.Write([]byte("ok"))
 }
 
 func main() {

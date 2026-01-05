@@ -224,6 +224,16 @@ package k8s
 				ports: [{
 					containerPort: 8443
 				}]
+				readinessProbe: {
+					httpGet: {
+						path:   "/healthz"
+						port:   8443
+						scheme: "HTTPS"
+					}
+					failureThreshold:    12
+					timeoutSeconds:      2
+					initialDelaySeconds: 10
+				}
 			}
 
 			spec: template: spec: {
