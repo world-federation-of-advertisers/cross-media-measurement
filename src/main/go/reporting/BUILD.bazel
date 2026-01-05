@@ -13,6 +13,7 @@ go_library(
         "@grpc_ecosystem_grpc_gateway//runtime",
         "@org_golang_google_genproto_googleapis_rpc//errdetails",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//connectivity",
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//grpclog",
     ],
