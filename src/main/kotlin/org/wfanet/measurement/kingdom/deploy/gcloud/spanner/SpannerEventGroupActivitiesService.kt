@@ -113,8 +113,22 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.externalEventGroupActivityId == Date.getDefaultInstance()) {
+    if (!request.hasExternalEventGroupActivityId()) {
       throw RequiredFieldNotSetException("external_event_group_activity_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val externalActivityId = request.externalEventGroupActivityId
+    if (externalActivityId.year == 0) {
+      throw RequiredFieldNotSetException("external_event_group_activity_id.year")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (externalActivityId.month == 0) {
+      throw RequiredFieldNotSetException("external_event_group_activity_id.month")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (externalActivityId.day == 0) {
+      throw RequiredFieldNotSetException("external_event_group_activity_id.day")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -158,9 +172,24 @@ class SpannerEventGroupActivitiesService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val idSet = mutableSetOf<Date>()
     request.externalEventGroupActivityIdsList.forEachIndexed { index, it ->
-      if (it == Date.getDefaultInstance()) {
-        throw RequiredFieldNotSetException("external_event_group_activity_ids.$index")
+      if (it.year == 0) {
+        throw RequiredFieldNotSetException("external_event_group_activity_ids.$index.year")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (it.month == 0) {
+        throw RequiredFieldNotSetException("external_event_group_activity_ids.$index.month")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (it.day == 0) {
+        throw RequiredFieldNotSetException("external_event_group_activity_ids.$index.day")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!idSet.add(it)) {
+        throw InvalidFieldValueException("external_event_group_activity_ids") { fieldPath ->
+            "$fieldPath contains duplicate values."
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }

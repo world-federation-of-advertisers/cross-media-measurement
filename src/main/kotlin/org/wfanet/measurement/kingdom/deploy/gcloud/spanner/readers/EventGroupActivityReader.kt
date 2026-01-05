@@ -111,17 +111,21 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
       eventGroupId: InternalId,
       activityDates: Collection<Date>,
     ): Map<Date, Key> {
-      val keySet = KeySet.newBuilder()
-      for (date in activityDates) {
-        keySet.addKey(Key.of(dataProviderId.value, eventGroupId.value, date.toCloudDate()))
-      }
+      val keySet: KeySet =
+        KeySet.newBuilder()
+          .apply {
+            for (date in activityDates) {
+              addKey(Key.of(dataProviderId.value, eventGroupId.value, date.toCloudDate()))
+            }
+          }
+          .build()
 
       return buildMap {
         readContext
           .readUsingIndex(
             "EventGroupActivities",
             "EventGroupActivityByActivityDate",
-            keySet.build(),
+            keySet,
             listOf("ActivityDate", "EventGroupActivityId"),
           )
           .collect {
