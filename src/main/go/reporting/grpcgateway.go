@@ -51,6 +51,7 @@ func run() error {
   gatewayMux := runtime.NewServeMux()
   conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 
+  // TODO: Replace with connection to health check at grpcTarget
 	// Block until the connection is actually READY
   fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
   waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
