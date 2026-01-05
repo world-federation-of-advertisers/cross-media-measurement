@@ -667,6 +667,66 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
     }
 
   @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when year is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            externalEventGroupActivityId = date {
+              // year not set
+              month = 1
+              day = 1
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when month is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            externalEventGroupActivityId = date {
+              year = 2025
+              // month not set
+              day = 1
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroupActivity throws INVALID_ARGUMENT when day is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupActivitiesService.deleteEventGroupActivity(
+          deleteEventGroupActivityRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalEventGroupId = eventGroup.externalEventGroupId
+            externalEventGroupActivityId = date {
+              year = 2025
+              month = 1
+              // day not set
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `batchDeleteEventGroupActivities succeeded`() = runBlocking {
     val request = batchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = dataProvider.externalDataProviderId
@@ -870,6 +930,96 @@ abstract class EventGroupActivitiesServiceTest<T : EventGroupActivitiesCoroutine
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception).hasMessageThat().contains("external_event_group_activity_ids.1")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when duplicate dates are provided`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("duplicate")
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when year is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                // year not set
+                month = 1
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when month is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                // month not set
+                day = 1
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `batchDeleteEventGroupActivities throws INVALID_ARGUMENT when day is not set`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupActivitiesService.batchDeleteEventGroupActivities(
+            batchDeleteEventGroupActivitiesRequest {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalEventGroupId = eventGroup.externalEventGroupId
+              externalEventGroupActivityIds += date {
+                year = 2025
+                month = 1
+                // day not set
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 
   private suspend fun createEventGroup(dataProvider: DataProvider): EventGroup {
