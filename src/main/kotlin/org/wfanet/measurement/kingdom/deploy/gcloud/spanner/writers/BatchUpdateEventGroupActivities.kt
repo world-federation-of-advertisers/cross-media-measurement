@@ -85,11 +85,7 @@ class BatchUpdateEventGroupActivities(private val request: BatchUpdateEventGroup
     return batchUpdateEventGroupActivitiesResponse {
       transactionResult.forEach {
         if (it.hasCreateTime()) {
-          eventGroupActivities +=
-            it.copy {
-              externalDataProviderId = request.externalDataProviderId
-              externalEventGroupId = request.externalEventGroupId
-            }
+          eventGroupActivities += it
         } else {
           eventGroupActivities +=
             it.copy {
