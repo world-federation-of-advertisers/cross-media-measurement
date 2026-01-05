@@ -60,3 +60,9 @@ message HonestMajorityShareShuffle {
   // The size of the sampled frequency vector. REQUIRED.
   int64 frequency_vector_size = 1;
 }
+
+// Configuration for the TrusTEE protocol.
+message TrusTee {
+  // The size of the sampled frequency vector. REQUIRED.
+  int64 frequency_vector_size = 1;
+}
