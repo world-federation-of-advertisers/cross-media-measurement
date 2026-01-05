@@ -61,40 +61,39 @@ class EventGroupActivitiesService(
         "Parent is either unspecified or invalid"
       }
 
-    val internalRequests = mutableListOf<InternalUpdateEventGroupActivityRequest>()
-    request.requestsList.forEach { child ->
-      grpcRequireNotNull(child.eventGroupActivity) {
-        "Child request event group activity is unspecified"
-      }
+    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+    if (authenticatedPrincipal.resourceKey != parentKey.parentKey) {
+      throw Permission.UPDATE.deniedStatus(request.parent).asRuntimeException()
+    }
 
-      val eventGroupActivityKey =
-        grpcRequireNotNull(EventGroupActivityKey.fromName(child.eventGroupActivity.name)) {
-          "Child request event group activity name is either unspecified or invalid"
+    val internalRequests: List<InternalUpdateEventGroupActivityRequest> =
+      request.requestsList.map { child ->
+        grpcRequireNotNull(child.eventGroupActivity) {
+          "Child request event group activity is unspecified"
         }
 
-      if (eventGroupActivityKey.parentKey != parentKey) {
-        throw Status.INVALID_ARGUMENT.withDescription(
-            "parent EventGroup and child EventGroup do not match"
-          )
-          .asRuntimeException()
-      }
+        val eventGroupActivityKey =
+          grpcRequireNotNull(EventGroupActivityKey.fromName(child.eventGroupActivity.name)) {
+            "Child request event group activity name is either unspecified or invalid"
+          }
 
-      val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-      if (authenticatedPrincipal.resourceKey != eventGroupActivityKey.parentKey.parentKey) {
-        throw Permission.UPDATE.deniedStatus(child.eventGroupActivity.name).asRuntimeException()
-      }
+        if (eventGroupActivityKey.parentKey != parentKey) {
+          throw Status.INVALID_ARGUMENT.withDescription(
+              "the EventGroup component of parent and child's EventGroupActivity do not match"
+            )
+            .asRuntimeException()
+        }
 
-      internalRequests += internalUpdateEventGroupActivityRequest {
-        eventGroupActivity =
-          child.eventGroupActivity.toInternal(
-            eventGroupActivityKey.dataProviderId,
-            eventGroupActivityKey.eventGroupId,
-          )
-        // TODO(lindreamdeyi) : Add allow_missing to the public API to let caller decide
-        // For now, we default to true (Upsert) to avoid needing a read-before-write
-        allowMissing = true
+        internalUpdateEventGroupActivityRequest {
+          eventGroupActivity =
+            child.eventGroupActivity.toInternal(
+              eventGroupActivityKey.dataProviderId,
+              eventGroupActivityKey.eventGroupId,
+            )
+          // This can be propagated to the client if desired in the future
+          allowMissing = true
+        }
       }
-    }
 
     val internalBatchRequest = internalBatchUpdateEventGroupActivitiesRequest {
       externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)

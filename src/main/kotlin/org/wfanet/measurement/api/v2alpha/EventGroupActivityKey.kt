@@ -18,11 +18,6 @@ import org.wfanet.measurement.common.ResourceNameParser
 import org.wfanet.measurement.common.api.ChildResourceKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-private val parser =
-  ResourceNameParser(
-    "dataProviders/{data_provider}/eventGroups/{event_group}/eventGroupActivities/{event_group_activity}"
-  )
-
 /** [ResourceKey] of an EventGroupActivity. */
 data class EventGroupActivityKey(
   val dataProviderId: String,
@@ -42,6 +37,11 @@ data class EventGroupActivityKey(
   override val parentKey = EventGroupKey(dataProviderId, eventGroupId)
 
   companion object FACTORY : ResourceKey.Factory<EventGroupActivityKey> {
+    private val parser =
+      ResourceNameParser(
+        "dataProviders/{data_provider}/eventGroups/{event_group}/eventGroupActivities/{event_group_activity}"
+      )
+
     val defaultValue = EventGroupActivityKey("", "", "")
 
     override fun fromName(resourceName: String): EventGroupActivityKey? {
