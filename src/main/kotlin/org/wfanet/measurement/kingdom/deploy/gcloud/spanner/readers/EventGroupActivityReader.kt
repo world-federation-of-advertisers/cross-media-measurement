@@ -54,7 +54,7 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
             """
             WHERE EventGroupActivities.DataProviderId = @${Params.DATA_PROVIDER_ID}
             AND EventGroupActivities.EventGroupId = @${Params.EVENT_GROUP_ID}
-            AND   EventGroupActivities.ActivityDate IN UNNEST(@${Params.ACTIVITY_DATES})
+            AND EventGroupActivities.ActivityDate IN UNNEST(@${Params.ACTIVITY_DATES})
           """
               .trimIndent()
           )
@@ -77,6 +77,8 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
 
   private fun buildEventGroupActivity(struct: Struct): EventGroupActivity {
     return eventGroupActivity {
+      externalDataProviderId = struct.getLong("ExternalDataProviderId")
+      externalEventGroupId = struct.getLong("ExternalEventGroupId")
       date = struct.getDate("ActivityDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()
     }
@@ -91,15 +93,19 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         EventGroupActivities.EventGroupActivityId,
         EventGroupActivities.ActivityDate,
         EventGroupActivities.CreateTime,
+        EventGroups.ExternalEventGroupId,
+        DataProviders.ExternalDataProviderId
       FROM
         EventGroupActivities
+        JOIN EventGroups USING (DataProviderId, EventGroupId)
+        JOIN DataProviders USING (DataProviderId)
       """
         .trimIndent()
 
     private object Params {
       const val DATA_PROVIDER_ID = "dataProviderId"
       const val EVENT_GROUP_ID = "eventGroupId"
-      const val ACTIVITY_DATES = "externalEventGroupActivityIds"
+      const val ACTIVITY_DATES = "activityDates"
     }
   }
 }
