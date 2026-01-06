@@ -32,6 +32,8 @@ import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Clock
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.random.Random
 import kotlin.random.asKotlinRandom
@@ -731,10 +733,10 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            dateTime {
-              hours = 5
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            },
+            BasicReportsService.ZonedHour(
+              hour = 5,
+              zoneId = ZoneId.of("America/Los_Angeles"),
+            ),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -814,10 +816,10 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            dateTime {
-              hours = 5
-              utcOffset = duration { seconds = 14400 }
-            },
+            BasicReportsService.ZonedHour(
+              hour = 5,
+              zoneId = ZoneOffset.ofTotalSeconds(14400),
+            ),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -4404,10 +4406,10 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            dateTime {
-              hours = 5
-              timeZone = timeZone { id = "America/Los_Angeles" }
-            },
+            BasicReportsService.ZonedHour(
+              hour = 5,
+              zoneId = ZoneId.of("America/Los_Angeles"),
+            ),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 

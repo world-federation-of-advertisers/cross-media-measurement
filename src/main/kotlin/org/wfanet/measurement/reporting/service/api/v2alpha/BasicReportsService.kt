@@ -17,11 +17,15 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.util.Durations
 import com.google.type.DateTime
 import com.google.type.copy
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
@@ -124,11 +128,12 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
-  // If not null, hours and time_offset are set.
-  private val defaultReportStartHour: DateTime? = null,
+  private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  data class ZonedHour(val hour: Int, val zoneId: ZoneId)
+
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
 
@@ -190,11 +195,12 @@ class BasicReportsService(
       if (defaultReportStartHour != null) {
         request.basicReport.reportingInterval.reportStart.copy {
           if (hours == 0 && timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
-            hours = defaultReportStartHour.hours
-            if (defaultReportStartHour.timeOffsetCase == DateTime.TimeOffsetCase.UTC_OFFSET) {
-              utcOffset = defaultReportStartHour.utcOffset
+            hours = defaultReportStartHour.hour
+            val zoneId = defaultReportStartHour.zoneId
+            if (zoneId is ZoneOffset) {
+              utcOffset = Durations.fromSeconds(zoneId.totalSeconds.toLong())
             } else {
-              timeZone = defaultReportStartHour.timeZone
+              timeZone = timeZone { id = zoneId.id }
             }
           }
         }

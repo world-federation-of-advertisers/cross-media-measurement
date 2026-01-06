@@ -18,11 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.server
 
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
-import com.google.protobuf.duration
 import com.google.protobuf.util.JsonFormat
-import com.google.type.DateTime
-import com.google.type.dateTime
-import com.google.type.timeZone
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
@@ -31,6 +27,8 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.TimeZone
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
@@ -330,19 +328,18 @@ private object V2AlphaPublicApiServer {
 
     val defaultReportStart = reportingApiServerFlags.defaultReportStart
 
-    val defaultReportStartHour: DateTime? =
+    val defaultReportStartHour: BasicReportsService.ZonedHour? =
       if (defaultReportStart != null) {
-        dateTime {
-          if (defaultReportStart.hour <= 0) {
-            throw IllegalArgumentException("--default-report-start-hour must be positive")
-          }
-          hours = defaultReportStart.hour
-          val defaultTimeZoneFlag = defaultReportStart.timeOffset.timeZone
+        if (defaultReportStart.hour < 0) {
+          throw IllegalArgumentException("--default-report-start-hour must be at least 0")
+        }
+        val defaultTimeZoneFlag = defaultReportStart.timeOffset.timeZone
+        val zoneId: ZoneId =
           if (defaultTimeZoneFlag != null) {
             if (!TimeZone.getAvailableIDs().toSet().contains(defaultTimeZoneFlag)) {
               throw IllegalArgumentException("--default-report-start-time-zone is invalid")
             }
-            timeZone = timeZone { id = defaultTimeZoneFlag }
+            ZoneId.of(defaultTimeZoneFlag)
           } else {
             val defaultUtcOffsetFlag = defaultReportStart.timeOffset.utcOffset
             if (defaultUtcOffsetFlag != null) {
@@ -351,10 +348,14 @@ private object V2AlphaPublicApiServer {
               ) {
                 throw IllegalArgumentException("--default-report-start-utc-offset is invalid")
               }
-              utcOffset = duration { seconds = defaultUtcOffsetFlag.seconds }
+              ZoneOffset.ofTotalSeconds(defaultUtcOffsetFlag.seconds.toInt())
+            } else {
+              // One of timeZone or utcOffset must be set. This is only reached if that incorrectly
+              // changes.
+              ZoneId.systemDefault()
             }
           }
-        }
+        BasicReportsService.ZonedHour(hour = defaultReportStart.hour, zoneId = zoneId)
       } else {
         null
       }
