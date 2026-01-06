@@ -20,10 +20,20 @@ import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of an EventGroupActivity. */
 data class EventGroupActivityKey(
-  val dataProviderId: String,
-  val eventGroupId: String,
+  override val parentKey: EventGroupKey,
   val eventGroupActivityId: String,
 ) : ChildResourceKey {
+  val dataProviderId: String
+    get() = parentKey.dataProviderId
+  val eventGroupId: String
+    get() = parentKey.eventGroupId
+
+  constructor(
+    dataProviderId: String,
+    eventGroupId: String,
+    eventGroupActivityId: String
+  ) : this(EventGroupKey(dataProviderId, eventGroupId), eventGroupActivityId)
+
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -33,8 +43,6 @@ data class EventGroupActivityKey(
       )
     )
   }
-
-  override val parentKey = EventGroupKey(dataProviderId, eventGroupId)
 
   companion object FACTORY : ResourceKey.Factory<EventGroupActivityKey> {
     private val parser =
