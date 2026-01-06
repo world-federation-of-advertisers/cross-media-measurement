@@ -25,6 +25,8 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -41,6 +43,8 @@ import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
@@ -1517,6 +1521,103 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
               it.dataAvailabilityInterval.endTime.toInstant() in filterRange)
         }
       )
+  }
+
+  @Test
+  fun `streamEventGroups with intersects filter returns correct groups for January search`(): Unit = runBlocking {
+    val measurementConsumer: MeasurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider: DataProvider = population.createDataProvider(dataProvidersService)
+    
+    val eventGroup1 = eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          dataAvailabilityInterval = interval {
+            startTime = LocalDate.of(2026, 1, 5).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = LocalDate.of(2026, 1, 10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+          mediaTypes += MediaType.VIDEO
+        }
+      }
+    )
+    
+    val eventGroup2 = eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          dataAvailabilityInterval = interval {
+            startTime = LocalDate.of(2026, 1, 25).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = LocalDate.of(2026, 2, 10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+          mediaTypes += MediaType.DISPLAY
+        }
+      }
+    )
+    
+    val eventGroup3 = eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          dataAvailabilityInterval = interval {
+            startTime = LocalDate.of(2025, 12, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = LocalDate.of(2026, 1, 3).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+          mediaTypes += MediaType.VIDEO
+        }
+      }
+    )
+    
+    val eventGroup4 = eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          dataAvailabilityInterval = interval {
+            startTime = LocalDate.of(2026, 2, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = LocalDate.of(2026, 2, 10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+          mediaTypes += MediaType.OTHER
+        }
+      }
+    )
+    
+    val eventGroup5 = eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          dataAvailabilityInterval = interval {
+            startTime = LocalDate.of(2025, 11, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = LocalDate.of(2025, 11, 30).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+          mediaTypes += MediaType.VIDEO
+        }
+      }
+    )
+    
+    val searchInterval = interval {
+      startTime = LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+      endTime = LocalDate.of(2026, 1, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+    }
+    
+    val response = eventGroupsService
+      .streamEventGroups(
+        streamEventGroupsRequest {
+          filter = filter {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            dataAvailabilityIntersects = searchInterval
+          }
+        }
+      )
+      .toList()
+    
+    assertThat(response).containsExactly(eventGroup1, eventGroup2, eventGroup3)
+    assertThat(response).doesNotContain(eventGroup4)
+    assertThat(response).doesNotContain(eventGroup5)
   }
 
   @Test

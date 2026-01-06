@@ -48,6 +48,8 @@ import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.testing.Authentication.withPrincipalAndScopes
 import org.wfanet.measurement.access.v1alpha.CheckPermissionsResponse
+import org.wfanet.measurement.api.v2alpha.dateInterval
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.access.v1alpha.PermissionsGrpcKt
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.principal
@@ -244,6 +246,43 @@ class EventGroupsServiceTest {
         listEventGroupsResponse {
           eventGroups += EVENT_GROUP
           eventGroups += EVENT_GROUP_2
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups with combined filters including data_availability_intersects`() = runBlocking {
+    val searchInterval = interval {
+      startTime = LocalDate.of(2024, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+      endTime = LocalDate.of(2024, 1, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+    }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          cmmsDataProviderIn += DATA_PROVIDER_NAME
+          mediaTypesIntersect += MediaType.VIDEO
+          dataAvailabilityIntersects = searchInterval
+          metadataSearchQuery = "campaign"
+        }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          filter =
+            CmmsListEventGroupsRequestKt.filter {
+              dataProviderIn += DATA_PROVIDER_NAME
+              mediaTypesIntersect += CmmsMediaType.VIDEO
+              dataAvailabilityIntersects = searchInterval
+              metadataSearchQuery = "campaign"
+            }
+          pageSize = DEFAULT_PAGE_SIZE
         }
       )
   }

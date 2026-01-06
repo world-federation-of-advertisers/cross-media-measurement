@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
+import java.time.ZoneOffset
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -114,6 +116,17 @@ class StreamEventGroups(
         bind(DATA_AVAILABILITY_END_TIME_GTE)
           .to(filter.dataAvailabilityEndTimeOnOrAfter.toGcloudTimestamp())
       }
+      if (filter.hasDataAvailabilityIntersects()) {
+        val interval = filter.dataAvailabilityIntersects
+        if (interval.hasStartTime()) {
+          add("IFNULL(DataAvailabilityEndTime, @$TIMESTAMP_MAX) >= @$DATA_AVAILABILITY_INTERSECTS_START")
+          bind(DATA_AVAILABILITY_INTERSECTS_START).to(interval.startTime.toGcloudTimestamp())
+        }
+        if (interval.hasEndTime()) {
+          add("DataAvailabilityStartTime <= @$DATA_AVAILABILITY_INTERSECTS_END")
+          bind(DATA_AVAILABILITY_INTERSECTS_END).to(interval.endTime.toGcloudTimestamp())
+        }
+    }
       if (filter.metadataSearchQuery.isNotEmpty()) {
         add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
         bind(METADATA_SEARCH_QUERY).to(filter.metadataSearchQuery)
@@ -192,6 +205,8 @@ class StreamEventGroups(
     const val DATA_AVAILABILITY_END_TIME_GTE = "dataAvailabilityEndTimeGte"
     const val DATA_AVAILABILITY_START_TIME_GTE = "dataAvailabilityStartTimeGte"
     const val DATA_AVAILABILITY_END_TIME_LTE = "dataAvailabilityEndTimeLte"
+    const val DATA_AVAILABILITY_INTERSECTS_START = "dataAvailabilityIntersectsStart"
+    const val DATA_AVAILABILITY_INTERSECTS_END = "dataAvailabilityIntersectsEnd"
     const val METADATA_SEARCH_QUERY = "metadataSearchQuery"
     const val TIMESTAMP_MAX = "timestampMax"
   }
