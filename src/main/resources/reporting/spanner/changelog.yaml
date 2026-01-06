@@ -58,5 +58,5 @@ databaseChangeLog:
     file: add-default-to-model-line-boolean-in-basic-report.sql
     relativeToChangeLogFile: true
 - include:
-    file: update-proto-bundle-for-impressions-change-in-basic-metric-set.sql
+    file: update-proto-bundle-for-basic-report-results-changes-from-int32-to-int64.sql
     relativeToChangeLogFile: true
