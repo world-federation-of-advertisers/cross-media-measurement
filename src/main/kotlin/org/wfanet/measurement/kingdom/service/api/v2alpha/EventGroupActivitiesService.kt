@@ -90,7 +90,8 @@ class EventGroupActivitiesService(
               eventGroupActivityKey.dataProviderId,
               eventGroupActivityKey.eventGroupId,
             )
-          // This can be propagated to the client if desired in the future
+          // TODO(lindreamdeyi) : Add allow_missing to the public API to let caller decide
+          // For now, we default to true (Upsert) to avoid needing a read-before-write
           allowMissing = true
         }
       }
