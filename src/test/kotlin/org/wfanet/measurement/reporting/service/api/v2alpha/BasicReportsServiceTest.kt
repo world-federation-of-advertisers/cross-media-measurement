@@ -733,10 +733,7 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            BasicReportsService.ZonedHour(
-              hour = 5,
-              zoneId = ZoneId.of("America/Los_Angeles"),
-            ),
+            BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -816,10 +813,7 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            BasicReportsService.ZonedHour(
-              hour = 5,
-              zoneId = ZoneOffset.ofTotalSeconds(14400),
-            ),
+            BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneOffset.ofTotalSeconds(14400)),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
@@ -4406,10 +4400,7 @@ class BasicReportsServiceTest {
           authorization,
           MEASUREMENT_CONSUMER_CONFIGS,
           defaultReportStartHour =
-            BasicReportsService.ZonedHour(
-              hour = 5,
-              zoneId = ZoneId.of("America/Los_Angeles"),
-            ),
+            BasicReportsService.ZonedHour(hour = 5, zoneId = ZoneId.of("America/Los_Angeles")),
           baseExternalImpressionQualificationFilterIds = emptyList(),
         )
 
