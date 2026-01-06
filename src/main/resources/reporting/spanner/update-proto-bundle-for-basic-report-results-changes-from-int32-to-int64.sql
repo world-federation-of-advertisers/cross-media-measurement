@@ -23,7 +23,7 @@ SET PROTO_DESCRIPTORS = 'Cs8DCkB3ZmEvbWVhc3VyZW1lbnQvaW50ZXJuYWwvcmVwb3J0aW5nL3Y
 START BATCH DDL;
 
 ALTER PROTO BUNDLE UPDATE (
-  `wfa.measurement.internal.reporting.v2.ReportResult.ReportingSetResult`,
+  `wfa.measurement.internal.reporting.v2.ReportingSetResult`,
   `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.BasicMetricSet`,
   `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.ReportingUnitMetricSet`,
   `wfa.measurement.internal.reporting.v2.ResultGroup.MetricSet.UniqueMetricSet`,
