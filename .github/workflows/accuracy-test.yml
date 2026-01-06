@@ -15,8 +15,10 @@
 name: Accuracy test
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main
+      - 'releases/**'  
   workflow_dispatch:
 
 permissions:
