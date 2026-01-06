@@ -109,6 +109,9 @@ class InProcessKingdom(
   private val internalMeasurementConsumersClient by lazy {
     InternalMeasurementConsumersCoroutineStub(internalApiChannel)
   }
+  private val internalEventGroupActivitiesClient by lazy {
+    InternalEventGroupActivitiesCoroutineStub(internalApiChannel)
+  }
   private val internalEventGroupsClient by lazy {
     InternalEventGroupsCoroutineStub(internalApiChannel)
   }
@@ -159,6 +162,9 @@ class InProcessKingdom(
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           DataProvidersService(internalDataProvidersClient)
+            .withMetadataPrincipalIdentities()
+            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+          EventGroupActivitiesService(internalEventGroupActivitiesClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           EventGroupsService(internalEventGroupsClient)
