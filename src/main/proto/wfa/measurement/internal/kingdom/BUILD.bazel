@@ -333,6 +333,7 @@ proto_library(
     deps = [
         ":event_group_proto",
         ":media_type_proto",
+         "//src/main/proto/wfa/measurement/api/v2alpha:date_interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

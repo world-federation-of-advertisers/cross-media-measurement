@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
 import "wfa/measurement/internal/kingdom/media_type.proto";
+import "wfa/measurement/api/v2alpha/date_interval.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -103,6 +104,7 @@ message StreamEventGroupsRequest {
     google.protobuf.Timestamp data_availability_end_time_on_or_before = 11;
     google.protobuf.Timestamp data_availability_start_time_on_or_before = 14;
     google.protobuf.Timestamp data_availability_end_time_on_or_after = 15;
+    wfa.measurement.api.v2alpha.DateInterval data_availability_intersects = 16;
     string metadata_search_query = 12;
 
     // Specification of where the results should start within the ordering.

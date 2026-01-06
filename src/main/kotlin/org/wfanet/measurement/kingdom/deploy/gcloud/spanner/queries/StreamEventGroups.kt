@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
+import java.time.ZoneOffset
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -114,6 +116,27 @@ class StreamEventGroups(
         bind(DATA_AVAILABILITY_END_TIME_GTE)
           .to(filter.dataAvailabilityEndTimeOnOrAfter.toGcloudTimestamp())
       }
+      if (filter.hasDataAvailabilityIntersects()) {
+        val filterStart = Timestamp.ofTimeSecondsAndNanos(
+          filter.dataAvailabilityIntersects.startDate.toLocalDate().atStartOfDay(ZoneOffset.UTC).toEpochSecond(),
+          0
+        )
+        val filterEnd = Timestamp.ofTimeSecondsAndNanos(
+          filter.dataAvailabilityIntersects.endDate.toLocalDate().atTime(23, 59, 59).toEpochSecond(ZoneOffset.UTC),
+          0
+        )
+        add(
+          """
+          (
+            DataAvailabilityStartTime <= @$DATA_AVAILABILITY_INTERSECTS_END
+            AND IFNULL(DataAvailabilityEndTime, @$TIMESTAMP_MAX) >= @$DATA_AVAILABILITY_INTERSECTS_START
+          )
+          """
+            .trimIndent()
+        )
+        bind(DATA_AVAILABILITY_INTERSECTS_START).to(filterStart)
+        bind(DATA_AVAILABILITY_INTERSECTS_END).to(filterEnd)
+      }
       if (filter.metadataSearchQuery.isNotEmpty()) {
         add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
         bind(METADATA_SEARCH_QUERY).to(filter.metadataSearchQuery)
@@ -192,6 +215,8 @@ class StreamEventGroups(
     const val DATA_AVAILABILITY_END_TIME_GTE = "dataAvailabilityEndTimeGte"
     const val DATA_AVAILABILITY_START_TIME_GTE = "dataAvailabilityStartTimeGte"
     const val DATA_AVAILABILITY_END_TIME_LTE = "dataAvailabilityEndTimeLte"
+    const val DATA_AVAILABILITY_INTERSECTS_START = "dataAvailabilityIntersectsStart"
+    const val DATA_AVAILABILITY_INTERSECTS_END = "dataAvailabilityIntersectsEnd"
     const val METADATA_SEARCH_QUERY = "metadataSearchQuery"
     const val TIMESTAMP_MAX = "timestampMax"
   }

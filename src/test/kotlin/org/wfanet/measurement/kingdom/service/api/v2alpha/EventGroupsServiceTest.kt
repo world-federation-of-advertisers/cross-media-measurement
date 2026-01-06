@@ -1477,6 +1477,33 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups with data_availability_intersects filter passes correct filter to internal service`() {
+    val searchInterval = dateInterval {
+      startDate = LocalDate.of(2024, 6, 1).toProtoDate()
+      endDate = LocalDate.of(2024, 6, 30).toProtoDate()
+    }
+    
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      filter = filter {
+        dataAvailabilityIntersects = searchInterval
+      }
+      pageSize = 10
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { service.listEventGroups(request) }
+    }
+
+    val internalRequest: StreamEventGroupsRequest = captureFirst {
+      verify(internalEventGroupsMock).streamEventGroups(capture())
+    }
+    assertThat(internalRequest.filter.dataAvailabilityIntersects).isEqualTo(searchInterval)
+    assertThat(internalRequest.filter.externalMeasurementConsumerId)
+      .isEqualTo(MEASUREMENT_CONSUMER_EXTERNAL_ID)
+  }
+
+  @Test
   fun `listEventGroups throws UNAUTHENTICATED when no principal is found`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME

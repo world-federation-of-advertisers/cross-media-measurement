@@ -94,6 +94,7 @@ proto_library(
     name = "page_token_proto",
     srcs = ["page_token.proto"],
     deps = [
+        ":date_interval_proto",
         ":event_groups_service_proto",
         ":exchange_step_proto",
         ":measurement_proto",

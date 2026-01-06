@@ -304,6 +304,7 @@ proto_library(
     deps = [
         ":event_group_proto",
         ":media_type_proto",
+         ":date_interval_proto",
         "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:client_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
