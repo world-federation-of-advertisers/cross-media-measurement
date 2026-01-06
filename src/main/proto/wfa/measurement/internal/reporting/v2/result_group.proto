@@ -108,7 +108,7 @@ message ResultGroup {
       // The average frequency
       float average_frequency = 5;
       // The impression count
-      int32 impressions = 6;
+      int64 impressions = 6;
       // The gross ratings points
       float grps = 7;
     }

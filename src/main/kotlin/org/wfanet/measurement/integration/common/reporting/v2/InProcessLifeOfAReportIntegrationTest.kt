@@ -2424,7 +2424,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
               var componentUniqueReach = 0
 
@@ -2530,7 +2530,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
 
               result.metricSet.componentsList.forEach { component ->
@@ -2702,7 +2702,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
               var componentUniqueReach = 0
 
@@ -2782,7 +2782,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
 
               result.metricSet.componentsList.forEach { component ->

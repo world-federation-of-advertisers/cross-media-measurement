@@ -344,7 +344,7 @@ message ResultGroup {
       // The average frequency
       float average_frequency = 5 [(google.api.field_behavior) = IMMUTABLE];
       // The impression count
-      int32 impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
+      int64 impressions = 6 [(google.api.field_behavior) = IMMUTABLE];
       // The gross ratings points
       float grps = 7 [(google.api.field_behavior) = IMMUTABLE];
     }
