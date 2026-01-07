@@ -44,7 +44,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee
+import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee
@@ -309,7 +309,11 @@ class RequisitionFulfillmentService(
         publicApiVersion = Version.V2_ALPHA.string
         protocolDetails =
           RequisitionDetailsKt.requisitionProtocol {
-            trusTee = trusTee { this.populationSpecFingerprint = populationSpecFingerprint }
+            trusTee = trusTee {
+              this.dataFormat =
+                RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
+              this.populationSpecFingerprint = populationSpecFingerprint
+            }
           }
       }
     )
@@ -337,6 +341,8 @@ class RequisitionFulfillmentService(
         protocolDetails =
           RequisitionDetailsKt.requisitionProtocol {
             trusTee = trusTee {
+              this.dataFormat =
+                RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
               this.encryptedDekCiphertext = encryptedDekCiphertext
               this.kmsKekUri = kmsKekUri
               this.workloadIdentityProvider = workloadIdentityProvider
