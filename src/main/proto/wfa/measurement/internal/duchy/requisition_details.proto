@@ -49,6 +49,17 @@ message RequisitionDetails {
     }
     // TrusTEE protocol specific details.
     message TrusTee {
+      // See RequisitionFulfillmentService for further details.
+      enum DataFormat {
+        // Default value used if the data format is omitted.
+        DATA_FORMAT_UNSPECIFIED = 0;
+        // An unencrypted frequency vector.
+        FREQUENCY_VECTOR = 1;
+        // An encrypted frequency vector.
+        ENCRYPTED_FREQUENCY_VECTOR = 2;
+      }
+      // The data format of the the requisition blob
+      DataFormat data_format = 6;
       // The ciphertext of the EncryptionKey of the Data Encryption Key (DEK).
       bytes encrypted_dek_ciphertext = 1;
       // The URI of the Key Encryption Key (KEK) in a KMS that is used to
