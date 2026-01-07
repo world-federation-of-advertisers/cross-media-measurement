@@ -582,8 +582,9 @@ object CreateBasicReportRequestValidation {
       if (reportingInterval.reportStart.day == 0) {
         throw RequiredFieldNotSetException("$fieldPath.report_start.day")
       }
-      if (reportingInterval.reportStart.timeOffsetCase ==
-        DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+      if (
+        reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+      ) {
         throw RequiredFieldNotSetException("$fieldPath.report_start.time_offset")
       }
       if (reportingInterval.reportStart.minutes != 0) {
