@@ -20,11 +20,13 @@ import com.google.protobuf.Descriptors
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
+import org.wfanet.measurement.internal.reporting.v2.EventTemplateField as InternalEventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
+import org.wfanet.measurement.reporting.service.internal.Normalization
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventFilter
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -79,9 +81,9 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): Map<ReportingSet, List<MetricCalculationSpec.Details>> {
   val impressionQualificationFilterSpecsFilters: List<String> =
-    impressionQualificationFilterSpecsLists.map {
-      createImpressionQualificationFilterSpecsFilter(it, eventTemplateFieldsByPath)
-    }
+    impressionQualificationFilterSpecsLists
+      .map { buildCelExpression(it, eventTemplateFieldsByPath) }
+      .filter { it.isNotEmpty() }
 
   // This intermediate map is for reducing the number of MetricCalculationSpecs created for a given
   // ReportingSet. Without this map, MetricCalculationSpecs with everything identical except for
@@ -101,18 +103,12 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
           }
 
         val dimensionSpecFilter: String =
-          createDimensionSpecFilter(
-            resultGroupSpec.dimensionSpec.filtersList,
-            eventTemplateFieldsByPath,
-          )
+          buildCelExpression(resultGroupSpec.dimensionSpec.filtersList, eventTemplateFieldsByPath)
 
         // List of filters to be used in creating the MetricCalculationSpecs given the
         // DimensionSpec
         val metricCalculationSpecFilters: List<String> =
-          createMetricCalculationSpecFilters(
-            impressionQualificationFilterSpecsFilters,
-            dimensionSpecFilter,
-          )
+          buildCelExpressions(impressionQualificationFilterSpecsFilters, dimensionSpecFilter)
 
         // The Primitive ReportingSets for the ReportingUnit
         val primitiveReportingSets: List<ReportingSet> =
@@ -159,46 +155,51 @@ fun buildReportingSetMetricCalculationSpecDetailsMap(
 }
 
 /**
- * Transforms [ImpressionQualificationFilterSpec]s into a single CEL string
+ * Builds a CEL expression for [impressionQualificationFilterSpecs].
  *
  * @param impressionQualificationFilterSpecs List of [ImpressionQualificationFilterSpec]
  * @param eventTemplateFieldsByPath Map of EventTemplate field path with respect to Event message to
  *   info for the field. Used for parsing [EventTemplateField]
  */
-fun createImpressionQualificationFilterSpecsFilter(
-  impressionQualificationFilterSpecs: List<ImpressionQualificationFilterSpec>,
+fun buildCelExpression(
+  impressionQualificationFilterSpecs: Iterable<ImpressionQualificationFilterSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
   return impressionQualificationFilterSpecs
-    .map { impressionQualificationFilterSpec ->
-      impressionQualificationFilterSpec.filtersList
-        // To normalize the filter string
-        .sortedBy { it.termsList.first().path }
-        .joinToString(prefix = "(", postfix = ")", separator = " && ") {
-          val term = it.termsList.first()
-          val termValue =
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-            when (term.value.selectorCase) {
-              EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-              EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-                eventTemplateFieldsByPath
-                  .getValue(term.path)
-                  .enumType
-                  ?.findValueByName(term.value.enumValue)
-                  ?.number
-              }
-
-              EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
-              EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
-              EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
-                throw IllegalArgumentException("Selector not set")
-            }
-          "has(${term.path}) && ${term.path} == $termValue"
-        }
-      // To normalize the filter string
+    .mapNotNull { impressionQualificationFilterSpec ->
+      if (impressionQualificationFilterSpec.filtersList.isEmpty()) {
+        null
+      } else {
+        Normalization.normalizeEventFilters(
+            impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
+          )
+          .joinToString(" && ") {
+            val term: InternalEventTemplateField = it.termsList.single()
+            require(
+              term.value.selectorCase !=
+                InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+            )
+            val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
+            val parentPath = term.path.split('.').first()
+            "has($parentPath) && ${term.path} == $termValue"
+          }
+      }
     }
     .sorted()
-    .joinToString(prefix = "(", postfix = ")", separator = " || ")
+    .joinToString(" || ") { expression -> "($expression)" }
+}
+
+private fun InternalEventTemplateField.FieldValue.toCelValue(
+  fieldInfo: EventMessageDescriptor.EventTemplateFieldInfo
+): String {
+  return when (selectorCase) {
+    InternalEventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> stringValue
+    InternalEventTemplateField.FieldValue.SelectorCase.ENUM_VALUE ->
+      checkNotNull(fieldInfo.enumType?.findValueByName(enumValue)).number.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> boolValue.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> floatValue.toString()
+    InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET -> error("No field value")
+  }
 }
 
 /**
@@ -267,64 +268,52 @@ private fun MutableMap.MutableEntry<MetricCalculationSpecInfoKey, MetricCalculat
  * @param dimensionSpecFilters List of [EventFilter]s from [DimensionSpec]
  * @param eventTemplateFieldsByPath for creating a CEL string from [EventTemplateField]
  */
-fun createDimensionSpecFilter(
+fun buildCelExpression(
   dimensionSpecFilters: List<EventFilter>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
   return if (dimensionSpecFilters.isEmpty()) {
     ""
   } else {
-    dimensionSpecFilters
-      // To normalize the filter string
-      .sortedBy { it.termsList.first().path }
-      .joinToString(prefix = "(", postfix = ")", separator = " && ") {
-        val term = it.termsList.first()
-        val termValue =
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-          when (term.value.selectorCase) {
-            EventTemplateField.FieldValue.SelectorCase.STRING_VALUE -> term.value.stringValue
-            EventTemplateField.FieldValue.SelectorCase.ENUM_VALUE -> {
-              eventTemplateFieldsByPath
-                .getValue(term.path)
-                .enumType
-                ?.findValueByName(term.value.enumValue)
-                ?.number
-            }
-            EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> term.value.floatValue
-            EventTemplateField.FieldValue.SelectorCase.BOOL_VALUE -> term.value.boolValue
-            EventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET ->
-              throw IllegalArgumentException("Selector not set")
-          }
-        "${term.path} == $termValue"
-      }
+    Normalization.normalizeEventFilters(dimensionSpecFilters.map { it.toInternal() }).joinToString(
+      " && "
+    ) {
+      val term = it.termsList.single()
+      require(
+        term.value.selectorCase !=
+          InternalEventTemplateField.FieldValue.SelectorCase.SELECTOR_NOT_SET
+      )
+      val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
+      "${term.path} == $termValue"
+    }
   }
 }
 
 /**
  * Creates a List of CEL strings
  *
- * @param impressionQualificationFilterSpecsFilters List of CEL strings created from
- *   [ReportingImpressionQualificationFilter]s
- * @param dimensionSpecFilter CEL string created from [DimensionSpec]
+ * @param impressionQualificationFilterSpecExpressions CEL expressions from
+ *   [ImpressionQualificationFilterSpec]s
+ * @param dimensionSpecExpression CEL expression created from [DimensionSpec]
  */
-fun createMetricCalculationSpecFilters(
-  impressionQualificationFilterSpecsFilters: List<String>,
-  dimensionSpecFilter: String,
+fun buildCelExpressions(
+  impressionQualificationFilterSpecExpressions: Collection<String>,
+  dimensionSpecExpression: String,
 ): List<String> {
   return buildList {
-    if (impressionQualificationFilterSpecsFilters.isNotEmpty()) {
-      if (dimensionSpecFilter.isNotEmpty()) {
-        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
-          add("$impressionQualificationSpecsFilter && $dimensionSpecFilter")
+    if (impressionQualificationFilterSpecExpressions.isNotEmpty()) {
+      if (dimensionSpecExpression.isNotEmpty()) {
+        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
+          add("($impressionQualificationSpecsFilter) && ($dimensionSpecExpression)")
         }
       } else {
-        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecsFilters) {
+        for (impressionQualificationSpecsFilter in impressionQualificationFilterSpecExpressions) {
           add(impressionQualificationSpecsFilter)
         }
       }
     } else {
-      if (dimensionSpecFilter.isNotEmpty()) {
-        add(dimensionSpecFilter)
+      if (dimensionSpecExpression.isNotEmpty()) {
+        add(dimensionSpecExpression)
       }
     }
 
