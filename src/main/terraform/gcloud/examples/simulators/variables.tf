@@ -44,3 +44,9 @@ variable "key_ring_location" {
   type        = string
   default     = null
 }
+
+variable "tee_image_signature_fingerprint" {
+  description = "The image signature fingerprint to enforce for the TEE workload. Format: 'ALGORITHM:KEY_ID'."
+  type        = string
+  nullable    = false
+}
