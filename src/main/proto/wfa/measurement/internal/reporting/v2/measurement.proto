@@ -79,6 +79,7 @@ message Measurement {
         LiquidLegionsV2 liquid_legions_v2 = 6;
         ReachOnlyLiquidLegionsV2 reach_only_liquid_legions_v2 = 7;
         HonestMajorityShareShuffle honest_majority_share_shuffle = 8;
+        TrusTee trus_tee = 9;
       }
     }
     Reach reach = 1;
@@ -93,6 +94,7 @@ message Measurement {
         LiquidLegionsDistribution liquid_legions_distribution = 5;
         LiquidLegionsV2 liquid_legions_v2 = 6;
         HonestMajorityShareShuffle honest_majority_share_shuffle = 7;
+        TrusTee trus_tee = 8;
       }
     }
     Frequency frequency = 2;
