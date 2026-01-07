@@ -66,6 +66,8 @@ import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
+import org.wfanet.measurement.internal.reporting.v2.ReportingInterval as InternalReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
@@ -120,7 +122,12 @@ fun BasicReport.toInternal(
           it.toInternal(impressionQualificationFilterSpecsByName)
         }
       reportingInterval = internalReportingInterval {
-        reportStart = source.reportingInterval.reportStart
+        if (source.reportingInterval.reportStartTimeCase
+          == ReportingInterval.ReportStartTimeCase.REPORT_START) {
+          reportStart = source.reportingInterval.reportStart
+        } else {
+          reportStartDate = source.reportingInterval.reportStartDate
+        }
         this.effectiveReportStart = effectiveReportStart
         reportEnd = source.reportingInterval.reportEnd
       }
@@ -407,7 +414,11 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
-      reportStart = source.details.reportingInterval.reportStart
+      if (source.details.reportingInterval.reportStartTimeCase == InternalReportingInterval.ReportStartTimeCase.REPORT_START) {
+        reportStart = source.details.reportingInterval.reportStart
+      } else {
+        reportStartDate = source.details.reportingInterval.reportStartDate
+      }
       if (source.details.reportingInterval.hasEffectiveReportStart()) {
         effectiveReportStart = source.details.reportingInterval.effectiveReportStart
       } else {

@@ -558,55 +558,54 @@ object CreateBasicReportRequestValidation {
     hasDefaultReportStartHour: Boolean,
   ) {
     val fieldPath = "basic_report.reporting_interval"
-    if (!reportingInterval.hasReportStart()) {
-      throw RequiredFieldNotSetException("$fieldPath.report_start")
+
+    if (reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORTSTARTTIME_NOT_SET) {
+      throw RequiredFieldNotSetException("$fieldPath.report_start") { fieldName ->
+        "$fieldName must be set, or the other value in the oneof if there is a default"
+      }
     }
 
     if (!reportingInterval.hasReportEnd()) {
       throw RequiredFieldNotSetException("$fieldPath.report_end")
     }
 
-    if (
-      reportingInterval.reportStart.year == 0 ||
+    if (reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORT_START) {
+      if (
+        reportingInterval.reportStart.year == 0 ||
         reportingInterval.reportStart.month == 0 ||
         reportingInterval.reportStart.day == 0 ||
+        reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET ||
         reportingInterval.reportStart.minutes != 0 ||
         reportingInterval.reportStart.seconds != 0 ||
         reportingInterval.reportStart.nanos != 0
-    ) {
-      throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-        "$fieldName requires year, month, and day to all be set, and minutes, seconds, and nanos to all not be set"
-      }
-    }
-
-    // If there is no default, both hours and time_offset must be set, or neither must be set.
-    if (
-      !hasDefaultReportStartHour ||
-        reportingInterval.reportStart.hours != 0 ||
-        reportingInterval.reportStart.timeOffsetCase != DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
-    ) {
-      if (
-        reportingInterval.reportStart.hours == 0 ||
-          !(reportingInterval.reportStart.hasTimeZone() ||
-            reportingInterval.reportStart.hasUtcOffset())
       ) {
         throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-          "$fieldName requires hours to be set, as well as either time_zone or utc_offset"
+          "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset, and minutes, seconds, and nanos to all not be set"
         }
       }
-    }
 
-    try {
-      if (
-        reportingInterval.reportStart.timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
-      ) {
-        reportingInterval.reportStart.copy { utcOffset = duration { seconds = 0 } }.toTimestamp()
-      } else {
+      try {
         reportingInterval.reportStart.toTimestamp()
+      } catch (_: DateTimeException) {
+        throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
+          "$fieldName is an invalid DateTime"
+        }
       }
-    } catch (_: DateTimeException) {
-      throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-        "$fieldName is an invalid DateTime"
+    } else if (reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORT_START_DATE) {
+      if (!hasDefaultReportStartHour) {
+        throw InvalidFieldValueException("$fieldPath.report_start_date") { fieldName ->
+          "$fieldName cannot be set when there are no server defaults"
+        }
+      }
+
+      if (
+        reportingInterval.reportStartDate.year == 0 ||
+        reportingInterval.reportStartDate.month == 0 ||
+        reportingInterval.reportStartDate.day == 0
+      ) {
+        throw InvalidFieldValueException("$fieldPath.report_start_date") { fieldName ->
+          "$fieldName requires year, month, and day to be set"
+        }
       }
     }
 

@@ -27,27 +27,37 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // The time interval over which Metrics are reported.
 message ReportingInterval {
-  // The date and time of the start of the report. The year,
-  // month, day are all required. minutes, seconds, and nanos are all not
-  // allowed to to be set. time_offset and hours are required if there is no
-  // default, and not required otherwise.
-  //
-  // If `utc_offset` is set, daylight savings is ignored and days will
-  // be 24 hours based on the time of day specified here. If `time_zone` is
-  // set, days will be based on the calendar and daylight savings will be
-  // considered; if 5 AM is chosen, the day will start at 5 AM year-round.
-  //
-  // This side of the interval is closed.
-  google.type.DateTime report_start = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.field_behavior) = IMMUTABLE
-  ];
+  // The start time of the report. A field in the oneof must be set.
+  oneof report_start_time {
+    // The date and time of the start of the report. The year,
+    // month, day, hours, and time_offset are all required. minutes, seconds,
+    // and nanos are all not allowed to to be set.
+    //
+    // If `utc_offset` is set, daylight savings is ignored and days will
+    // be 24 hours based on the time of day specified here. If `time_zone` is
+    // set, days will be based on the calendar and daylight savings will be
+    // considered; if 5 AM is chosen, the day will start at 5 AM year-round.
+    //
+    // This side of the interval is closed.
+    google.type.DateTime report_start = 1 [
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+
+    // The date of the start of the report. The year, month, and day are all
+    // required.
+    //
+    // Server defaults will be used for the time portion if they exist. If they
+    // don't, setting this field is an error.
+    google.type.Date report_start_date = 4 [
+      (google.api.field_behavior) = IMMUTABLE
+    ];
+  }
 
   // The effective start time of the Report.
   //
-  // This will be the same as `report_start` unless both `report_start.hours`
-  // and `report_start.time_offset` are not set and the server applied default
-  // values.
+  // This will be the same as `report_start` if `report_start` is set. If
+  // `report_start_date` is set, this will be `report_start_date` with server
+  // defaults applied for the time portion.
   google.type.DateTime effective_report_start = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

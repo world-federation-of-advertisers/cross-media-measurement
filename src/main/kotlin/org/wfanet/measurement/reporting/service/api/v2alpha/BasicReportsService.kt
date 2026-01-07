@@ -20,6 +20,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.util.Durations
 import com.google.type.DateTime
 import com.google.type.copy
+import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
@@ -193,8 +194,11 @@ class BasicReportsService(
 
     val effectiveReportStart =
       if (defaultReportStartHour != null) {
-        request.basicReport.reportingInterval.reportStart.copy {
-          if (hours == 0 && timeOffsetCase == DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+        if (request.basicReport.reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORT_START_DATE) {
+          dateTime {
+            year = request.basicReport.reportingInterval.reportStartDate.year
+            month = request.basicReport.reportingInterval.reportStartDate.month
+            day = request.basicReport.reportingInterval.reportStartDate.day
             hours = defaultReportStartHour.hour
             val zoneId = defaultReportStartHour.zoneId
             if (zoneId is ZoneOffset) {
@@ -203,6 +207,8 @@ class BasicReportsService(
               timeZone = timeZone { id = zoneId.id }
             }
           }
+        } else {
+          request.basicReport.reportingInterval.reportStart
         }
       } else {
         request.basicReport.reportingInterval.reportStart
