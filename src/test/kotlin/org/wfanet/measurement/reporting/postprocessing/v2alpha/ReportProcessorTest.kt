@@ -15,6 +15,10 @@
 package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.abs
@@ -31,6 +35,8 @@ import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProces
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportPostProcessorStatus
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportQuality
 import org.wfanet.measurement.internal.reporting.postprocessing.ReportSummary
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorResult
+import org.wfanet.measurement.internal.reporting.postprocessing.reportPostProcessorStatus
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -46,6 +52,31 @@ class TestStorageFactory(private val inMemoryStorageClient: InMemoryStorageClien
   ReportProcessor.StorageFactory {
   override fun createStorageClient(projectId: String, bucketName: String): StorageClient {
     return inMemoryStorageClient
+  }
+}
+
+class FakeProcess(
+  private val inputStream: InputStream,
+  private val errorStream: InputStream = ByteArrayInputStream(ByteArray(0)),
+  private val outputStream: OutputStream = ByteArrayOutputStream(),
+  private val exitCode: Int = 0,
+) : Process() {
+  override fun getInputStream(): InputStream = inputStream
+
+  override fun getErrorStream(): InputStream = errorStream
+
+  override fun getOutputStream(): OutputStream = outputStream
+
+  override fun waitFor(): Int = exitCode
+
+  override fun exitValue(): Int = exitCode
+
+  override fun destroy() {}
+}
+
+class FakeProcessFactory(private val process: Process) : ReportProcessor.ProcessFactory {
+  override fun createProcess(command: List<String>): Process {
+    return process
   }
 }
 
@@ -66,6 +97,42 @@ class ReportProcessorTest {
   @After
   fun tearDown() {
     ReportProcessor.resetToGcsStorageFactory()
+    ReportProcessor.resetToDefaultProcessFactory()
+  }
+
+  @Test
+  fun `report post processing output handles junk in stdout`() = runBlocking {
+    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
+    val reportAsJson = reportFile.readText()
+
+    val fakeResult = reportPostProcessorResult {
+      status = reportPostProcessorStatus {
+        statusCode = ReportPostProcessorStatus.StatusCode.SOLUTION_FOUND_WITH_HIGHS
+      }
+    }
+
+    val fakeOutputStream = ByteArrayOutputStream()
+    fakeResult.writeDelimitedTo(fakeOutputStream)
+
+    // Pollutes the stdout with junk data.
+    fakeOutputStream.write("junk data".toByteArray())
+
+    val fakeInputStream = ByteArrayInputStream(fakeOutputStream.toByteArray())
+    val fakeProcess = FakeProcess(inputStream = fakeInputStream)
+    val fakeProcessFactory = FakeProcessFactory(fakeProcess)
+
+    ReportProcessor.setTestProcessFactory(fakeProcessFactory)
+
+    val reportProcessingOutput =
+      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
+
+    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
+    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
+    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
+    assertEquals(
+      result.status.statusCode,
+      ReportPostProcessorStatus.StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+    )
   }
 
   @Test
@@ -589,7 +656,8 @@ class ReportProcessorTest {
         if (
           !fuzzyEqual(
             cumulativeMeasurements[edpCombination]!![
-                cumulativeMeasurements[edpCombination]!!.size - 1]
+                cumulativeMeasurements[edpCombination]!!.size - 1,
+              ]
               .toDouble(),
             totalMeasurements[edpCombination]!!.toDouble(),
             TOLERANCE,

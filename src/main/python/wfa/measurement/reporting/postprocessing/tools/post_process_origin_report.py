@@ -21,6 +21,8 @@ from absl import flags
 from absl import logging
 from typing import TypeAlias
 
+from google.protobuf.internal.encoder import _VarintBytes
+
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 from noiseninja.noised_measurements import KReachMeasurements
@@ -453,6 +455,16 @@ class ReportSummaryProcessor:
         " reach)"
     )
 
+def write_delimited(message, stream):
+  """Writes a delimited message to the stream.
+
+  Args:
+    message: The protobuf message to write.
+    stream: The stream to write to.
+  """
+  serialized = message.SerializeToString()
+  stream.write(_VarintBytes(len(serialized)))
+  stream.write(serialized)
 
 def main(argv):
   # Sends the log to stderr.
@@ -469,14 +481,11 @@ def main(argv):
   report_post_processor_result = ReportSummaryProcessor(
       report_summary).process()
 
-  logging.info("Serializing the report post processor result.")
-  serialized_data = report_post_processor_result.SerializeToString()
-
   logging.info(
       "Sending serialized ReportPostProcessorResult to the parent program."
   )
-  sys.stdout.buffer.write(serialized_data)
-  sys.stdout.flush()
+  write_delimited(report_post_processor_result, sys.stdout.buffer)
+  sys.exit(0)
 
 
 if __name__ == "__main__":
