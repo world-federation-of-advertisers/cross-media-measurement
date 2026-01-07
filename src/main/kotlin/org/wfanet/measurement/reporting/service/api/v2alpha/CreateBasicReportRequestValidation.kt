@@ -563,8 +563,8 @@ object CreateBasicReportRequestValidation {
       reportingInterval.reportStartTimeCase ==
         ReportingInterval.ReportStartTimeCase.REPORTSTARTTIME_NOT_SET
     ) {
-      throw RequiredFieldNotSetException("$fieldPath.report_start") { fieldName ->
-        "$fieldName must be set, or the other value in the oneof if there is a default"
+      throw RequiredFieldNotSetException("$fieldPath.report_start_time") { fieldName ->
+        "$fieldName must be set"
       }
     }
 
@@ -572,21 +572,33 @@ object CreateBasicReportRequestValidation {
       throw RequiredFieldNotSetException("$fieldPath.report_end")
     }
 
-    if (
-      reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORT_START
-    ) {
-      if (
-        reportingInterval.reportStart.year == 0 ||
-          reportingInterval.reportStart.month == 0 ||
-          reportingInterval.reportStart.day == 0 ||
-          reportingInterval.reportStart.timeOffsetCase ==
-            DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET ||
-          reportingInterval.reportStart.minutes != 0 ||
-          reportingInterval.reportStart.seconds != 0 ||
-          reportingInterval.reportStart.nanos != 0
-      ) {
-        throw InvalidFieldValueException("$fieldPath.report_start") { fieldName ->
-          "$fieldName requires year, month, and day to all be set, as well as either time_zone or utc_offset, and minutes, seconds, and nanos to all not be set"
+    if (reportingInterval.hasReportStart()) {
+      if (reportingInterval.reportStart.year == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.year")
+      }
+      if (reportingInterval.reportStart.month == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.month")
+      }
+      if (reportingInterval.reportStart.day == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.day")
+      }
+      if (reportingInterval.reportStart.timeOffsetCase ==
+        DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start.time_offset")
+      }
+      if (reportingInterval.reportStart.minutes != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+          "$fieldName cannot be set"
+        }
+      }
+      if (reportingInterval.reportStart.seconds != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+          "$fieldName cannot be set"
+        }
+      }
+      if (reportingInterval.reportStart.nanos != 0) {
+        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+          "$fieldName cannot be set"
         }
       }
 
@@ -597,35 +609,32 @@ object CreateBasicReportRequestValidation {
           "$fieldName is an invalid DateTime"
         }
       }
-    } else if (
-      reportingInterval.reportStartTimeCase ==
-        ReportingInterval.ReportStartTimeCase.REPORT_START_DATE
-    ) {
+    } else if (reportingInterval.hasReportStartDate()) {
       if (!hasDefaultReportStartHour) {
         throw InvalidFieldValueException("$fieldPath.report_start_date") { fieldName ->
           "$fieldName cannot be set when there are no server defaults"
         }
       }
 
-      if (
-        reportingInterval.reportStartDate.year == 0 ||
-          reportingInterval.reportStartDate.month == 0 ||
-          reportingInterval.reportStartDate.day == 0
-      ) {
-        throw InvalidFieldValueException("$fieldPath.report_start_date") { fieldName ->
-          "$fieldName requires year, month, and day to be set"
-        }
+      if (reportingInterval.reportStartDate.year == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.year")
+      }
+      if (reportingInterval.reportStartDate.month == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.month")
+      }
+      if (reportingInterval.reportStartDate.day == 0) {
+        throw RequiredFieldNotSetException("$fieldPath.report_start_date.day")
       }
     }
 
-    if (
-      reportingInterval.reportEnd.year == 0 ||
-        reportingInterval.reportEnd.month == 0 ||
-        reportingInterval.reportEnd.day == 0
-    ) {
-      throw InvalidFieldValueException("$fieldPath.report_end") { fieldName ->
-        "$fieldName requires year, month, and day to be set"
-      }
+    if (reportingInterval.reportEnd.year == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.year")
+    }
+    if (reportingInterval.reportEnd.month == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.month")
+    }
+    if (reportingInterval.reportEnd.day == 0) {
+      throw RequiredFieldNotSetException("$fieldPath.report_end.day")
     }
 
     try {

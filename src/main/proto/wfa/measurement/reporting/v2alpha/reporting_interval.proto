@@ -27,11 +27,11 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // The time interval over which Metrics are reported.
 message ReportingInterval {
-  // The start time of the report. A field in the oneof must be set.
+  // The start time of the report. Required.
   oneof report_start_time {
     // The date and time of the start of the report. The year,
-    // month, day, hours, and time_offset are all required. minutes, seconds,
-    // and nanos are all not allowed to to be set.
+    // month, day, and time_offset are all required. Time has hours
+    // granularity.
     //
     // If `utc_offset` is set, daylight savings is ignored and days will
     // be 24 hours based on the time of day specified here. If `time_zone` is

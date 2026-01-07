@@ -3935,7 +3935,7 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.reporting_interval.report_start"
+              "basic_report.reporting_interval.report_start_time"
           }
         )
     }
@@ -4032,7 +4032,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
         }
       )
@@ -4081,7 +4081,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
         }
       )
@@ -4130,7 +4130,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
         }
       )
@@ -4329,7 +4329,7 @@ class BasicReportsServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
               "basic_report.reporting_interval.report_start"
           }
@@ -4569,7 +4569,7 @@ class BasicReportsServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
               "basic_report.reporting_interval.report_start_date"
           }
@@ -4644,7 +4644,7 @@ class BasicReportsServiceTest {
         .isEqualTo(
           errorInfo {
             domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
               "basic_report.reporting_interval.report_start_date"
           }
@@ -4718,7 +4718,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
             "basic_report.reporting_interval.report_start_date"
         }
@@ -4768,7 +4768,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
         }
       )
@@ -4817,7 +4817,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
         }
       )
@@ -4866,7 +4866,7 @@ class BasicReportsServiceTest {
       .isEqualTo(
         errorInfo {
           domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
         }
       )

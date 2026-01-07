@@ -122,10 +122,7 @@ fun BasicReport.toInternal(
           it.toInternal(impressionQualificationFilterSpecsByName)
         }
       reportingInterval = internalReportingInterval {
-        if (
-          source.reportingInterval.reportStartTimeCase ==
-            ReportingInterval.ReportStartTimeCase.REPORT_START
-        ) {
+        if (source.reportingInterval.hasReportStart()) {
           reportStart = source.reportingInterval.reportStart
         } else {
           reportStartDate = source.reportingInterval.reportStartDate
@@ -416,10 +413,7 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
-      if (
-        source.details.reportingInterval.reportStartTimeCase ==
-          InternalReportingInterval.ReportStartTimeCase.REPORT_START
-      ) {
+      if (source.details.reportingInterval.hasReportStart()) {
         reportStart = source.details.reportingInterval.reportStart
       } else {
         reportStartDate = source.details.reportingInterval.reportStartDate
