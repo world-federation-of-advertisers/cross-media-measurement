@@ -194,7 +194,10 @@ class BasicReportsService(
 
     val effectiveReportStart =
       if (defaultReportStartHour != null) {
-        if (request.basicReport.reportingInterval.reportStartTimeCase == ReportingInterval.ReportStartTimeCase.REPORT_START_DATE) {
+        if (
+          request.basicReport.reportingInterval.reportStartTimeCase ==
+            ReportingInterval.ReportStartTimeCase.REPORT_START_DATE
+        ) {
           dateTime {
             year = request.basicReport.reportingInterval.reportStartDate.year
             month = request.basicReport.reportingInterval.reportStartDate.month

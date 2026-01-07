@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.ImpressionQualificationFilterSpec.MediaType as InternalMediaType
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec as InternalMetricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
+import org.wfanet.measurement.internal.reporting.v2.ReportingInterval as InternalReportingInterval
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnit as InternalReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt as InternalReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup as InternalResultGroup
@@ -67,7 +68,6 @@ import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
-import org.wfanet.measurement.internal.reporting.v2.ReportingInterval as InternalReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingUnit
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
@@ -122,8 +122,10 @@ fun BasicReport.toInternal(
           it.toInternal(impressionQualificationFilterSpecsByName)
         }
       reportingInterval = internalReportingInterval {
-        if (source.reportingInterval.reportStartTimeCase
-          == ReportingInterval.ReportStartTimeCase.REPORT_START) {
+        if (
+          source.reportingInterval.reportStartTimeCase ==
+            ReportingInterval.ReportStartTimeCase.REPORT_START
+        ) {
           reportStart = source.reportingInterval.reportStart
         } else {
           reportStartDate = source.reportingInterval.reportStartDate
@@ -414,7 +416,10 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
-      if (source.details.reportingInterval.reportStartTimeCase == InternalReportingInterval.ReportStartTimeCase.REPORT_START) {
+      if (
+        source.details.reportingInterval.reportStartTimeCase ==
+          InternalReportingInterval.ReportStartTimeCase.REPORT_START
+      ) {
         reportStart = source.details.reportingInterval.reportStart
       } else {
         reportStartDate = source.details.reportingInterval.reportStartDate

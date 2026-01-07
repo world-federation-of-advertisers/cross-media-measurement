@@ -39,18 +39,16 @@ message ReportingInterval {
     // considered; if 5 AM is chosen, the day will start at 5 AM year-round.
     //
     // This side of the interval is closed.
-    google.type.DateTime report_start = 1 [
-      (google.api.field_behavior) = IMMUTABLE
-    ];
+    google.type.DateTime report_start = 1
+        [(google.api.field_behavior) = IMMUTABLE];
 
     // The date of the start of the report. The year, month, and day are all
     // required.
     //
     // Server defaults will be used for the time portion if they exist. If they
     // don't, setting this field is an error.
-    google.type.Date report_start_date = 4 [
-      (google.api.field_behavior) = IMMUTABLE
-    ];
+    google.type.Date report_start_date = 4
+        [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // The effective start time of the Report.
