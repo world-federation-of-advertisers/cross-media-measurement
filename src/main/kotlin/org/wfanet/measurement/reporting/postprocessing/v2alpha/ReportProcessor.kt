@@ -166,9 +166,7 @@ interface ReportProcessor {
     var currentStorageFactory: StorageFactory = gcsStorageFactory
       internal set
 
-    /**
-     * The currently active [ProcessFactory] that will be used to create [Process] instances.
-     */
+    /** The currently active [ProcessFactory] that will be used to create [Process] instances. */
     var currentProcessFactory: ProcessFactory = defaultProcessFactory
       internal set
 
