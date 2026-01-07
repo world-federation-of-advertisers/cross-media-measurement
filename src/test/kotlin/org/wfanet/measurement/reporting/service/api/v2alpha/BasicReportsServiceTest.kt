@@ -4180,7 +4180,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.minutes"
         }
       )
   }
@@ -4229,7 +4229,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.seconds"
         }
       )
   }
@@ -4278,7 +4278,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.nanos"
         }
       )
   }
