@@ -4033,7 +4033,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.year"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.year"
         }
       )
   }
@@ -4082,7 +4083,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.month"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.month"
         }
       )
   }
@@ -4131,7 +4133,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.day"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.day"
         }
       )
   }
@@ -4180,7 +4183,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.minutes"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.minutes"
         }
       )
   }
@@ -4229,7 +4233,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.seconds"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.seconds"
         }
       )
   }
@@ -4278,7 +4283,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.nanos"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_start.nanos"
         }
       )
   }
@@ -4769,7 +4775,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.year"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_end.year"
         }
       )
   }
@@ -4818,7 +4825,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.month"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_end.month"
         }
       )
   }
@@ -4867,7 +4875,8 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.day"
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "basic_report.reporting_interval.report_end.day"
         }
       )
   }
