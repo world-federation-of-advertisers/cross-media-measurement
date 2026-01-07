@@ -4033,7 +4033,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.year"
         }
       )
   }
@@ -4082,7 +4082,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.month"
         }
       )
   }
@@ -4131,7 +4131,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_start.day"
         }
       )
   }
@@ -4331,7 +4331,7 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.reporting_interval.report_start"
+              "basic_report.reporting_interval.report_start.time_offset"
           }
         )
     }
@@ -4571,7 +4571,7 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.reporting_interval.report_start_date"
+              "basic_report.reporting_interval.report_start_date.year"
           }
         )
     }
@@ -4646,7 +4646,7 @@ class BasicReportsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] =
-              "basic_report.reporting_interval.report_start_date"
+              "basic_report.reporting_interval.report_start_date.month"
           }
         )
     }
@@ -4720,7 +4720,7 @@ class BasicReportsServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
           metadata[Errors.Metadata.FIELD_NAME.key] =
-            "basic_report.reporting_interval.report_start_date"
+            "basic_report.reporting_interval.report_start_date.day"
         }
       )
   }
@@ -4769,7 +4769,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.year"
         }
       )
   }
@@ -4818,7 +4818,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.month"
         }
       )
   }
@@ -4867,7 +4867,7 @@ class BasicReportsServiceTest {
         errorInfo {
           domain = Errors.DOMAIN
           reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end"
+          metadata[Errors.Metadata.FIELD_NAME.key] = "basic_report.reporting_interval.report_end.day"
         }
       )
   }
