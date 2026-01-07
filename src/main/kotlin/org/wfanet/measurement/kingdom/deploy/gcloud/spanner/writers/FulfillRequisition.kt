@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
@@ -107,10 +108,14 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
         val nextState =
           if (request.hasComputedParams()) {
-            if (requisition.parentMeasurement.protocolConfig.hasHonestMajorityShareShuffle()) {
-              Measurement.State.PENDING_COMPUTATION
-            } else {
-              Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+            when (requisition.parentMeasurement.protocolConfig.protocolCase) {
+              ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
+              ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
+                Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+              ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+              ProtocolConfig.ProtocolCase.TRUS_TEE -> Measurement.State.PENDING_COMPUTATION
+              ProtocolConfig.ProtocolCase.DIRECT,
+              ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid multi-party protocol.")
             }
           } else Measurement.State.SUCCEEDED
         val measurementLogEntryDetails = measurementLogEntryDetails {

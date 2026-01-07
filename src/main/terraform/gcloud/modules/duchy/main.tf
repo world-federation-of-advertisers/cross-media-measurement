@@ -115,7 +115,6 @@ resource "google_storage_bucket_iam_member" "trustee_mill" {
   member = module.trustee_mill[0].mig_service_account.member
 }
 
-
 resource "google_compute_address" "v2alpha" {
   name    = "${var.name}-duchy-v2alpha"
   address = var.v2alpha_ip_address

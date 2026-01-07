@@ -25,10 +25,11 @@ import "list"
 }
 
 #EdpConfig: {
-	displayName:      string
-	resourceName:     string
-	certResourceName: string
-	supportHmss:      bool | *false
+	displayName:             string
+	resourceName:            string
+	certResourceName:        string
+	supportHmss:             bool | *false
+	supportEncryptedTrustee: bool | *false
 	eventGroupConfigs: [...#EventGroupConfig]
 }
 
@@ -46,6 +47,9 @@ import "list"
 	_kingdom_public_api_target: string
 	_logSketchDetails:          bool | *false
 	_imageConfig:               #ImageConfig
+	_gcloudProjectId:           string
+	_gcloudProjectNumber:       string
+	_keyRingLocation:           string
 
 	let DisplayName = _edpConfig.displayName
 	let RequisitionFulfillmentServiceOptions = {
@@ -69,11 +73,21 @@ import "list"
 		list.FlattenN(Lists, 2)
 	}
 
+	let keyRingName = "\(DisplayName)-simulator-key-ring"
+	let kekName = "\(DisplayName)-simulator-kek"
+	let workloadIdentityPoolName = "\(DisplayName)-simulator-wip"
+	let workloadIdentityProviderName = "trustee-provider"
+	let impersonatedServiceAccountName = "\(DisplayName)-simulator-kms-decrypt"
+	_trusteeKmsKekUriFlag:      "--trustee-kms-kek-uri=gcp-kms://projects/\(_gcloudProjectId)/locations/\(_keyRingLocation)/keyRings/\(keyRingName)/cryptoKeys/\(kekName)"
+	_trusteeWipFlag:            "--trustee-workload-identity-provider=//iam.googleapis.com/projects/\(_gcloudProjectNumber)/locations/global/workloadIdentityPools/\(workloadIdentityPoolName)/providers/\(workloadIdentityProviderName)"
+	_trusteeImpersonatedSaFlag: "--trustee-impersonated-service-account=\(impersonatedServiceAccountName)@\(_gcloudProjectId).iam.gserviceaccount.com"
+
 	deployment: #Deployment & {
 		let HealthFile = "/run/probe/healthy"
 		_name:       DisplayName + "-simulator"
 		_secretName: _edp_secret_name
 		_system:     "simulator"
+
 		_container: {
 			image: _imageConfig.image
 			args:  [
@@ -93,6 +107,9 @@ import "list"
 				"--health-file=\(HealthFile)",
 				"--population-spec=\(_populationSpecPath)",
 				"--support-hmss=\(_edpConfig.supportHmss)",
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeKmsKekUriFlag},
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeWipFlag},
+				if (_edpConfig.supportEncryptedTrustee ) {_trusteeImpersonatedSaFlag},
 			] + RequisitionFulfillmentServiceOptions + EventGroupOptions
 		}
 		spec: template: spec: {
