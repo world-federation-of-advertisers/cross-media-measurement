@@ -24,12 +24,12 @@ Key resources include:
 
 *   Managed Instance Group (MIG) for running the mills.
 *   Service accounts and IAM roles.
-*   The Trustee Mill service account requires `roles/storage.objectAdmin` on the
-    Duchy's storage bucket to read and write computation blobs.
+    *   The Trustee Mill service account requires `roles/storage.objectAdmin` on
+        the Duchy's storage bucket to read and write computation blobs.
 *   Networking components (Subnetwork, Cloud Router, Cloud NAT).
-*   Ensure the `trustee_mill_subnetwork_cidr_range` does not conflict with
-    existing GKE cluster subnets. A default of `10.127.0.0/24` is suggested to
-    avoid common conflicts.
+    *   Ensure the `trustee_mill_subnetwork_cidr_range` does not conflict with
+        existing GKE cluster subnets. A default of `10.127.0.0/24` is suggested
+        to avoid common conflicts.
 *   Secret Manager secrets.
 
 ### 2. Run TrusTEE Mills
