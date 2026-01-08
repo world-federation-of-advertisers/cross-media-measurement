@@ -717,7 +717,7 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport allows hours to be 0`(): Unit = runBlocking {
+  fun `createBasicReport does not overwrite report_start when default exists`(): Unit = runBlocking {
     service =
       BasicReportsService(
         internalBasicReportsService,
