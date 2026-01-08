@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toProtoDate
@@ -101,6 +104,38 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
         JOIN DataProviders USING (DataProviderId)
       """
         .trimIndent()
+
+    suspend fun readKeysByIndex(
+      readContext: AsyncDatabaseClient.ReadContext,
+      dataProviderId: InternalId,
+      eventGroupId: InternalId,
+      activityDates: Collection<Date>,
+    ): Map<Date, Key> {
+      val keySet: KeySet =
+        KeySet.newBuilder()
+          .apply {
+            for (date in activityDates) {
+              addKey(Key.of(dataProviderId.value, eventGroupId.value, date.toCloudDate()))
+            }
+          }
+          .build()
+
+      return buildMap {
+        readContext
+          .readUsingIndex(
+            "EventGroupActivities",
+            "EventGroupActivityByActivityDate",
+            keySet,
+            listOf("ActivityDate", "EventGroupActivityId"),
+          )
+          .collect {
+            put(
+              it.getDate("ActivityDate").toProtoDate(),
+              Key.of(dataProviderId.value, eventGroupId.value, it.getLong("EventGroupActivityId")),
+            )
+          }
+      }
+    }
 
     private object Params {
       const val DATA_PROVIDER_ID = "dataProviderId"
