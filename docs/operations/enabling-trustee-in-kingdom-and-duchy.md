@@ -20,13 +20,17 @@ You can refer to the
 as a reference implementation, which has been tested in development
 environments.
 
-Key resources include: * Managed Instance Group (MIG) for running the mills. *
-Service accounts and IAM roles. * The Trustee Mill service account requires
-`roles/storage.objectAdmin` on the Duchy's storage bucket to read and write
-computation blobs. * Networking components (Subnetwork, Cloud Router, Cloud
-NAT). * Ensure the `trustee_mill_subnetwork_cidr_range` does not conflict with
-existing GKE cluster subnets. A default of `10.127.0.0/24` is suggested to avoid
-common conflicts. * Secret Manager secrets.
+Key resources include:
+
+*   Managed Instance Group (MIG) for running the mills.
+*   Service accounts and IAM roles.
+*   The Trustee Mill service account requires `roles/storage.objectAdmin` on the
+    Duchy's storage bucket to read and write computation blobs.
+*   Networking components (Subnetwork, Cloud Router, Cloud NAT).
+*   Ensure the `trustee_mill_subnetwork_cidr_range` does not conflict with
+    existing GKE cluster subnets. A default of `10.127.0.0/24` is suggested to
+    avoid common conflicts.
+*   Secret Manager secrets.
 
 ### 2. Run TrusTEE Mills
 
@@ -70,14 +74,17 @@ permissions, including:
 #### Network Configuration
 
 The MIG instances are deployed into a specific subnetwork
-(`trustee_mill_subnetwork_network`). * **Subnetwork Range**: The CIDR range of
-this subnetwork (defined by `trustee_mill_subnetwork_cidr_range`) must be added
-to the allow list of the Duchy's internal API server to enable communication. *
-**Cloud NAT**: A Cloud NAT is configured to allow the instances to access the
-internet (e.g., to pull Docker images and access Google APIs) since they do not
-have public IP addresses. * **Private Google Access**: Enabled on the subnetwork
-to allow access to Google APIs (including Cloud Storage and Secret Manager)
-without external IP addresses.
+(`trustee_mill_subnetwork_network`).
+
+*   **Subnetwork Range**: The CIDR range of this subnetwork (defined by
+    `trustee_mill_subnetwork_cidr_range`) must be added to the allow list of the
+    Duchy's internal API server to enable communication.
+*   **Cloud NAT**: A Cloud NAT is configured to allow the instances to access
+    the internet (e.g., to pull Docker images and access Google APIs) since they
+    do not have public IP addresses.
+*   **Private Google Access**: Enabled on the subnetwork to allow access to
+    Google APIs (including Cloud Storage and Secret Manager) without external IP
+    addresses.
 
 #### Secrets
 
