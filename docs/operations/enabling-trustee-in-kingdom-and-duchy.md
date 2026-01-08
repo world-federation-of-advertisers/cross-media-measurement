@@ -99,10 +99,13 @@ and download them into the container. These secrets are defined in the
 *   `aggregator_cs_cert`: The consent signaling certificate.
 *   `aggregator_cs_private`: The consent signaling private key.
 
-Ensure that: * The Docker image for the TrusTEE mill is built and pushed to the
-container registry. * The image is signed, and the signature is uploaded to the
-repository. * The necessary secrets (TLS certificates and keys) are available in
-Secret Manager.
+Ensure that:
+
+*   The Docker image for the TrusTEE mill is built and pushed to the container
+    registry.
+*   The image is signed, and the signature is uploaded to the repository.
+*   The necessary secrets (TLS certificates and keys) are available in Secret
+    Manager.
 
 The MIG will automatically start instances running the signed image.
 
