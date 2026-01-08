@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import sys
 from typing import FrozenSet
 
@@ -43,6 +44,8 @@ MeasurementPolicy: TypeAlias = str
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("debug", False, "Enable debug mode.")
+flags.DEFINE_string("output_file", None, "The output file path.")
+flags.DEFINE_string("input_file", None, "The input file path.")
 
 ami = "ami"
 mrc = "mrc"
@@ -473,9 +476,17 @@ def main(argv):
   # Sets the log level base on the --debug flag.
   logging.set_verbosity(logging.DEBUG if FLAGS.debug else logging.INFO)
 
+  if not FLAGS.input_file or not os.path.exists(FLAGS.input_file):
+    raise ValueError("Input file is required and must exist.")
+
+  if not FLAGS.output_file:
+    raise ValueError("Output file is required.")
+
   report_summary = report_summary_pb2.ReportSummary()
-  logging.info("Reading the report summary from stdin.")
-  report_summary.ParseFromString(sys.stdin.buffer.read())
+
+  logging.info("Reading the report summary.")
+  with open(FLAGS.input_file, 'rb') as f:
+    report_summary.ParseFromString(f.read())
 
   logging.info("Processing the report summary.")
   report_post_processor_result = ReportSummaryProcessor(
@@ -484,7 +495,8 @@ def main(argv):
   logging.info(
       "Sending serialized ReportPostProcessorResult to the parent program."
   )
-  write_delimited(report_post_processor_result, sys.stdout.buffer)
+  with open(FLAGS.output_file, 'wb') as f:
+    write_delimited(report_post_processor_result, f)
   sys.exit(0)
 
 

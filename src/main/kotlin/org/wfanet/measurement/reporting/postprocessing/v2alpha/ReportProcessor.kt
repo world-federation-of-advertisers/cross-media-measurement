@@ -18,6 +18,9 @@ import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.Timestamp
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -435,13 +438,24 @@ interface ReportProcessor {
       if (verbose) {
         command.add("--debug")
       }
-      val process = currentProcessFactory.createProcess(command)
 
-      // Write the process' argument to its stdin.
-      process.outputStream.use { outputStream ->
-        reportSummary.writeTo(outputStream)
-        outputStream.flush()
+      var tempInputFile: File? = null
+      var tempOutputFile: File? = null
+
+      try {
+        tempInputFile = File.createTempFile("report_summary", ".pb").apply { deleteOnExit() }
+        FileOutputStream(tempInputFile).use { reportSummary.writeTo(it) }
+        command.add("--input_file=${tempInputFile.absolutePath}")
+
+        tempOutputFile = File.createTempFile("report_post_processor_result", ".pb").apply { deleteOnExit() }
+        command.add("--output_file=${tempOutputFile.absolutePath}")
+      } catch (e: IOException) {
+        throw ReportProcessorFailureException(
+          "Failed to create or access temporary files: ${e.message}"
+        )
       }
+
+      val process = currentProcessFactory.createProcess(command)
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
@@ -456,9 +470,11 @@ interface ReportProcessor {
         throw ReportProcessorFailureException(processError)
       }
 
-      // Reads the report post processor result.
+      // Reads the report post processor result from the temporary file.
       val result: ReportPostProcessorResult =
-        ReportPostProcessorResult.parseDelimitedFrom(process.inputStream)
+        FileInputStream(tempOutputFile).use { inputStream ->
+          ReportPostProcessorResult.parseDelimitedFrom(inputStream)
+        }
 
       logger.info { "Finished processing report summary.." }
 

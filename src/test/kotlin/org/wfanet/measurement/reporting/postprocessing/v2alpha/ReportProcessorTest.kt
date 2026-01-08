@@ -55,31 +55,6 @@ class TestStorageFactory(private val inMemoryStorageClient: InMemoryStorageClien
   }
 }
 
-class FakeProcess(
-  private val inputStream: InputStream,
-  private val errorStream: InputStream = ByteArrayInputStream(ByteArray(0)),
-  private val outputStream: OutputStream = ByteArrayOutputStream(),
-  private val exitCode: Int = 0,
-) : Process() {
-  override fun getInputStream(): InputStream = inputStream
-
-  override fun getErrorStream(): InputStream = errorStream
-
-  override fun getOutputStream(): OutputStream = outputStream
-
-  override fun waitFor(): Int = exitCode
-
-  override fun exitValue(): Int = exitCode
-
-  override fun destroy() {}
-}
-
-class FakeProcessFactory(private val process: Process) : ReportProcessor.ProcessFactory {
-  override fun createProcess(command: List<String>): Process {
-    return process
-  }
-}
-
 @RunWith(JUnit4::class)
 class ReportProcessorTest {
   private lateinit var inMemoryStorageClient: InMemoryStorageClient
@@ -97,42 +72,6 @@ class ReportProcessorTest {
   @After
   fun tearDown() {
     ReportProcessor.resetToGcsStorageFactory()
-    ReportProcessor.resetToDefaultProcessFactory()
-  }
-
-  @Test
-  fun `report post processing output handles junk in stdout`() = runBlocking {
-    val reportFile = TEST_DATA_RUNTIME_DIR.resolve("sample_report_large.json").toFile()
-    val reportAsJson = reportFile.readText()
-
-    val fakeResult = reportPostProcessorResult {
-      status = reportPostProcessorStatus {
-        statusCode = ReportPostProcessorStatus.StatusCode.SOLUTION_FOUND_WITH_HIGHS
-      }
-    }
-
-    val fakeOutputStream = ByteArrayOutputStream()
-    fakeResult.writeDelimitedTo(fakeOutputStream)
-
-    // Pollutes the stdout with junk data.
-    fakeOutputStream.write("junk data".toByteArray())
-
-    val fakeInputStream = ByteArrayInputStream(fakeOutputStream.toByteArray())
-    val fakeProcess = FakeProcess(inputStream = fakeInputStream)
-    val fakeProcessFactory = FakeProcessFactory(fakeProcess)
-
-    ReportProcessor.setTestProcessFactory(fakeProcessFactory)
-
-    val reportProcessingOutput =
-      ReportProcessor.processReportJsonAndLogResult(reportAsJson, "projectId", "bucketName")
-
-    assertThat(reportProcessingOutput.reportPostProcessorLog.postProcessingSuccessful).isTrue()
-    assertThat(reportProcessingOutput.reportPostProcessorLog.results).hasSize(1)
-    val result = reportProcessingOutput.reportPostProcessorLog.results.values.first()
-    assertEquals(
-      result.status.statusCode,
-      ReportPostProcessorStatus.StatusCode.SOLUTION_FOUND_WITH_HIGHS,
-    )
   }
 
   @Test
