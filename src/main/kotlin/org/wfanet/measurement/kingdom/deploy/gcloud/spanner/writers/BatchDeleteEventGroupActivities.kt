@@ -21,18 +21,26 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import com.google.protobuf.Empty
 import com.google.type.Date
-import io.grpc.Status
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupActivityNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupActivityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
+/**
+ * Permanently deletes [EventGroupActivity]s. Operation will fail for all [EventGroupActivity]s when
+ * one is not found. All external EventGroupActivity Ids should be unique.
+ *
+ * Throws the following [KingdomInternalException] type on [execute]:
+ * * [DataProviderNotFoundException] when the DataProvider is not found
+ * * [EventGroupNotFoundException] when the EventGroup is not found
+ * * [EventGroupActivityNotFoundException] when an EventGroupActivity is not found
+ */
 class BatchDeleteEventGroupActivities(private val request: BatchDeleteEventGroupActivitiesRequest) :
   SimpleSpannerWriter<Empty>() {
   override suspend fun TransactionScope.runTransaction(): Empty {
@@ -46,24 +54,17 @@ class BatchDeleteEventGroupActivities(private val request: BatchDeleteEventGroup
       EventGroupReader.readEventGroupId(transactionContext, dataProviderId, externalEventGroupId)
         ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
 
-    val uniqueDates = request.externalEventGroupActivityIdsList.distinct()
-    if (uniqueDates.size != request.externalEventGroupActivityIdsList.size) {
-      throw InvalidFieldValueException("external_event_group_activity_ids") { fieldPath ->
-          "$fieldPath contains duplicate values."
-        }
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-
+    val dates = request.externalEventGroupActivityIdsList
     val dateToKey: Map<Date, Key> =
       EventGroupActivityReader.readKeysByIndex(
         transactionContext,
         dataProviderId,
         eventGroupId,
-        uniqueDates,
+        dates,
       )
 
-    if (dateToKey.size != uniqueDates.size) {
-      val missingDate = uniqueDates.first { !dateToKey.containsKey(it) }
+    if (dateToKey.size != dates.size) {
+      val missingDate = dates.first { !dateToKey.containsKey(it) }
       throw EventGroupActivityNotFoundException(
         externalDataProviderId,
         externalEventGroupId,
