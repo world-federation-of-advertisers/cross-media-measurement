@@ -447,7 +447,8 @@ interface ReportProcessor {
         FileOutputStream(tempInputFile).use { reportSummary.writeTo(it) }
         command.add("--input_file=${tempInputFile.absolutePath}")
 
-        tempOutputFile = File.createTempFile("report_post_processor_result", ".pb").apply { deleteOnExit() }
+        tempOutputFile =
+          File.createTempFile("report_post_processor_result", ".pb").apply { deleteOnExit() }
         command.add("--output_file=${tempOutputFile.absolutePath}")
       } catch (e: IOException) {
         throw ReportProcessorFailureException(
