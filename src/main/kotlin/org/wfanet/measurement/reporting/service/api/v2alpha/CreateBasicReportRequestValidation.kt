@@ -593,12 +593,12 @@ object CreateBasicReportRequestValidation {
         }
       }
       if (reportingInterval.reportStart.seconds != 0) {
-        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+        throw InvalidFieldValueException("$fieldPath.report_start.seconds") { fieldName ->
           "$fieldName cannot be set"
         }
       }
       if (reportingInterval.reportStart.nanos != 0) {
-        throw InvalidFieldValueException("$fieldPath.report_start.minutes") { fieldName ->
+        throw InvalidFieldValueException("$fieldPath.report_start.nanos") { fieldName ->
           "$fieldName cannot be set"
         }
       }
