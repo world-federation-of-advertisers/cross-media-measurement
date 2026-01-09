@@ -45,6 +45,7 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
       spannerServices.accountsService,
+      spannerServices.eventGroupActivitiesService,
     )
   }
 
