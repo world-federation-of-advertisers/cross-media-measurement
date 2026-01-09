@@ -22,7 +22,9 @@ _reportingMcConfigSecretName:  string @tag("mc_config_secret_name")
 
 objectSets: [ for objectSet in reporting {objectSet}]
 
-reporting: #Reporting & {
+reporting: (#Reporting & {
+  #HealthPort: 8443
+}) & {
 	_populationDataProviderName: _pdpName
 	_basicReportsEnabled:        _reportingBasicReportsEnabled
 	_secretName:                 _reportingSecretName
