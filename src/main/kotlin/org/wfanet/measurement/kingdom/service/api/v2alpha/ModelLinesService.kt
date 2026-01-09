@@ -322,6 +322,7 @@ class ModelLinesService(
             ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
             ErrorCode.PERMISSION_DENIED,
             ErrorCode.API_KEY_NOT_FOUND,
+            ErrorCode.EVENT_GROUP_ACTIVITY_NOT_FOUND,
             ErrorCode.EVENT_GROUP_NOT_FOUND,
             ErrorCode.EVENT_GROUP_INVALID_ARGS,
             ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,

@@ -467,6 +467,9 @@ fun Status.toExternalStatusRuntimeException(
         put("externalApiKeyId", apiKeyApiId)
         errorMessage = "ApiKey not found."
       }
+      ErrorCode.EVENT_GROUP_ACTIVITY_NOT_FOUND -> {
+        // TODO(@roaminggypsy): Implement when EventGroupActivityKey is added.
+      }
       ErrorCode.EVENT_GROUP_NOT_FOUND -> {
         if (errorInfo.metadataMap.containsKey("external_data_provider_id")) {
           val eventGroupName =
