@@ -37,6 +37,8 @@ message EventGroup {
         string brand = 1 [(google.api.field_behavior) = REQUIRED];
         // The name of the campaign.
         string campaign = 2 [(google.api.field_behavior) = REQUIRED];
+        // The ad account associated with the EventGroup.
+        string ad_account = 3;
       }
       // Metadata the pertains to a campaign that is entailed by the EventGroup.
       CampaignMetadata campaign_metadata = 1
@@ -81,10 +83,12 @@ message EventGroup {
       [(google.api.field_behavior) = REQUIRED];
 
   // Resource name of the `MeasurementConsumer` from the CMMS public API
+  //
+  // Either `measurement_consumer` or `ad_account` in CampaignMetadata must be
+  // populated.
   string measurement_consumer = 4 [
     (google.api.resource_reference).type =
-        "halo.wfanet.org/MeasurementConsumer",
-    (google.api.field_behavior) = REQUIRED
+        "halo.wfanet.org/MeasurementConsumer"
   ];
 
   // The MediaTypes of the events entailed by this `EventGroup`
