@@ -396,7 +396,7 @@ oci.pull(
 oci.pull(
     name = "java_image_base_root",
     # Digest of latest tag.
-    digest = "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+    digest = "sha256:fd925ba431f3a6c1f1c8114ce1999ca38803220baf0fdf25a4c71b38db8af67f",
     image = "gcr.io/distroless/java17-debian12",
     platforms = ["linux/amd64"],
 )
