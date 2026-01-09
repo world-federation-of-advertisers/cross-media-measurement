@@ -249,7 +249,7 @@ class BasicReportsReportsJob(
     eventTemplateFieldByPredicate: Map<String, EventTemplateField>,
   ): List<CreateReportingSetResultRequest> {
     val (
-      populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+      populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
       reportingSetResultInfoByReportingSetResultInfoKey:
         Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
       buildReportResultInfo(
@@ -398,7 +398,7 @@ class BasicReportsReportsJob(
         externalCampaignGroupId = externalCampaignGroupId,
       )
 
-    val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Int> = mutableMapOf()
+    val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Long> = mutableMapOf()
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo> =
       buildMap {
@@ -420,7 +420,7 @@ class BasicReportsReportsJob(
                 PopulationResultKey(
                   filter = it.filter,
                   groupingPredicates = it.groupingPredicatesList.toSet(),
-                )] = it.metricResult.populationCount.value.toInt()
+                )] = it.metricResult.populationCount.value
             }
           } else {
             for (resultAttribute in metricCalculationResult.resultAttributesList) {
@@ -512,7 +512,7 @@ class BasicReportsReportsJob(
                     PopulationResultKey(
                       filter = resultAttribute.filter,
                       groupingPredicates = resultAttribute.groupingPredicatesList.toSet(),
-                    )] = resultAttribute.metricResult.populationCount.value.toInt()
+                    )] = resultAttribute.metricResult.populationCount.value
                 }
 
                 MetricSpec.TypeCase.TYPE_NOT_SET -> {
@@ -741,7 +741,7 @@ class BasicReportsReportsJob(
   )
 
   private data class ReportResultInfo(
-    val populationCountByPopulationResultKey: Map<PopulationResultKey, Int>,
+    val populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
   )

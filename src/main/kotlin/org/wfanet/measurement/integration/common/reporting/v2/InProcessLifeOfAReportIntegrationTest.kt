@@ -2439,14 +2439,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   reportingUnitMetricSet.impressions > 0 &&
                   reportingUnitMetricSet.grps > 0
 
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
-              var componentUniqueReach = 0
+              var componentUniqueReach = 0L
 
               result.metricSet.componentsList.forEach { component ->
                 val metricSet = component.value.nonCumulative
@@ -2497,9 +2497,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reportingUnitCumulativeMetricSet.reach > 0 &&
                   reportingUnitCumulativeMetricSet.percentReach > 0
 
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
-              var componentUniqueReach = 0
+              var componentUniqueReach = 0L
 
               result.metricSet.componentsList.forEach { component ->
                 val metricSet = component.value.cumulative
@@ -2545,12 +2545,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                     .zipWithNext { a, b -> b >= a }
                     .all { it }
 
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
 
               result.metricSet.componentsList.forEach { component ->
@@ -2717,14 +2717,14 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
             }
             .firstOrNull { result ->
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
-              var componentUniqueReach = 0
+              var componentUniqueReach = 0L
 
               result.metricSet.componentsList.forEach { component ->
                 val metricSet = component.value.nonCumulative
@@ -2768,9 +2768,9 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.WEEKLY
             }
             .firstOrNull { result ->
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
-              var componentUniqueReach = 0
+              var componentUniqueReach = 0L
 
               result.metricSet.componentsList.forEach { component ->
                 val metricSet = component.value.cumulative
@@ -2797,12 +2797,12 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
             }
             .firstOrNull { result ->
-              var componentReach = 0
+              var componentReach = 0L
               var componentPercentReach = 0.0f
               var componentAverageFrequency = 0.0f
               var componentKPlusReachExists = false
               var componentPercentKPlusReachExists = false
-              var componentImpressions = 0
+              var componentImpressions = 0L
               var componentGrps = 0.0f
 
               result.metricSet.componentsList.forEach { component ->
