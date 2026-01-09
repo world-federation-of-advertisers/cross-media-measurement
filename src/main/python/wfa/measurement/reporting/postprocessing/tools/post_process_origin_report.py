@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import sys
 from typing import FrozenSet
 
@@ -20,6 +21,8 @@ from absl import app
 from absl import flags
 from absl import logging
 from typing import TypeAlias
+
+from google.protobuf.internal.encoder import _VarintBytes
 
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
@@ -41,6 +44,8 @@ MeasurementPolicy: TypeAlias = str
 FLAGS = flags.FLAGS
 
 flags.DEFINE_boolean("debug", False, "Enable debug mode.")
+flags.DEFINE_string("output_file", None, "The output file path.")
+flags.DEFINE_string("input_file", None, "The input file path.")
 
 ami = "ami"
 mrc = "mrc"
@@ -453,6 +458,16 @@ class ReportSummaryProcessor:
         " reach)"
     )
 
+def write_delimited(message, stream):
+  """Writes a delimited message to the stream.
+
+  Args:
+    message: The protobuf message to write.
+    stream: The stream to write to.
+  """
+  serialized = message.SerializeToString()
+  stream.write(_VarintBytes(len(serialized)))
+  stream.write(serialized)
 
 def main(argv):
   # Sends the log to stderr.
@@ -461,22 +476,28 @@ def main(argv):
   # Sets the log level base on the --debug flag.
   logging.set_verbosity(logging.DEBUG if FLAGS.debug else logging.INFO)
 
+  if not FLAGS.input_file or not os.path.exists(FLAGS.input_file):
+    raise ValueError("Input file is required and must exist.")
+
+  if not FLAGS.output_file:
+    raise ValueError("Output file is required.")
+
   report_summary = report_summary_pb2.ReportSummary()
-  logging.info("Reading the report summary from stdin.")
-  report_summary.ParseFromString(sys.stdin.buffer.read())
+
+  logging.info("Reading the report summary.")
+  with open(FLAGS.input_file, 'rb') as f:
+    report_summary.ParseFromString(f.read())
 
   logging.info("Processing the report summary.")
   report_post_processor_result = ReportSummaryProcessor(
       report_summary).process()
 
-  logging.info("Serializing the report post processor result.")
-  serialized_data = report_post_processor_result.SerializeToString()
-
   logging.info(
       "Sending serialized ReportPostProcessorResult to the parent program."
   )
-  sys.stdout.buffer.write(serialized_data)
-  sys.stdout.flush()
+  with open(FLAGS.output_file, 'wb') as f:
+    write_delimited(report_post_processor_result, f)
+  sys.exit(0)
 
 
 if __name__ == "__main__":

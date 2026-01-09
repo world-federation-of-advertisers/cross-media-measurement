@@ -18,6 +18,9 @@ import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.Timestamp
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -90,6 +93,17 @@ interface ReportProcessor {
     fun createStorageClient(projectId: String, bucketName: String): StorageClient
   }
 
+  /** A factory interface responsible for creating instances of [Process]. */
+  interface ProcessFactory {
+    /**
+     * Creates and starts a new process using the specified command.
+     *
+     * @param command The list of command arguments to execute.
+     * @return A [Process] object representing the started process.
+     */
+    fun createProcess(command: List<String>): Process
+  }
+
   /**
    * Processes a serialized [Report] and outputs a serialized consistent one.
    *
@@ -136,13 +150,27 @@ interface ReportProcessor {
       Files.copy(resourcePath, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 
-    // Default factory instance.
+    // Default storage factory instance.
     private val gcsStorageFactory = GcsStorageFactory()
+
+    // Default process factory.
+    private class DefaultProcessFactory : ProcessFactory {
+      override fun createProcess(command: List<String>): Process {
+        return ProcessBuilder(command).start()
+      }
+    }
+
+    // Default process factory instance.
+    private val defaultProcessFactory = DefaultProcessFactory()
 
     /**
      * The currently active [StorageFactory] that will be used to create [StorageClient] instances.
      */
     var currentStorageFactory: StorageFactory = gcsStorageFactory
+      internal set
+
+    /** The currently active [ProcessFactory] that will be used to create [Process] instances. */
+    var currentProcessFactory: ProcessFactory = defaultProcessFactory
       internal set
 
     /**
@@ -160,6 +188,23 @@ interface ReportProcessor {
     /** Resets the storage factory to GCS storage factory. */
     fun resetToGcsStorageFactory() {
       currentStorageFactory = gcsStorageFactory
+    }
+
+    /**
+     * Replaces the [currentProcessFactory] with a specific [ProcessFactory] implementation.
+     *
+     * This method is intended for testing purposes only.
+     *
+     * @param testFactory The [ProcessFactory] implementation to be used for subsequent [Process]
+     *   creations during a test.
+     */
+    fun setTestProcessFactory(testFactory: ProcessFactory) {
+      currentProcessFactory = testFactory
+    }
+
+    /** Resets the process factory to the default implementation. */
+    fun resetToDefaultProcessFactory() {
+      currentProcessFactory = defaultProcessFactory
     }
 
     /**
@@ -387,23 +432,31 @@ interface ReportProcessor {
       logger.info { "Start processing report summary.." }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
-      val processBuilder = ProcessBuilder("python3", tempFile.toPath().toString())
+      val command = mutableListOf("python3", tempFile.toPath().toString())
 
       // Sets verbosity for python program.
       if (verbose) {
-        processBuilder.command().add("--debug")
-      }
-      val process = processBuilder.start()
-
-      // Write the process' argument to its stdin.
-      process.outputStream.use { outputStream ->
-        reportSummary.writeTo(outputStream)
-        outputStream.flush()
+        command.add("--debug")
       }
 
-      // Reads the report post processor result.
-      val result: ReportPostProcessorResult =
-        ReportPostProcessorResult.parseFrom(process.inputStream)
+      var tempInputFile: File? = null
+      var tempOutputFile: File? = null
+
+      try {
+        tempInputFile = File.createTempFile("report_summary", ".pb").apply { deleteOnExit() }
+        FileOutputStream(tempInputFile).use { reportSummary.writeTo(it) }
+        command.add("--input_file=${tempInputFile.absolutePath}")
+
+        tempOutputFile =
+          File.createTempFile("report_post_processor_result", ".pb").apply { deleteOnExit() }
+        command.add("--output_file=${tempOutputFile.absolutePath}")
+      } catch (e: IOException) {
+        throw ReportProcessorFailureException(
+          "Failed to create or access temporary files: ${e.message}"
+        )
+      }
+
+      val process = currentProcessFactory.createProcess(command)
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
@@ -417,6 +470,12 @@ interface ReportProcessor {
       } else {
         throw ReportProcessorFailureException(processError)
       }
+
+      // Reads the report post processor result from the temporary file.
+      val result: ReportPostProcessorResult =
+        FileInputStream(tempOutputFile).use { inputStream ->
+          ReportPostProcessorResult.parseDelimitedFrom(inputStream)
+        }
 
       logger.info { "Finished processing report summary.." }
 
