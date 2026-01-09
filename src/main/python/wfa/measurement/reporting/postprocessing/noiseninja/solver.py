@@ -34,6 +34,16 @@ OSQP_SOLVER = "osqp"
 MAX_ATTEMPTS = 10
 SEMAPHORE = Semaphore()
 
+# DO_NOT_SUBMIT: remove this dummy functions to test codeql integration
+# Should raise https://codeql.github.com/codeql-query-help/python/py-bad-tag-filter/
+import re
+def filterScriptTags(content): 
+    oldContent = ""
+    while oldContent != content:
+        oldContent = content
+        content = re.sub(r'<script.*?>.*?</script>', '', content, flags= re.DOTALL | re.IGNORECASE)
+    return content
+    # amount = input("This line is commented to see if it triggers https://codeql.github.com/codeql-query-help/python/py-commented-out-code/ ")
 
 class SolutionNotFoundError(ValueError):
   _non_solution: Solution
