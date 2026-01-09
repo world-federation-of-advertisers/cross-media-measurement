@@ -706,6 +706,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -826,6 +827,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -949,6 +951,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1055,6 +1058,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1127,6 +1131,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1207,6 +1212,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1323,6 +1329,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1400,6 +1407,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.DAY
                 }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1494,6 +1502,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   count = 1
                   increment = MetricCalculationSpec.TrailingWindow.Increment.WEEK
                 }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1603,6 +1612,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                   predicates += grouping2Predicate1
                   predicates += grouping2Predicate2
                 }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1676,6 +1686,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
                 reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
                 vidSamplingInterval = VID_SAMPLING_INTERVAL
               }
+              modelLine = inProcessCmmsComponents.modelLineResourceName
             }
             metricCalculationSpecId = "fed"
           }
@@ -1757,6 +1768,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         reach = MetricSpecKt.reachParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -1814,6 +1826,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
               }
           }
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -1865,6 +1878,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -1943,6 +1957,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -2016,6 +2031,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -2075,6 +2091,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionCount = MetricSpecKt.impressionCountParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -2118,6 +2135,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         watchDuration = MetricSpecKt.watchDurationParams { privacyParams = DP_PARAMS }
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -2155,6 +2173,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
       filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =
@@ -2207,6 +2226,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         vidSamplingInterval = VID_SAMPLING_INTERVAL
       }
       filters += "person.gender == ${Person.Gender.MALE_VALUE}"
+      modelLine = inProcessCmmsComponents.modelLineResourceName
     }
 
     val createdMetric =

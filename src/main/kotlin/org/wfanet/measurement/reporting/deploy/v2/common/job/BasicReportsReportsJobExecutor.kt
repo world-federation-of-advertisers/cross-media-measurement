@@ -139,8 +139,6 @@ private fun run(
         SecureRandom().asKotlinRandom(),
         v2AlphaFlags.signingPrivateKeyStoreDir,
         commonServerFlags.tlsFlags.signingCerts.trustedCertificates,
-        defaultVidModelLine = "",
-        measurementConsumerModelLines = emptyMap(),
         certificateCacheExpirationDuration = Duration.ofMinutes(60),
         dataProviderCacheExpirationDuration = Duration.ofMinutes(60),
         keyReaderContext = Dispatchers.IO,
