@@ -536,7 +536,7 @@ object BasicReportProcessedResultsTransformation {
       }
 
       if (reportingUnitMetricSetSpec.stackedIncrementalReach) {
-        var prevReach = 0
+        var prevReach = 0L
         // Subtracts the previous reach to get the difference in reach.
         for (reportingSetId in incrementalReportingSetIds) {
           val processedValues = reportResultValuesByExternalReportingSetId.getValue(reportingSetId)
@@ -702,7 +702,7 @@ object BasicReportProcessedResultsTransformation {
   )
 
   private data class ReportingWindowResultValues(
-    val populationSize: Int,
+    val populationSize: Long,
     val reportResultValuesByExternalReportingSetId:
       MutableMap<String, ReportingSetResult.ReportingWindowResult.ReportResultValues>,
   )

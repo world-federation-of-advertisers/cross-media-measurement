@@ -93,22 +93,22 @@ message ResultGroup {
   // The metric values
   message MetricSet {
     // The size of the population for the filters/grouping specified
-    int32 population_size = 1;
+    int64 population_size = 1;
 
     // Metrics that are applicable to any subunit of the ReportingUnit.
     message BasicMetricSet {
       // The reach
-      int32 reach = 1;
+      int64 reach = 1;
       // The reach divided by the population_size
       float percent_reach = 2;
       // The k+ reach where the index is frequency - 1.
-      repeated int32 k_plus_reach = 3;
+      repeated int64 k_plus_reach = 3;
       // The percent k+ reach
       repeated float percent_k_plus_reach = 4;
       // The average frequency
       float average_frequency = 5;
       // The impression count
-      int32 impressions = 6;
+      int64 impressions = 6;
       // The gross ratings points
       float grps = 7;
     }
@@ -128,14 +128,14 @@ message ResultGroup {
       //  1. reach(edp1)
       //  2. reach(edp1+edp2) - reach(edp1)
       //  3. reach(edp1+edp2+edp3) - reach(edp1+edp2)
-      repeated int32 stacked_incremental_reach = 3;
+      repeated int64 stacked_incremental_reach = 3;
     }
     // Metrics for the whole reporting_unit
     ReportingUnitMetricSet reporting_unit = 2;
 
     // Disjoint Metrics for a single component of the reporting_unit
     message UniqueMetricSet {
-      int32 reach = 1;
+      int64 reach = 1;
     }
 
     // Metrics for a single component of the reporting_unit.
