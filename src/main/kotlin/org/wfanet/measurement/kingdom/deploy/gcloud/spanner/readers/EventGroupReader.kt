@@ -19,9 +19,13 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.interval
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -29,10 +33,13 @@ import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getNullableTimestamp
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupDetails
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.aggregatedActivity
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.eventGroup
 
-class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
+class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC) :
+  BaseSpannerReader<EventGroupReader.Result>() {
   data class Result(
     val eventGroup: EventGroup,
     val internalEventGroupId: InternalId,
@@ -40,7 +47,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     val createRequestId: String?,
   )
 
-  override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
+  override val builder: Statement.Builder = Statement.newBuilder(getSql(view))
 
   /** Fills [builder], returning this [RequisitionReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupReader {
@@ -199,7 +206,57 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
           struct.getProtoMessage("EventGroupDetails", EventGroupDetails.getDefaultInstance())
       }
       state = struct.getProtoEnum("State", EventGroup.State::forNumber)
+      if (view == EventGroup.View.WITH_ACTIVITY_SUMMARY) {
+        aggregatedActivities += buildAggregatedActivities(struct)
+      }
     }
+  }
+
+  private fun buildAggregatedActivities(struct: Struct): List<EventGroup.AggregatedActivity> {
+    if (struct.isNull("EventGroupActivities")) {
+      return emptyList()
+    }
+    val activityDates: List<LocalDate> =
+      struct.getDateList("EventGroupActivities").map {
+        LocalDate.of(it.year, it.month, it.dayOfMonth)
+      }
+
+    if (activityDates.isEmpty()) {
+      return emptyList()
+    }
+
+    val aggregatedActivities: List<EventGroup.AggregatedActivity> = buildList {
+      var intervalStart: LocalDate = activityDates.first()
+      var intervalEnd: LocalDate = activityDates.first()
+
+      for (date in activityDates.drop(1)) {
+        if (ChronoUnit.DAYS.between(intervalEnd, date) == 1L) {
+          intervalEnd = date
+        } else {
+          add(
+            aggregatedActivity {
+              interval = dateInterval {
+                startDate = intervalStart.toProtoDate()
+                endDate = intervalEnd.toProtoDate()
+              }
+            }
+          )
+          intervalStart = date
+          intervalEnd = date
+        }
+      }
+
+      add(
+        aggregatedActivity {
+          interval = dateInterval {
+            startDate = intervalStart.toProtoDate()
+            endDate = intervalEnd.toProtoDate()
+          }
+        }
+      )
+    }
+
+    return aggregatedActivities
   }
 
   companion object {
@@ -226,13 +283,59 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
           WHERE
             EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
             AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
-        ) AS MediaTypes,
+        ) AS MediaTypes
       FROM
         EventGroups
         JOIN DataProviders USING (DataProviderId)
         JOIN MeasurementConsumers USING (MeasurementConsumerId)
       """
         .trimIndent()
+
+    private val WITH_ACTIVITY_SUMMARY_VIEW_SQL =
+      """
+      SELECT
+        EventGroups.EventGroupId,
+        EventGroups.ExternalEventGroupId,
+        EventGroups.MeasurementConsumerId,
+        EventGroups.CreateRequestId,
+        EventGroups.DataProviderId,
+        EventGroups.ProvidedEventGroupId,
+        EventGroups.CreateTime,
+        EventGroups.UpdateTime,
+        EventGroups.DataAvailabilityStartTime,
+        EventGroups.DataAvailabilityEndTime,
+        EventGroups.EventGroupDetails,
+        MeasurementConsumers.ExternalMeasurementConsumerId,
+        DataProviders.ExternalDataProviderId,
+        EventGroups.State,
+        ARRAY(
+          SELECT MediaType
+          FROM EventGroupMediaTypes
+          WHERE
+            EventGroupMediaTypes.DataProviderId = EventGroups.DataProviderId
+            AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
+        ) AS MediaTypes,
+        ARRAY(
+          SELECT ActivityDate
+          FROM EventGroupActivities
+          WHERE EventGroupActivities.DataProviderId = EventGroups.DataProviderId
+            AND EventGroupActivities.EventGroupId = EventGroups.EventGroupId
+          ORDER BY ActivityDate
+        ) AS EventGroupActivities
+      FROM
+        EventGroups
+        JOIN DataProviders USING (DataProviderId)
+        JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      """
+        .trimIndent()
+
+    private fun getSql(view: EventGroup.View): String {
+      return if (view == EventGroup.View.WITH_ACTIVITY_SUMMARY) {
+        WITH_ACTIVITY_SUMMARY_VIEW_SQL
+      } else {
+        BASE_SQL
+      }
+    }
 
     suspend fun readEventGroupId(
       readContext: AsyncDatabaseClient.ReadContext,
