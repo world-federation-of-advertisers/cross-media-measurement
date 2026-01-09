@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -30,9 +31,10 @@ class StreamEventGroups(
   requestFilter: StreamEventGroupsRequest.Filter,
   private val orderBy: StreamEventGroupsRequest.OrderBy,
   limit: Int = 0,
+  view: EventGroup.View,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
-    EventGroupReader().fillStatementBuilder {
+    EventGroupReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
       val sortOrder = if (orderBy.descending) "DESC" else "ASC"
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
@@ -164,6 +166,26 @@ class StreamEventGroups(
         bind(After.EXTERNAL_DATA_PROVIDER_ID).to(afterEventGroupKey.externalDataProviderId)
         bind(After.EXTERNAL_EVENT_GROUP_ID).to(afterEventGroupKey.externalEventGroupId)
       }
+
+      if (filter.hasActivityContains()) {
+        add(
+          """
+          (
+            SELECT
+              COUNT(ActivityDate)
+            FROM
+              EventGroupActivities
+            WHERE
+              EventGroupActivities.DataProviderId = EventGroups.DataProviderId
+              AND EventGroupActivities.EventGroupId = EventGroups.EventGroupId
+              AND ActivityDate >= @$ACTIVITY_CONTAINS_START_DATE
+              AND ActivityDate <= @$ACTIVITY_CONTAINS_END_DATE
+          ) = DATE_DIFF(@$ACTIVITY_CONTAINS_END_DATE, @$ACTIVITY_CONTAINS_START_DATE, DAY) + 1
+          """.trimIndent()
+        )
+        bind(ACTIVITY_CONTAINS_START_DATE).to(filter.activityContains.startDate.toCloudDate())
+        bind(ACTIVITY_CONTAINS_END_DATE).to(filter.activityContains.endDate.toCloudDate())
+      }
     }
 
     if (conjuncts.isEmpty()) {
@@ -194,5 +216,7 @@ class StreamEventGroups(
     const val DATA_AVAILABILITY_END_TIME_LTE = "dataAvailabilityEndTimeLte"
     const val METADATA_SEARCH_QUERY = "metadataSearchQuery"
     const val TIMESTAMP_MAX = "timestampMax"
+    const val ACTIVITY_CONTAINS_START_DATE = "activityContainsStartDate"
+    const val ACTIVITY_CONTAINS_END_DATE = "activityContainsEndDate"
   }
 }
