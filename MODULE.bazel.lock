@@ -2352,7 +2352,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "LvDNe8VWrCgxT6ExVz664nxNcCMu/CzKLUHYBw41EAw=",
+        "usagesDigest": "3tn8cx1zDZaYiqWKGsjBPI/jgLM6/Pb6aKkOJvWAh1Q=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2363,8 +2363,8 @@
             "attributes": {
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/base",
-              "identifier": "sha256:97d15218016debb9b6700a8c1c26893d3291a469852ace8d8f7d15b2f156920f",
+              "repository": "distroless/base-debian12",
+              "identifier": "sha256:cd961bbef4ecc70d2b2ff41074dd1c932af3f141f2fc00e4d91a03a832e3a658",
               "platform": "linux/amd64",
               "target_name": "go_image_base_linux_amd64",
               "bazel_tags": []
@@ -2377,8 +2377,8 @@
               "target_name": "go_image_base",
               "scheme": "https",
               "registry": "gcr.io",
-              "repository": "distroless/base",
-              "identifier": "sha256:97d15218016debb9b6700a8c1c26893d3291a469852ace8d8f7d15b2f156920f",
+              "repository": "distroless/base-debian12",
+              "identifier": "sha256:cd961bbef4ecc70d2b2ff41074dd1c932af3f141f2fc00e4d91a03a832e3a658",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@go_image_base_linux_amd64"
               },
@@ -2393,7 +2393,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/python3-debian12",
-              "identifier": "sha256:1a7c3d2445f783c51be174c8913624dc5bea2cd7ff1f94b9a229a16f0e40fa34",
+              "identifier": "sha256:498e3cb48826d99bad1301994da60caa126b25c0ce03dc4e6a47a7c10fe02493",
               "platform": "linux/amd64",
               "target_name": "py_image_base_linux_amd64",
               "bazel_tags": []
@@ -2407,7 +2407,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/python3-debian12",
-              "identifier": "sha256:1a7c3d2445f783c51be174c8913624dc5bea2cd7ff1f94b9a229a16f0e40fa34",
+              "identifier": "sha256:498e3cb48826d99bad1301994da60caa126b25c0ce03dc4e6a47a7c10fe02493",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@py_image_base_linux_amd64"
               },
