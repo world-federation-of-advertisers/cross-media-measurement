@@ -2352,7 +2352,7 @@
     "@@rules_oci~//oci:extensions.bzl%oci": {
       "general": {
         "bzlTransitiveDigest": "yyTvBSVukHEf+iGms4+jq+/Zy1xLOGnxYiCLJFatSUE=",
-        "usagesDigest": "g+J+uxWXmPRgCF6aT1NRuZqHZ/Pe8W2BHzpE7CQ7ySE=",
+        "usagesDigest": "LvDNe8VWrCgxT6ExVz664nxNcCMu/CzKLUHYBw41EAw=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -2422,7 +2422,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+              "identifier": "sha256:fd925ba431f3a6c1f1c8114ce1999ca38803220baf0fdf25a4c71b38db8af67f",
               "platform": "linux/amd64",
               "target_name": "java_image_base_root_linux_amd64",
               "bazel_tags": []
@@ -2436,7 +2436,7 @@
               "scheme": "https",
               "registry": "gcr.io",
               "repository": "distroless/java17-debian12",
-              "identifier": "sha256:58b716f89428587db33656f3fc6444b6dd4fd567e549c4b3657db75838f39950",
+              "identifier": "sha256:fd925ba431f3a6c1f1c8114ce1999ca38803220baf0fdf25a4c71b38db8af67f",
               "platforms": {
                 "@@platforms//cpu:x86_64": "@java_image_base_root_linux_amd64"
               },
