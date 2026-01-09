@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
 import "wfa/measurement/internal/kingdom/media_type.proto";
 
@@ -103,6 +104,7 @@ message StreamEventGroupsRequest {
     google.protobuf.Timestamp data_availability_end_time_on_or_before = 11;
     google.protobuf.Timestamp data_availability_start_time_on_or_before = 14;
     google.protobuf.Timestamp data_availability_end_time_on_or_after = 15;
+    google.type.Interval data_availability_intersects = 16;
     string metadata_search_query = 12;
 
     // Specification of where the results should start within the ordering.

@@ -543,6 +543,9 @@ class EventGroupsService(
       if (internalFilter.hasDataAvailabilityEndTimeOnOrAfter()) {
         dataAvailabilityEndTimeOnOrAfter = internalFilter.dataAvailabilityEndTimeOnOrAfter
       }
+      if (internalFilter.hasDataAvailabilityIntersects()) {
+        dataAvailabilityIntersects = internalFilter.dataAvailabilityIntersects
+      }
       metadataSearchQuery = internalFilter.metadataSearchQuery
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
@@ -612,6 +615,9 @@ class EventGroupsService(
           if (filter.hasDataAvailabilityEndTimeOnOrAfter()) {
             dataAvailabilityEndTimeOnOrAfter = filter.dataAvailabilityEndTimeOnOrAfter
           }
+          if (filter.hasDataAvailabilityIntersects()) {
+            dataAvailabilityIntersects = filter.dataAvailabilityIntersects
+          }
           metadataSearchQuery = filter.metadataSearchQuery
           this.showDeleted = showDeleted
           if (pageToken != null) {
@@ -628,6 +634,7 @@ class EventGroupsService(
                 pageToken.dataAvailabilityStartTimeOnOrBefore !=
                   dataAvailabilityStartTimeOnOrBefore ||
                 pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
+                pageToken.dataAvailabilityIntersects != dataAvailabilityIntersects ||
                 pageToken.metadataSearchQuery != metadataSearchQuery
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(

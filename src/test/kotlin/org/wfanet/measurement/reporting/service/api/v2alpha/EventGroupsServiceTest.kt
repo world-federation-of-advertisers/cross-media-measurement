@@ -249,6 +249,43 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups with combined filters including data_availability_intersects`() = runBlocking {
+    val searchInterval = interval {
+      startTime = LocalDate.of(2024, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+      endTime = LocalDate.of(2024, 1, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+    }
+
+    val request = listEventGroupsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      structuredFilter =
+        ListEventGroupsRequestKt.filter {
+          cmmsDataProviderIn += DATA_PROVIDER_NAME
+          mediaTypesIntersect += MediaType.VIDEO
+          dataAvailabilityIntersects = searchInterval
+          metadataSearchQuery = "campaign"
+        }
+    }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listEventGroups(request) } }
+
+    verifyProtoArgument(cmmsEventGroupsMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        cmmsListEventGroupsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          filter =
+            CmmsListEventGroupsRequestKt.filter {
+              dataProviderIn += DATA_PROVIDER_NAME
+              mediaTypesIntersect += CmmsMediaType.VIDEO
+              dataAvailabilityIntersects = searchInterval
+              metadataSearchQuery = "campaign"
+            }
+          pageSize = DEFAULT_PAGE_SIZE
+        }
+      )
+  }
+
+  @Test
   fun `listEventGroups returns events groups after multiple calls to CMMS API with legacy filter`() =
     runBlocking {
       val testMessage = testMetadataMessage { publisherId = 5 }

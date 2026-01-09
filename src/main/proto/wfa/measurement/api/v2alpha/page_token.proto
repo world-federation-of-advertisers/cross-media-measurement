@@ -64,6 +64,7 @@ message ListEventGroupsPageToken {
   google.protobuf.Timestamp data_availability_end_time_on_or_before = 10;
   google.protobuf.Timestamp data_availability_start_time_on_or_before = 13;
   google.protobuf.Timestamp data_availability_end_time_on_or_after = 14;
+  google.type.Interval data_availability_intersects = 15;
   string metadata_search_query = 11;
   ListEventGroupsRequest.OrderBy order_by = 12;
 
