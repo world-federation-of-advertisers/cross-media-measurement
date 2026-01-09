@@ -18,6 +18,7 @@ package org.wfanet.measurement.loadtest.reporting
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.util.JsonFormat
+import com.google.type.DateTime
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
@@ -47,6 +48,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
@@ -103,8 +105,8 @@ class ReportingUserSimulator(
           year = 2021
           month = 3
           day = 14
-          hours = 17
-          timeZone = timeZone { id = "America/Los_Angeles" }
+          hours = 20
+          timeZone = timeZone { id = "America/New_York" }
         }
         reportEnd = date {
           year = 2021
@@ -196,6 +198,7 @@ class ReportingUserSimulator(
         BasicReport.CREATE_TIME_FIELD_NUMBER,
         BasicReport.EFFECTIVE_IMPRESSION_QUALIFICATION_FILTERS_FIELD_NUMBER,
         BasicReport.RESULT_GROUPS_FIELD_NUMBER,
+        BasicReport.REPORTING_INTERVAL_FIELD_NUMBER,
       )
       .isEqualTo(
         basicReport.copy {
@@ -204,6 +207,16 @@ class ReportingUserSimulator(
           effectiveModelLine = retrievedCompletedBasicReport.effectiveModelLine
         }
       )
+    assertThat(retrievedCompletedBasicReport.reportingInterval)
+      .ignoringFields(ReportingInterval.EFFECTIVE_REPORT_START_FIELD_NUMBER)
+      .isEqualTo(basicReport.reportingInterval)
+    assertThat(retrievedCompletedBasicReport.reportingInterval.effectiveReportStart)
+      .ignoringFields(
+        DateTime.HOURS_FIELD_NUMBER,
+        DateTime.TIME_ZONE_FIELD_NUMBER,
+        DateTime.UTC_OFFSET_FIELD_NUMBER,
+      )
+      .isEqualTo(basicReport.reportingInterval.reportStart)
     assertThat(retrievedCompletedBasicReport.createTime).isEqualTo(createdBasicReport.createTime)
     assertThat(retrievedCompletedBasicReport.effectiveImpressionQualificationFiltersList)
       .isNotEmpty()
