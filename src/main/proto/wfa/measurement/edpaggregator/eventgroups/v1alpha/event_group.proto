@@ -37,8 +37,6 @@ message EventGroup {
         string brand = 1 [(google.api.field_behavior) = REQUIRED];
         // The name of the campaign.
         string campaign = 2 [(google.api.field_behavior) = REQUIRED];
-        // The ad account associated with the EventGroup.
-        string ad_account = 3;
       }
       // Metadata the pertains to a campaign that is entailed by the EventGroup.
       CampaignMetadata campaign_metadata = 1
@@ -82,10 +80,9 @@ message EventGroup {
   google.type.Interval data_availability_interval = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Resource name of the `MeasurementConsumer` from the CMMS public API
+  // Resource name of the `MeasurementConsumer` from the CMMS public API.
   //
-  // Either `measurement_consumer` or `ad_account` in CampaignMetadata must be
-  // populated.
+  // Required if `client_account_reference_id` is not specified.
   string measurement_consumer = 4 [
     (google.api.resource_reference).type =
         "halo.wfanet.org/MeasurementConsumer"
@@ -93,6 +90,11 @@ message EventGroup {
 
   // The MediaTypes of the events entailed by this `EventGroup`
   repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // Reference ID for the client account in the DataProvider's ecosystem.
+  //
+  // Required if `measurement_consumer` is not specified.
+  string client_account_reference_id = 6;
 }
 
 // The list of event groups for a data provider. Only used when input is json.
