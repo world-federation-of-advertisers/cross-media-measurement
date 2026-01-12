@@ -310,7 +310,7 @@ go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(
     goarch = "amd64",
     goos = "linux",
-    version = "1.24.0",
+    version = "1.24.11",
 )
 
 GO_GENPROTO_VERSION = "v0.0.0-20251124214823-79d6a2a48846"
