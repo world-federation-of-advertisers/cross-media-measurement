@@ -458,17 +458,6 @@ class ReportSummaryProcessor:
         " reach)"
     )
 
-def write_delimited(message, stream):
-  """Writes a delimited message to the stream.
-
-  Args:
-    message: The protobuf message to write.
-    stream: The stream to write to.
-  """
-  serialized = message.SerializeToString()
-  stream.write(_VarintBytes(len(serialized)))
-  stream.write(serialized)
-
 def main(argv):
   # Sends the log to stderr.
   FLAGS.logtostderr = True
@@ -484,7 +473,8 @@ def main(argv):
 
   report_summary = report_summary_pb2.ReportSummary()
 
-  logging.info("Reading the report summary.")
+  logging.info(
+    "Reading the report summary from the input file %s.", FLAGS.input_file)
   with open(FLAGS.input_file, 'rb') as f:
     report_summary.ParseFromString(f.read())
 
@@ -493,10 +483,13 @@ def main(argv):
       report_summary).process()
 
   logging.info(
-      "Sending serialized ReportPostProcessorResult to the parent program."
+    "Writing the report post processor result to the output file %s.",
+     FLAGS.output_file,
   )
+  serialized_result = report_post_processor_result.SerializeToString()
   with open(FLAGS.output_file, 'wb') as f:
-    write_delimited(report_post_processor_result, f)
+    f.write(serialized_result)
+
   sys.exit(0)
 
 

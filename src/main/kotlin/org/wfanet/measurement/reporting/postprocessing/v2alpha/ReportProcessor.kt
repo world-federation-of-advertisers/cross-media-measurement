@@ -93,17 +93,6 @@ interface ReportProcessor {
     fun createStorageClient(projectId: String, bucketName: String): StorageClient
   }
 
-  /** A factory interface responsible for creating instances of [Process]. */
-  interface ProcessFactory {
-    /**
-     * Creates and starts a new process using the specified command.
-     *
-     * @param command The list of command arguments to execute.
-     * @return A [Process] object representing the started process.
-     */
-    fun createProcess(command: List<String>): Process
-  }
-
   /**
    * Processes a serialized [Report] and outputs a serialized consistent one.
    *
@@ -153,24 +142,10 @@ interface ReportProcessor {
     // Default storage factory instance.
     private val gcsStorageFactory = GcsStorageFactory()
 
-    // Default process factory.
-    private class DefaultProcessFactory : ProcessFactory {
-      override fun createProcess(command: List<String>): Process {
-        return ProcessBuilder(command).start()
-      }
-    }
-
-    // Default process factory instance.
-    private val defaultProcessFactory = DefaultProcessFactory()
-
     /**
      * The currently active [StorageFactory] that will be used to create [StorageClient] instances.
      */
     var currentStorageFactory: StorageFactory = gcsStorageFactory
-      internal set
-
-    /** The currently active [ProcessFactory] that will be used to create [Process] instances. */
-    var currentProcessFactory: ProcessFactory = defaultProcessFactory
       internal set
 
     /**
@@ -188,23 +163,6 @@ interface ReportProcessor {
     /** Resets the storage factory to GCS storage factory. */
     fun resetToGcsStorageFactory() {
       currentStorageFactory = gcsStorageFactory
-    }
-
-    /**
-     * Replaces the [currentProcessFactory] with a specific [ProcessFactory] implementation.
-     *
-     * This method is intended for testing purposes only.
-     *
-     * @param testFactory The [ProcessFactory] implementation to be used for subsequent [Process]
-     *   creations during a test.
-     */
-    fun setTestProcessFactory(testFactory: ProcessFactory) {
-      currentProcessFactory = testFactory
-    }
-
-    /** Resets the process factory to the default implementation. */
-    fun resetToDefaultProcessFactory() {
-      currentProcessFactory = defaultProcessFactory
     }
 
     /**
@@ -456,7 +414,7 @@ interface ReportProcessor {
         )
       }
 
-      val process = currentProcessFactory.createProcess(command)
+      val process = ProcessBuilder(command).start()
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
@@ -474,7 +432,7 @@ interface ReportProcessor {
       // Reads the report post processor result from the temporary file.
       val result: ReportPostProcessorResult =
         FileInputStream(tempOutputFile).use { inputStream ->
-          ReportPostProcessorResult.parseDelimitedFrom(inputStream)
+          ReportPostProcessorResult.parseFrom(inputStream)
         }
 
       logger.info { "Finished processing report summary.." }
