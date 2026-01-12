@@ -82,6 +82,43 @@ class ImpressionQualificationFilterMappingTest {
   }
 
   @Test
+  fun `processing valid config with no filter specs returns instance`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    ImpressionQualificationFilterMapping(
+      impressionQualificationFilterConfig,
+      TestEvent.getDescriptor(),
+    )
+  }
+
+  @Test
+  fun `processing valid config with no filters returns instance`() {
+    val amiIqf = impressionQualificationFilter {
+      externalImpressionQualificationFilterId = "ami"
+      impressionQualificationFilterId = 1
+      filterSpecs += impressionQualificationFilterSpec {
+        mediaType = MediaType.DISPLAY
+      }
+    }
+
+    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
+      impressionQualificationFilters += amiIqf
+    }
+
+    ImpressionQualificationFilterMapping(
+      impressionQualificationFilterConfig,
+      TestEvent.getDescriptor(),
+    )
+  }
+
+  @Test
   fun `processing config fails when missing external id`() {
     val amiIqf = impressionQualificationFilter {
       impressionQualificationFilterId = 1
@@ -494,28 +531,5 @@ class ImpressionQualificationFilterMappingTest {
       }
 
     assertThat(exception.message).contains("Duplicate MediaType")
-  }
-
-  @Test
-  fun `processing config fails when spec missing filters`() {
-    val amiIqf = impressionQualificationFilter {
-      externalImpressionQualificationFilterId = "ami"
-      impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
-    }
-
-    val impressionQualificationFilterConfig = impressionQualificationFilterConfig {
-      impressionQualificationFilters += amiIqf
-    }
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        ImpressionQualificationFilterMapping(
-          impressionQualificationFilterConfig,
-          TestEvent.getDescriptor(),
-        )
-      }
-
-    assertThat(exception.message).contains("Invalid impression qualification filter spec")
   }
 }

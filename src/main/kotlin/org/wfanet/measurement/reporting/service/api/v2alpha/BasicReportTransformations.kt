@@ -167,46 +167,50 @@ fun buildCelExpression(
   impressionQualificationFilterSpecs: Iterable<ImpressionQualificationFilterSpec>,
   eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
 ): String {
-  val disjuncts =
-    impressionQualificationFilterSpecs.map { impressionQualificationFilterSpec ->
-      // Names of event templates that match the media type.
-      val templateNames: Set<String> = buildSet {
-        for ((path, fieldInfo) in eventTemplateFieldsByPath) {
-          require(impressionQualificationFilterSpec.mediaType != MediaType.MEDIA_TYPE_UNSPECIFIED)
-          if (
-            fieldInfo.mediaType == impressionQualificationFilterSpec.mediaType.toCmmsMediaType()
-          ) {
-            add(path.split('.').first())
+  return if (!impressionQualificationFilterSpecs.any()) {
+    ""
+  } else {
+    val disjuncts =
+      impressionQualificationFilterSpecs.map { impressionQualificationFilterSpec ->
+        // Names of event templates that match the media type.
+        val templateNames: Set<String> = buildSet {
+          for ((path, fieldInfo) in eventTemplateFieldsByPath) {
+            require(impressionQualificationFilterSpec.mediaType != MediaType.MEDIA_TYPE_UNSPECIFIED)
+            if (
+              fieldInfo.mediaType == impressionQualificationFilterSpec.mediaType.toCmmsMediaType()
+            ) {
+              add(path.split('.').first())
+            }
           }
         }
-      }
 
-      buildList {
+        buildList {
           for (templateName in templateNames.sorted()) {
             add("$templateName != null")
           }
 
           for (eventFilter in
-            Normalization.normalizeEventFilters(
-              impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
-            )) {
+          Normalization.normalizeEventFilters(
+            impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
+          )) {
             val term: InternalEventTemplateField = eventFilter.termsList.single()
             val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
             add("${term.path} == $termValue")
           }
         }
-        .joinToString(" && ")
-    }
+          .joinToString(" && ")
+      }
 
-  return if (disjuncts.isEmpty()) {
-    ""
-  } else if (disjuncts.size == 1) {
-    disjuncts.single()
-  } else {
-    disjuncts.sorted().joinToString(" || ") { expression ->
-      // This isn't strictly necessary as `&&` should bind before `||`, but it helps make the
-      // resulting expression more readable.
-      "($expression)"
+    return if (disjuncts.isEmpty()) {
+      ""
+    } else if (disjuncts.size == 1) {
+      disjuncts.single()
+    } else {
+      disjuncts.sorted().joinToString(" || ") { expression ->
+        // This isn't strictly necessary as `&&` should bind before `||`, but it helps make the
+        // resulting expression more readable.
+        "($expression)"
+      }
     }
   }
 }

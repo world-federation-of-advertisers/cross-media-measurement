@@ -2954,12 +2954,6 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           displayName = "ami"
           filterSpecs += impressionQualificationFilterSpec {
             mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = false }
-              }
-            }
           }
         }
       )
