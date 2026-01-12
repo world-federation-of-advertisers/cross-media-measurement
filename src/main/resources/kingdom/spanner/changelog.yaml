@@ -114,5 +114,5 @@ databaseChangeLog:
     file: create-event-group-activities-table.sql
     relativeToChangeLogFile: true
 - include:
-    file: create-ad-accounts-table.sql
+    file: create-client-accounts-table.sql
     relativeToChangeLogFile: true
