@@ -763,6 +763,7 @@ class BasicReportsServiceTest {
         title = "title"
         reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
         metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        dimensionSpec = DimensionSpec.getDefaultInstance()
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
           component =
@@ -857,6 +858,7 @@ class BasicReportsServiceTest {
           title = "title"
           reportingUnit = reportingUnit { components += DATA_PROVIDER_KEY.toName() }
           metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = DimensionSpec.getDefaultInstance()
           resultGroupMetricSpec = resultGroupMetricSpec {
             populationSize = true
             component =
