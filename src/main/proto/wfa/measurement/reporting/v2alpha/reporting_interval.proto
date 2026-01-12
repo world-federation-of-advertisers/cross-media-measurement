@@ -59,7 +59,9 @@ message ReportingInterval {
   //
   // Ex: If `report_start_date` has year 2025, month 9, and day 3, this will be
   // a new `DateTime` with year 2025, month 9, day 3, hours set to the server
-  // default, and time_offset set to the server default.
+  // default, and time_offset set to the server default. Both hours and
+  // time_offset server defaults are set by server configuration and not
+  // related to the server system clock.
   google.type.DateTime effective_report_start = 3
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
