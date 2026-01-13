@@ -203,11 +203,14 @@ fun buildCelExpression(
   } else if (disjuncts.size == 1) {
     disjuncts.single()
   } else {
-    disjuncts.filter { it.isNotEmpty() }.sorted().joinToString(" || ") { expression ->
-      // This isn't strictly necessary as `&&` should bind before `||`, but it helps make the
-      // resulting expression more readable.
-      "($expression)"
-    }
+    disjuncts
+      .filter { it.isNotEmpty() }
+      .sorted()
+      .joinToString(" || ") { expression ->
+        // This isn't strictly necessary as `&&` should bind before `||`, but it helps make the
+        // resulting expression more readable.
+        "($expression)"
+      }
   }
 }
 
