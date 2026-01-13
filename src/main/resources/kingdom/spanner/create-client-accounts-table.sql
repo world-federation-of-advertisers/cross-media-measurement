@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset jojijacob:33
+-- changeset jojijacob:33 dbms:cloudspanner
 -- comment: Create ClientAccounts lookup table for EventGroupSync MC ID lookup.
 
 START BATCH DDL;
