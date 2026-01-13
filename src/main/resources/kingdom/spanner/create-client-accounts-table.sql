@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset jojijacob:create-client-accounts-table dbms:cloudspanner
+-- changeset jojijacob:33
 -- comment: Create ClientAccounts lookup table for EventGroupSync MC ID lookup.
 
 START BATCH DDL;
@@ -46,7 +46,7 @@ CREATE TABLE ClientAccounts (
 
   -- Reference ID for the account in the DataProvider's ecosystem.
   -- Provided by the operator, used for lookups by EventGroupSync.
-  ClientAccountReferenceId STRING(MAX) NOT NULL,
+  ClientAccountReferenceId STRING(36) NOT NULL,
 
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
