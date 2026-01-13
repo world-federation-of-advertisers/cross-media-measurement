@@ -60,3 +60,6 @@ databaseChangeLog:
 - include:
     file: update-proto-bundle-for-basic-report-results-changes-from-int32-to-int64.sql
     relativeToChangeLogFile: true
+- include:
+    file: update-proto-bundle-for-reporting-interval-report-start.sql
+    relativeToChangeLogFile: true    

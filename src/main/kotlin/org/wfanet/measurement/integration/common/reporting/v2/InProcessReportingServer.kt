@@ -339,7 +339,8 @@ class InProcessReportingServer(
                 SecureRandom().asKotlinRandom(),
                 authorization,
                 measurementConsumerConfigs,
-                emptyList(),
+                defaultReportStartHour = null,
+                baseExternalImpressionQualificationFilterIds = emptyList(),
               )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(

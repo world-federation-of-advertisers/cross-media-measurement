@@ -27,6 +27,9 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import java.io.File
 import java.security.SecureRandom
 import java.time.Duration
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.TimeZone
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -119,18 +122,6 @@ private object V2AlphaPublicApiServer {
     @CommandLine.Mixin v2AlphaPublicServerFlags: V2AlphaPublicServerFlags,
     @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
     @CommandLine.Mixin eventMessageFlags: EventMessageFlags,
-    @CommandLine.Option(
-      names = ["--system-measurement-consumer"],
-      description =
-        [
-          "Resource name of the CMMS MeasurementConsumer for the Reporting system.",
-          "Defaults to an arbitrary MeasurementConsumer.",
-          "This is used for CMMS API calls where the MeasurementConsumer is not specified.",
-        ],
-      required = false,
-      defaultValue = CommandLine.Option.NULL_VALUE,
-    )
-    systemMeasurementConsumerName: String?,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -180,10 +171,12 @@ private object V2AlphaPublicApiServer {
         MeasurementConsumerConfigs.getDefaultInstance(),
       )
     val systemMeasurementConsumerConfig: MeasurementConsumerConfig =
-      if (systemMeasurementConsumerName == null) {
+      if (reportingApiServerFlags.systemMeasurementConsumerName == null) {
         measurementConsumerConfigs.configsMap.values.first()
       } else {
-        measurementConsumerConfigs.configsMap.getValue(systemMeasurementConsumerName)
+        measurementConsumerConfigs.configsMap.getValue(
+          reportingApiServerFlags.systemMeasurementConsumerName
+        )
       }
 
     val internalMeasurementConsumersBlockingStub =
@@ -331,6 +324,40 @@ private object V2AlphaPublicApiServer {
         .build()
         .withShutdownTimeout(Duration.ofSeconds(30))
 
+    val defaultReportStart = reportingApiServerFlags.defaultReportStart
+
+    val defaultReportStartHour: BasicReportsService.ZonedHour? =
+      if (defaultReportStart != null) {
+        if (defaultReportStart.hour < 0) {
+          throw IllegalArgumentException("--default-report-start-hour must be at least 0")
+        }
+        val defaultTimeZoneFlag = defaultReportStart.timeOffset.timeZone
+        val zoneId: ZoneId =
+          if (defaultTimeZoneFlag != null) {
+            if (!TimeZone.getAvailableIDs().toSet().contains(defaultTimeZoneFlag)) {
+              throw IllegalArgumentException("--default-report-start-time-zone is invalid")
+            }
+            ZoneId.of(defaultTimeZoneFlag)
+          } else {
+            val defaultUtcOffsetFlag = defaultReportStart.timeOffset.utcOffset
+            if (defaultUtcOffsetFlag != null) {
+              if (
+                defaultUtcOffsetFlag.seconds < -18 * 60 * 60 || defaultUtcOffsetFlag.seconds > 18
+              ) {
+                throw IllegalArgumentException("--default-report-start-utc-offset is invalid")
+              }
+              ZoneOffset.ofTotalSeconds(defaultUtcOffsetFlag.seconds.toInt())
+            } else {
+              // One of timeZone or utcOffset must be set. This is only reached if that incorrectly
+              // changes.
+              ZoneId.systemDefault()
+            }
+          }
+        BasicReportsService.ZonedHour(hour = defaultReportStart.hour, zoneId = zoneId)
+      } else {
+        null
+      }
+
     val services: List<ServerServiceDefinition> =
       listOf(
         DataProvidersService(
@@ -402,6 +429,7 @@ private object V2AlphaPublicApiServer {
             SecureRandom().asKotlinRandom(),
             authorization,
             measurementConsumerConfigs,
+            defaultReportStartHour,
             baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
             serviceDispatcher,
           )
