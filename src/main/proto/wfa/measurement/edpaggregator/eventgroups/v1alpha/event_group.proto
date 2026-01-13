@@ -83,10 +83,8 @@ message EventGroup {
   // Resource name of the `MeasurementConsumer` from the CMMS public API.
   //
   // Required if `client_account_reference_id` is not specified.
-  string measurement_consumer = 4 [
-    (google.api.resource_reference).type =
-        "halo.wfanet.org/MeasurementConsumer"
-  ];
+  string measurement_consumer = 4 [(google.api.resource_reference).type =
+                                       "halo.wfanet.org/MeasurementConsumer"];
 
   // The MediaTypes of the events entailed by this `EventGroup`
   repeated MediaType media_types = 5 [(google.api.field_behavior) = REQUIRED];
