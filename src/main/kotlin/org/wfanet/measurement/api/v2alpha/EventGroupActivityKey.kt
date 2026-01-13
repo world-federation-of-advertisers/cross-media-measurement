@@ -25,13 +25,14 @@ data class EventGroupActivityKey(
 ) : ChildResourceKey {
   val dataProviderId: String
     get() = parentKey.dataProviderId
+
   val eventGroupId: String
     get() = parentKey.eventGroupId
 
   constructor(
     dataProviderId: String,
     eventGroupId: String,
-    eventGroupActivityId: String
+    eventGroupActivityId: String,
   ) : this(EventGroupKey(dataProviderId, eventGroupId), eventGroupActivityId)
 
   override fun toName(): String {
