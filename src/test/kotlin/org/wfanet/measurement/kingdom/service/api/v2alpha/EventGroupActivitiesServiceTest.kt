@@ -91,6 +91,7 @@ class EventGroupActivitiesServiceTest {
           name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-10-10"
           date = activityDate
         }
+        allowMissing = true
       }
     }
 
@@ -147,6 +148,7 @@ class EventGroupActivitiesServiceTest {
           name = "$EVENT_GROUP_NAME/eventGroupActivities/2023-02-02"
           date = activityDate
         }
+        allowMissing = false
       }
     }
 
@@ -173,7 +175,7 @@ class EventGroupActivitiesServiceTest {
           externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
           requests += internalUpdateEventGroupActivityRequest {
             eventGroupActivity = createInternalEventGroupActivity(activityDate)
-            allowMissing = true
+            allowMissing = false
           }
         }
       )
