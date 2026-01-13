@@ -25,10 +25,12 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.ExchangeStepAttemptKey
 import org.wfanet.panelmatch.client.deploy.testing.TestProductionExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
+import org.wfanet.panelmatch.client.exchangetasks.PreprocessEventsTask
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflow
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyOptions
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.copyToSharedStorageStep
+import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.StepKt.preprocessEventsStep
 import org.wfanet.panelmatch.client.internal.ExchangeWorkflowKt.step
 import org.wfanet.panelmatch.client.internal.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
@@ -84,6 +86,23 @@ class ProductionExchangeTaskMapperTest {
   fun `map export task with too many inputs`() = runBlockingTest {
     val context = ExchangeContext(ATTEMPT_KEY, DATE, WORKFLOW, WORKFLOW.getSteps(4))
     assertFailsWith<IllegalArgumentException> { exchangeTaskMapper.getExchangeTaskForStep(context) }
+  }
+
+  @Test
+  fun `map preprocess events with AUTHORIZED_VIEW protocol`() = runBlockingTest {
+    val workflow = exchangeWorkflow {
+      steps += inputStep("input" to "data")
+      steps += step {
+        this.preprocessEventsStep = preprocessEventsStep {
+          protocol = ExchangeWorkflow.Step.PreprocessEventsStep.PreprocessProtocol.AUTHORIZED_VIEW
+        }
+      }
+    }
+    val context = ExchangeContext(ATTEMPT_KEY, DATE, workflow, workflow.getSteps(1))
+    val exchangeTask = exchangeTaskMapper.getExchangeTaskForStep(context)
+
+    // AUTHORIZED_VIEW protocol should use PreprocessEventsTask
+    assertThat(exchangeTask).isInstanceOf(PreprocessEventsTask::class.java)
   }
 
   companion object {
