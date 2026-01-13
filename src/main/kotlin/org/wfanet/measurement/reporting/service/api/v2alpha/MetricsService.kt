@@ -175,6 +175,7 @@ import org.wfanet.measurement.measurementconsumer.stats.NoiseMechanism as StatsN
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
+import org.wfanet.measurement.measurementconsumer.stats.TrusTeeMethodology
 import org.wfanet.measurement.measurementconsumer.stats.Variances
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
@@ -2905,6 +2906,9 @@ fun buildStatsMethodology(frequencyResult: InternalMeasurement.Result.Frequency)
         frequencyVectorSize = frequencyResult.honestMajorityShareShuffle.frequencyVectorSize
       )
     }
+    InternalMeasurement.Result.Frequency.MethodologyCase.TRUS_TEE -> {
+      TrusTeeMethodology(frequencyVectorSize = frequencyResult.trusTee.frequencyVectorSize)
+    }
     InternalMeasurement.Result.Frequency.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Methodology not set.")
     }
@@ -3157,6 +3161,9 @@ fun buildStatsMethodology(reachResult: InternalMeasurement.Result.Reach): Method
       HonestMajorityShareShuffleMethodology(
         frequencyVectorSize = reachResult.honestMajorityShareShuffle.frequencyVectorSize
       )
+    }
+    InternalMeasurement.Result.Reach.MethodologyCase.TRUS_TEE -> {
+      TrusTeeMethodology(frequencyVectorSize = reachResult.trusTee.frequencyVectorSize)
     }
     InternalMeasurement.Result.Reach.MethodologyCase.METHODOLOGY_NOT_SET -> {
       throw MeasurementVarianceNotComputableException("Methodology not set.")

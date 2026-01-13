@@ -121,7 +121,7 @@ fun AsyncDatabaseClient.TransactionContext.insertReportingSetResult(
   metricFrequencySpecFingerprint: Long,
   groupingDimensionFingerprint: Long,
   filterFingerprint: Long?,
-  populationSize: Int,
+  populationSize: Long,
 ) {
   bufferInsertMutation("ReportingSetResults") {
     set("MeasurementConsumerId").to(measurementConsumerId)
@@ -237,7 +237,7 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
             cmmsMeasurementConsumerId = row.getString("CmmsMeasurementConsumerId")
             externalReportResultId = row.getLong("ExternalReportResultId")
             externalReportingSetResultId = row.getLong("ExternalReportingSetResultId")
-            populationSize = row.getLong("PopulationSize").toInt()
+            populationSize = row.getLong("PopulationSize")
             metricFrequencySpecFingerprint = row.getLong("MetricFrequencySpecFingerprint")
             groupingDimensionFingerprint = row.getLong("GroupingDimensionFingerprint")
             if (!row.isNull("FilterFingerprint")) {

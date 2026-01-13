@@ -407,6 +407,8 @@ class RequisitionFulfillmentServiceTest {
             RequisitionDetailsKt.requisitionProtocol {
               trusTee =
                 RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  dataFormat =
+                    RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
                   populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                 }
             }
@@ -457,6 +459,9 @@ class RequisitionFulfillmentServiceTest {
             RequisitionDetailsKt.requisitionProtocol {
               trusTee =
                 RequisitionDetailsKt.RequisitionProtocolKt.trusTee {
+                  dataFormat =
+                    RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
+                      .ENCRYPTED_FREQUENCY_VECTOR
                   encryptedDekCiphertext = ENCRYPTED_DEK_DATA
                   kmsKekUri = KMS_KEK_URI
                   workloadIdentityProvider = WORKLOAD_IDENTITY_PROVIDER

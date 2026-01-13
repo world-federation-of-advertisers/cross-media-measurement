@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.type.DateTime
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -100,6 +101,7 @@ fun BasicReport.toInternal(
     Iterable<ReportingImpressionQualificationFilter>,
   impressionQualificationFilterSpecsByName: Map<String, List<ImpressionQualificationFilterSpec>>,
   effectiveModelLine: String,
+  effectiveReportStart: DateTime,
 ): InternalBasicReport {
   val source = this
   return internalBasicReport {
@@ -118,7 +120,12 @@ fun BasicReport.toInternal(
           it.toInternal(impressionQualificationFilterSpecsByName)
         }
       reportingInterval = internalReportingInterval {
-        reportStart = source.reportingInterval.reportStart
+        if (source.reportingInterval.hasReportStart()) {
+          reportStart = source.reportingInterval.reportStart
+        } else {
+          reportStartDate = source.reportingInterval.reportStartDate
+        }
+        this.effectiveReportStart = effectiveReportStart
         reportEnd = source.reportingInterval.reportEnd
       }
       for (resultGroupSpec in source.resultGroupSpecsList) {
@@ -404,7 +411,16 @@ fun InternalBasicReport.toBasicReport(): BasicReport {
       ReportingSetKey(source.cmmsMeasurementConsumerId, source.externalCampaignGroupId).toName()
     campaignGroupDisplayName = source.campaignGroupDisplayName
     reportingInterval = reportingInterval {
-      reportStart = source.details.reportingInterval.reportStart
+      if (source.details.reportingInterval.hasReportStart()) {
+        reportStart = source.details.reportingInterval.reportStart
+      } else {
+        reportStartDate = source.details.reportingInterval.reportStartDate
+      }
+      if (source.details.reportingInterval.hasEffectiveReportStart()) {
+        effectiveReportStart = source.details.reportingInterval.effectiveReportStart
+      } else {
+        effectiveReportStart = source.details.reportingInterval.reportStart
+      }
       reportEnd = source.details.reportingInterval.reportEnd
     }
     for (internalImpressionQualificationFilter in

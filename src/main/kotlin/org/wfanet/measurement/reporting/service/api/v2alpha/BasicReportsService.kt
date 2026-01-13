@@ -17,10 +17,16 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.util.Durations
+import com.google.type.DateTime
 import com.google.type.copy
+import com.google.type.dateTime
 import com.google.type.interval
+import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
@@ -123,9 +129,12 @@ class BasicReportsService(
   private val secureRandom: Random,
   private val authorization: Authorization,
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
+  private val defaultReportStartHour: ZonedHour? = null,
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
+  data class ZonedHour(val hour: Int, val zoneId: ZoneId)
+
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
 
@@ -168,6 +177,7 @@ class BasicReportsService(
         CreateBasicReportRequestValidation.validateRequest(
           request,
           campaignGroup,
+          defaultReportStartHour != null,
           eventTemplateFieldsByPath,
         )
       } catch (e: RequiredFieldNotSetException) {
@@ -182,12 +192,35 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
+    val effectiveReportStart =
+      if (defaultReportStartHour != null) {
+        if (request.basicReport.reportingInterval.hasReportStartDate()) {
+          dateTime {
+            year = request.basicReport.reportingInterval.reportStartDate.year
+            month = request.basicReport.reportingInterval.reportStartDate.month
+            day = request.basicReport.reportingInterval.reportStartDate.day
+            hours = defaultReportStartHour.hour
+            val zoneId = defaultReportStartHour.zoneId
+            if (zoneId is ZoneOffset) {
+              utcOffset = Durations.fromSeconds(zoneId.totalSeconds.toLong())
+            } else {
+              timeZone = timeZone { id = zoneId.id }
+            }
+          }
+        } else {
+          request.basicReport.reportingInterval.reportStart
+        }
+      } else {
+        request.basicReport.reportingInterval.reportStart
+      }
+
     val reportingSetMaps: ReportingSetMaps = buildReportingSetMaps(campaignGroup, campaignGroupKey)
     val effectiveModelLine: ModelLine? =
       try {
         getEffectiveModelLine(
           request.basicReport.modelLine,
           request.basicReport.reportingInterval,
+          effectiveReportStart,
           reportingSetMaps.primitiveReportingSetsByDataProvider.keys,
           parentKey,
         )
@@ -296,6 +329,7 @@ class BasicReportsService(
                   effectiveReportingImpressionQualificationFilters,
                 impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
                 effectiveModelLine = effectiveModelLine?.name.orEmpty(),
+                effectiveReportStart = effectiveReportStart,
               )
             requestId = request.requestId
           }
@@ -346,6 +380,7 @@ class BasicReportsService(
         reportingSetMaps.nameByReportingSetComposite,
         reportingSetsMetricCalculationSpecDetailsMap,
         effectiveModelLine?.name.orEmpty(),
+        effectiveReportStart,
       )
 
     val createReportRequest = createReportRequest {
@@ -412,6 +447,7 @@ class BasicReportsService(
   private suspend fun getEffectiveModelLine(
     requestModelLine: String,
     reportingInterval: ReportingInterval,
+    effectiveReportStart: DateTime,
     dataProviderNames: Iterable<String>,
     measurementConsumerKey: MeasurementConsumerKey,
   ): ModelLine? {
@@ -432,9 +468,9 @@ class BasicReportsService(
               enumerateValidModelLinesRequest {
                 parent = ModelSuiteKey(ResourceKey.WILDCARD_ID, ResourceKey.WILDCARD_ID).toName()
                 timeInterval = interval {
-                  startTime = reportingInterval.reportStart.toTimestamp()
+                  startTime = effectiveReportStart.toTimestamp()
                   endTime =
-                    reportingInterval.reportStart
+                    effectiveReportStart
                       .copy {
                         day = reportingInterval.reportEnd.day
                         month = reportingInterval.reportEnd.month
@@ -831,6 +867,7 @@ class BasicReportsService(
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    * @param modelLine The model line to use for the report.
+   * @param effectiveReportStart The report start to use for the report.
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -839,6 +876,7 @@ class BasicReportsService(
     reportingSetMetricCalculationSpecDetailsMap:
       Map<ReportingSet, List<InternalMetricCalculationSpec.Details>>,
     modelLine: String,
+    effectiveReportStart: DateTime,
   ): Report {
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
@@ -901,7 +939,7 @@ class BasicReportsService(
 
       reportingInterval =
         ReportKt.reportingInterval {
-          reportStart = basicReport.reportingInterval.reportStart
+          reportStart = effectiveReportStart
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }

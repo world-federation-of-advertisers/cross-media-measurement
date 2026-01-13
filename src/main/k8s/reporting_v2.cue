@@ -199,6 +199,8 @@ package k8s
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
 						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
+						"--default-report-start-time-zone=America/New_York",
+						"--default-report-start-hour=6",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
@@ -222,6 +224,16 @@ package k8s
 				ports: [{
 					containerPort: 8443
 				}]
+				readinessProbe: {
+					httpGet: {
+						path:   "/healthz"
+						port:   8443
+						scheme: "HTTPS"
+					}
+					failureThreshold:    12
+					timeoutSeconds:      2
+					initialDelaySeconds: 10
+				}
 			}
 
 			spec: template: spec: {
