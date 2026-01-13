@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.TimestampBound
-import com.google.type.Date
 import io.grpc.Status
 import java.time.DateTimeException
 import java.time.Duration
@@ -316,24 +315,20 @@ class SpannerEventGroupsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      validateDate(interval.startDate, "start_date")
-
       if (!interval.hasEndDate()) {
         throw RequiredFieldNotSetException("filter.activity_contains.end_date")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      validateDate(interval.endDate, "end_date")
-      
-      val startDate = 
+      val startDate =
         try {
           val date = interval.startDate
           LocalDate.of(date.year, date.month, date.day)
           date.toCloudDate()
-        } catch (e: DateTimeException) {
+        } catch (_: DateTimeException) {
           throw InvalidFieldValueException("filter.activity_contains.start_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
           throw InvalidFieldValueException("filter.activity_contains.start_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
@@ -343,10 +338,10 @@ class SpannerEventGroupsService(
           val date = interval.endDate
           LocalDate.of(date.year, date.month, date.day)
           date.toCloudDate()
-        } catch (e: DateTimeException) {
+        } catch (_: DateTimeException) {
           throw InvalidFieldValueException("filter.activity_contains.end_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
           throw InvalidFieldValueException("filter.activity_contains.end_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
@@ -362,24 +357,5 @@ class SpannerEventGroupsService(
     return StreamEventGroups(request.filter, request.orderBy, request.limit, request.view)
       .execute(client.singleUse(timestampBound))
       .map { it.eventGroup }
-  }
-
-  companion object {
-    private fun validateDate(date: Date, dateName: String) {
-      if (date.year == 0) {
-        throw InvalidFieldValueException("filter.activity_contains.$dateName.year")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (date.month == 0) {
-        throw InvalidFieldValueException("filter.activity_contains.$dateName.month")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-
-      if (date.day == 0) {
-        throw InvalidFieldValueException("filter.activity_contains.$dateName.day")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-    }
   }
 }

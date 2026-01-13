@@ -2339,8 +2339,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
                   }
                   endDate = date {
                     year = 2023
-                    month = 2
-                    day = 30 // Invalid date
+                    month = 13 // Invalid Month
+                    day = 30
                   }
                 }
               }
@@ -2409,7 +2409,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("filter.activity_contains.start_date.year")
+      assertThat(exception).hasMessageThat().contains("filter.activity_contains.start_date")
     }
 }
 
