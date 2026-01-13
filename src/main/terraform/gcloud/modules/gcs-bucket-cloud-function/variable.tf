@@ -65,3 +65,9 @@ variable "uber_jar_path" {
   type        = string
   nullable    = false
 }
+
+variable "trigger_event_type" {
+  description = "The GCS event type that triggers the Cloud Function."
+  type        = string
+  default     = "google.cloud.storage.object.v1.finalized"
+}
