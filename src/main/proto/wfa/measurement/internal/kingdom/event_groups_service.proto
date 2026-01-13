@@ -125,8 +125,8 @@ message StreamEventGroupsRequest {
     EventGroupKey event_group_key_after = 8 [deprecated = true];
 
     // Interval that must be fully contained by an
-    // [activity_summary.interval][EventGroup.AggregatedActivity.interval] in the
-    // [EventGroup][]. [start_date][DateInterval.start_date] and
+    // [activity_summary.interval][EventGroup.AggregatedActivity.interval] in
+    // the [EventGroup][]. [start_date][DateInterval.start_date] and
     // [end_date][DateInterval.end_date] are required.
     DateInterval activity_contains = 16;
   }
