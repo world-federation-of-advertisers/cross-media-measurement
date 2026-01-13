@@ -220,7 +220,8 @@ object EventFilterValidator {
       } catch (e: Exception) {
         throw EventFilterValidationException(
           EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
-          e.message ?: "Compiling expression threw an unexpected exception",
+          "Failed to compile CEL expression $celExpression",
+          e,
         )
       }
     failOnInvalidExpression(astAndIssues.issues)
