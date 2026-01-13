@@ -199,6 +199,8 @@ package k8s
 						"--base-impression-qualification-filter=impressionQualificationFilters/ami",
 						"--base-impression-qualification-filter=impressionQualificationFilters/mrc",
 						"--pdp-name=\(_populationDataProviderName)",
+						"--default-report-start-time-zone=America/New_York",
+						"--default-report-start-hour=6",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
