@@ -390,25 +390,19 @@ interface ReportProcessor {
         try {
           File.createTempFile("report_summary", ".binpb").apply { deleteOnExit() }
         } catch (e: IOException) {
-          throw ReportProcessorFailureException(
-            "Failed to create temporary input file.", e
-          )
+          throw ReportProcessorFailureException("Failed to create temporary input file.", e)
         }
       val tempOutputFile: File =
         try {
           File.createTempFile("report_post_processor_result", ".binpb").apply { deleteOnExit() }
         } catch (e: IOException) {
-          throw ReportProcessorFailureException(
-            "Failed to create temporary output file.", e
-          )
+          throw ReportProcessorFailureException("Failed to create temporary output file.", e)
         }
 
       try {
         tempInputFile.outputStream().use { reportSummary.writeTo(it) }
       } catch (e: IOException) {
-        throw ReportProcessorFailureException(
-          "Failed to write to temporary input file.", e
-        )
+        throw ReportProcessorFailureException("Failed to write to temporary input file.", e)
       }
 
       // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
