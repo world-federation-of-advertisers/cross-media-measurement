@@ -23,3 +23,33 @@ variable "location" {
   type        = string
   nullable    = false
 }
+
+variable "enable_lifecycle_rules" {
+  description = "Enable object lifecycle management rules"
+  type        = bool
+  default     = false
+}
+
+variable "retention_days" {
+  description = "Number of days to retain objects after Custom-Time"
+  type        = number
+  default     = 90
+}
+
+variable "lifecycle_prefix" {
+  description = "Prefix to match for lifecycle rules (e.g., impression storage prefix)"
+  type        = string
+  default     = ""
+}
+
+variable "enable_fallback_lifecycle_rule" {
+  description = "Enable fallback lifecycle rule for objects without Custom-Time"
+  type        = bool
+  default     = true
+}
+
+variable "fallback_retention_days" {
+  description = "Number of days to retain objects after upload (safety net for objects without Custom-Time)"
+  type        = number
+  default     = 90
+}
