@@ -630,6 +630,21 @@ class ApiKeyNotFoundException(
     get() = mapOf("external_api_key_id" to externalApiKeyId.value.toString())
 }
 
+class EventGroupActivityNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalEventGroupId: ExternalId,
+  val activityDate: Date,
+  provideDescription: () -> String = { "EventGroupActivity not found" },
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_ACTIVITY_NOT_FOUND, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.value.toString(),
+        "external_event_group_id" to externalEventGroupId.value.toString(),
+        "event_group_activity_date" to activityDate.toLocalDate().toString(),
+      )
+}
+
 class EventGroupNotFoundException(
   val externalDataProviderId: ExternalId,
   val externalEventGroupId: ExternalId,
