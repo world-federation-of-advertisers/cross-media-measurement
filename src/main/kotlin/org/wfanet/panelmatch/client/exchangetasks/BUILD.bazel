@@ -13,6 +13,7 @@ kt_jvm_library(
     name = "exchangetasks",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/authorizedview",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
@@ -23,6 +24,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
+        "//src/main/proto/wfa/panelmatch/client/authorizedview:encrypted_event_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/internal:exchange_step_attempt_kt_jvm_proto",
