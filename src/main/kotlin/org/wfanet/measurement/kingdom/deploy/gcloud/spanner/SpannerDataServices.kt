@@ -43,6 +43,7 @@ class SpannerDataServices(
         knownEventGroupMetadataTypes,
         coroutineContext,
       ),
+      SpannerEventGroupActivitiesService(idGenerator, client, coroutineContext),
       SpannerEventGroupsService(idGenerator, client, maxEventGroupReadStaleness, coroutineContext),
       SpannerMeasurementConsumersService(idGenerator, client, coroutineContext),
       SpannerMeasurementsService(idGenerator, client, coroutineContext),
