@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
@@ -320,28 +319,26 @@ class SpannerEventGroupsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      val startDate =
+      val startDate: LocalDate =
         try {
           val date = interval.startDate
+          if (date.year <= 0) {
+            throw DateTimeException("Year must be positive")
+          }
           LocalDate.of(date.year, date.month, date.day)
-          date.toCloudDate()
         } catch (_: DateTimeException) {
-          throw InvalidFieldValueException("filter.activity_contains.start_date")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        } catch (_: IllegalArgumentException) {
           throw InvalidFieldValueException("filter.activity_contains.start_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-      val endDate =
+      val endDate: LocalDate =
         try {
           val date = interval.endDate
+          if (date.year <= 0) {
+            throw DateTimeException("Year must be positive")
+          }
           LocalDate.of(date.year, date.month, date.day)
-          date.toCloudDate()
         } catch (_: DateTimeException) {
-          throw InvalidFieldValueException("filter.activity_contains.end_date")
-            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-        } catch (_: IllegalArgumentException) {
           throw InvalidFieldValueException("filter.activity_contains.end_date")
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
