@@ -16,12 +16,8 @@ package org.wfanet.measurement.reporting.postprocessing.v2alpha
 
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.Timestamp
-import java.io.BufferedReader
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStreamReader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -389,37 +385,46 @@ interface ReportProcessor {
     ): ReportPostProcessorResult {
       logger.info { "Start processing report summary.." }
 
-      // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
-      val command = mutableListOf("python3", tempFile.toPath().toString())
-
-      // Sets verbosity for python program.
-      if (verbose) {
-        command.add("--debug")
-      }
-
-      var tempInputFile: File? = null
-      var tempOutputFile: File? = null
+      val tempInputFile: File =
+        try {
+          File.createTempFile("report_summary", ".binpb").apply { deleteOnExit() }
+        } catch (e: IOException) {
+          throw ReportProcessorFailureException(
+            "Failed to create temporary input file: ${e.message}"
+          )
+        }
+      val tempOutputFile: File =
+        try {
+          File.createTempFile("report_post_processor_result", ".binpb").apply { deleteOnExit() }
+        } catch (e: IOException) {
+          throw ReportProcessorFailureException(
+            "Failed to create temporary output file: ${e.message}"
+          )
+        }
 
       try {
-        tempInputFile = File.createTempFile("report_summary", ".pb").apply { deleteOnExit() }
-        FileOutputStream(tempInputFile).use { reportSummary.writeTo(it) }
-        command.add("--input_file=${tempInputFile.absolutePath}")
-
-        tempOutputFile =
-          File.createTempFile("report_post_processor_result", ".pb").apply { deleteOnExit() }
-        command.add("--output_file=${tempOutputFile.absolutePath}")
+        tempInputFile.outputStream().use { reportSummary.writeTo(it) }
       } catch (e: IOException) {
         throw ReportProcessorFailureException(
-          "Failed to create or access temporary files: ${e.message}"
+          "Failed to write to temporary input file: ${e.message}"
         )
       }
 
+      // TODO(bazelbuild/bazel#17629): Execute the Python zip directly once this bug is fixed.
+      val command = buildList {
+        add("python3")
+        add(tempFile.toPath().toString())
+        if (verbose) {
+          add("--debug")
+        }
+        add("--input_file=${tempInputFile.absolutePath}")
+        add("--output_file=${tempOutputFile.absolutePath}")
+      }
       val process = ProcessBuilder(command).start()
 
       // Logs from python program, which are written to stderr, are read and re-logged. When
       // encountering an error or a critical log, throws a RuntimeException.
-      val processError =
-        BufferedReader(InputStreamReader(process.errorStream)).use { it.readText() }
+      val processError = process.errorStream.bufferedReader().use { it.readText() }
 
       val exitCode = process.waitFor()
 
@@ -431,7 +436,7 @@ interface ReportProcessor {
 
       // Reads the report post processor result from the temporary file.
       val result: ReportPostProcessorResult =
-        FileInputStream(tempOutputFile).use { inputStream ->
+        tempOutputFile.inputStream().use { inputStream ->
           ReportPostProcessorResult.parseFrom(inputStream)
         }
 
