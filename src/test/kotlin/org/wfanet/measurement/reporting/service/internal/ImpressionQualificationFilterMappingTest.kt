@@ -103,9 +103,7 @@ class ImpressionQualificationFilterMappingTest {
     val amiIqf = impressionQualificationFilter {
       externalImpressionQualificationFilterId = "ami"
       impressionQualificationFilterId = 1
-      filterSpecs += impressionQualificationFilterSpec {
-        mediaType = MediaType.DISPLAY
-      }
+      filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
     }
 
     val impressionQualificationFilterConfig = impressionQualificationFilterConfig {

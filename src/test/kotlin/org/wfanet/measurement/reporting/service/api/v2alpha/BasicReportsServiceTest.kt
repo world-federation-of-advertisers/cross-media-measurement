@@ -755,8 +755,7 @@ class BasicReportsServiceTest {
       }
       impressionQualificationFilters += reportingImpressionQualificationFilter {
         custom =
-          ReportingImpressionQualificationFilter
-            .CustomImpressionQualificationFilterSpec
+          ReportingImpressionQualificationFilter.CustomImpressionQualificationFilterSpec
             .getDefaultInstance()
       }
       resultGroupSpecs += resultGroupSpec {
@@ -768,10 +767,7 @@ class BasicReportsServiceTest {
           populationSize = true
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                }
+              nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
             }
         }
       }
@@ -849,9 +845,7 @@ class BasicReportsServiceTest {
         impressionQualificationFilters += reportingImpressionQualificationFilter {
           custom =
             ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              filterSpec += impressionQualificationFilterSpec {
-                mediaType = MediaType.DISPLAY
-              }
+              filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
             }
         }
         resultGroupSpecs += resultGroupSpec {
@@ -863,10 +857,7 @@ class BasicReportsServiceTest {
             populationSize = true
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
-                nonCumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                  }
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
               }
           }
         }
@@ -878,7 +869,8 @@ class BasicReportsServiceTest {
         basicReportId = "a1234"
       }
 
-      val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
       assertThat(response)
         .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
@@ -887,7 +879,8 @@ class BasicReportsServiceTest {
             name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
             campaignGroupDisplayName = campaignGroup.displayName
             state = BasicReport.State.RUNNING
-            effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
+            effectiveImpressionQualificationFilters +=
+              basicReport.impressionQualificationFiltersList
           }
         )
       assertThat(response.createTime.seconds).isAtLeast(1)
@@ -4592,7 +4585,7 @@ class BasicReportsServiceTest {
             impressionQualificationFilters += reportingImpressionQualificationFilter {
               custom =
                 ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-                  filterSpec += impressionQualificationFilterSpec { }
+                  filterSpec += impressionQualificationFilterSpec {}
                 }
             }
           }

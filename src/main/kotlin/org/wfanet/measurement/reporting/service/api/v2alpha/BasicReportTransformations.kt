@@ -185,19 +185,19 @@ fun buildCelExpression(
         }
 
         buildList {
-          for (templateName in templateNames.sorted()) {
-            add("$templateName != null")
-          }
+            for (templateName in templateNames.sorted()) {
+              add("$templateName != null")
+            }
 
-          for (eventFilter in
-          Normalization.normalizeEventFilters(
-            impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
-          )) {
-            val term: InternalEventTemplateField = eventFilter.termsList.single()
-            val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
-            add("${term.path} == $termValue")
+            for (eventFilter in
+              Normalization.normalizeEventFilters(
+                impressionQualificationFilterSpec.filtersList.map { it.toInternal() }
+              )) {
+              val term: InternalEventTemplateField = eventFilter.termsList.single()
+              val termValue = term.value.toCelValue(eventTemplateFieldsByPath.getValue(term.path))
+              add("${term.path} == $termValue")
+            }
           }
-        }
           .joinToString(" && ")
       }
 

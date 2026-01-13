@@ -2952,9 +2952,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
         impressionQualificationFilter {
           name = "impressionQualificationFilters/ami"
           displayName = "ami"
-          filterSpecs += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-          }
+          filterSpecs += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
         }
       )
   }

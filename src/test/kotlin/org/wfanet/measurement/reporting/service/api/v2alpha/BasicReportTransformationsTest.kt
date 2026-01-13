@@ -2944,7 +2944,7 @@ class BasicReportTransformationsTest {
           filter = "person.age_group == 1 && person.gender == 1"
           metricSpecs += metricSpec { reach = MetricSpecKt.reachParams {} }
           metricSpecs += metricSpec { populationCount = MetricSpecKt.populationCountParams {} }
-        },
+        }
       )
   }
 
