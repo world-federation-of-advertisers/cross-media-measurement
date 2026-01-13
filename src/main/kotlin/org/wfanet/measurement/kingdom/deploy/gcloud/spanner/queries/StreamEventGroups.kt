@@ -181,7 +181,8 @@ class StreamEventGroups(
               AND ActivityDate >= @$ACTIVITY_CONTAINS_START_DATE
               AND ActivityDate <= @$ACTIVITY_CONTAINS_END_DATE
           ) = DATE_DIFF(@$ACTIVITY_CONTAINS_END_DATE, @$ACTIVITY_CONTAINS_START_DATE, DAY) + 1
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(ACTIVITY_CONTAINS_START_DATE).to(filter.activityContains.startDate.toCloudDate())
         bind(ACTIVITY_CONTAINS_END_DATE).to(filter.activityContains.endDate.toCloudDate())
