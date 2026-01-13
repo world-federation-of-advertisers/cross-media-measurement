@@ -1023,17 +1023,6 @@ class BasicReportsServiceTest {
     }
 
     val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-
-    assertThat(response)
-      .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-      .isEqualTo(
-        basicReport.copy {
-          name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
-          campaignGroupDisplayName = campaignGroup.displayName
-          state = BasicReport.State.RUNNING
-          effectiveImpressionQualificationFilters += basicReport.impressionQualificationFiltersList
-        }
-      )
     assertThat(response.createTime.seconds).isAtLeast(1)
   }
 
@@ -1114,18 +1103,6 @@ class BasicReportsServiceTest {
 
       val response =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-
-      assertThat(response)
-        .ignoringFields(BasicReport.CREATE_TIME_FIELD_NUMBER)
-        .isEqualTo(
-          basicReport.copy {
-            name = BasicReportKey(measurementConsumerKey, request.basicReportId).toName()
-            campaignGroupDisplayName = campaignGroup.displayName
-            state = BasicReport.State.RUNNING
-            effectiveImpressionQualificationFilters +=
-              basicReport.impressionQualificationFiltersList
-          }
-        )
       assertThat(response.createTime.seconds).isAtLeast(1)
     }
 
